@@ -1,75 +1,68 @@
 # MoonBit Cloud
 
-MoonBit Cloud is an agent-first platform for building backend applications through conversation. End users should not need to know which language or framework powers their software. They describe what they want, the agent builds it, and the platform runs it behind a consumer-friendly preview.
+MoonBit Cloud is a chat-first local prototype for building MoonBit apps through conversation. The user works in one browser page, talks to the agent, and sees a live preview. Source code exists in the workspace, but it stays hidden in the default flow.
 
-The implementation target is MoonBit-first:
+## Current V1 Slice
 
-- user applications are written in MoonBit
-- templates and platform-facing SDKs are written in MoonBit
-- missing ecosystem pieces should be built as MoonBit libraries when needed
+The repo now implements the first real app-develop loop:
 
-The first version is a **local single-user prototype** focused on one narrow loop:
+1. create a project
+2. send a request in chat
+3. update a generated MoonBit workspace
+4. rebuild and restart the local preview
+5. show plain-English feedback plus a live preview URL
 
-1. pick a template or describe an app in chat
-2. let the agent create or modify the project
-3. run the app locally
-4. inspect the preview and plain-English feedback
-5. ask for changes in chat
+This slice is intentionally narrow:
 
-## Product Direction
+- desktop-first
+- local single-user only
+- no auth
+- no deploy
+- no code viewer
+- one project rail, one chat workspace, one live preview panel
 
-- Target user: AI-first indie builders
-- Product surface: browser-only, chat-first workspace
-- App scope: HTTP APIs only
-- User experience: code is an internal artifact, not the primary interface
-- Flagship demo: a multi-tenant todo app with durable storage
-- Success target: one demo video and twenty reusable templates
-
-## What This Is Not
-
-MoonBit Cloud v1 is not:
-
-- a general-purpose cloud IDE
-- a Replit-style terminal workspace
-- a collaboration product
-- a production-ready multi-tenant hosting system
-- a billing, team, or enterprise platform
-
-## Core Documents
-
-- [Product PRD](/Users/zhengyu/Documents/projects/moonbitcloud/docs/prd.md)
-- [Architecture](/Users/zhengyu/Documents/projects/moonbitcloud/docs/architecture.md)
-- [Agent Docs Plan](/Users/zhengyu/Documents/projects/moonbitcloud/docs/agent-docs.md)
-- [Templates Roadmap](/Users/zhengyu/Documents/projects/moonbitcloud/docs/templates-roadmap.md)
-- [Issue Tracker](/Users/zhengyu/Documents/projects/moonbitcloud/docs/issue-tracker.md)
-
-## Suggested Repo Shape
+## Workspace Layout
 
 ```text
 moonbitcloud/
-├── README.md
-├── docs/
-│   ├── prd.md
-│   ├── architecture.md
-│   ├── agent-docs.md
-│   ├── templates-roadmap.md
-│   └── issue-tracker.md
+├── moon.work
 ├── apps/
-│   └── web/                  # chat-first product surface
+│   └── web/                  # Rabbita frontend
 ├── services/
-│   ├── control-plane/        # projects, conversations, builds
-│   └── runner/               # compile and execute MoonBit apps
+│   └── control-plane/        # Mocket backend, SQLite, preview orchestration
 ├── packages/
-│   └── sdk/                  # request, response, context contracts
-├── knowledge/                # agent-readable platform docs
-└── examples/                 # working templates and sample apps
+│   └── sdk/                  # shared DTOs
+├── docs/
+├── knowledge/
+└── data/                     # local runtime state, generated projects, SQLite
 ```
 
-## What To Build First
+Generated user projects live under `data/projects/<project-id>/workspace/` and use a simple MoonBit full-stack shape:
 
-1. Freeze the app runtime contract for MoonBit HTTP handlers.
-2. Prove the runner can compile and execute a template app locally.
-3. Build a chat-first web shell with a project rail, workspace, and preview.
-4. Write the first knowledge documents from a working template.
+- `frontend/`
+- `backend/`
+- `shared/`
 
-The next concrete work queue lives in [docs/issue-tracker.md](/Users/zhengyu/Documents/projects/moonbitcloud/docs/issue-tracker.md).
+## Implementation Notes
+
+- `apps/web` renders the app-develop page with a left project rail, center chat workspace, and right preview panel.
+- `services/control-plane` persists `projects`, `messages`, and `runs` in SQLite.
+- Each successful run rebuilds the generated project and restarts a local preview server on a stable port.
+- `packages/sdk` defines the shared request and response payloads used by the frontend and control plane.
+
+The current `AgentGateway` is a local deterministic adapter that keeps the system runnable while preserving a clean seam for future Codex integration.
+
+## Core Docs
+
+- [Product PRD](/Users/zhengyu/Documents/projects/moonbitcloud/docs/prd.md)
+- [Architecture](/Users/zhengyu/Documents/projects/moonbitcloud/docs/architecture.md)
+- [Website Prototype](/Users/zhengyu/Documents/projects/moonbitcloud/docs/website-prototype.md)
+- [Agent Docs Plan](/Users/zhengyu/Documents/projects/moonbitcloud/docs/agent-docs.md)
+- [Issue Tracker](/Users/zhengyu/Documents/projects/moonbitcloud/docs/issue-tracker.md)
+
+## Next Major Steps
+
+1. replace the local `AgentGateway` adapter with real Codex-driven project editing
+2. extract preview execution into a dedicated runner boundary
+3. build the first durable multi-tenant todo template
+4. connect the knowledge base to real template validation

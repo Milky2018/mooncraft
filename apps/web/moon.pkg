@@ -1,0 +1,12 @@
+import {
+  "moonbitcloud/sdk" @sdk,
+  "moonbit-community/rabbita",
+  "moonbit-community/rabbita/html" @html,
+  "moonbit-community/rabbita/http" @http,
+}
+
+supported_targets = "js"
+
+options(
+  "is-main": true,
+)

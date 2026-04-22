@@ -1,0 +1,19 @@
+import {
+  "moonbitcloud/sdk" @sdk,
+  "oboard/mocket",
+  "moonbitlang/core/json",
+  "moonbitlang/core/env",
+  "moonbitlang/core/ref",
+  "moonbitlang/core/encoding/utf8" @utf8,
+  "moonbitlang/core/string",
+  "moonbitlang/x/fs",
+  "mizchi/sqlite",
+}
+
+supported_targets = "native"
+
+options(
+  "is-main": true,
+  link: { "native": { "cc-link-flags": "-lsqlite3" } },
+  "native-stub": [ "control_plane_process.c" ],
+)

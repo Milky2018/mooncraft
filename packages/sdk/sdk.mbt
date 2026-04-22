@@ -1,0 +1,106 @@
+///|
+pub(all) enum RunState {
+  Idle
+  Running
+  Succeeded
+  Failed
+} derive(Eq, Debug, ToJson, FromJson)
+
+///|
+pub(all) enum ChatRole {
+  User
+  Assistant
+  System
+} derive(Eq, Debug, ToJson, FromJson)
+
+///|
+pub(all) struct PreviewTarget {
+  url : String
+  port : Int
+  healthy : Bool
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct ProjectSummary {
+  id : String
+  display_name : String
+  status : RunState
+  preview : PreviewTarget?
+  current_run_id : String?
+  updated_at : String
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct ProjectDetail {
+  id : String
+  display_name : String
+  workspace_path : String
+  codex_thread_id : String?
+  status : RunState
+  preview : PreviewTarget?
+  current_run_id : String?
+  last_error : String?
+  created_at : String
+  updated_at : String
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct ChatMessage {
+  id : String
+  project_id : String
+  run_id : String?
+  role : ChatRole
+  content : String
+  created_at : String
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct RunStatusResponse {
+  run_id : String
+  project_id : String
+  state : RunState
+  summary : String?
+  error_message : String?
+  preview : PreviewTarget?
+  started_at : String
+  finished_at : String?
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct CreateProjectRequest {
+  display_name : String?
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct CreateProjectResponse {
+  project : ProjectDetail
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct SendMessageRequest {
+  content : String
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct SendMessageResponse {
+  run : RunStatusResponse
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub fn RunState::label(self : RunState) -> String {
+  match self {
+    Idle => "Idle"
+    Running => "Running"
+    Succeeded => "Ready"
+    Failed => "Needs attention"
+  }
+}
+
+///|
+pub fn ChatRole::label(self : ChatRole) -> String {
+  match self {
+    User => "You"
+    Assistant => "MoonBit Cloud"
+    System => "System"
+  }
+}

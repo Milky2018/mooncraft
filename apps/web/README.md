@@ -1,12 +1,19 @@
 # Web App
 
-This directory will contain the primary user-facing application.
+This module renders the current MoonBit Cloud workspace UI with Rabbita.
 
-Initial scope:
+The page is intentionally narrow:
 
-- chat with the agent
-- switch between projects
-- show a consumer-friendly preview
-- explain status and failures in plain English
+- left project rail
+- center chat workspace
+- right live preview panel
 
-The product should be chat-first. Code editing is not the primary interface, and deploy is out of scope for the first website prototype.
+Default UX rules:
+
+- desktop-first
+- code hidden
+- no deploy flow
+- plain-English errors
+- one obvious composer input
+
+The frontend talks only to the local control-plane APIs and shared DTOs in `packages/sdk`.

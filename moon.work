@@ -1,0 +1,5 @@
+members = [
+  "packages/sdk",
+  "services/control-plane",
+  "apps/web",
+]

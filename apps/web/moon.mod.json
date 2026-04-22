@@ -1,0 +1,13 @@
+{
+  "name": "moonbitcloud/web",
+  "version": "0.1.0",
+  "deps": {
+    "moonbitcloud/sdk": "0.1.0",
+    "moonbit-community/rabbita": "0.12.1"
+  },
+  "readme": "README.md",
+  "repository": "",
+  "license": "Apache-2.0",
+  "keywords": ["moonbit", "cloud", "frontend"],
+  "description": "MoonBit Cloud Rabbita frontend."
+}

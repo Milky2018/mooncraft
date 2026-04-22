@@ -2,157 +2,95 @@
 
 ## Product Summary
 
-MoonBit Cloud is an agent-first platform that lets non-technical or AI-first builders create backend applications by talking to an agent. The user should not need to know MoonBit, frameworks, or backend architecture. The platform should translate product intent into a working MoonBit application.
+MoonBit Cloud is an agent-first app builder for AI-first indie builders who do not want to choose languages, frameworks, or backend architecture. The user should describe intent in chat, wait briefly, and see a working app preview.
 
-The first version is a local single-user prototype for HTTP APIs only.
-
-## Problem
-
-Current AI coding tools still assume the user is willing to read code, choose frameworks, and debug infrastructure. That is too much for the target user.
-
-The product goal is to remove those decisions from the user-facing experience:
-
-- no framework selection
-- no visible code as the main interface
-- no terminal workflow
-- no backend setup ceremony
-
-The user should describe the desired product behavior and get a working API-backed app.
+The current product target is a local single-user prototype.
 
 ## Target User
 
 Primary user:
+
 - AI-first indie builders
 
 Traits:
-- comfortable describing product ideas in natural language
-- not interested in language or framework choices
-- wants fast iteration and visible results
-- accepts some platform constraints in exchange for speed
 
-## Primary Job To Be Done
+- willing to describe software in natural language
+- not interested in implementation details
+- wants visible product progress quickly
+- accepts constraints if the workflow feels simple
 
-When I describe a backend app in natural language, I want the platform to generate, run, and iteratively improve it, so I can ship useful software without managing the codebase directly.
+## Core Job
 
-## First Showcase App
+When I describe an app in natural language, I want the platform to generate and iteratively improve it for me, so I can build software without managing the codebase directly.
 
-The flagship v1 demo should be:
-
-- a multi-tenant todo app
-- durable storage
-- HTTP API only
-
-For the local prototype, "multi-tenant" should be modeled explicitly in the platform contract. It does not require full production auth on day one. A tenant can initially be selected through a controlled local mechanism such as a workspace selector or request header.
-
-## Product Principles
-
-### 1. Chat-First Experience
-
-The main interface is conversation with an agent. Code exists, but it is an implementation artifact behind the scenes.
-
-### 2. MoonBit-First Implementation
-
-User applications, templates, SDKs, and platform-facing app libraries should be written in MoonBit wherever practical. If a capability is missing, the team should prefer building the missing MoonBit library rather than changing the product promise.
-
-### 3. Reliable Templates Over Open-Ended Magic
-
-The agent should build from stable, tested templates and recipes. Reliability matters more than raw freedom in v1.
-
-### 4. Local Prototype Before Hosted Platform
-
-The first version should optimize for learning speed, not production readiness. Security hardening, real isolation, and infrastructure scale can wait.
-
-### 5. The User Does Not Need To See Code
-
-The UI should expose goals, state, preview, and plain-English feedback. It should not force the user to understand files, frameworks, or compiler output.
-
-## MVP Scope
+## Current V1 Scope
 
 Included:
 
-- browser-only product surface
-- chat interface to create and modify projects
-- HTTP APIs only
-- local single-user prototype
-- MoonBit application generation and execution
-- plain-English status, errors, and basic run feedback
-- durable storage for templates that need persistence
-- a knowledge base for agents to follow
-- at least one strong demo template
+- one desktop-first app-develop page
+- projects rail
+- chat workspace
+- live preview panel
+- hidden code by default
+- plain-English agent feedback
+- local project generation under `data/projects`
+- SQLite persistence for projects, messages, and runs
 
 Not included:
 
-- collaboration
+- auth
+- deploy flow
+- template browser
+- mobile UX
 - terminal access
-- code editor as the primary interface
-- billing
-- teams and permissions
-- production-grade security hardening
-- arbitrary long-running servers
-- broad integration marketplace
+- code editor in the main flow
+- production security hardening
 
-## User Experience
+## Product Principles
 
-### Primary flow
+### 1. Chat First
 
-1. The user opens the browser app.
-2. The user describes the app they want in chat.
-3. The agent chooses a template or creates one from a template family.
-4. The platform generates or updates the MoonBit project.
-5. The user runs the app and sees preview and current behavior.
-6. The user asks for changes in chat.
-7. The user inspects the updated preview and asks for the next change.
+The main user action is sending intent to the agent, not opening files or editing code.
 
-### Core screens
+### 2. MoonBit First
 
-- project/chat workspace
-- app preview
-- plain-English status and errors
+The platform and generated apps should stay MoonBit-first. Missing capabilities should be filled with MoonBit libraries where practical.
 
-The code view can exist internally or behind a debug mode, but it is not part of the main user promise.
+### 3. Preview Is The Proof
 
-## Platform Scope Decisions
+The main evidence of progress is a running app preview, not raw logs or source diffs.
 
-- End users do not choose the language.
-- The app contract is request/response oriented.
-- The first prototype should run locally on one machine.
-- No external integration is mandatory for v1.
-- The product should still support durable storage because the flagship demo requires it.
+### 4. Local Before Hosted
+
+The first goal is a reliable local loop. Hosted deployment and hard multi-tenant isolation can come later.
+
+## Current Product Flow
+
+1. The user opens the app-develop page.
+2. The user creates or selects a project.
+3. The user sends a request in chat.
+4. The platform updates a generated MoonBit workspace.
+5. The platform rebuilds and restarts the preview.
+6. The user sees a plain-English summary and an updated live preview.
+
+## Current Implementation Boundary
+
+The repo already includes a runnable local control plane and workspace UI. The remaining product-critical gap is the real agent runtime.
+
+Today:
+
+- project persistence is real
+- generated MoonBit workspaces are real
+- preview rebuild and restart are real
+- the visible workspace UI is real
+- the agent editing layer is still a local adapter seam
 
 ## Success Criteria
 
-By the end of the first milestone cycle, success means:
+Near-term success means:
 
 - a demo video exists
-- a multi-tenant todo app can be generated and run locally
-- the app persists data durably
-- the agent can modify the app through conversation
-- twenty reusable templates have been defined and prioritized
-
-## Main Risks
-
-### Reliability risk
-
-If the agent edits projects without strong templates and docs, the user experience will feel random.
-
-### Ecosystem risk
-
-If MoonBit is missing important application libraries, platform progress may stall unless the team actively builds those libraries.
-
-### UX risk
-
-A chat-first product can still become confusing if users cannot understand current state, recent changes, or why a run failed.
-
-### Scope risk
-
-Trying to match Replit or Lovable feature breadth too early will delay the core product loop.
-
-## Product Constraint For Now
-
-The practical constraint is not yet known. Until real usage proves otherwise, the project should optimize for:
-
-- fast iteration
-- design clarity
-- reliability of the generated apps
-
-That is the right default for an early local prototype.
+- the app-develop page feels clear and consumer-friendly
+- one project can be created, edited through chat, and previewed locally
+- project state survives refresh through SQLite and disk
+- the system is ready for a real Codex-backed `AgentGateway`

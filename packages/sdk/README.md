@@ -1,12 +1,13 @@
 # Platform SDK
 
-This package should define the narrow contract exposed to user programs.
+This module currently holds the shared platform DTOs used by the workspace UI and the local control plane.
 
-Start with:
+Current type groups:
 
-- request type
-- response type
-- handler entrypoint
-- small helper utilities
+- project summaries and project details
+- chat messages
+- run state and run status responses
+- preview targets
+- create-project and send-message payloads
 
-Keep the first version intentionally small.
+The future user app runtime contract should live here too, but that handler-level SDK is still a separate follow-up task.

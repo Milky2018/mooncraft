@@ -1,244 +1,122 @@
 # Architecture
 
-## System Goal
+## Goal
 
-MoonBit Cloud is a chat-first system that turns user intent into a working MoonBit backend application. The user interacts with the product through conversation, preview, and plain-English feedback. Code exists in the workspace, but it is not the main interface.
+MoonBit Cloud v1 is a local app-develop system with three visible ideas:
 
-The first implementation target is a local single-user prototype for HTTP APIs.
+- projects
+- chat
+- live preview
 
-## Architectural Principles
+The user should not need to read code. The platform should persist state, update a generated MoonBit workspace, and keep a preview running.
 
-### 1. Agent-first, not editor-first
+## Top-Level Workspace
 
-The primary user action is sending an instruction to the agent. The product should be organized around:
+The repo is one MoonBit workspace with three modules:
 
-- conversation
-- app state
-- run status
-- preview
-- plain-English status
+- `apps/web`: Rabbita frontend for the app-develop page
+- `services/control-plane`: Mocket backend, SQLite persistence, preview orchestration
+- `packages/sdk`: shared DTOs for frontend and backend
 
-not around file trees and editor chrome.
+## Generated Project Shape
 
-### 2. MoonBit-first application stack
+Each user project is created under:
 
-The intended default is that user apps, templates, SDKs, storage helpers, routing helpers, and platform-facing app libraries are all written in MoonBit. If thin glue code is required by the browser or host environment, keep it minimal and treat it as infrastructure rather than product logic.
+`data/projects/<project-id>/workspace`
 
-### 3. Request/response runtime
+Each generated project uses a simple full-stack MoonBit shape:
 
-V1 supports HTTP APIs only. User programs should be modeled as request/response handlers rather than arbitrary long-running servers.
+- `frontend/`
+- `backend/`
+- `shared/`
 
-### 4. Local-first development
+This keeps the live preview tied to a real generated app instead of a fake demo panel.
 
-The first version should favor speed and clarity over production-grade isolation. Local files and SQLite are acceptable. Strong runtime boundaries should still exist at the architecture level so they can be hardened later.
+## Current Runtime Flow
 
-## Product Slice To Build First
+1. `POST /api/projects` creates project metadata and scaffolds the generated workspace.
+2. `POST /api/projects/:id/messages` stores the user message, opens a run, and locks the project.
+3. `AgentGateway` updates the generated project.
+4. `PreviewManager` rebuilds the generated frontend, copies preview assets, and restarts the generated backend on a stable local port.
+5. The control plane marks the run as succeeded or failed and stores the latest preview target.
+6. `apps/web` polls run status and refreshes project state.
 
-The correct first slice is:
+## Persistence Model
 
-> A user describes an API in chat, the agent creates or updates a MoonBit app, the platform runs it locally, and the product shows a human-friendly preview.
+SQLite stores:
 
-That slice is enough to validate the core product.
+- `projects`
+- `messages`
+- `runs`
 
-## High-Level Components
+The database is the metadata layer. Source code remains on disk in generated project workspaces.
 
-### 1. Web App
+Important persisted fields include:
 
-Purpose:
+- project id
+- display name
+- workspace path
+- current status
+- current run id
+- preview URL and port
+- last error
+- thread id placeholder
 
-- host the chat workspace
-- show current app state
-- preview API behavior
-- show plain-English status and errors
-- support project switching
+## Web Surface
 
-The default workspace should have:
+The frontend is one desktop-first page:
 
-- conversation panel
-- preview panel
-- agent status
-- a compact project summary
+- left rail: projects
+- center panel: chat workspace
+- right panel: preview iframe
 
-The file tree and code editor are optional debug surfaces, not primary UX.
+Default UX constraints:
 
-### 2. Agent Orchestrator
+- code hidden
+- no deploy
+- no auth
+- no template picker
+- plain-English errors only
 
-Purpose:
+## Agent Boundary
 
-- receive user intent from the web app
-- decide whether to start from a template or modify an existing project
-- invoke Codex CLI to edit the project workspace
-- request validation and run feedback
+The agent layer is intentionally isolated behind `AgentGateway`.
 
-This layer is critical because the agent experience is the product experience.
+Current state:
 
-### 3. Project Workspace Manager
+- the boundary is real
+- the implementation is a local deterministic adapter
 
-Purpose:
+Future state:
 
-- create and manage project directories
-- track revisions made by the agent
-- snapshot source state for builds
-- map conversations to projects
+- replace the adapter with real Codex-driven editing while keeping the same product boundary
 
-Even when the user never sees files, the system still needs deterministic project state.
+This separation matters because the frontend, persistence model, and preview lifecycle should not need to change when the real agent runtime lands.
 
-### 4. Runner Service
+## Preview Boundary
 
-Purpose:
+`PreviewManager` owns:
 
-- compile MoonBit application code
-- execute request handlers
-- expose logs, errors, and structured run output
-- provide durable storage access in local development
+- stable port allocation
+- old preview shutdown
+- rebuild and restart
+- health checks
 
-Keep the runner isolated from the web app process even in the local prototype.
+The current preview path is local-only and exposed through:
 
-### 5. Control Plane
+- stored `preview.url`
+- `GET /preview/:project_id/*` redirect handling in the control plane
 
-Purpose:
+## Why This Shape
 
-- store projects, conversations, builds, and deployments
-- manage template metadata
-- store knowledge document indexes
-- orchestrate run and deploy workflows
+This architecture is deliberately narrower than a Replit-style platform.
 
-For the first iteration, metadata can live in SQLite and artifacts can live on the local filesystem.
+It is designed to validate:
 
-### 6. Knowledge Base
+- the app-develop page
+- project persistence
+- generated MoonBit workspaces
+- repeatable live preview refresh
+- a clean seam for real agent integration
 
-Purpose:
-
-- teach the agent how MoonBit Cloud apps are structured
-- document platform contracts and invariants
-- link templates to recipes and troubleshooting steps
-
-This is product-critical infrastructure, not optional documentation.
-
-## Runtime Contract
-
-The first stable contract should be a MoonBit request handler with explicit context:
-
-```mbt
-pub struct Request {
-  method : String
-  path : String
-  query : Map[String, String]
-  headers : Map[String, String]
-  body : Bytes
-}
-
-pub struct Response {
-  status : Int
-  headers : Map[String, String]
-  body : Bytes
-}
-
-pub struct Context {
-  tenant_id : String
-}
-
-pub fn handle(req : Request, ctx : Context) -> Response raise {
-  ...
-}
-```
-
-The exact SDK surface will evolve, but two design decisions should stay stable:
-
-- requests are handled as stateless function calls
-- tenant context is explicit in the contract
-
-Storage, env, logging, and helper APIs can be layered into `Context` or adjacent modules after the first prototype.
-
-## Durable Storage In V1
-
-The flagship demo requires durable storage, so persistence is part of the first architecture.
-
-Recommended v1 approach:
-
-- `SQLite` for local durable storage
-- tenant scoping enforced in the application data model
-- request-level tenant selection through a controlled local mechanism
-
-Do not build full authentication first just to support multi-tenancy in the demo. Model the tenant boundary explicitly and keep moving.
-
-## Core Data Model
-
-The control plane should at least represent:
-
-- `Project`
-- `Conversation`
-- `Revision`
-- `Build`
-- `Deployment`
-- `Template`
-- `KnowledgeDocument`
-
-These entities are enough to power the first chat-to-app loop.
-
-## Boundaries To Preserve Early
-
-Even before security work begins, keep these interfaces clean:
-
-- `AgentGateway`: turns product intent into project edits
-- `WorkspaceStore`: stores project files and revisions
-- `Runner`: compiles and executes MoonBit apps
-- `ArtifactStore`: stores source bundles and build artifacts
-- `DeploymentStore`: maps builds to runnable endpoints
-- `KnowledgeIndex`: resolves docs and recipes for the agent
-
-Today they can be backed by local files and SQLite. Later they can be replaced without rewriting product logic.
-
-## UX Constraints
-
-The UI should optimize for comprehension, not developer power.
-
-Good v1 behavior:
-
-- one obvious place to type intent
-- immediate visual feedback
-- clear current app state
-- visible last change summary
-- a preview that proves the app behavior
-
-Bad v1 behavior:
-
-- exposing too many implementation controls
-- forcing the user to read source code
-- showing raw build output without explanation
-- making users choose frameworks or storage models directly
-
-## Delivery Phases
-
-### Phase 0: Freeze Contracts
-
-- define the app handler SDK
-- define the project, build, and deployment metadata model
-- define the knowledge document format
-
-### Phase 1: Prove The Loop
-
-- create a hello-world template
-- create a multi-tenant todo template
-- run both through the MoonBit runner
-- expose preview and plain-English feedback in the web app
-
-### Phase 2: Make The Agent Reliable
-
-- connect the agent to the knowledge base
-- connect templates to recipes and validations
-- preserve revision history
-
-### Phase 3: Expand Template Surface
-
-- define and prioritize twenty templates
-- standardize storage and routing patterns
-- improve deployment repeatability
-
-### Phase 4: Harden The Platform
-
-- auth
-- stronger tenant isolation
-- secrets handling
-- safer execution boundaries
-- production deployment model
+The next structural change should be extracting preview execution into a dedicated runner service, not adding more frontend surface area.
