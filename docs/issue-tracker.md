@@ -29,6 +29,7 @@ Last updated: 2026-04-22
 | TASK-008 | Docs | Define the knowledge-base contract for agents. | DONE | Rewrote `docs/agent-docs.md`. |
 | TASK-009 | Docs | Define the first twenty templates and the initial template strategy. | DONE | Added `docs/templates-roadmap.md`. |
 | TASK-010 | Docs | Create the initial `knowledge/` source documents for app model, handler contract, and tenant model. | DONE | Added starter docs under `knowledge/concepts`, `knowledge/contracts`, and `knowledge/policies`. |
+| TASK-011 | Docs | Draft the canonical recipe for the multi-tenant todo API template. | DONE | Added `knowledge/recipes/build-a-todo-api.md` as a draft recipe pending a runnable template. |
 | TASK-003 | Runtime | Verify the first executable MoonBit request handler path. | TODO | Prefer a tiny `handle(req, ctx)` example before any framework work. |
 | TASK-004 | UI | Scaffold the first web app with chat workspace, preview, and logs area. | TODO | Use mock data until runner integration exists. |
 | TASK-005 | Docs | Author the first working template and its matching recipe doc. | TODO | Use the multi-tenant todo API as the seed. |
