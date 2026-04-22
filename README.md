@@ -57,6 +57,7 @@ The current `AgentGateway` is a local deterministic adapter that keeps the syste
 - [Product PRD](/Users/zhengyu/Documents/projects/moonbitcloud/docs/prd.md)
 - [Architecture](/Users/zhengyu/Documents/projects/moonbitcloud/docs/architecture.md)
 - [Website Prototype](/Users/zhengyu/Documents/projects/moonbitcloud/docs/website-prototype.md)
+- [EC2 Deployment Notes](/Users/zhengyu/Documents/projects/moonbitcloud/docs/deploy-ec2.md)
 - [Agent Docs Plan](/Users/zhengyu/Documents/projects/moonbitcloud/docs/agent-docs.md)
 - [Issue Tracker](/Users/zhengyu/Documents/projects/moonbitcloud/docs/issue-tracker.md)
 

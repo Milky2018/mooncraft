@@ -1,6 +1,7 @@
 import {
   "moonbitcloud/sdk" @sdk,
   "oboard/mocket",
+  "moonbitlang/core/encoding/base64" @base64,
   "moonbitlang/core/json",
   "moonbitlang/core/env",
   "moonbitlang/core/ref",

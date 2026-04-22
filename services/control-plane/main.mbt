@@ -26,8 +26,10 @@ fn javascript_response(content : Bytes) -> @mocket.HttpResponse {
 }
 
 ///|
-fn redirect_response(destination : String) -> @mocket.HttpResponse {
-  @mocket.HttpResponse::new(Found, headers={ "Location": destination }).body("")
+fn unauthorized_response() -> @mocket.HttpResponse {
+  @mocket.HttpResponse::new(Unauthorized, headers={
+    "WWW-Authenticate": "Basic realm=\"MoonBit Cloud\"",
+  }).body("Authentication required.")
 }
 
 ///|
@@ -52,6 +54,139 @@ fn path_param(
   match event.params.get(name) {
     Some(value) => Ok(value.to_string())
     None => Err("Missing route parameter: \{name}.")
+  }
+}
+
+///|
+fn auth_credentials() -> (String, String)? {
+  match @env.get_env_var("MOONBITCLOUD_ADMIN_PASSWORD") {
+    Some(password) if password != "" =>
+      Some(
+        (
+          @env.get_env_var("MOONBITCLOUD_ADMIN_USERNAME").unwrap_or("admin"),
+          password,
+        ),
+      )
+    _ => None
+  }
+}
+
+///|
+fn authorization_header(event : @mocket.MocketEvent) -> String? {
+  match event.req.headers.get("Authorization") {
+    Some(value) => Some(value.to_string())
+    None =>
+      match event.req.headers.get("authorization") {
+        Some(value) => Some(value.to_string())
+        None => None
+      }
+  }
+}
+
+///|
+fn has_valid_basic_auth(
+  event : @mocket.MocketEvent,
+  credentials : (String, String),
+) -> Bool {
+  let expected = credentials.0 + ":" + credentials.1
+  match authorization_header(event) {
+    Some(header) if header.has_prefix("Basic ") => {
+      let encoded = header[6:]
+      let decoded_bytes = @base64.decode(encoded) catch { _ => return false }
+      let decoded = @utf8.decode(decoded_bytes) catch { _ => return false }
+      decoded == expected
+    }
+    _ => false
+  }
+}
+
+///|
+fn auth_middleware(credentials : (String, String)?) -> @mocket.Middleware {
+  async fn(event, next) noraise {
+    if event.req.url == "/api/health" {
+      return next()
+    }
+    match credentials {
+      Some(creds) =>
+        if has_valid_basic_auth(event, creds) {
+          next()
+        } else {
+          unauthorized_response()
+        }
+      None => next()
+    }
+  }
+}
+
+///|
+fn proxy_method(http_method_name : String) -> @mocket.HttpMethod {
+  match http_method_name {
+    "POST" => POST
+    "PUT" => PUT
+    "PATCH" => PATCH
+    "DELETE" => DELETE
+    "HEAD" => HEAD
+    "OPTIONS" => OPTIONS
+    "TRACE" => TRACE
+    "CONNECT" => CONNECT
+    _ => GET
+  }
+}
+
+///|
+fn proxy_request_headers(event : @mocket.MocketEvent) -> Map[String, String] {
+  let headers : Map[String, String] = {}
+  match event.req.headers.get("Content-Type") {
+    Some(value) => headers["Content-Type"] = value.to_string()
+    None =>
+      match event.req.headers.get("content-type") {
+        Some(value) => headers["Content-Type"] = value.to_string()
+        None => ignore(())
+      }
+  }
+  match event.req.headers.get("Accept") {
+    Some(value) => headers["Accept"] = value.to_string()
+    None =>
+      match event.req.headers.get("accept") {
+        Some(value) => headers["Accept"] = value.to_string()
+        None => ignore(())
+      }
+  }
+  headers
+}
+
+///|
+fn proxy_response_headers(
+  response : @mocket.HttpResponse,
+) -> Map[StringView, StringView] {
+  let headers : Map[StringView, StringView] = {}
+  match response.headers.get("Content-Type") {
+    Some(value) => headers["Content-Type"] = value
+    None =>
+      match response.headers.get("content-type") {
+        Some(value) => headers["Content-Type"] = value
+        None => ignore(())
+      }
+  }
+  match response.headers.get("Location") {
+    Some(value) => headers["Location"] = value
+    None =>
+      match response.headers.get("location") {
+        Some(value) => headers["Location"] = value
+        None => ignore(())
+      }
+  }
+  headers
+}
+
+///|
+fn preview_target_path(remainder : String) -> String {
+  if remainder == "" {
+    "/"
+  } else if remainder.has_prefix("/") {
+    remainder
+  } else {
+    "/" + remainder
   }
 }
 
@@ -137,12 +272,15 @@ fn AppContext::serve_platform_bundle(self : AppContext) -> @mocket.HttpResponse 
 fn main {
   let root = @env.current_dir().unwrap_or(".")
   let ctx = AppContext::new(root)
+  let credentials = auth_credentials()
   ctx.ensure_platform_web_bundle()
 
   let app = @mocket.new()
+  app.use_middleware(auth_middleware(credentials))
 
   app.get("/", _ => html_response(workspace_page_html()))
   app.get("/app", _ => ctx.serve_platform_bundle())
+  app.get("/api/health", _ => text_response(OK, "ok"))
 
   app.get("/api/projects", _ => ok_json(ctx.store.list_projects()))
   app.post("/api/projects", event => {
@@ -229,7 +367,7 @@ fn main {
       None => text_response(NotFound, "Run not found.")
     }
   })
-  app.get("/preview/:project_id/**", event => {
+  app.all("/preview/:project_id/**", async fn(event) noraise {
     let project_id = match path_param(event, "project_id") {
       Ok(value) => value
       Err(message) => return text_response(BadRequest, message)
@@ -244,15 +382,38 @@ fn main {
     }
     match project.preview {
       Some(preview) => {
-        let suffix = if remainder == "" { "" } else { remainder }
-        let destination = if suffix == "" {
-          preview.url
-        } else if preview.url.has_suffix("/") {
-          preview.url + suffix
-        } else {
-          preview.url + "/" + suffix
+        let target_url = "http://127.0.0.1:\{preview.port}\{preview_target_path(remainder)}"
+        let headers = proxy_request_headers(event)
+        let upstream = try {
+          if event.req.raw_body.length() == 0 {
+            @mocket.fetch(
+              target_url,
+              proxy_method(event.req.http_method),
+              headers~,
+            )
+          } else {
+            let body = bytes_to_string(event.req.raw_body)
+            @mocket.fetch(
+              target_url,
+              proxy_method(event.req.http_method),
+              body~,
+              headers~,
+            )
+          }
+        } catch {
+          _ =>
+            return text_response(
+              BadGateway,
+              "The preview is not reachable right now. Try rerunning the project.",
+            )
+        } noraise {
+          response => response
         }
-        redirect_response(destination)
+        @mocket.HttpResponse::new(
+          upstream.status_code,
+          headers=proxy_response_headers(upstream),
+          raw_body=upstream.raw_body,
+        )
       }
       None =>
         text_response(NotFound, "No preview is available for this project yet.")

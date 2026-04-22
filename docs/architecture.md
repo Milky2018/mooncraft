@@ -102,10 +102,12 @@ This separation matters because the frontend, persistence model, and preview lif
 - rebuild and restart
 - health checks
 
-The current preview path is local-only and exposed through:
+The current preview path is same-origin and exposed through:
 
-- stored `preview.url`
-- `GET /preview/:project_id/*` redirect handling in the control plane
+- stored `preview.url` values like `/preview/<project_id>/`
+- `ALL /preview/:project_id/*` reverse proxy handling in the control plane
+
+The generated app still runs on a private local port, but the browser only talks to the control plane.
 
 ## Why This Shape
 

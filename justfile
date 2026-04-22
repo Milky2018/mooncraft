@@ -44,13 +44,15 @@ test: build smoke
 smoke:
   #!/usr/bin/env bash
   set -euo pipefail
-  if curl -fsS http://127.0.0.1:8080/api/projects >/dev/null 2>&1; then
+  if curl -fsS http://127.0.0.1:8080/api/health >/dev/null 2>&1; then
     echo "Port 8080 is already serving a control plane. Stop it first or use 'just smoke-running'." >&2
     exit 1
   fi
   tmpdir="$(mktemp -d)"
   log_file="$tmpdir/control-plane.log"
-  moon run --manifest-path moon.work services/control-plane --target native >"$log_file" 2>&1 &
+  admin_user="${MOONBITCLOUD_ADMIN_USERNAME:-admin}"
+  admin_pass="${MOONBITCLOUD_ADMIN_PASSWORD:-smoke-secret}"
+  MOONBITCLOUD_ADMIN_USERNAME="$admin_user" MOONBITCLOUD_ADMIN_PASSWORD="$admin_pass" moon run --manifest-path moon.work services/control-plane --target native >"$log_file" 2>&1 &
   server_pid=$!
   cleanup() {
     kill "$server_pid" >/dev/null 2>&1 || true
@@ -60,38 +62,54 @@ smoke:
   trap cleanup EXIT
 
   for _ in {1..20}; do
-    if curl -fsS http://127.0.0.1:8080/api/projects >/dev/null 2>&1; then
+    if curl -fsS http://127.0.0.1:8080/api/health >/dev/null 2>&1; then
       break
     fi
     sleep 1
   done
 
-  curl -fsS http://127.0.0.1:8080/api/projects >/dev/null
-  just smoke-running
+  curl -fsS http://127.0.0.1:8080/api/health >/dev/null
+  unauth_status="$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/projects || true)"
+  if [[ "$unauth_status" != "401" ]]; then
+    echo "Expected unauthenticated project access to return 401, got $unauth_status" >&2
+    exit 1
+  fi
+  MOONBITCLOUD_ADMIN_USERNAME="$admin_user" MOONBITCLOUD_ADMIN_PASSWORD="$admin_pass" just smoke-running
 
 # Run the smoke test against an already running control plane
 smoke-running:
   #!/usr/bin/env bash
   set -euo pipefail
-  curl -fsS http://127.0.0.1:8080/ >/dev/null
-  curl -fsS http://127.0.0.1:8080/app >/dev/null
-  create_response="$(curl -fsS -X POST http://127.0.0.1:8080/api/projects -H 'Content-Type: application/json' -d '{"display_name":"Smoke Running"}')"
+  curl_with_auth() {
+    if [[ -n "${MOONBITCLOUD_ADMIN_PASSWORD:-}" ]]; then
+      curl -fsS -u "${MOONBITCLOUD_ADMIN_USERNAME:-admin}:${MOONBITCLOUD_ADMIN_PASSWORD}" "$@"
+    else
+      curl -fsS "$@"
+    fi
+  }
+  curl -fsS http://127.0.0.1:8080/api/health >/dev/null
+  curl_with_auth http://127.0.0.1:8080/ >/dev/null
+  curl_with_auth http://127.0.0.1:8080/app >/dev/null
+  create_response="$(curl_with_auth -X POST http://127.0.0.1:8080/api/projects -H 'Content-Type: application/json' -d '{"display_name":"Smoke Running"}')"
   project_id="$(printf '%s' "$create_response" | sed -n 's/.*"project":{"id":"\([^"]*\)".*/\1/p')"
   if [[ -z "$project_id" ]]; then
     echo "Failed to parse project id from create response: $create_response" >&2
     exit 1
   fi
 
-  run_response="$(curl -fsS -X POST http://127.0.0.1:8080/api/projects/$project_id/messages -H 'Content-Type: application/json' -d '{"content":"Build a smoke test dashboard"}')"
+  run_response="$(curl_with_auth -X POST http://127.0.0.1:8080/api/projects/$project_id/messages -H 'Content-Type: application/json' -d '{"content":"Build a smoke test dashboard"}')"
   printf '%s' "$run_response" | grep -q '"state":"Succeeded"'
   printf '%s' "$run_response" | grep -q '"healthy":true'
-  curl -fsS "http://127.0.0.1:8080/api/projects/$project_id" | grep -q '"healthy":true'
-  curl -fsS -X DELETE "http://127.0.0.1:8080/api/projects/$project_id" >/dev/null
-  if curl -fsS "http://127.0.0.1:8080/api/projects/$project_id" >/dev/null 2>&1; then
+  printf '%s' "$run_response" | grep -q "\"url\":\"/preview/$project_id/\""
+  curl_with_auth "http://127.0.0.1:8080/api/projects/$project_id" | grep -q "\"url\":\"/preview/$project_id/\""
+  curl_with_auth "http://127.0.0.1:8080/preview/$project_id/" | grep -q 'MoonBit Cloud Preview'
+  curl_with_auth "http://127.0.0.1:8080/preview/$project_id/api/health" | grep -q '"ok":true'
+  curl_with_auth -X DELETE "http://127.0.0.1:8080/api/projects/$project_id" >/dev/null
+  if curl_with_auth "http://127.0.0.1:8080/api/projects/$project_id" >/dev/null 2>&1; then
     echo "Project still exists after deletion: $project_id" >&2
     exit 1
   fi
-  if curl -fsS "http://127.0.0.1:8080/api/projects" | grep -q "\"id\":\"$project_id\""; then
+  if curl_with_auth "http://127.0.0.1:8080/api/projects" | grep -q "\"id\":\"$project_id\""; then
     echo "Project still appears in the project list after deletion: $project_id" >&2
     exit 1
   fi

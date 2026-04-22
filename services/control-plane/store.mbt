@@ -194,6 +194,11 @@ fn preview_dist_dir(workspace_path : String) -> String {
 }
 
 ///|
+fn public_preview_url(project_id : String) -> String {
+  "/preview/\{project_id}/"
+}
+
+///|
 fn platform_web_dist_dir(root : String) -> String {
   root + "/data/platform/web"
 }
@@ -215,6 +220,7 @@ fn generated_web_build_output_path(workspace_path : String) -> String {
 
 ///|
 fn preview_from_columns(
+  project_id : String,
   url : String,
   port : Int,
   healthy : Int,
@@ -222,7 +228,12 @@ fn preview_from_columns(
   if url == "" {
     None
   } else {
-    Some(@sdk.PreviewTarget::{ url, port, healthy: healthy != 0 })
+    let public_url = if url.has_prefix("http://127.0.0.1:") {
+      public_preview_url(project_id)
+    } else {
+      url
+    }
+    Some(@sdk.PreviewTarget::{ url: public_url, port, healthy: healthy != 0 })
   }
 }
 
@@ -322,13 +333,15 @@ fn Store::list_projects(self : Store) -> Array[@sdk.ProjectSummary] {
     .unwrap()
   let items : Array[@sdk.ProjectSummary] = []
   while stmt.step() {
+    let project_id = bytes_to_string(stmt.column_text(0))
     let preview = preview_from_columns(
+      project_id,
       bytes_to_string(stmt.column_text(3)),
       stmt.column_int(4),
       stmt.column_int(5),
     )
     items.push(@sdk.ProjectSummary::{
-      id: bytes_to_string(stmt.column_text(0)),
+      id: project_id,
       display_name: bytes_to_string(stmt.column_text(1)),
       status: run_state_from_db(bytes_to_string(stmt.column_text(2))),
       preview,
@@ -369,6 +382,7 @@ fn Store::get_project_detail(
   stmt.bind(1, string_to_sql_text(project_id)) |> ignore
   let result = if stmt.step() {
     let preview = preview_from_columns(
+      project_id,
       bytes_to_string(stmt.column_text(5)),
       stmt.column_int(6),
       stmt.column_int(7),
@@ -458,6 +472,7 @@ fn Store::get_run(
   |> ignore
   let result = if stmt.step() {
     let preview = preview_from_columns(
+      project_id,
       bytes_to_string(stmt.column_text(5)),
       stmt.column_int(6),
       stmt.column_int(7),
@@ -1057,7 +1072,7 @@ fn PreviewManager::rebuild_and_restart(
   }
   self.runtimes[project.id] = { port, pid }
   Ok(@sdk.PreviewTarget::{
-    url: "http://127.0.0.1:\{port}/",
+    url: public_preview_url(project.id),
     port,
     healthy: true,
   })
