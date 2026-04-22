@@ -1,6 +1,6 @@
 # MoonBit Cloud
 
-MoonBit Cloud is an agent-first platform for building backend applications through conversation. End users should not need to know which language or framework powers their software. They describe what they want, the agent builds it, and the platform runs and deploys it.
+MoonBit Cloud is an agent-first platform for building backend applications through conversation. End users should not need to know which language or framework powers their software. They describe what they want, the agent builds it, and the platform runs it behind a consumer-friendly preview.
 
 The implementation target is MoonBit-first:
 
@@ -13,8 +13,8 @@ The first version is a **local single-user prototype** focused on one narrow loo
 1. pick a template or describe an app in chat
 2. let the agent create or modify the project
 3. run the app locally
-4. inspect logs and behavior
-5. deploy the app to a local prototype endpoint
+4. inspect the preview and plain-English feedback
+5. ask for changes in chat
 
 ## Product Direction
 
@@ -57,7 +57,7 @@ moonbitcloud/
 ├── apps/
 │   └── web/                  # chat-first product surface
 ├── services/
-│   ├── control-plane/        # projects, conversations, builds, deployments
+│   ├── control-plane/        # projects, conversations, builds
 │   └── runner/               # compile and execute MoonBit apps
 ├── packages/
 │   └── sdk/                  # request, response, context contracts
@@ -69,7 +69,7 @@ moonbitcloud/
 
 1. Freeze the app runtime contract for MoonBit HTTP handlers.
 2. Prove the runner can compile and execute a template app locally.
-3. Build a chat-first web shell with preview, logs, and deploy actions.
+3. Build a chat-first web shell with a project rail, workspace, and preview.
 4. Write the first knowledge documents from a working template.
 
 The next concrete work queue lives in [docs/issue-tracker.md](/Users/zhengyu/Documents/projects/moonbitcloud/docs/issue-tracker.md).

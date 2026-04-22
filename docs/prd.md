@@ -64,7 +64,7 @@ The first version should optimize for learning speed, not production readiness. 
 
 ### 5. The User Does Not Need To See Code
 
-The UI should expose goals, state, logs, preview, and deployment status. It should not force the user to understand files, frameworks, or compiler output.
+The UI should expose goals, state, preview, and plain-English feedback. It should not force the user to understand files, frameworks, or compiler output.
 
 ## MVP Scope
 
@@ -75,8 +75,7 @@ Included:
 - HTTP APIs only
 - local single-user prototype
 - MoonBit application generation and execution
-- logs, errors, and basic run feedback
-- deployment history for local prototype builds
+- plain-English status, errors, and basic run feedback
 - durable storage for templates that need persistence
 - a knowledge base for agents to follow
 - at least one strong demo template
@@ -100,17 +99,15 @@ Not included:
 2. The user describes the app they want in chat.
 3. The agent chooses a template or creates one from a template family.
 4. The platform generates or updates the MoonBit project.
-5. The user runs the app and sees preview, logs, and current behavior.
+5. The user runs the app and sees preview and current behavior.
 6. The user asks for changes in chat.
-7. The user deploys the current build to a local prototype endpoint.
+7. The user inspects the updated preview and asks for the next change.
 
 ### Core screens
 
 - project/chat workspace
-- app preview or API inspector
-- logs and diagnostics
-- template picker
-- deployment history
+- app preview
+- plain-English status and errors
 
 The code view can exist internally or behind a debug mode, but it is not part of the main user promise.
 

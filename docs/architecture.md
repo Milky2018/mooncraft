@@ -2,7 +2,7 @@
 
 ## System Goal
 
-MoonBit Cloud is a chat-first system that turns user intent into a working MoonBit backend application. The user interacts with the product through conversation, preview, and deployment status. Code exists in the workspace, but it is not the main interface.
+MoonBit Cloud is a chat-first system that turns user intent into a working MoonBit backend application. The user interacts with the product through conversation, preview, and plain-English feedback. Code exists in the workspace, but it is not the main interface.
 
 The first implementation target is a local single-user prototype for HTTP APIs.
 
@@ -15,8 +15,8 @@ The primary user action is sending an instruction to the agent. The product shou
 - conversation
 - app state
 - run status
-- logs
-- deployment history
+- preview
+- plain-English status
 
 not around file trees and editor chrome.
 
@@ -36,7 +36,7 @@ The first version should favor speed and clarity over production-grade isolation
 
 The correct first slice is:
 
-> A user describes an API in chat, the agent creates or updates a MoonBit app, the platform runs it locally, shows logs, and deploys a local prototype build.
+> A user describes an API in chat, the agent creates or updates a MoonBit app, the platform runs it locally, and the product shows a human-friendly preview.
 
 That slice is enough to validate the core product.
 
@@ -49,15 +49,14 @@ Purpose:
 - host the chat workspace
 - show current app state
 - preview API behavior
-- show logs and diagnostics
-- trigger run and deploy actions
-- browse templates and prior deployments
+- show plain-English status and errors
+- support project switching
 
 The default workspace should have:
 
 - conversation panel
-- preview or API inspector
-- logs and run status
+- preview panel
+- agent status
 - a compact project summary
 
 The file tree and code editor are optional debug surfaces, not primary UX.
@@ -197,10 +196,10 @@ The UI should optimize for comprehension, not developer power.
 Good v1 behavior:
 
 - one obvious place to type intent
-- immediate run feedback
+- immediate visual feedback
 - clear current app state
 - visible last change summary
-- deploy status with one click
+- a preview that proves the app behavior
 
 Bad v1 behavior:
 
@@ -222,7 +221,7 @@ Bad v1 behavior:
 - create a hello-world template
 - create a multi-tenant todo template
 - run both through the MoonBit runner
-- expose logs and behavior in the web app
+- expose preview and plain-English feedback in the web app
 
 ### Phase 2: Make The Agent Reliable
 

@@ -16,7 +16,7 @@ Last updated: 2026-04-22
 | EPIC-001 | Product | Define the MVP as a MoonBit backend platform, not a full Replit clone. | DONE | Refined into an agent-first backend platform in `README.md` and `docs/prd.md`. |
 | EPIC-002 | Architecture | Freeze the user runtime contract for request/response handlers. | TODO | Define `Request`, `Response`, `Context`, and tenant handling in `packages/sdk`. |
 | EPIC-003 | Runtime | Prototype MoonBit compile-and-run flow inside a dedicated runner service. | TODO | Start with a hello-world handler and verify cold-start/log behavior. |
-| EPIC-004 | UI | Build a simple chat-first web shell for projects, logs, preview, and deploy actions. | TODO | The main interaction should be conversation, not code editing. |
+| EPIC-004 | UI | Build a simple chat-first web shell for projects, workspace, preview, and plain-English feedback. | TODO | The main interaction should be conversation, not code editing. |
 | EPIC-005 | Persistence | Store projects, revisions, builds, and deployments in a dev-friendly metadata layer. | TODO | Use SQLite first. |
 | EPIC-006 | Knowledge Base | Create an agent-readable docs system tied to working templates. | TODO | Follow `docs/agent-docs.md`. |
 | EPIC-007 | Deployment | Support immutable builds and shareable deployment URLs. | TODO | Local or staging only in first iteration. |
@@ -31,11 +31,12 @@ Last updated: 2026-04-22
 | TASK-010 | Docs | Create the initial `knowledge/` source documents for app model, handler contract, and tenant model. | DONE | Added starter docs under `knowledge/concepts`, `knowledge/contracts`, and `knowledge/policies`. |
 | TASK-011 | Docs | Draft the canonical recipe for the multi-tenant todo API template. | DONE | Added `knowledge/recipes/build-a-todo-api.md` as a draft recipe pending a runnable template. |
 | TASK-003 | Runtime | Verify the first executable MoonBit request handler path. | TODO | Prefer a tiny `handle(req, ctx)` example before any framework work. |
-| TASK-004 | UI | Scaffold the first web app with chat workspace, preview, and logs area. | TODO | Use mock data until runner integration exists. |
+| TASK-004 | UI | Scaffold the first web app with project rail, chat workspace, and preview panel. | TODO | Use mock data until runner integration exists and keep code hidden. |
+| TASK-012 | Docs | Define the first website prototype for the app-develop page. | DONE | Added `docs/website-prototype.md` and aligned UI-related docs. |
 | TASK-005 | Docs | Author the first working template and its matching recipe doc. | TODO | Use the multi-tenant todo API as the seed. |
 
 ## Current Work Queue
 
 - `TASK-003`: prototype the runner with one hello-world handler
-- `TASK-004`: scaffold the first chat-first web shell with mock data
+- `TASK-004`: scaffold the first app-develop page with project rail, chat workspace, and preview
 - `TASK-005`: write the first runnable multi-tenant todo template and recipe
