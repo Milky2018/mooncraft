@@ -236,13 +236,13 @@ fn workspace_page_html() -> String {
 fn AppContext::ensure_platform_web_bundle(self : AppContext) -> Unit {
   ensure_dir(platform_web_dist_dir(self.root))
   let code = shell_status(
-    "cd '\{self.root}' && moon build apps/web --target js --manifest-path '\{self.root}/moon.work' >/dev/null 2>&1",
+    "cd '\{self.root}' && moon build apps/web \{self.build_profile.cli_flag()}--target js --manifest-path '\{self.root}/moon.work' >/dev/null 2>&1",
   )
   if code != 0 {
     println("warning: failed to build apps/web bundle")
     return
   }
-  let source = platform_web_build_output_path(self.root)
+  let source = platform_web_build_output_path(self.root, self.build_profile)
   if !@fs.path_exists(source) {
     println("warning: apps/web bundle was built but the artifact was not found")
     return

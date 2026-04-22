@@ -61,6 +61,40 @@ The current `AgentGateway` is a local deterministic adapter that keeps the syste
 - [Agent Docs Plan](/Users/zhengyu/Documents/projects/moonbitcloud/docs/agent-docs.md)
 - [Issue Tracker](/Users/zhengyu/Documents/projects/moonbitcloud/docs/issue-tracker.md)
 
+## Docker
+
+You can run the current single-instance control plane in Docker:
+
+```bash
+docker build -t moonbitcloud .
+docker run --rm \
+  -p 8080:8080 \
+  -e MOONBITCLOUD_ADMIN_PASSWORD=change-me \
+  -v moonbitcloud-data:/app/data \
+  moonbitcloud
+```
+
+Then open `http://localhost:8080`.
+
+Notes:
+
+- the image includes the MoonBit toolchain because the control plane still rebuilds generated previews at runtime
+- `MOONBITCLOUD_ADMIN_USERNAME` is optional and defaults to `admin`
+- set `MOONBITCLOUD_BUILD_PROFILE=release` if you want the control plane to stage and run release artifacts inside the container
+
+## Build Profiles
+
+The local workflow supports both debug and release profiles:
+
+```bash
+just build
+just build release
+just serve
+just serve release
+```
+
+`just serve release` sets `MOONBITCLOUD_BUILD_PROFILE=release`, so the control plane stages the platform bundle and generated preview bundles from the release build output directories.
+
 ## Next Major Steps
 
 1. replace the local `AgentGateway` adapter with real Codex-driven project editing

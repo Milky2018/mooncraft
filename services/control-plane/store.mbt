@@ -2,6 +2,12 @@
 let id_counter : Ref[Int] = @ref.new(0)
 
 ///|
+enum BuildProfile {
+  Debug
+  Release
+}
+
+///|
 struct Store {
   db : @sqlite.Database
 }
@@ -15,6 +21,7 @@ pub(all) struct PreviewRuntime {
 ///|
 struct PreviewManager {
   runtimes : Map[String, PreviewRuntime]
+  build_profile : BuildProfile
 }
 
 ///|
@@ -25,6 +32,7 @@ struct AgentGateway {
 ///|
 struct AppContext {
   root : String
+  build_profile : BuildProfile
   store : Store
   previews : PreviewManager
   agent_gateway : AgentGateway
@@ -121,6 +129,30 @@ fn empty_to_none(value : String) -> String? {
 }
 
 ///|
+fn build_profile_from_env() -> BuildProfile {
+  match @env.get_env_var("MOONBITCLOUD_BUILD_PROFILE") {
+    Some(value) if value.to_lower() == "release" => Release
+    _ => Debug
+  }
+}
+
+///|
+fn BuildProfile::build_dir(self : BuildProfile) -> String {
+  match self {
+    Debug => "debug"
+    Release => "release"
+  }
+}
+
+///|
+fn BuildProfile::cli_flag(self : BuildProfile) -> String {
+  match self {
+    Debug => ""
+    Release => "--release "
+  }
+}
+
+///|
 fn run_state_to_db(state : @sdk.RunState) -> String {
   match state {
     Idle => "idle"
@@ -209,13 +241,25 @@ fn platform_web_staged_bundle_path(root : String) -> String {
 }
 
 ///|
-fn platform_web_build_output_path(root : String) -> String {
-  root + "/_build/js/debug/build/moonbitcloud/web/web.js"
+fn platform_web_build_output_path(
+  root : String,
+  build_profile : BuildProfile,
+) -> String {
+  root +
+  "/_build/js/" +
+  build_profile.build_dir() +
+  "/build/moonbitcloud/web/web.js"
 }
 
 ///|
-fn generated_web_build_output_path(workspace_path : String) -> String {
-  workspace_path + "/_build/js/debug/build/frontend/frontend.js"
+fn generated_web_build_output_path(
+  workspace_path : String,
+  build_profile : BuildProfile,
+) -> String {
+  workspace_path +
+  "/_build/js/" +
+  build_profile.build_dir() +
+  "/build/frontend/frontend.js"
 }
 
 ///|
@@ -906,9 +950,12 @@ fn Store::finish_run_failure(
 }
 
 ///|
-fn PreviewManager::new(root : String) -> PreviewManager {
+fn PreviewManager::new(
+  root : String,
+  build_profile : BuildProfile,
+) -> PreviewManager {
   let _ = root
-  { runtimes: {} }
+  { runtimes: {}, build_profile }
 }
 
 ///|
@@ -1027,7 +1074,10 @@ fn PreviewManager::copy_preview_assets(
     safe_write_string(style_target, generated_preview_styles())
   }
 
-  let bundle_source = generated_web_build_output_path(workspace_path)
+  let bundle_source = generated_web_build_output_path(
+    workspace_path,
+    self.build_profile,
+  )
   if !@fs.path_exists(bundle_source) {
     return Err("The generated frontend bundle was not found after build.")
   }
@@ -1045,7 +1095,7 @@ fn PreviewManager::rebuild_and_restart(
 ) -> Result[@sdk.PreviewTarget, String] {
   let workspace_path = project.workspace_path
   let build_code = shell_status(
-    "cd '\{workspace_path}' && moon build frontend --target js >/dev/null 2>&1",
+    "cd '\{workspace_path}' && moon build frontend \{self.build_profile.cli_flag()}--target js >/dev/null 2>&1",
   )
   if build_code != 0 {
     return Err(
@@ -1063,7 +1113,7 @@ fn PreviewManager::rebuild_and_restart(
   )
   self.stop_port(port)
   let pid = shell_status(
-    "cd '\{workspace_path}' && nohup moon run backend --target native -- \{port} '\{preview_dir}' >/tmp/moonbitcloud-preview-\{project.id}.log 2>&1 &",
+    "cd '\{workspace_path}' && nohup moon run backend \{self.build_profile.cli_flag()}--target native -- \{port} '\{preview_dir}' >/tmp/moonbitcloud-preview-\{project.id}.log 2>&1 &",
   )
   if !self.wait_until_healthy(port, 12) {
     return Err(
@@ -1164,14 +1214,16 @@ fn AgentGateway::run_turn(
 
 ///|
 fn AppContext::new(root : String) -> AppContext {
+  let build_profile = build_profile_from_env()
   let data_dir = root + "/data/control-plane"
   ensure_dir(root + "/data")
   ensure_dir(data_dir)
   let db_path = data_dir + "/state.sqlite"
   {
     root,
+    build_profile,
     store: Store::new(db_path),
-    previews: PreviewManager::new(root),
+    previews: PreviewManager::new(root, build_profile),
     agent_gateway: AgentGateway::new(root),
   }
 }

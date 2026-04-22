@@ -10,32 +10,35 @@ fmt:
   moon info --manifest-path moon.work --target native
 
 # Build the shared SDK package
-build-sdk:
-  moon build --manifest-path moon.work packages/sdk --target native
+build-sdk profile='debug':
+  @if [ "{{profile}}" = release ]; then moon build --manifest-path moon.work packages/sdk --target native --release; else moon build --manifest-path moon.work packages/sdk --target native; fi
 
 # Build the Rabbita web frontend bundle
-build-web:
-  moon build --manifest-path moon.work apps/web --target js
+build-web profile='debug':
+  @if [ "{{profile}}" = release ]; then moon build --manifest-path moon.work apps/web --target js --release; else moon build --manifest-path moon.work apps/web --target js; fi
 
 # Build the local control plane
-build-control-plane:
-  moon build --manifest-path moon.work services/control-plane --target native
+build-control-plane profile='debug':
+  @if [ "{{profile}}" = release ]; then moon build --manifest-path moon.work services/control-plane --target native --release; else moon build --manifest-path moon.work services/control-plane --target native; fi
 
 # Build the whole workspace
-build: fmt build-sdk build-web build-control-plane
+build profile='debug': fmt
+  @just build-sdk {{profile}}
+  @just build-web {{profile}}
+  @just build-control-plane {{profile}}
 
 # Serve the app at http://localhost:8080
-serve:
+serve profile='debug':
   @echo "MoonBit Cloud: http://localhost:8080"
-  moon run --manifest-path moon.work services/control-plane --target native
+  @if [ "{{profile}}" = release ]; then MOONBITCLOUD_BUILD_PROFILE=release moon run --manifest-path moon.work services/control-plane --target native --release; else MOONBITCLOUD_BUILD_PROFILE=debug moon run --manifest-path moon.work services/control-plane --target native; fi
 
 # Open the app in your browser
 open:
   open http://localhost:8080
 
 # Alias for `serve`
-run:
-  @just serve
+run profile='debug':
+  @just serve {{profile}}
 
 # Build and run the smoke test
 test: build smoke
