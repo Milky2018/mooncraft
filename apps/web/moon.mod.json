@@ -1,6 +1,7 @@
 {
   "name": "moonbitcloud/web",
   "version": "0.1.0",
+  "preferred-target": "js",
   "deps": {
     "moonbitcloud/sdk": "0.1.0",
     "moonbit-community/rabbita": "0.12.1"

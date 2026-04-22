@@ -189,31 +189,23 @@ fn preview_dist_dir(workspace_path : String) -> String {
 }
 
 ///|
-fn platform_web_bundle_candidates(root : String) -> Array[String] {
-  [
-    root + "/_build/js/debug/build/moonbitcloud/web/web.js",
-    root + "/_build/js/debug/build/web/web.js",
-    root + "/_build/js/debug/build/apps/web/web.js",
-    root + "/_build/js/debug/build/apps/web/apps/web.js",
-  ]
+fn platform_web_dist_dir(root : String) -> String {
+  root + "/data/platform/web"
 }
 
 ///|
-fn generated_web_bundle_candidates(workspace_path : String) -> Array[String] {
-  [
-    workspace_path + "/_build/js/debug/build/frontend/frontend.js",
-    workspace_path + "/_build/js/debug/build/generated-app/frontend.js",
-  ]
+fn platform_web_staged_bundle_path(root : String) -> String {
+  platform_web_dist_dir(root) + "/app.js"
 }
 
 ///|
-fn first_existing_path(candidates : Array[String]) -> String? {
-  for candidate in candidates {
-    if @fs.path_exists(candidate) {
-      return Some(candidate)
-    }
-  }
-  None
+fn platform_web_build_output_path(root : String) -> String {
+  root + "/_build/js/debug/build/moonbitcloud/web/web.js"
+}
+
+///|
+fn generated_web_build_output_path(workspace_path : String) -> String {
+  workspace_path + "/_build/js/debug/build/frontend/frontend.js"
 }
 
 ///|
@@ -951,11 +943,9 @@ fn PreviewManager::copy_preview_assets(
     safe_write_string(style_target, generated_preview_styles())
   }
 
-  let bundle_source = match
-    first_existing_path(generated_web_bundle_candidates(workspace_path)) {
-    Some(path) => path
-    None =>
-      return Err("The generated frontend bundle was not found after build.")
+  let bundle_source = generated_web_build_output_path(workspace_path)
+  if !@fs.path_exists(bundle_source) {
+    return Err("The generated frontend bundle was not found after build.")
   }
   safe_write_bytes(bundle_target, safe_read_bytes_or(bundle_source, b""))
   if safe_read_bytes_or(bundle_target, b"").length() == 0 {

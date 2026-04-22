@@ -1,6 +1,7 @@
 {
   "name": "moonbitcloud/sdk",
   "version": "0.1.0",
+  "preferred-target": "native",
   "readme": "README.md",
   "repository": "",
   "license": "Apache-2.0",

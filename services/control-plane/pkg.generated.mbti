@@ -1,0 +1,25 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbitcloud/control-plane"
+
+// Values
+
+// Errors
+
+// Types and methods
+type AgentGateway
+
+type AppContext
+
+type PreviewManager
+
+pub(all) struct PreviewRuntime {
+  port : Int
+  pid : Int
+}
+
+type Store
+
+// Type aliases
+
+// Traits
+

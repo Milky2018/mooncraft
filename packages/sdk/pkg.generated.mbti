@@ -1,0 +1,96 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbitcloud/sdk"
+
+import {
+  "moonbitlang/core/debug",
+  "moonbitlang/core/json",
+}
+
+// Values
+
+// Errors
+
+// Types and methods
+pub(all) struct ChatMessage {
+  id : String
+  project_id : String
+  run_id : String?
+  role : ChatRole
+  content : String
+  created_at : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) enum ChatRole {
+  User
+  Assistant
+  System
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn ChatRole::label(Self) -> String
+
+pub(all) struct CreateProjectRequest {
+  display_name : String?
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct CreateProjectResponse {
+  project : ProjectDetail
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct PreviewTarget {
+  url : String
+  port : Int
+  healthy : Bool
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct ProjectDetail {
+  id : String
+  display_name : String
+  workspace_path : String
+  codex_thread_id : String?
+  status : RunState
+  preview : PreviewTarget?
+  current_run_id : String?
+  last_error : String?
+  created_at : String
+  updated_at : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct ProjectSummary {
+  id : String
+  display_name : String
+  status : RunState
+  preview : PreviewTarget?
+  current_run_id : String?
+  updated_at : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) enum RunState {
+  Idle
+  Running
+  Succeeded
+  Failed
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn RunState::label(Self) -> String
+
+pub(all) struct RunStatusResponse {
+  run_id : String
+  project_id : String
+  state : RunState
+  summary : String?
+  error_message : String?
+  preview : PreviewTarget?
+  started_at : String
+  finished_at : String?
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct SendMessageRequest {
+  content : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct SendMessageResponse {
+  run : RunStatusResponse
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+// Type aliases
+
+// Traits
+
