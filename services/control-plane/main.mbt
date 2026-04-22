@@ -160,6 +160,21 @@ fn main {
     ctx.create_project_workspace(project)
     ok_json(@sdk.CreateProjectResponse::{ project, })
   })
+  app.delete("/api/projects/:id", event => {
+    let project_id = match path_param(event, "id") {
+      Ok(value) => value
+      Err(message) => return text_response(BadRequest, message)
+    }
+    match ctx.delete_project(project_id) {
+      Ok(_) => @mocket.HttpResponse::new(OK).body("")
+      Err(message) =>
+        if message == "Project not found." {
+          text_response(NotFound, message)
+        } else {
+          text_response(Conflict, message)
+        }
+    }
+  })
   app.get("/api/projects/:id", event => {
     let project_id = match path_param(event, "id") {
       Ok(value) => value

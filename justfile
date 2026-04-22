@@ -86,6 +86,19 @@ smoke-running:
   printf '%s' "$run_response" | grep -q '"state":"Succeeded"'
   printf '%s' "$run_response" | grep -q '"healthy":true'
   curl -fsS "http://127.0.0.1:8080/api/projects/$project_id" | grep -q '"healthy":true'
+  curl -fsS -X DELETE "http://127.0.0.1:8080/api/projects/$project_id" >/dev/null
+  if curl -fsS "http://127.0.0.1:8080/api/projects/$project_id" >/dev/null 2>&1; then
+    echo "Project still exists after deletion: $project_id" >&2
+    exit 1
+  fi
+  if curl -fsS "http://127.0.0.1:8080/api/projects" | grep -q "\"id\":\"$project_id\""; then
+    echo "Project still appears in the project list after deletion: $project_id" >&2
+    exit 1
+  fi
+  if [[ -d "data/projects/$project_id" ]]; then
+    echo "Project workspace still exists after deletion: data/projects/$project_id" >&2
+    exit 1
+  fi
 
 # Remove local build outputs
 clean:

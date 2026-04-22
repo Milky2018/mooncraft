@@ -79,6 +79,11 @@ fn safe_write_bytes(path : String, content : Bytes) -> Unit {
 }
 
 ///|
+fn safe_remove_tree(path : String) -> Unit {
+  ignore(shell_status("rm -rf '\{path}' >/dev/null 2>&1"))
+}
+
+///|
 fn safe_read_string_or(path : String, fallback : String) -> String {
   @fs.read_file_to_string(path) catch {
     _ => fallback
@@ -515,6 +520,53 @@ fn Store::create_project(
 }
 
 ///|
+fn Store::delete_project(
+  self : Store,
+  project_id : String,
+) -> Result[Unit, String] {
+  if self.get_project_detail(project_id) is None {
+    return Err("Project not found.")
+  }
+
+  let delete_messages_stmt = self.db
+    .prepare(
+      (
+        #|DELETE FROM messages
+        #|WHERE project_id = ?;
+      ),
+    )
+    .unwrap()
+  delete_messages_stmt.bind(1, string_to_sql_text(project_id)) |> ignore
+  delete_messages_stmt.execute() |> ignore
+  delete_messages_stmt.finalize()
+
+  let delete_runs_stmt = self.db
+    .prepare(
+      (
+        #|DELETE FROM runs
+        #|WHERE project_id = ?;
+      ),
+    )
+    .unwrap()
+  delete_runs_stmt.bind(1, string_to_sql_text(project_id)) |> ignore
+  delete_runs_stmt.execute() |> ignore
+  delete_runs_stmt.finalize()
+
+  let delete_project_stmt = self.db
+    .prepare(
+      (
+        #|DELETE FROM projects
+        #|WHERE id = ?;
+      ),
+    )
+    .unwrap()
+  delete_project_stmt.bind(1, string_to_sql_text(project_id)) |> ignore
+  delete_project_stmt.execute() |> ignore
+  delete_project_stmt.finalize()
+  Ok(())
+}
+
+///|
 fn Store::start_run(
   self : Store,
   project_id : String,
@@ -887,6 +939,23 @@ fn PreviewManager::stop_port(self : PreviewManager, port : Int) -> Unit {
 }
 
 ///|
+fn PreviewManager::remove_project_runtime(
+  self : PreviewManager,
+  project_id : String,
+  preview : @sdk.PreviewTarget?,
+) -> Unit {
+  match self.runtimes.get(project_id) {
+    Some(runtime) => self.stop_port(runtime.port)
+    None => ignore(())
+  }
+  match preview {
+    Some(target) => self.stop_port(target.port)
+    None => ignore(())
+  }
+  ignore(self.runtimes.remove(project_id))
+}
+
+///|
 fn PreviewManager::is_healthy(self : PreviewManager, port : Int) -> Bool {
   let _ = self
   shell_status(
@@ -1135,4 +1204,23 @@ fn AppContext::run_project_turn(
         None,
       )
   }
+}
+
+///|
+fn AppContext::delete_project(
+  self : AppContext,
+  project_id : String,
+) -> Result[Unit, String] {
+  let project = match self.store.get_project_detail(project_id) {
+    Some(project) => project
+    None => return Err("Project not found.")
+  }
+  if project.status is Running {
+    return Err(
+      "This project is currently updating. Wait for the current run to finish before deleting it.",
+    )
+  }
+  self.previews.remove_project_runtime(project_id, project.preview)
+  safe_remove_tree(project_root(self.root, project_id))
+  self.store.delete_project(project_id)
 }

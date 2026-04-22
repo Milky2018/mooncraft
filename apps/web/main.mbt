@@ -7,6 +7,7 @@ struct Model {
   run_status : @sdk.RunStatusResponse?
   draft : String
   create_project_pending : Bool
+  delete_project_pending : String?
   sending_message : Bool
   notice : String?
 }
@@ -20,7 +21,9 @@ enum Msg {
   MessagesLoaded(Result[Array[@sdk.ChatMessage], Error])
   DraftChanged(String)
   CreateProject
+  DeleteProject(String)
   ProjectCreated(Result[@sdk.CreateProjectResponse, Error])
+  ProjectDeleted(String, Error?)
   SendDraft
   MessageSent(Result[@sdk.SendMessageResponse, Error])
   PollRun(String, String)
@@ -37,6 +40,7 @@ fn initial_model() -> Model {
     run_status: None,
     draft: "",
     create_project_pending: false,
+    delete_project_pending: None,
     sending_message: false,
     notice: None,
   }
@@ -84,6 +88,16 @@ fn send_message_cmd(
   @http.post("/api/projects/\{project_id}/messages")
   .with_json(payload)
   .expect_json(fn(result) { dispatch(MessageSent(result)) })
+}
+
+///|
+fn delete_project_cmd(
+  dispatch : @rabbita.Dispatch[Msg],
+  project_id : String,
+) -> @rabbita.Cmd {
+  @http.delete("/api/projects/\{project_id}").expect_empty(fn(result) {
+    dispatch(ProjectDeleted(project_id, result))
+  })
 }
 
 ///|
@@ -184,11 +198,24 @@ fn update(
     Bootstrap => (load_projects_cmd(dispatch), { ..model, notice: None })
     ProjectsLoaded(Ok(projects)) => {
       let selected_project_id = pick_selected_project_id(model, projects)
+      let selection_changed = selected_project_id != model.selected_project_id
       let cmd = match selected_project_id {
         Some(project_id) => load_project_cmd(dispatch, project_id)
         None => @rabbita.none
       }
-      (cmd, { ..model, projects, selected_project_id })
+      let next_model = if selection_changed {
+        {
+          ..model,
+          projects,
+          selected_project_id,
+          project_detail: None,
+          messages: [],
+          run_status: None,
+        }
+      } else {
+        { ..model, projects, selected_project_id }
+      }
+      (cmd, next_model)
     }
     ProjectsLoaded(Err(error)) =>
       (
@@ -246,6 +273,15 @@ fn update(
           { ..model, create_project_pending: true, notice: None },
         )
       }
+    DeleteProject(project_id) =>
+      if model.delete_project_pending is Some(_) {
+        (@rabbita.none, model)
+      } else {
+        (
+          delete_project_cmd(dispatch, project_id),
+          { ..model, delete_project_pending: Some(project_id), notice: None },
+        )
+      }
     ProjectCreated(Ok(response)) => {
       let project = response.project
       (
@@ -276,6 +312,31 @@ fn update(
           notice: Some(
             error_notice("A new project could not be created.", error),
           ),
+        },
+      )
+    ProjectDeleted(project_id, None) => {
+      let next_model = if model.selected_project_id == Some(project_id) {
+        {
+          ..model,
+          selected_project_id: None,
+          project_detail: None,
+          messages: [],
+          run_status: None,
+          draft: "",
+          delete_project_pending: None,
+        }
+      } else {
+        { ..model, delete_project_pending: None }
+      }
+      (load_projects_cmd(dispatch), next_model)
+    }
+    ProjectDeleted(_, Some(error)) =>
+      (
+        @rabbita.none,
+        {
+          ..model,
+          delete_project_pending: None,
+          notice: Some(error_notice("The project could not be deleted.", error)),
         },
       )
     SendDraft =>
@@ -391,54 +452,72 @@ fn status_badge(state : @sdk.RunState) -> @rabbita.Html {
 fn render_project_tile(
   dispatch : @rabbita.Dispatch[Msg],
   selected_project_id : String?,
+  delete_project_pending : String?,
   project : @sdk.ProjectSummary,
 ) -> @rabbita.Html {
   let is_selected = selected_project_id == Some(project.id)
+  let is_deleting = delete_project_pending == Some(project.id)
   let background = if is_selected {
     "linear-gradient(135deg, #1f7cff, #3fb6ff)"
   } else {
     "rgba(244, 247, 251, 0.92)"
   }
   let foreground = if is_selected { "#ffffff" } else { "#15263a" }
-  @html.button(
-    type_="button",
-    on_click=dispatch(SelectProject(project.id)),
-    style=[
-      "width: 100%",
-      "display: flex",
-      "justify-content: space-between",
-      "align-items: center",
-      "gap: 12px",
-      "padding: 14px 16px",
-      "border: none",
-      "border-radius: 18px",
-      "background: " + background,
-      "color: " + foreground,
-      "text-align: left",
-      "cursor: pointer",
-    ],
-    [
-      @html.div(
-        style=[
-          "display: flex", "flex-direction: column", "gap: 4px", "min-width: 0",
-        ],
-        [
-          @html.div(
-            style=[
-              "font-size: 15px", "font-weight: 650", "white-space: nowrap", "overflow: hidden",
-              "text-overflow: ellipsis",
-            ],
-            project.display_name,
-          ),
-          @html.div(
-            style=["font-size: 12px", "opacity: 0.75"],
-            project.updated_at,
-          ),
-        ],
-      ),
-      status_badge(project.status),
-    ],
-  )
+  @html.div(style=["display: flex", "gap: 10px", "align-items: stretch"], [
+    @html.button(
+      type_="button",
+      on_click=dispatch(SelectProject(project.id)),
+      style=[
+        "flex: 1",
+        "display: flex",
+        "justify-content: space-between",
+        "align-items: center",
+        "gap: 12px",
+        "padding: 14px 16px",
+        "border: none",
+        "border-radius: 18px",
+        "background: " + background,
+        "color: " + foreground,
+        "text-align: left",
+        "cursor: pointer",
+      ],
+      [
+        @html.div(
+          style=[
+            "display: flex", "flex-direction: column", "gap: 4px", "min-width: 0",
+          ],
+          [
+            @html.div(
+              style=[
+                "font-size: 15px", "font-weight: 650", "white-space: nowrap", "overflow: hidden",
+                "text-overflow: ellipsis",
+              ],
+              project.display_name,
+            ),
+            @html.div(
+              style=["font-size: 12px", "opacity: 0.75"],
+              project.updated_at,
+            ),
+          ],
+        ),
+        status_badge(project.status),
+      ],
+    ),
+    @html.button(
+      type_="button",
+      disabled=project.status is @sdk.Running || is_deleting,
+      on_click=dispatch(DeleteProject(project.id)),
+      style=[
+        "padding: 0 14px", "border: none", "border-radius: 18px", "background: rgba(255, 240, 234, 0.95)",
+        "color: #b34722", "font-size: 13px", "font-weight: 700", "cursor: pointer",
+      ],
+      if is_deleting {
+        "Deleting..."
+      } else {
+        "Delete"
+      },
+    ),
+  ])
 }
 
 ///|
@@ -529,7 +608,12 @@ fn render_projects_panel(
   model : Model,
 ) -> @rabbita.Html {
   let tiles = model.projects.map(fn(project) {
-    render_project_tile(dispatch, model.selected_project_id, project)
+    render_project_tile(
+      dispatch,
+      model.selected_project_id,
+      model.delete_project_pending,
+      project,
+    )
   })
   @html.div(
     style=panel_style() +
