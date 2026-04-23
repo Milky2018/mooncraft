@@ -353,6 +353,23 @@ fn main {
       Ok(request) => request
       Err(response) => return response
     }
+    let template = match ctx.resolve_template(request.template_id) {
+      Ok(template) => template
+      Err(message) =>
+        return if message.has_prefix("Unknown template") {
+          api_error_response(
+            UnprocessableEntity,
+            @sdk.ValidationFailed,
+            message,
+          )
+        } else {
+          api_error_response(
+            ServiceUnavailable,
+            @sdk.ServiceUnavailable,
+            message,
+          )
+        }
+    }
     let project_id = next_id("project")
     let workspace_path = project_workspace(ctx.root, project_id)
     let project = ctx.store.create_project_for_user(
@@ -360,8 +377,21 @@ fn main {
       project_id,
       request.display_name,
       workspace_path,
+      template.id,
+      template.version,
     )
-    ctx.create_project_workspace(project)
+    match ctx.materialize_project_template(project) {
+      Ok(_) => ignore(())
+      Err(message) => {
+        ctx.store.delete_project(project.id) |> ignore
+        safe_remove_tree(project_root(ctx.root, project.id))
+        return api_error_response(
+          ServiceUnavailable,
+          @sdk.ServiceUnavailable,
+          message,
+        )
+      }
+    }
     json_created(@sdk.CreateProjectResponse::{ project, })
   })
   app.delete(@sdk.delete_project_route().path_pattern, event => {
@@ -414,7 +444,7 @@ fn main {
       None => api_error_response(NotFound, @sdk.NotFound, "Project not found.")
     }
   })
-  app.post(@sdk.create_run_route().path_pattern, async fn(event) noraise {
+  app.post(@sdk.create_run_route().path_pattern, event => {
     let user = match require_session_user(ctx, event) {
       Ok(user) => user
       Err(response) => return response

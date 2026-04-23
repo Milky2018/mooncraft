@@ -1,178 +1,307 @@
 ///|
-fn generated_project_module_json() -> String {
-  (
-    #|{
-    #|  "name": "moonbitcloud/generated-app",
-    #|  "version": "0.1.0",
-    #|  "deps": {
-    #|    "moonbit-community/rabbita": "0.12.1",
-    #|    "oboard/mocket": "0.6.13",
-    #|    "moonbitlang/x": "0.4.14"
-    #|  },
-    #|  "readme": "README.md",
-    #|  "repository": "",
-    #|  "license": "Apache-2.0",
-    #|  "keywords": ["moonbit", "generated-app"],
-    #|  "description": "Generated MoonBit Cloud project."
-    #|}
+struct TemplateEntrypoints {
+  frontend_main : String
+  backend_main : String
+  shared_model : String
+} derive(Debug, FromJson)
+
+///|
+struct TemplatePreviewConfig {
+  public_dir : String
+  health_path : String
+  frontend_package : String
+  backend_package : String
+} derive(Debug, FromJson)
+
+///|
+struct TemplateValidationConfig {
+  build_frontend : String
+  run_backend : String
+} derive(Debug, FromJson)
+
+///|
+struct TemplateManifest {
+  id : String
+  version : String
+  name : String
+  summary : String
+  category : String
+  app_shape : String
+  storage : String
+  tenant_requirement : String
+  workspace_dir : String
+  entrypoints : TemplateEntrypoints
+  preview : TemplatePreviewConfig
+  validation : TemplateValidationConfig
+  editable_files : Array[String]
+  knowledge_doc : String
+} derive(Debug, FromJson)
+
+///|
+fn default_template_id() -> String {
+  "bootstrap-app"
+}
+
+///|
+fn default_template_version() -> String {
+  "0.1.0"
+}
+
+///|
+fn templates_root(root : String) -> String {
+  root + "/templates"
+}
+
+///|
+fn template_dir(root : String, template_id : String) -> String {
+  templates_root(root) + "/" + template_id
+}
+
+///|
+fn template_manifest_path(root : String, template_id : String) -> String {
+  template_dir(root, template_id) + "/template.json"
+}
+
+///|
+fn template_workspace_dir(root : String, manifest : TemplateManifest) -> String {
+  template_dir(root, manifest.id) + "/" + manifest.workspace_dir
+}
+
+///|
+fn repo_relative_path(root : String, relative : String) -> String {
+  root + "/" + relative
+}
+
+///|
+fn workspace_relative_path(
+  workspace_path : String,
+  relative : String,
+) -> String {
+  workspace_path + "/" + relative
+}
+
+///|
+fn template_entrypoint_paths(manifest : TemplateManifest) -> Array[String] {
+  [
+    manifest.entrypoints.frontend_main,
+    manifest.entrypoints.backend_main,
+    manifest.entrypoints.shared_model,
+  ]
+}
+
+///|
+fn template_package_leaf(package_path : String) -> String {
+  let parts = package_path.split("/").to_array()
+  if parts.length() == 0 {
+    package_path
+  } else {
+    parts[parts.length() - 1].to_string()
+  }
+}
+
+///|
+fn template_build_output_path(
+  workspace_path : String,
+  build_profile : BuildProfile,
+  frontend_package : String,
+) -> String {
+  workspace_path +
+  "/_build/js/" +
+  build_profile.build_dir() +
+  "/build/" +
+  frontend_package +
+  "/" +
+  template_package_leaf(frontend_package) +
+  ".js"
+}
+
+///|
+fn validate_template_manifest(
+  root : String,
+  manifest : TemplateManifest,
+) -> Result[Unit, String] {
+  let workspace_dir = template_workspace_dir(root, manifest)
+  if !(@fs.is_dir(workspace_dir) catch { _ => false }) {
+    return Err(
+      "Template '\{manifest.id}' is missing its workspace directory: \{workspace_dir}",
+    )
+  }
+  for relative in template_entrypoint_paths(manifest) {
+    let path = workspace_relative_path(workspace_dir, relative)
+    if !(@fs.is_file(path) catch { _ => false }) {
+      return Err(
+        "Template '\{manifest.id}' is missing a required entrypoint: \{relative}",
+      )
+    }
+  }
+  let public_dir = workspace_relative_path(
+    workspace_dir,
+    manifest.preview.public_dir,
+  )
+  if !(@fs.is_dir(public_dir) catch { _ => false }) {
+    return Err(
+      "Template '\{manifest.id}' is missing its preview public directory: \{manifest.preview.public_dir}",
+    )
+  }
+  let knowledge_doc = repo_relative_path(root, manifest.knowledge_doc)
+  if !(@fs.is_file(knowledge_doc) catch { _ => false }) {
+    return Err(
+      "Template '\{manifest.id}' references a missing knowledge document: \{manifest.knowledge_doc}",
+    )
+  }
+  Ok(())
+}
+
+///|
+fn load_template_manifest(
+  root : String,
+  template_id : String,
+) -> Result[TemplateManifest, String] {
+  let path = template_manifest_path(root, template_id)
+  if !@fs.path_exists(path) {
+    return Err("Unknown template '\{template_id}'.")
+  }
+  let raw = @fs.read_file_to_string(path) catch {
+    err => return Err("Failed to read template manifest '\{path}': \{err}")
+  }
+  let json = @json.parse(raw) catch {
+    _ => return Err("Template manifest '\{path}' is not valid JSON.")
+  }
+  let manifest : TemplateManifest = @json.from_json(json) catch {
+    _ =>
+      return Err(
+        "Template manifest '\{path}' does not match the expected shape.",
+      )
+  }
+  match validate_template_manifest(root, manifest) {
+    Ok(_) => Ok(manifest)
+    Err(message) => Err(message)
+  }
+}
+
+///|
+fn is_binary_template_file(path : String) -> Bool {
+  path.has_suffix(".png") ||
+  path.has_suffix(".jpg") ||
+  path.has_suffix(".jpeg") ||
+  path.has_suffix(".gif") ||
+  path.has_suffix(".webp") ||
+  path.has_suffix(".ico") ||
+  path.has_suffix(".woff") ||
+  path.has_suffix(".woff2") ||
+  path.has_suffix(".ttf") ||
+  path.has_suffix(".otf")
+}
+
+///|
+fn render_template_text(
+  content : String,
+  project : @sdk.ProjectDetail,
+  manifest : TemplateManifest,
+) -> String {
+  content
+  .replace_all(old="{{PROJECT_NAME}}", new=project.display_name)
+  .replace_all(old="{{PROJECT_ID}}", new=project.id)
+  .replace_all(old="{{TEMPLATE_ID}}", new=manifest.id)
+  .replace_all(old="{{TEMPLATE_VERSION}}", new=manifest.version)
+}
+
+///|
+fn copy_template_file(
+  source : String,
+  target : String,
+  project : @sdk.ProjectDetail,
+  manifest : TemplateManifest,
+) -> Result[Unit, String] {
+  if is_binary_template_file(source) {
+    let content = @fs.read_file_to_bytes(source) catch {
+      err => return Err("Failed to read template asset '\{source}': \{err}")
+    }
+    @fs.write_bytes_to_file(target, content) catch {
+      err => return Err("Failed to write template asset '\{target}': \{err}")
+    }
+    return Ok(())
+  }
+  let content = @fs.read_file_to_string(source) catch {
+    err => return Err("Failed to read template file '\{source}': \{err}")
+  }
+  @fs.write_string_to_file(
+    target,
+    render_template_text(content, project, manifest),
+  ) catch {
+    err => return Err("Failed to write template file '\{target}': \{err}")
+  }
+  Ok(())
+}
+
+///|
+fn copy_template_tree(
+  source_root : String,
+  target_root : String,
+  project : @sdk.ProjectDetail,
+  manifest : TemplateManifest,
+) -> Result[Unit, String] {
+  ensure_dir(target_root)
+  let entries = @fs.read_dir(source_root) catch {
+    err =>
+      return Err("Failed to read template directory '\{source_root}': \{err}")
+  }
+  for entry in entries {
+    if entry == "." || entry == ".." {
+      continue
+    }
+    let source = source_root + "/" + entry
+    let target = target_root + "/" + entry
+    if (@fs.is_dir(source) catch { _ => false }) {
+      match copy_template_tree(source, target, project, manifest) {
+        Ok(_) => ignore(())
+        Err(message) => return Err(message)
+      }
+    } else {
+      match copy_template_file(source, target, project, manifest) {
+        Ok(_) => ignore(())
+        Err(message) => return Err(message)
+      }
+    }
+  }
+  Ok(())
+}
+
+///|
+fn AppContext::resolve_template(
+  self : AppContext,
+  template_id : String?,
+) -> Result[TemplateManifest, String] {
+  load_template_manifest(
+    self.root,
+    template_id.unwrap_or(default_template_id()),
   )
 }
 
 ///|
-fn generated_project_readme(project_name : String) -> String {
-  "# \{project_name}\n\nThis workspace is managed by MoonBit Cloud.\n"
+fn AppContext::load_project_template(
+  self : AppContext,
+  project : @sdk.ProjectDetail,
+) -> Result[TemplateManifest, String] {
+  load_template_manifest(self.root, project.template_id)
 }
 
 ///|
-fn generated_shared_moon_pkg() -> String {
-  "import {\n  \"moonbitlang/core/json\",\n}\n\nsupported_targets = \"js+native\"\n"
-}
-
-///|
-fn generated_shared_model() -> String {
-  (
-    #|///|
-    #|pub(all) struct AppInfo {
-    #|  title : String
-    #|  subtitle : String
-    #|} derive(Debug, ToJson, FromJson)
-    #|
-    #|///|
-    #|pub(all) struct HealthStatus {
-    #|  ok : Bool
-    #|  title : String
-    #|  subtitle : String
-    #|} derive(Debug, ToJson, FromJson)
-    #|
-    #|///|
-    #|pub fn default_info() -> AppInfo {
-    #|  {
-    #|    title: "MoonBit Cloud App",
-    #|    subtitle: "Describe what you want, then let the agent reshape this project.",
-    #|  }
-    #|}
-  )
-}
-
-///|
-fn generated_frontend_moon_pkg() -> String {
-  (
-    #|import {
-    #|  "moonbitcloud/generated-app/shared" @shared,
-    #|  "moonbit-community/rabbita",
-    #|  "moonbit-community/rabbita/html" @html,
-    #|}
-    #|
-    #|options(
-    #|  "is-main": true,
-    #|)
-    #|
-    #|supported_targets = "js"
-  )
-}
-
-///|
-fn generated_frontend_main() -> String {
-  (
-    #|///|
-    #|struct Model {
-    #|  info : @shared.AppInfo
-    #|}
-    #|
-    #|///|
-    #|enum Msg {}
-    #|
-    #|///|
-    #|fn view(_dispatch : @rabbita.Dispatch[Msg], model : Model) -> @rabbita.Html {
-    #|  @html.div(
-    #|    class="preview-shell",
-    #|    [
-    #|      @html.div(
-    #|        class="preview-card",
-    #|        [
-    #|          @html.h1(class="preview-title", model.info.title),
-    #|          @html.p(class="preview-copy", model.info.subtitle),
-    #|          @html.p(
-    #|            class="preview-copy muted",
-    #|            "This scaffold is intentionally small. The agent will turn it into a real product after your first request.",
-    #|          ),
-    #|        ],
-    #|      ),
-    #|    ],
-    #|  )
-    #|}
-    #|
-    #|///|
-    #|fn main {
-    #|  let app = @rabbita.simple_cell(
-    #|    model={ info: @shared.default_info() },
-    #|    update=(_ : Msg, model) => model,
-    #|    view=view,
-    #|  )
-    #|  @rabbita.new(app).mount("app")
-    #|}
-  )
-}
-
-///|
-fn generated_backend_moon_pkg() -> String {
-  (
-    #|import {
-    #|  "moonbitcloud/generated-app/shared" @shared,
-    #|  "oboard/mocket",
-    #|  "moonbitlang/core/env",
-    #|  "moonbitlang/core/string",
-    #|  "moonbitlang/x/fs",
-    #|}
-    #|
-    #|options(
-    #|  "is-main": true,
-    #|)
-    #|
-    #|supported_targets = "native"
-  )
-}
-
-///|
-fn generated_backend_main() -> String {
-  (
-    #|///|
-    #|fn asset_response(
-    #|  path : String,
-    #|  content_type : String,
-    #|) -> @mocket.HttpResponse {
-    #|  @mocket.HttpResponse::new(
-    #|    OK,
-    #|    headers={ "Content-Type": content_type },
-    #|    raw_body=@fs.read_file_to_bytes(path),
-    #|  ) catch {
-    #|    _ => @mocket.HttpResponse::new(NotFound).body("Not Found")
-    #|  }
-    #|}
-    #|
-    #|///|
-    #|fn main {
-    #|  let args = @env.args()
-    #|  let port = if args.length() > 1 {
-    #|    @string.parse_int(args[1]) catch {
-    #|      _ => 4300
-    #|    }
-    #|  } else {
-    #|    4300
-    #|  }
-    #|  let static_dir = if args.length() > 2 { args[2] } else { "./preview-dist" }
-    #|  let info = @shared.default_info()
-    #|  let app = @mocket.new()
-    #|  app.get("/api/health", _ => @shared.HealthStatus::{
-    #|    ok: true,
-    #|    title: info.title,
-    #|    subtitle: info.subtitle,
-    #|  }.to_json())
-    #|  app.get("/", _ => asset_response(static_dir + "/index.html", "text/html; charset=utf-8"))
-    #|  app.get("/app", _ => asset_response(static_dir + "/app.js", "text/javascript; charset=utf-8"))
-    #|  app.get("/styles", _ => asset_response(static_dir + "/styles.css", "text/css; charset=utf-8"))
-    #|  app.serve(port=port)
-    #|}
+fn AppContext::materialize_project_template(
+  self : AppContext,
+  project : @sdk.ProjectDetail,
+) -> Result[Unit, String] {
+  let manifest = match self.load_project_template(project) {
+    Ok(manifest) => manifest
+    Err(message) => return Err(message)
+  }
+  let workspace_path = project.workspace_path
+  ensure_dir(workspace_path)
+  copy_template_tree(
+    template_workspace_dir(self.root, manifest),
+    workspace_path,
+    project,
+    manifest,
   )
 }
 
@@ -249,59 +378,5 @@ fn generated_preview_styles() -> String {
     #|  margin-top: 14px;
     #|  color: #5e6d7d;
     #|}
-  )
-}
-
-///|
-fn AppContext::create_project_workspace(
-  self : AppContext,
-  project : @sdk.ProjectDetail,
-) -> Unit {
-  let _ = self
-  let workspace_path = project.workspace_path
-  ensure_dir(workspace_path)
-  ensure_dir(workspace_path + "/frontend")
-  ensure_dir(workspace_path + "/frontend/public")
-  ensure_dir(workspace_path + "/backend")
-  ensure_dir(workspace_path + "/shared")
-  safe_write_string(
-    workspace_path + "/moon.mod.json",
-    generated_project_module_json(),
-  )
-  safe_write_string(
-    workspace_path + "/README.md",
-    generated_project_readme(project.display_name),
-  )
-  safe_write_string(
-    workspace_path + "/shared/moon.pkg",
-    generated_shared_moon_pkg(),
-  )
-  safe_write_string(
-    workspace_path + "/shared/model.mbt",
-    generated_shared_model(),
-  )
-  safe_write_string(
-    workspace_path + "/frontend/moon.pkg",
-    generated_frontend_moon_pkg(),
-  )
-  safe_write_string(
-    workspace_path + "/frontend/main.mbt",
-    generated_frontend_main(),
-  )
-  safe_write_string(
-    workspace_path + "/frontend/public/index.html",
-    generated_preview_index_html(),
-  )
-  safe_write_string(
-    workspace_path + "/frontend/public/styles.css",
-    generated_preview_styles(),
-  )
-  safe_write_string(
-    workspace_path + "/backend/moon.pkg",
-    generated_backend_moon_pkg(),
-  )
-  safe_write_string(
-    workspace_path + "/backend/main.mbt",
-    generated_backend_main(),
   )
 }

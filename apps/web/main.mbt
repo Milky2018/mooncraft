@@ -144,6 +144,7 @@ fn load_project_cmd(
 fn create_project_cmd(dispatch : @rabbita.Dispatch[Msg]) -> @rabbita.Cmd {
   let payload : @sdk.CreateProjectRequest = @sdk.CreateProjectRequest::{
     display_name: None,
+    template_id: None,
   }
   post_json(@sdk.projects_path(), payload, fn(result) {
     dispatch(ProjectCreated(result))

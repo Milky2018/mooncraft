@@ -1,0 +1,32 @@
+{
+  "id": "bootstrap-app",
+  "version": "0.1.0",
+  "name": "Bootstrap App",
+  "summary": "Small MoonBit starter app with a preview-ready frontend and backend.",
+  "category": "foundation",
+  "app_shape": "http-api",
+  "storage": "none",
+  "tenant_requirement": "platform-owner-only",
+  "workspace_dir": "workspace",
+  "entrypoints": {
+    "frontend_main": "frontend/main.mbt",
+    "backend_main": "backend/main.mbt",
+    "shared_model": "shared/model.mbt"
+  },
+  "preview": {
+    "public_dir": "frontend/public",
+    "health_path": "/api/health",
+    "frontend_package": "frontend",
+    "backend_package": "backend"
+  },
+  "validation": {
+    "build_frontend": "moon build frontend --target js",
+    "run_backend": "moon run backend --target native -- {port} {public_dir}"
+  },
+  "editable_files": [
+    "frontend",
+    "backend",
+    "shared"
+  ],
+  "knowledge_doc": "knowledge/templates/bootstrap-app.md"
+}

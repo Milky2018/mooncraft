@@ -34,7 +34,7 @@ This keeps the live preview tied to a real generated app instead of a fake demo 
 
 ## Current Runtime Flow
 
-1. `POST /api/projects` creates project metadata and scaffolds the generated workspace.
+1. `POST /api/projects` creates project metadata, resolves a template manifest, and materializes the generated workspace from `templates/<id>/workspace`.
 2. `POST /api/projects/:id/runs` stores the user message, opens a run, and locks the project.
 3. `AgentGateway` updates the generated project.
 4. `PreviewManager` rebuilds the generated frontend, copies preview assets, and restarts the generated backend on a stable local port.
@@ -63,11 +63,24 @@ Important persisted fields include:
 - preview public id
 - display name
 - workspace path
+- template id and version
 - current status
 - current run id
 - preview URL and port
 - last error
 - thread id placeholder
+
+## Template Boundary
+
+Official templates live under `templates/<id>` as runnable MoonBit workspaces plus a `template.json` manifest. The control plane owns template selection, validation, and materialization. It should not define app source code as inline strings.
+
+Each template manifest declares:
+
+- id and version
+- preview package and health-check contract
+- required entrypoints
+- editable files
+- matching knowledge document
 
 ## Web Surface
 
@@ -81,7 +94,7 @@ Default UX constraints:
 
 - code hidden
 - no deploy
-- no template picker
+- no UI template picker yet
 - plain-English errors only
 
 ## Agent Boundary
@@ -91,11 +104,11 @@ The agent layer is intentionally isolated behind `AgentGateway`.
 Current state:
 
 - the boundary is real
-- the implementation is a local deterministic adapter
+- the implementation uses Docker-backed Codex CLI workers
 
 Future state:
 
-- replace the adapter with real Codex-driven editing while keeping the same product boundary
+- harden the Docker executor while keeping the same product boundary
 
 This separation matters because the frontend, persistence model, and preview lifecycle should not need to change when the real agent runtime lands.
 

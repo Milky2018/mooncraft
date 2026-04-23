@@ -1,0 +1,14 @@
+{
+  "name": "moonbitcloud/generated-app",
+  "version": "0.1.0",
+  "deps": {
+    "moonbit-community/rabbita": "0.12.1",
+    "oboard/mocket": "0.6.13",
+    "moonbitlang/x": "0.4.14"
+  },
+  "readme": "README.md",
+  "repository": "",
+  "license": "Apache-2.0",
+  "keywords": ["moonbit", "generated-app"],
+  "description": "Generated MoonBit Cloud project."
+}

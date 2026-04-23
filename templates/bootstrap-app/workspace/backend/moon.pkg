@@ -1,0 +1,13 @@
+import {
+  "moonbitcloud/generated-app/shared" @shared,
+  "oboard/mocket",
+  "moonbitlang/core/env",
+  "moonbitlang/core/string",
+  "moonbitlang/x/fs",
+}
+
+options(
+  "is-main": true,
+)
+
+supported_targets = "native"

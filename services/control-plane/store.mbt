@@ -20,6 +20,7 @@ pub(all) struct PreviewRuntime {
 
 ///|
 struct PreviewManager {
+  root : String
   runtimes : Map[String, PreviewRuntime]
   build_profile : BuildProfile
 }
@@ -271,17 +272,6 @@ fn platform_web_build_output_path(
 }
 
 ///|
-fn generated_web_build_output_path(
-  workspace_path : String,
-  build_profile : BuildProfile,
-) -> String {
-  workspace_path +
-  "/_build/js/" +
-  build_profile.build_dir() +
-  "/build/frontend/frontend.js"
-}
-
-///|
 fn preview_from_columns(
   preview_public_id : String,
   url : String,
@@ -378,6 +368,8 @@ fn Store::init_schema(self : Store) -> Unit {
       #|  preview_public_id TEXT NOT NULL UNIQUE,
       #|  display_name TEXT NOT NULL,
       #|  workspace_path TEXT NOT NULL,
+      #|  template_id TEXT NOT NULL DEFAULT 'bootstrap-app',
+      #|  template_version TEXT NOT NULL DEFAULT '0.1.0',
       #|  codex_thread_id TEXT,
       #|  status TEXT NOT NULL,
       #|  preview_url TEXT,
@@ -394,6 +386,14 @@ fn Store::init_schema(self : Store) -> Unit {
     ),
   )
   |> ignore
+  self.ensure_project_column(
+    "template_id",
+    "TEXT NOT NULL DEFAULT '" + default_template_id() + "'",
+  )
+  self.ensure_project_column(
+    "template_version",
+    "TEXT NOT NULL DEFAULT '" + default_template_version() + "'",
+  )
   self.db.exec(
     (
       #|CREATE TABLE IF NOT EXISTS messages (
@@ -427,6 +427,34 @@ fn Store::init_schema(self : Store) -> Unit {
 }
 
 ///|
+fn Store::project_column_exists(self : Store, column_name : String) -> Bool {
+  let stmt = self.db.prepare("PRAGMA table_info(projects);").unwrap()
+  let mut exists = false
+  while stmt.step() {
+    if bytes_to_string(stmt.column_text(1)) == column_name {
+      exists = true
+    }
+  }
+  stmt.finalize()
+  exists
+}
+
+///|
+fn Store::ensure_project_column(
+  self : Store,
+  column_name : String,
+  definition : String,
+) -> Unit {
+  if self.project_column_exists(column_name) {
+    return
+  }
+  self.db.exec(
+    "ALTER TABLE projects ADD COLUMN " + column_name + " " + definition + ";",
+  )
+  |> ignore
+}
+
+///|
 fn Store::count_projects(self : Store) -> Int {
   let stmt = self.db.prepare("SELECT COUNT(*) FROM projects").unwrap()
   let mut count = 0
@@ -450,6 +478,8 @@ fn Store::get_project_detail(
         #|  preview_public_id,
         #|  display_name,
         #|  workspace_path,
+        #|  template_id,
+        #|  template_version,
         #|  COALESCE(codex_thread_id, ''),
         #|  status,
         #|  COALESCE(preview_url, ''),
@@ -468,22 +498,24 @@ fn Store::get_project_detail(
   let result = if stmt.step() {
     let preview = preview_from_columns(
       bytes_to_string(stmt.column_text(1)),
-      bytes_to_string(stmt.column_text(6)),
-      stmt.column_int(7),
-      stmt.column_int(8),
+      bytes_to_string(stmt.column_text(8)),
+      stmt.column_int(9),
+      stmt.column_int(10),
     )
     Some(@sdk.ProjectDetail::{
       id: bytes_to_string(stmt.column_text(0)),
       preview_public_id: bytes_to_string(stmt.column_text(1)),
       display_name: bytes_to_string(stmt.column_text(2)),
       workspace_path: bytes_to_string(stmt.column_text(3)),
-      codex_thread_id: empty_to_none(bytes_to_string(stmt.column_text(4))),
-      status: run_state_from_db(bytes_to_string(stmt.column_text(5))),
+      template_id: bytes_to_string(stmt.column_text(4)),
+      template_version: bytes_to_string(stmt.column_text(5)),
+      codex_thread_id: empty_to_none(bytes_to_string(stmt.column_text(6))),
+      status: run_state_from_db(bytes_to_string(stmt.column_text(7))),
       preview,
-      current_run_id: empty_to_none(bytes_to_string(stmt.column_text(10))),
-      last_error: empty_to_none(bytes_to_string(stmt.column_text(9))),
-      created_at: bytes_to_string(stmt.column_text(11)),
-      updated_at: bytes_to_string(stmt.column_text(12)),
+      current_run_id: empty_to_none(bytes_to_string(stmt.column_text(12))),
+      last_error: empty_to_none(bytes_to_string(stmt.column_text(11))),
+      created_at: bytes_to_string(stmt.column_text(13)),
+      updated_at: bytes_to_string(stmt.column_text(14)),
     })
   } else {
     None
@@ -590,6 +622,8 @@ fn Store::create_project(
   preview_public_id : String,
   display_name : String?,
   workspace_path : String,
+  template_id : String,
+  template_version : String,
 ) -> @sdk.ProjectDetail {
   let now = now_string()
   let name = match display_name {
@@ -605,10 +639,12 @@ fn Store::create_project(
         #|  preview_public_id,
         #|  display_name,
         #|  workspace_path,
+        #|  template_id,
+        #|  template_version,
         #|  status,
         #|  created_at,
         #|  updated_at
-        #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+        #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
       ),
     )
     .unwrap()
@@ -618,6 +654,8 @@ fn Store::create_project(
     string_to_sql_text(preview_public_id),
     string_to_sql_text(name),
     string_to_sql_text(workspace_path),
+    string_to_sql_text(template_id),
+    string_to_sql_text(template_version),
     string_to_sql_text(run_state_to_db(Idle)),
     string_to_sql_text(now),
     string_to_sql_text(now),
@@ -1038,8 +1076,7 @@ fn PreviewManager::new(
   root : String,
   build_profile : BuildProfile,
 ) -> PreviewManager {
-  let _ = root
-  { runtimes: {}, build_profile }
+  { root, runtimes: {}, build_profile }
 }
 
 ///|
@@ -1102,10 +1139,14 @@ fn PreviewManager::remove_project_runtime(
 }
 
 ///|
-fn PreviewManager::is_healthy(self : PreviewManager, port : Int) -> Bool {
+fn PreviewManager::is_healthy(
+  self : PreviewManager,
+  port : Int,
+  health_path : String,
+) -> Bool {
   let _ = self
   shell_status(
-    "curl --silent --fail http://127.0.0.1:\{port}/api/health >/dev/null 2>&1",
+    "curl --silent --fail http://127.0.0.1:\{port}\{health_path} >/dev/null 2>&1",
   ) ==
   0
 }
@@ -1114,10 +1155,11 @@ fn PreviewManager::is_healthy(self : PreviewManager, port : Int) -> Bool {
 fn PreviewManager::wait_until_healthy(
   self : PreviewManager,
   port : Int,
+  health_path : String,
   attempts : Int,
 ) -> Bool {
   for _ in 0..<attempts {
-    if self.is_healthy(port) {
+    if self.is_healthy(port, health_path) {
       return true
     }
     ignore(shell_status("sleep 1"))
@@ -1128,14 +1170,19 @@ fn PreviewManager::wait_until_healthy(
 ///|
 fn PreviewManager::copy_preview_assets(
   self : PreviewManager,
-  workspace_path : String,
+  project : @sdk.ProjectDetail,
+  manifest : TemplateManifest,
 ) -> Result[String, String] {
-  let _ = self
+  let workspace_path = project.workspace_path
   let preview_dir = preview_dist_dir(workspace_path)
   ensure_dir(preview_dir)
 
-  let index_source = workspace_path + "/frontend/public/index.html"
-  let style_source = workspace_path + "/frontend/public/styles.css"
+  let public_dir = workspace_relative_path(
+    workspace_path,
+    manifest.preview.public_dir,
+  )
+  let index_source = public_dir + "/index.html"
+  let style_source = public_dir + "/styles.css"
   let index_target = preview_dir + "/index.html"
   let style_target = preview_dir + "/styles.css"
   let bundle_target = preview_dir + "/app.js"
@@ -1158,9 +1205,10 @@ fn PreviewManager::copy_preview_assets(
     safe_write_string(style_target, generated_preview_styles())
   }
 
-  let bundle_source = generated_web_build_output_path(
+  let bundle_source = template_build_output_path(
     workspace_path,
     self.build_profile,
+    manifest.preview.frontend_package,
   )
   if !@fs.path_exists(bundle_source) {
     return Err("The generated frontend bundle was not found after build.")
@@ -1177,16 +1225,20 @@ fn PreviewManager::rebuild_and_restart(
   self : PreviewManager,
   project : @sdk.ProjectDetail,
 ) -> Result[@sdk.PreviewTarget, String] {
+  let manifest = match load_template_manifest(self.root, project.template_id) {
+    Ok(manifest) => manifest
+    Err(message) => return Err(message)
+  }
   let workspace_path = project.workspace_path
   let build_code = shell_status(
-    "cd '\{workspace_path}' && moon build frontend \{self.build_profile.cli_flag()}--target js >/dev/null 2>&1",
+    "cd '\{workspace_path}' && moon build \{manifest.preview.frontend_package} \{self.build_profile.cli_flag()}--target js >/dev/null 2>&1",
   )
   if build_code != 0 {
     return Err(
       "The updated app did not compile yet, so the preview could not be refreshed.",
     )
   }
-  let preview_dir = match self.copy_preview_assets(workspace_path) {
+  let preview_dir = match self.copy_preview_assets(project, manifest) {
     Ok(dir) => dir
     Err(message) => return Err(message)
   }
@@ -1197,9 +1249,9 @@ fn PreviewManager::rebuild_and_restart(
   )
   self.stop_port(port)
   let pid = shell_status(
-    "cd '\{workspace_path}' && nohup moon run backend \{self.build_profile.cli_flag()}--target native -- \{port} '\{preview_dir}' >/tmp/moonbitcloud-preview-\{project.id}.log 2>&1 &",
+    "cd '\{workspace_path}' && nohup moon run \{manifest.preview.backend_package} \{self.build_profile.cli_flag()}--target native -- \{port} '\{preview_dir}' >/tmp/moonbitcloud-preview-\{project.id}.log 2>&1 &",
   )
-  if !self.wait_until_healthy(port, 12) {
+  if !self.wait_until_healthy(port, manifest.preview.health_path, 12) {
     return Err(
       "The preview process started, but it did not become healthy in time.",
     )

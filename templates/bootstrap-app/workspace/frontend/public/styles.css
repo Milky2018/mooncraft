@@ -1,0 +1,51 @@
+:root {
+  color-scheme: light;
+  font-family: "Inter", "Helvetica Neue", sans-serif;
+  background:
+    radial-gradient(circle at top left, #eefdf4, transparent 32%),
+    radial-gradient(circle at bottom right, #edf4ff, transparent 36%),
+    #fbfcff;
+  color: #112033;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+.preview-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+}
+
+.preview-card {
+  width: min(560px, 100%);
+  padding: 32px;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(17, 32, 51, 0.08);
+  box-shadow: 0 30px 80px rgba(24, 62, 92, 0.12);
+}
+
+.preview-title {
+  margin: 0 0 12px;
+  font-size: 38px;
+  line-height: 1.05;
+}
+
+.preview-copy {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.preview-copy.muted {
+  margin-top: 14px;
+  color: #5e6d7d;
+}

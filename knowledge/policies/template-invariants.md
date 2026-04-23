@@ -5,6 +5,7 @@ applies_to:
   - templates
   - agent-edits
 editable_files:
+  - templates
   - examples
   - knowledge/templates
 entrypoints: []

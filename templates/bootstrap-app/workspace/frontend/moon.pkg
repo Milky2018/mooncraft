@@ -1,0 +1,11 @@
+import {
+  "moonbitcloud/generated-app/shared" @shared,
+  "moonbit-community/rabbita",
+  "moonbit-community/rabbita/html" @html,
+}
+
+options(
+  "is-main": true,
+)
+
+supported_targets = "js"
