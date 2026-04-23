@@ -1,0 +1,13 @@
+{
+  "name": "moonbitcloud/frontend-dashboard",
+  "version": "0.1.0",
+  "preferred-target": "js",
+  "deps": {
+    "moonbit-community/rabbita": "0.12.1"
+  },
+  "readme": "README.md",
+  "repository": "",
+  "license": "Apache-2.0",
+  "keywords": ["moonbit", "frontend", "dashboard"],
+  "description": "Single-module MoonBit frontend dashboard template."
+}

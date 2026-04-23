@@ -172,6 +172,16 @@ fn proxy_response_headers(
 }
 
 ///|
+fn proxy_response_body(response : @mocket.HttpResponse) -> Bytes {
+  if response.raw_body.length() > 0 {
+    response.raw_body
+  } else {
+    let body : String = response.read_body() catch { _ => "" }
+    @utf8.encode(body)
+  }
+}
+
+///|
 fn preview_target_path(remainder : String) -> String {
   if remainder == "" {
     "/"
@@ -180,6 +190,56 @@ fn preview_target_path(remainder : String) -> String {
   } else {
     "/" + remainder
   }
+}
+
+///|
+fn preview_asset_response(
+  path : String,
+  content_type : String,
+) -> @mocket.HttpResponse {
+  if !@fs.path_exists(path) {
+    return text_response(NotFound, "Not Found")
+  }
+  @mocket.HttpResponse::new(OK, headers={ "Content-Type": content_type }).body(
+    safe_read_string_or(path, ""),
+  )
+}
+
+///|
+fn static_preview_response(
+  static_dir : String,
+  target_path : String,
+) -> @mocket.HttpResponse {
+  match target_path {
+    "/" =>
+      preview_asset_response(
+        static_dir + "/index.html",
+        "text/html; charset=utf-8",
+      )
+    "/app" =>
+      preview_asset_response(
+        static_dir + "/app.js",
+        "text/javascript; charset=utf-8",
+      )
+    "/styles" =>
+      preview_asset_response(
+        static_dir + "/styles.css",
+        "text/css; charset=utf-8",
+      )
+    "/__health" | "/api/health" => json_ok(@sdk.HealthResponse::{ ok: true })
+    _ => text_response(NotFound, "Not Found")
+  }
+}
+
+///|
+fn run_static_preview_mode(port : Int, static_dir : String) -> Unit {
+  let app = @mocket.new()
+  app.get("/__health", _ => json_ok(@sdk.HealthResponse::{ ok: true }))
+  app.get("/api/health", _ => json_ok(@sdk.HealthResponse::{ ok: true }))
+  app.get("/", _ => static_preview_response(static_dir, "/"))
+  app.get("/app", _ => static_preview_response(static_dir, "/app"))
+  app.get("/styles", _ => static_preview_response(static_dir, "/styles"))
+  app.serve(port~)
 }
 
 ///|
@@ -230,7 +290,7 @@ fn workspace_page_html() -> String {
 fn AppContext::ensure_platform_web_bundle(self : AppContext) -> Unit {
   ensure_dir(platform_web_dist_dir(self.root))
   let code = shell_status(
-    "cd '\{self.root}' && moon build apps/web \{self.build_profile.cli_flag()}--target js --manifest-path '\{self.root}/moon.work' >/dev/null 2>&1",
+    "cd '\{self.root}' && moon build --manifest-path '\{self.root}/moon.work' \{self.build_profile.cli_flag()}>/dev/null 2>&1",
   )
   if code != 0 {
     println("warning: failed to build apps/web bundle")
@@ -274,6 +334,11 @@ fn control_plane_port() -> Int {
 fn main {
   let root = @env.current_dir().unwrap_or(".")
   let args = @env.args()
+  if args.length() > 3 && args[1] == "run-static-preview" {
+    let port = @string.parse_int(args[2]) catch { _ => 4300 }
+    run_static_preview_mode(port, args[3])
+    return
+  }
   if args.length() > 3 && args[1] == "run-worker" {
     @async.run_async_main(() => run_worker_mode(root, args[2], args[3]))
     return
@@ -355,6 +420,23 @@ fn main {
       Ok(request) => request
       Err(response) => return response
     }
+    let template = match ctx.resolve_template(request.template_id) {
+      Ok(template) => template
+      Err(message) =>
+        return if message.has_prefix("Unknown template") {
+          api_error_response(
+            UnprocessableEntity,
+            @sdk.ValidationFailed,
+            message,
+          )
+        } else {
+          api_error_response(
+            ServiceUnavailable,
+            @sdk.ServiceUnavailable,
+            message,
+          )
+        }
+    }
     let project_id = next_id("project")
     let workspace_path = project_workspace(ctx.root, project_id)
     let project = ctx.store.create_project_for_user(
@@ -362,8 +444,10 @@ fn main {
       project_id,
       request.display_name,
       workspace_path,
+      template.id,
+      template.version,
     )
-    match ctx.create_project_workspace(project) {
+    match ctx.materialize_project_template(project) {
       Ok(_) => json_created(@sdk.CreateProjectResponse::{ project, })
       Err(message) => {
         safe_remove_tree(project_root(ctx.root, project_id))
@@ -449,8 +533,10 @@ fn main {
         return api_error_response(Conflict, @sdk.Conflict, message)
     }
     match ctx.spawn_project_turn_worker(project_id, run.run_id) {
-      Ok(_) =>
+      Ok(worker_pid) => {
+        ctx.store.set_run_worker_pid(project_id, run.run_id, worker_pid)
         json_created(@sdk.CreateRunResponse::{ run, poll_after_ms: Some(1000) })
+      }
       Err(message) => {
         ctx.store.finish_run_failure(
           project_id,
@@ -503,7 +589,18 @@ fn main {
     }
     match project.preview {
       Some(preview) => {
-        let target_url = "http://127.0.0.1:\{preview.port}\{preview_target_path(remainder)}"
+        let target_path = preview_target_path(remainder)
+        let manifest = match ctx.load_project_template(project) {
+          Ok(manifest) => manifest
+          Err(message) => return text_response(ServiceUnavailable, message)
+        }
+        if template_preview_kind(manifest) == "static" {
+          return static_preview_response(
+            preview_dist_dir(project.workspace_path),
+            target_path,
+          )
+        }
+        let target_url = "http://127.0.0.1:\{preview.port}\{target_path}"
         let headers = proxy_request_headers(event)
         let upstream = try {
           if event.req.raw_body.length() == 0 {
@@ -533,7 +630,7 @@ fn main {
         @mocket.HttpResponse::new(
           upstream.status_code,
           headers=proxy_response_headers(upstream),
-          raw_body=upstream.raw_body,
+          raw_body=proxy_response_body(upstream),
         )
       }
       None =>

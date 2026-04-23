@@ -20,6 +20,7 @@ pub(all) struct PreviewRuntime {
 
 ///|
 struct PreviewManager {
+  root : String
   runtimes : Map[String, PreviewRuntime]
   build_profile : BuildProfile
 }
@@ -61,8 +62,22 @@ fn bytes_to_string(bytes : Bytes) -> String {
 extern "C" fn shell_status_ffi(command : Bytes) -> Int = "moonbitcloud_shell_status"
 
 ///|
+#borrow(pid)
+extern "C" fn process_alive_ffi(pid : Int) -> Int = "moonbitcloud_process_alive"
+
+///|
 fn shell_status(command : String) -> Int {
   shell_status_ffi(@utf8.encode(command))
+}
+
+///|
+fn shell_quote(value : String) -> String {
+  "'" + value.split("'").to_array().join("'\\''") + "'"
+}
+
+///|
+fn process_alive(pid : Int) -> Bool {
+  process_alive_ffi(pid) == 1
 }
 
 ///|
@@ -288,14 +303,14 @@ fn platform_web_build_output_path(
 }
 
 ///|
-fn generated_web_build_output_path(
-  workspace_path : String,
+fn control_plane_executable_path(
+  root : String,
   build_profile : BuildProfile,
 ) -> String {
-  workspace_path +
-  "/_build/js/" +
+  root +
+  "/_build/native/" +
   build_profile.build_dir() +
-  "/build/frontend/frontend.js"
+  "/build/moonbitcloud/control-plane/control-plane.exe"
 }
 
 ///|
@@ -487,6 +502,8 @@ fn Store::init_schema(self : Store) -> Unit {
       #|  display_name TEXT NOT NULL,
       #|  workspace_path TEXT NOT NULL,
       #|  initial_project_prompt TEXT,
+      #|  template_id TEXT NOT NULL DEFAULT 'web-app-todolist',
+      #|  template_version TEXT NOT NULL DEFAULT '0.1.0',
       #|  codex_thread_id TEXT,
       #|  status TEXT NOT NULL,
       #|  preview_url TEXT,
@@ -501,6 +518,20 @@ fn Store::init_schema(self : Store) -> Unit {
       #|  updated_at TEXT NOT NULL
       #|);
     ),
+  )
+  |> ignore
+  self.ensure_project_column(
+    "template_id",
+    "TEXT NOT NULL DEFAULT '" + default_template_id() + "'",
+  )
+  self.ensure_project_column(
+    "template_version",
+    "TEXT NOT NULL DEFAULT '" + default_template_version() + "'",
+  )
+  self.db.exec(
+    "UPDATE projects SET template_id = '" +
+    default_template_id() +
+    "' WHERE template_id = 'bootstrap-app';",
   )
   |> ignore
   self.db.exec(
@@ -547,6 +578,35 @@ fn Store::init_schema(self : Store) -> Unit {
   self.ensure_column("runs", "codex_log_path", "TEXT")
   self.ensure_column("runs", "validation_log_path", "TEXT")
   self.ensure_column("runs", "final_summary_path", "TEXT")
+  self.ensure_column("runs", "worker_pid", "INTEGER")
+}
+
+///|
+fn Store::project_column_exists(self : Store, column_name : String) -> Bool {
+  let stmt = self.db.prepare("PRAGMA table_info(projects);").unwrap()
+  let mut exists = false
+  while stmt.step() {
+    if bytes_to_string(stmt.column_text(1)) == column_name {
+      exists = true
+    }
+  }
+  stmt.finalize()
+  exists
+}
+
+///|
+fn Store::ensure_project_column(
+  self : Store,
+  column_name : String,
+  definition : String,
+) -> Unit {
+  if self.project_column_exists(column_name) {
+    return
+  }
+  self.db.exec(
+    "ALTER TABLE projects ADD COLUMN " + column_name + " " + definition + ";",
+  )
+  |> ignore
 }
 
 ///|
@@ -573,6 +633,8 @@ fn Store::get_project_detail(
         #|  preview_public_id,
         #|  display_name,
         #|  workspace_path,
+        #|  template_id,
+        #|  template_version,
         #|  COALESCE(codex_thread_id, ''),
         #|  status,
         #|  COALESCE(preview_url, ''),
@@ -591,22 +653,24 @@ fn Store::get_project_detail(
   let result = if stmt.step() {
     let preview = preview_from_columns(
       bytes_to_string(stmt.column_text(1)),
-      bytes_to_string(stmt.column_text(6)),
-      stmt.column_int(7),
-      stmt.column_int(8),
+      bytes_to_string(stmt.column_text(8)),
+      stmt.column_int(9),
+      stmt.column_int(10),
     )
     Some(@sdk.ProjectDetail::{
       id: bytes_to_string(stmt.column_text(0)),
       preview_public_id: bytes_to_string(stmt.column_text(1)),
       display_name: bytes_to_string(stmt.column_text(2)),
       workspace_path: bytes_to_string(stmt.column_text(3)),
-      codex_thread_id: empty_to_none(bytes_to_string(stmt.column_text(4))),
-      status: run_state_from_db(bytes_to_string(stmt.column_text(5))),
+      template_id: bytes_to_string(stmt.column_text(4)),
+      template_version: bytes_to_string(stmt.column_text(5)),
+      codex_thread_id: empty_to_none(bytes_to_string(stmt.column_text(6))),
+      status: run_state_from_db(bytes_to_string(stmt.column_text(7))),
       preview,
-      current_run_id: empty_to_none(bytes_to_string(stmt.column_text(10))),
-      last_error: empty_to_none(bytes_to_string(stmt.column_text(9))),
-      created_at: bytes_to_string(stmt.column_text(11)),
-      updated_at: bytes_to_string(stmt.column_text(12)),
+      current_run_id: empty_to_none(bytes_to_string(stmt.column_text(12))),
+      last_error: empty_to_none(bytes_to_string(stmt.column_text(11))),
+      created_at: bytes_to_string(stmt.column_text(13)),
+      updated_at: bytes_to_string(stmt.column_text(14)),
     })
   } else {
     None
@@ -658,6 +722,7 @@ fn Store::get_run(
   project_id : String,
   run_id : String,
 ) -> @sdk.RunStatusResponse? {
+  self.recover_interrupted_runs()
   let stmt = self.db
     .prepare(
       (
@@ -728,6 +793,8 @@ fn Store::create_project(
   preview_public_id : String,
   display_name : String?,
   workspace_path : String,
+  template_id : String,
+  template_version : String,
 ) -> @sdk.ProjectDetail {
   let now = now_string()
   let name = match display_name {
@@ -743,11 +810,12 @@ fn Store::create_project(
         #|  preview_public_id,
         #|  display_name,
         #|  workspace_path,
-        #|  initial_project_prompt,
+        #|  template_id,
+        #|  template_version,
         #|  status,
         #|  created_at,
         #|  updated_at
-        #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+        #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
       ),
     )
     .unwrap()
@@ -757,7 +825,8 @@ fn Store::create_project(
     string_to_sql_text(preview_public_id),
     string_to_sql_text(name),
     string_to_sql_text(workspace_path),
-    @sqlite.SqlValue::Null,
+    string_to_sql_text(template_id),
+    string_to_sql_text(template_version),
     string_to_sql_text(run_state_to_db(Idle)),
     string_to_sql_text(now),
     string_to_sql_text(now),
@@ -821,6 +890,7 @@ fn Store::start_run(
   project_id : String,
   content : String,
 ) -> Result[@sdk.RunStatusResponse, String] {
+  self.recover_interrupted_runs()
   let project = match self.get_project_detail(project_id) {
     Some(project) => project
     None => return Err("Project not found.")
@@ -920,6 +990,32 @@ fn Store::start_run(
     started_at: now,
     finished_at: None,
   })
+}
+
+///|
+fn Store::set_run_worker_pid(
+  self : Store,
+  project_id : String,
+  run_id : String,
+  worker_pid : Int,
+) -> Unit {
+  let stmt = self.db
+    .prepare(
+      (
+        #|UPDATE runs
+        #|SET worker_pid = ?
+        #|WHERE id = ? AND project_id = ?;
+      ),
+    )
+    .unwrap()
+  stmt.bind_all([
+    @sqlite.SqlValue::Int(worker_pid),
+    string_to_sql_text(run_id),
+    string_to_sql_text(project_id),
+  ])
+  |> ignore
+  stmt.execute() |> ignore
+  stmt.finalize()
 }
 
 ///|
@@ -1252,12 +1348,45 @@ fn Store::finish_run_failure_with_debug(
 }
 
 ///|
+fn Store::recover_interrupted_runs(self : Store) -> Unit {
+  let stmt = self.db
+    .prepare(
+      (
+        #|SELECT id, project_id, COALESCE(worker_pid, 0)
+        #|FROM runs
+        #|WHERE state = ?;
+      ),
+    )
+    .unwrap()
+  stmt.bind(1, string_to_sql_text(run_state_to_db(Running))) |> ignore
+  let interrupted : Array[(String, String)] = []
+  while stmt.step() {
+    let run_id = bytes_to_string(stmt.column_text(0))
+    let project_id = bytes_to_string(stmt.column_text(1))
+    let worker_pid = stmt.column_int(2)
+    if worker_pid <= 0 || !process_alive(worker_pid) {
+      interrupted.push((project_id, run_id))
+    }
+  }
+  stmt.finalize()
+  for item in interrupted {
+    let (project_id, run_id) = item
+    self.finish_run_failure(
+      project_id,
+      run_id,
+      "The background worker stopped before finishing this update.",
+      "The background worker stopped unexpectedly. Please send the request again.",
+      None,
+    )
+  }
+}
+
+///|
 fn PreviewManager::new(
   root : String,
   build_profile : BuildProfile,
 ) -> PreviewManager {
-  let _ = root
-  { runtimes: {}, build_profile }
+  { root, runtimes: {}, build_profile }
 }
 
 ///|
@@ -1320,10 +1449,14 @@ fn PreviewManager::remove_project_runtime(
 }
 
 ///|
-fn PreviewManager::is_healthy(self : PreviewManager, port : Int) -> Bool {
+fn PreviewManager::is_healthy(
+  self : PreviewManager,
+  port : Int,
+  health_path : String,
+) -> Bool {
   let _ = self
   shell_status(
-    "curl --silent --fail http://127.0.0.1:\{port}/api/health >/dev/null 2>&1",
+    "curl --silent --fail http://127.0.0.1:\{port}\{health_path} >/dev/null 2>&1",
   ) ==
   0
 }
@@ -1332,10 +1465,11 @@ fn PreviewManager::is_healthy(self : PreviewManager, port : Int) -> Bool {
 fn PreviewManager::wait_until_healthy(
   self : PreviewManager,
   port : Int,
+  health_path : String,
   attempts : Int,
 ) -> Bool {
   for _ in 0..<attempts {
-    if self.is_healthy(port) {
+    if self.is_healthy(port, health_path) {
       return true
     }
     ignore(shell_status("sleep 1"))
@@ -1346,14 +1480,19 @@ fn PreviewManager::wait_until_healthy(
 ///|
 fn PreviewManager::copy_preview_assets(
   self : PreviewManager,
-  workspace_path : String,
+  project : @sdk.ProjectDetail,
+  manifest : TemplateManifest,
 ) -> Result[String, String] {
-  let _ = self
+  let workspace_path = project.workspace_path
   let preview_dir = preview_dist_dir(workspace_path)
   ensure_dir(preview_dir)
 
-  let index_source = workspace_path + "/frontend/public/index.html"
-  let style_source = workspace_path + "/frontend/public/styles.css"
+  let public_dir = workspace_relative_path(
+    workspace_path,
+    manifest.preview.public_dir,
+  )
+  let index_source = public_dir + "/index.html"
+  let style_source = public_dir + "/styles.css"
   let index_target = preview_dir + "/index.html"
   let style_target = preview_dir + "/styles.css"
   let bundle_target = preview_dir + "/app.js"
@@ -1376,9 +1515,10 @@ fn PreviewManager::copy_preview_assets(
     safe_write_string(style_target, generated_preview_styles())
   }
 
-  let bundle_source = generated_web_build_output_path(
+  let bundle_source = template_build_output_path(
     workspace_path,
     self.build_profile,
+    manifest,
   )
   if !@fs.path_exists(bundle_source) {
     return Err("The generated frontend bundle was not found after build.")
@@ -1395,16 +1535,20 @@ fn PreviewManager::rebuild_and_restart(
   self : PreviewManager,
   project : @sdk.ProjectDetail,
 ) -> Result[@sdk.PreviewTarget, String] {
+  let manifest = match load_template_manifest(self.root, project.template_id) {
+    Ok(manifest) => manifest
+    Err(message) => return Err(message)
+  }
   let workspace_path = project.workspace_path
   let build_code = shell_status(
-    "cd '\{workspace_path}' && moon build frontend \{self.build_profile.cli_flag()}--target js >/dev/null 2>&1",
+    "cd '\{workspace_path}' && moon build \{self.build_profile.cli_flag()}>/dev/null 2>&1",
   )
   if build_code != 0 {
     return Err(
       "The updated app did not compile yet, so the preview could not be refreshed.",
     )
   }
-  let preview_dir = match self.copy_preview_assets(workspace_path) {
+  let preview_dir = match self.copy_preview_assets(project, manifest) {
     Ok(dir) => dir
     Err(message) => return Err(message)
   }
@@ -1414,10 +1558,43 @@ fn PreviewManager::rebuild_and_restart(
     preferred=preferred_port.unwrap_or(0),
   )
   self.stop_port(port)
-  let pid = shell_status(
-    "cd '\{workspace_path}' && nohup moon run backend \{self.build_profile.cli_flag()}--target native -- \{port} '\{preview_dir}' >/tmp/moonbitcloud-preview-\{project.id}.log 2>&1 &",
-  )
-  if !self.wait_until_healthy(port, 12) {
+  let pid = match template_preview_kind(manifest) {
+    "static" =>
+      shell_status(
+        "cd " +
+        shell_quote(self.root) +
+        " && nohup moon run --manifest-path " +
+        shell_quote(self.root + "/moon.work") +
+        " --target native " +
+        self.build_profile.cli_flag() +
+        "services/control-plane -- run-static-preview \{port} " +
+        shell_quote(preview_dir) +
+        " >/tmp/moonbitcloud-preview-\{project.id}.log 2>&1 &",
+      )
+    _ => {
+      let backend_module = match manifest.preview.backend_module {
+        Some(module_name) => module_name
+        None =>
+          return Err(
+            "The template preview manifest is missing a backend module.",
+          )
+      }
+      let backend_executable = template_native_executable_path(
+        workspace_path,
+        self.build_profile,
+        backend_module,
+      )
+      if !@fs.path_exists(backend_executable) {
+        return Err(
+          "The generated backend executable was not found after build.",
+        )
+      }
+      shell_status(
+        "cd '\{workspace_path}' && nohup '\{backend_executable}' \{port} '\{preview_dir}' >/tmp/moonbitcloud-preview-\{project.id}.log 2>&1 &",
+      )
+    }
+  }
+  if !self.wait_until_healthy(port, template_preview_health_path(manifest), 12) {
     return Err(
       "The preview process started, but it did not become healthy in time.",
     )
@@ -1437,18 +1614,35 @@ fn AgentGateway::new(root : String) -> AgentGateway {
 
 ///|
 fn AppContext::new(root : String) -> AppContext {
+  AppContext::new_with_recovery(root, true)
+}
+
+///|
+fn AppContext::new_for_worker(root : String) -> AppContext {
+  AppContext::new_with_recovery(root, false)
+}
+
+///|
+fn AppContext::new_with_recovery(
+  root : String,
+  recover_interrupted : Bool,
+) -> AppContext {
   let build_profile = build_profile_from_env()
   let data_dir = root + "/data/control-plane"
   ensure_dir(root + "/data")
   ensure_dir(data_dir)
   let db_path = data_dir + "/state-v2.sqlite"
-  {
+  let ctx = {
     root,
     build_profile,
     store: Store::new(db_path),
     previews: PreviewManager::new(root, build_profile),
     agent_gateway: AgentGateway::new(root),
   }
+  if recover_interrupted {
+    ctx.store.recover_interrupted_runs()
+  }
+  ctx
 }
 
 ///|

@@ -40,6 +40,8 @@ pub(all) struct PreviewTarget {
 pub(all) struct ProjectSummary {
   id : String
   display_name : String
+  template_id : String
+  template_version : String
   status : RunState
   preview : PreviewTarget?
   current_run_id : String?
@@ -52,6 +54,8 @@ pub(all) struct ProjectDetail {
   preview_public_id : String
   display_name : String
   workspace_path : String
+  template_id : String
+  template_version : String
   codex_thread_id : String?
   status : RunState
   preview : PreviewTarget?
@@ -97,6 +101,7 @@ pub(all) struct RunStatusResponse {
 ///|
 pub(all) struct CreateProjectRequest {
   display_name : String?
+  template_id : String?
 } derive(Debug, ToJson, FromJson)
 
 ///|

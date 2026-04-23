@@ -413,6 +413,8 @@ fn Store::list_projects_for_user(
         #|  id,
         #|  preview_public_id,
         #|  display_name,
+        #|  template_id,
+        #|  template_version,
         #|  status,
         #|  COALESCE(preview_url, ''),
         #|  COALESCE(preview_port, 0),
@@ -431,17 +433,19 @@ fn Store::list_projects_for_user(
     let project_id = bytes_to_string(stmt.column_text(0))
     let preview = preview_from_columns(
       bytes_to_string(stmt.column_text(1)),
-      bytes_to_string(stmt.column_text(4)),
-      stmt.column_int(5),
-      stmt.column_int(6),
+      bytes_to_string(stmt.column_text(6)),
+      stmt.column_int(7),
+      stmt.column_int(8),
     )
     items.push(@sdk.ProjectSummary::{
       id: project_id,
       display_name: bytes_to_string(stmt.column_text(2)),
-      status: run_state_from_db(bytes_to_string(stmt.column_text(3))),
+      template_id: bytes_to_string(stmt.column_text(3)),
+      template_version: bytes_to_string(stmt.column_text(4)),
+      status: run_state_from_db(bytes_to_string(stmt.column_text(5))),
       preview,
-      current_run_id: empty_to_none(bytes_to_string(stmt.column_text(7))),
-      updated_at: bytes_to_string(stmt.column_text(8)),
+      current_run_id: empty_to_none(bytes_to_string(stmt.column_text(9))),
+      updated_at: bytes_to_string(stmt.column_text(10)),
     })
   }
   stmt.finalize()
@@ -492,6 +496,8 @@ fn Store::create_project_for_user(
   project_id : String,
   display_name : String?,
   workspace_path : String,
+  template_id : String,
+  template_version : String,
 ) -> @sdk.ProjectDetail {
   self.create_project(
     project_id,
@@ -499,6 +505,8 @@ fn Store::create_project_for_user(
     new_preview_public_id(),
     display_name,
     workspace_path,
+    template_id,
+    template_version,
   )
 }
 

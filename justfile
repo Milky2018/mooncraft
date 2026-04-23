@@ -7,19 +7,22 @@ default:
 # Format all MoonBit code
 fmt:
   moon fmt --manifest-path moon.work
-  moon info --manifest-path moon.work --target native
 
-# Build the shared SDK package
+# Generate public interface summaries when needed
+info:
+  moon info --manifest-path moon.work
+
+# Compatibility alias for the workspace build
 build-sdk profile='debug':
-  @if [ "{{profile}}" = release ]; then moon build --manifest-path moon.work packages/sdk --target native --release; else moon build --manifest-path moon.work packages/sdk --target native; fi
+  @just build {{profile}}
 
-# Build the Rabbita web frontend bundle
+# Compatibility alias for the workspace build
 build-web profile='debug':
-  @if [ "{{profile}}" = release ]; then moon build --manifest-path moon.work apps/web --target js --release; else moon build --manifest-path moon.work apps/web --target js; fi
+  @just build {{profile}}
 
-# Build the local control plane
+# Compatibility alias for the workspace build
 build-control-plane profile='debug':
-  @if [ "{{profile}}" = release ]; then moon build --manifest-path moon.work services/control-plane --target native --release; else moon build --manifest-path moon.work services/control-plane --target native; fi
+  @just build {{profile}}
 
 # Build the Docker image used by the Codex executor
 build-codex-image tag='moonbitcloud-codex:local' platform='linux/amd64':
@@ -27,14 +30,12 @@ build-codex-image tag='moonbitcloud-codex:local' platform='linux/amd64':
 
 # Build the whole workspace
 build profile='debug': fmt
-  @just build-sdk {{profile}}
-  @just build-web {{profile}}
-  @just build-control-plane {{profile}}
+  @if [ "{{profile}}" = release ]; then moon build --manifest-path moon.work --release; else moon build --manifest-path moon.work; fi
 
 # Serve the app at http://localhost:8080
 serve profile='debug':
   @echo "MoonBit Cloud: http://localhost:8080"
-  @if [ "{{profile}}" = release ]; then MOONBITCLOUD_BUILD_PROFILE=release moon run --manifest-path moon.work services/control-plane --target native --release; else MOONBITCLOUD_BUILD_PROFILE=debug moon run --manifest-path moon.work services/control-plane --target native; fi
+  @if [ "{{profile}}" = release ]; then MOONBITCLOUD_BUILD_PROFILE=release moon run --manifest-path moon.work --target native --release services/control-plane; else MOONBITCLOUD_BUILD_PROFILE=debug moon run --manifest-path moon.work --target native services/control-plane; fi
 
 # Open the app in your browser
 open:
@@ -59,7 +60,7 @@ smoke:
   fi
   tmpdir="$(mktemp -d)"
   log_file="$tmpdir/control-plane.log"
-  MOONBITCLOUD_CODEX_FAKE_MODE=smoke MOONBITCLOUD_PORT="$port" moon run --manifest-path moon.work services/control-plane --target native >"$log_file" 2>&1 &
+  MOONBITCLOUD_CODEX_FAKE_MODE=smoke MOONBITCLOUD_PORT="$port" moon run --manifest-path moon.work --target native services/control-plane >"$log_file" 2>&1 &
   server_pid=$!
   cleanup() {
     kill "$server_pid" >/dev/null 2>&1 || true
@@ -381,6 +382,10 @@ codex-smoke:
   curl -fsS -c "$user_cookie" -b "$user_cookie" -X DELETE "$base_url/api/projects/$project_id" -d '' >/dev/null
   project_id=""
   echo "Codex smoke passed: Todo List App run $run_id produced preview $preview_url"
+
+# Run a browser smoke test for auth, theme, project lifecycle, and run failure recovery
+ui-smoke port='8094':
+  scripts/playwright_full_smoke.sh {{port}}
 
 # Remove local build outputs
 clean:

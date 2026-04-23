@@ -1,0 +1,36 @@
+{
+  "id": "web-app-todolist",
+  "version": "0.1.0",
+  "name": "Web App Todo List",
+  "summary": "Small MoonBit todo-list web app template with a preview-ready frontend and backend.",
+  "category": "foundation",
+  "app_shape": "http-api",
+  "storage": "none",
+  "tenant_requirement": "platform-owner-only",
+  "workspace_kind": "workspace",
+  "workspace_dir": "workspace",
+  "entrypoints": {
+    "frontend_main": "frontend/main.mbt",
+    "backend_main": "backend/main.mbt",
+    "shared_model": "shared/model.mbt"
+  },
+  "preview": {
+    "kind": "backend",
+    "public_dir": "frontend/public",
+    "health_path": "/api/health",
+    "frontend_module": "moonbitcloud/generated-app/frontend",
+    "backend_module": "moonbitcloud/generated-app/backend",
+    "frontend_package": "frontend",
+    "backend_package": "backend"
+  },
+  "validation": {
+    "build_workspace": "moon build",
+    "run_backend": "_build/native/debug/build/moonbitcloud/generated-app/backend/backend.exe {port} {public_dir}"
+  },
+  "editable_files": [
+    "frontend",
+    "backend",
+    "shared"
+  ],
+  "knowledge_doc": "knowledge/templates/web-app-todolist.md"
+}

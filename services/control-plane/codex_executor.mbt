@@ -330,7 +330,9 @@ fn fake_codex_update_workspace(
       #|  }
       #|}
     )
-  safe_write_string(workspace_path + "/shared/model.mbt", content)
+  if @fs.path_exists(workspace_path + "/shared/model.mbt") {
+    safe_write_string(workspace_path + "/shared/model.mbt", content)
+  }
   safe_write_string(
     workspace_path + "/README.md",
     "# Smoke Mode\n\nLatest request: " + normalized + "\n",
@@ -990,7 +992,7 @@ async fn AgentGateway::run_turn(
       workspace_path,
       artifacts,
       "moon check",
-      ["moon", "check", "--target", "all"],
+      ["moon", "check"],
       codex_result.thread_id,
     ) {
     Ok(_) => ignore(())
@@ -1006,7 +1008,7 @@ async fn AgentGateway::run_turn(
       workspace_path,
       artifacts,
       "moon test",
-      ["moon", "test", "--target", "all"],
+      ["moon", "test"],
       codex_result.thread_id,
     ) {
     Ok(_) => ignore(())
@@ -1027,32 +1029,39 @@ fn AppContext::spawn_project_turn_worker(
   self : AppContext,
   project_id : String,
   run_id : String,
-) -> Result[Unit, String] {
-  let release_flag = if self.build_profile is Release {
-    "--release "
-  } else {
-    ""
+) -> Result[Int, String] noraise {
+  let executable_path = control_plane_executable_path(
+    self.root,
+    self.build_profile,
+  )
+  if !@fs.path_exists(executable_path) {
+    return Err(
+      "The background run worker executable was not found at \{executable_path}. Build the control plane before sending a request.",
+    )
   }
-  let log_path = "/tmp/moonbitcloud-worker-\{project_id}-\{run_id}.log"
-  let command = "cd " +
-    shell_quote(self.root) +
-    " && nohup moon run --manifest-path " +
-    shell_quote(self.root + "/moon.work") +
-    " services/control-plane --target native " +
-    release_flag +
-    "-- run-worker " +
-    shell_quote(project_id) +
-    " " +
-    shell_quote(run_id) +
-    " >" +
-    shell_quote(log_path) +
-    " 2>&1 &"
-  let code = shell_status(command)
+  let artifacts = RunArtifacts::new(self.root, project_id, run_id)
+  let worker_log_path = artifacts.dir + "/worker.log"
+  let worker_pid_path = artifacts.dir + "/worker.pid"
+  safe_write_string(worker_pid_path, "")
+  let code = shell_status(
+    "(cd \{shell_quote(self.root)} && \{shell_quote(executable_path)} run-worker \{shell_quote(project_id)} \{shell_quote(run_id)} >> \{shell_quote(worker_log_path)} 2>&1 & echo $! > \{shell_quote(worker_pid_path)})",
+  )
   if code != 0 {
-    Err("The background run worker could not be started. Log: \{log_path}")
-  } else {
-    Ok(())
+    return Err(
+      "The background run worker could not be started. Shell returned \{code}.",
+    )
   }
+  let worker_pid = @string.parse_int(
+    safe_read_string_or(worker_pid_path, "").trim(),
+  ) catch {
+    _ => 0
+  }
+  if worker_pid <= 0 {
+    return Err(
+      "The background run worker could not be started. No worker PID was recorded.",
+    )
+  }
+  Ok(worker_pid)
 }
 
 ///|
@@ -1211,6 +1220,6 @@ async fn run_worker_mode(
   project_id : String,
   run_id : String,
 ) -> Unit {
-  let ctx = AppContext::new(root)
+  let ctx = AppContext::new_for_worker(root)
   ctx.run_project_turn(project_id, run_id)
 }

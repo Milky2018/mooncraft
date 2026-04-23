@@ -1,7 +1,9 @@
 .DS_Store
 _build/
 .mooncakes/
+.playwright-cli/
 data/
+output/
 *.log
 *.sqlite
 *.sqlite-shm
