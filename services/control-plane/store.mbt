@@ -227,7 +227,7 @@ fn preview_dist_dir(workspace_path : String) -> String {
 
 ///|
 fn public_preview_url(preview_public_id : String) -> String {
-  "/p/\{preview_public_id}/"
+  @sdk.preview_public_path(preview_public_id)
 }
 
 ///|

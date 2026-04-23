@@ -7,10 +7,79 @@ import {
 }
 
 // Values
+pub fn create_project_route() -> RouteSpec
+
+pub fn create_run_path(String) -> String
+
+pub fn create_run_route() -> RouteSpec
+
+pub fn delete_project_route() -> RouteSpec
+
+pub fn get_run_route() -> RouteSpec
+
+pub fn health_path() -> String
+
+pub fn health_route() -> RouteSpec
+
+pub fn list_messages_route() -> RouteSpec
+
+pub fn list_projects_route() -> RouteSpec
+
+pub fn login_path() -> String
+
+pub fn login_route() -> RouteSpec
+
+pub fn logout_path() -> String
+
+pub fn logout_route() -> RouteSpec
+
+pub fn messages_path(String) -> String
+
+pub fn preview_public_path(String) -> String
+
+pub fn preview_route_pattern() -> String
+
+pub fn project_path(String) -> String
+
+pub fn project_route() -> RouteSpec
+
+pub fn projects_path() -> String
+
+pub fn run_path(String, String) -> String
+
+pub fn session_path() -> String
+
+pub fn session_route() -> RouteSpec
+
+pub fn signup_path() -> String
+
+pub fn signup_route() -> RouteSpec
 
 // Errors
 
 // Types and methods
+pub(all) struct ApiError {
+  code : ApiErrorCode
+  message : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) enum ApiErrorCode {
+  InvalidJson
+  ValidationFailed
+  Unauthorized
+  InvalidCredentials
+  NotFound
+  Conflict
+  PreviewUnavailable
+  ServiceUnavailable
+  UnexpectedResponse
+  NetworkFailure
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct ApiErrorResponse {
+  error : ApiError
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
 pub(all) struct AuthResponse {
   user : UserSummary
 } derive(ToJson, @debug.Debug, @json.FromJson)
@@ -37,6 +106,35 @@ pub(all) struct CreateProjectRequest {
 
 pub(all) struct CreateProjectResponse {
   project : ProjectDetail
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct CreateRunRequest {
+  content : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct CreateRunResponse {
+  run : RunStatusResponse
+  poll_after_ms : Int?
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct HealthResponse {
+  ok : Bool
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) enum HttpMethod {
+  GET
+  POST
+  PUT
+  PATCH
+  DELETE
+} derive(Eq, @debug.Debug)
+
+pub(all) struct ListMessagesResponse {
+  items : Array[ChatMessage]
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct ListProjectsResponse {
+  items : Array[ProjectSummary]
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct LoginRequest {
@@ -73,6 +171,12 @@ pub(all) struct ProjectSummary {
   updated_at : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
+pub(all) struct RouteSpec {
+  http_method : HttpMethod
+  path_pattern : String
+  success_status : SuccessStatus
+} derive(@debug.Debug)
+
 pub(all) enum RunState {
   Idle
   Running
@@ -92,14 +196,6 @@ pub(all) struct RunStatusResponse {
   finished_at : String?
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
-pub(all) struct SendMessageRequest {
-  content : String
-} derive(ToJson, @debug.Debug, @json.FromJson)
-
-pub(all) struct SendMessageResponse {
-  run : RunStatusResponse
-} derive(ToJson, @debug.Debug, @json.FromJson)
-
 pub(all) struct SessionResponse {
   authenticated : Bool
   user : UserSummary?
@@ -111,6 +207,14 @@ pub(all) struct SignupRequest {
   password : String
   display_name : String?
 } derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) enum SuccessStatus {
+  Ok
+  Created
+  Accepted
+  NoContent
+} derive(Eq, @debug.Debug)
+pub fn SuccessStatus::code(Self) -> Int
 
 pub(all) struct UserSummary {
   id : String
