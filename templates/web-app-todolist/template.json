@@ -1,8 +1,8 @@
 {
-  "id": "bootstrap-app",
+  "id": "web-app-todolist",
   "version": "0.1.0",
-  "name": "Bootstrap App",
-  "summary": "Small MoonBit starter app with a preview-ready frontend and backend.",
+  "name": "Web App Todo List",
+  "summary": "Small MoonBit todo-list web app template with a preview-ready frontend and backend.",
   "category": "foundation",
   "app_shape": "http-api",
   "storage": "none",
@@ -30,5 +30,5 @@
     "backend",
     "shared"
   ],
-  "knowledge_doc": "knowledge/templates/bootstrap-app.md"
+  "knowledge_doc": "knowledge/templates/web-app-todolist.md"
 }

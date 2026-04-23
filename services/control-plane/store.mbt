@@ -368,7 +368,7 @@ fn Store::init_schema(self : Store) -> Unit {
       #|  preview_public_id TEXT NOT NULL UNIQUE,
       #|  display_name TEXT NOT NULL,
       #|  workspace_path TEXT NOT NULL,
-      #|  template_id TEXT NOT NULL DEFAULT 'bootstrap-app',
+      #|  template_id TEXT NOT NULL DEFAULT 'web-app-todolist',
       #|  template_version TEXT NOT NULL DEFAULT '0.1.0',
       #|  codex_thread_id TEXT,
       #|  status TEXT NOT NULL,
@@ -394,6 +394,12 @@ fn Store::init_schema(self : Store) -> Unit {
     "template_version",
     "TEXT NOT NULL DEFAULT '" + default_template_version() + "'",
   )
+  self.db.exec(
+    "UPDATE projects SET template_id = '" +
+    default_template_id() +
+    "' WHERE template_id = 'bootstrap-app';",
+  )
+  |> ignore
   self.db.exec(
     (
       #|CREATE TABLE IF NOT EXISTS messages (

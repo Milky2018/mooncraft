@@ -1,13 +1,13 @@
 ---
-title: Bootstrap App Template
-summary: Canonical minimal MoonBit Cloud starter template
+title: Web App Todo List Template
+summary: Canonical MoonBit Cloud todo-list web app template
 applies_to:
   - templates
-  - bootstrap-app
+  - web-app-todolist
 editable_files:
-  - templates/bootstrap-app/workspace/frontend
-  - templates/bootstrap-app/workspace/backend
-  - templates/bootstrap-app/workspace/shared
+  - templates/web-app-todolist/workspace/frontend
+  - templates/web-app-todolist/workspace/backend
+  - templates/web-app-todolist/workspace/shared
 entrypoints:
   - frontend/main.mbt
   - backend/main.mbt
@@ -21,7 +21,7 @@ status: draft
 
 # Summary
 
-This is the default starter template used when a project is created without an explicit template selection.
+This is the default todo-list web app template used when a project is created without an explicit template selection.
 
 # Structure
 

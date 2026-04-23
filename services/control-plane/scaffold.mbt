@@ -41,7 +41,7 @@ struct TemplateManifest {
 
 ///|
 fn default_template_id() -> String {
-  "bootstrap-app"
+  "web-app-todolist"
 }
 
 ///|
