@@ -319,7 +319,9 @@ fn fake_codex_update_workspace(
       #|  }
       #|}
     )
-  safe_write_string(workspace_path + "/shared/model.mbt", content)
+  if @fs.path_exists(workspace_path + "/shared/model.mbt") {
+    safe_write_string(workspace_path + "/shared/model.mbt", content)
+  }
   safe_write_string(
     workspace_path + "/README.md",
     "# Smoke Mode\n\nLatest request: " + normalized + "\n",

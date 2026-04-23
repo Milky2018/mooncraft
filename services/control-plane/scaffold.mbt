@@ -1,24 +1,26 @@
 ///|
 struct TemplateEntrypoints {
   frontend_main : String
-  backend_main : String
-  shared_model : String
+  backend_main : String?
+  shared_model : String?
 } derive(Debug, FromJson)
 
 ///|
 struct TemplatePreviewConfig {
+  kind : String?
   public_dir : String
-  health_path : String
+  health_path : String?
   frontend_module : String
-  backend_module : String
-  frontend_package : String
-  backend_package : String
+  backend_module : String?
+  frontend_package : String?
+  backend_package : String?
 } derive(Debug, FromJson)
 
 ///|
 struct TemplateValidationConfig {
   build_workspace : String
-  run_backend : String
+  run_preview : String?
+  run_backend : String?
 } derive(Debug, FromJson)
 
 ///|
@@ -31,6 +33,7 @@ struct TemplateManifest {
   app_shape : String
   storage : String
   tenant_requirement : String
+  workspace_kind : String?
   workspace_dir : String
   entrypoints : TemplateEntrypoints
   preview : TemplatePreviewConfig
@@ -70,6 +73,29 @@ fn template_workspace_dir(root : String, manifest : TemplateManifest) -> String 
 }
 
 ///|
+fn template_workspace_kind(manifest : TemplateManifest) -> String {
+  manifest.workspace_kind.unwrap_or("workspace")
+}
+
+///|
+fn template_preview_kind(manifest : TemplateManifest) -> String {
+  manifest.preview.kind.unwrap_or("backend")
+}
+
+///|
+fn template_preview_health_path(manifest : TemplateManifest) -> String {
+  match manifest.preview.health_path {
+    Some(path) if path != "" => path
+    _ =>
+      if template_preview_kind(manifest) == "static" {
+        "/__health"
+      } else {
+        "/api/health"
+      }
+  }
+}
+
+///|
 fn repo_relative_path(root : String, relative : String) -> String {
   root + "/" + relative
 }
@@ -80,15 +106,6 @@ fn workspace_relative_path(
   relative : String,
 ) -> String {
   workspace_path + "/" + relative
-}
-
-///|
-fn template_entrypoint_paths(manifest : TemplateManifest) -> Array[String] {
-  [
-    manifest.entrypoints.frontend_main,
-    manifest.entrypoints.backend_main,
-    manifest.entrypoints.shared_model,
-  ]
 }
 
 ///|
@@ -105,16 +122,22 @@ fn template_package_leaf(package_path : String) -> String {
 fn template_build_output_path(
   workspace_path : String,
   build_profile : BuildProfile,
-  frontend_module : String,
+  manifest : TemplateManifest,
 ) -> String {
-  workspace_path +
-  "/_build/js/" +
-  build_profile.build_dir() +
-  "/build/" +
-  frontend_module +
-  "/" +
-  template_package_leaf(frontend_module) +
-  ".js"
+  let frontend_module = manifest.preview.frontend_module
+  let build_root = workspace_path +
+    "/_build/js/" +
+    build_profile.build_dir() +
+    "/build/"
+  if template_workspace_kind(manifest) == "module" {
+    build_root + template_package_leaf(frontend_module) + ".js"
+  } else {
+    build_root +
+    frontend_module +
+    "/" +
+    template_package_leaf(frontend_module) +
+    ".js"
+  }
 }
 
 ///|
@@ -144,23 +167,81 @@ fn validate_template_manifest(
       "Template '\{manifest.id}' is missing its workspace directory: \{workspace_dir}",
     )
   }
-  if !(@fs.is_file(workspace_dir + "/moon.work") catch { _ => false }) {
-    return Err(
-      "Template '\{manifest.id}' is missing its workspace manifest: moon.work",
-    )
-  }
-  if @fs.path_exists(workspace_dir + "/moon.mod.json") {
-    return Err(
-      "Template '\{manifest.id}' must use moon.work at the workspace root, not a root moon.mod.json.",
-    )
-  }
-  for relative in template_entrypoint_paths(manifest) {
-    let path = workspace_relative_path(workspace_dir, relative)
-    if !(@fs.is_file(path) catch { _ => false }) {
-      return Err(
-        "Template '\{manifest.id}' is missing a required entrypoint: \{relative}",
-      )
+  match template_workspace_kind(manifest) {
+    "workspace" => {
+      if !(@fs.is_file(workspace_dir + "/moon.work") catch { _ => false }) {
+        return Err(
+          "Template '\{manifest.id}' is missing its workspace manifest: moon.work",
+        )
+      }
+      if @fs.path_exists(workspace_dir + "/moon.mod.json") {
+        return Err(
+          "Template '\{manifest.id}' must use moon.work at the workspace root, not a root moon.mod.json.",
+        )
+      }
     }
+    "module" => {
+      if !(@fs.is_file(workspace_dir + "/moon.mod.json") catch { _ => false }) {
+        return Err(
+          "Template '\{manifest.id}' is missing its module manifest: moon.mod.json",
+        )
+      }
+      if @fs.path_exists(workspace_dir + "/moon.work") {
+        return Err(
+          "Template '\{manifest.id}' is a single-module template and must not include moon.work.",
+        )
+      }
+    }
+    other =>
+      return Err(
+        "Template '\{manifest.id}' has unsupported workspace_kind '\{other}'.",
+      )
+  }
+  let frontend_path = workspace_relative_path(
+    workspace_dir,
+    manifest.entrypoints.frontend_main,
+  )
+  if !(@fs.is_file(frontend_path) catch { _ => false }) {
+    return Err(
+      "Template '\{manifest.id}' is missing a required entrypoint: \{manifest.entrypoints.frontend_main}",
+    )
+  }
+  match manifest.entrypoints.backend_main {
+    Some(relative) => {
+      let path = workspace_relative_path(workspace_dir, relative)
+      if !(@fs.is_file(path) catch { _ => false }) {
+        return Err(
+          "Template '\{manifest.id}' is missing a required entrypoint: \{relative}",
+        )
+      }
+    }
+    None => ignore(())
+  }
+  match manifest.entrypoints.shared_model {
+    Some(relative) => {
+      let path = workspace_relative_path(workspace_dir, relative)
+      if !(@fs.is_file(path) catch { _ => false }) {
+        return Err(
+          "Template '\{manifest.id}' is missing a required entrypoint: \{relative}",
+        )
+      }
+    }
+    None => ignore(())
+  }
+  match template_preview_kind(manifest) {
+    "backend" =>
+      match manifest.preview.backend_module {
+        Some(module_name) if module_name != "" => ignore(())
+        _ =>
+          return Err(
+            "Template '\{manifest.id}' uses backend preview mode but is missing preview.backend_module.",
+          )
+      }
+    "static" => ignore(())
+    other =>
+      return Err(
+        "Template '\{manifest.id}' has unsupported preview kind '\{other}'.",
+      )
   }
   let public_dir = workspace_relative_path(
     workspace_dir,
@@ -361,11 +442,11 @@ fn generated_preview_index_html() -> String {
     #|    <meta charset="utf-8" />
     #|    <meta name="viewport" content="width=device-width, initial-scale=1" />
     #|    <title>MoonBit Cloud Preview</title>
-    #|    <link rel="stylesheet" href="/styles" />
+    #|    <link rel="stylesheet" href="styles" />
     #|  </head>
     #|  <body>
     #|    <div id="app"></div>
-    #|    <script type="module" src="/app"></script>
+    #|    <script type="module" src="app"></script>
     #|  </body>
     #|</html>
   )

@@ -38,7 +38,7 @@ moonbitcloud/
 └── data/                     # local runtime state, generated projects, SQLite
 ```
 
-Generated user projects live under `data/projects/<project-id>/workspace/` and use a simple MoonBit full-stack shape:
+Generated user projects live under `data/projects/<project-id>/workspace/`. Full-stack templates use a MoonBit workspace shape:
 
 - `moon.work` at the workspace root
 - `frontend/`
@@ -47,11 +47,14 @@ Generated user projects live under `data/projects/<project-id>/workspace/` and u
 
 Each generated module owns its own `moon.mod.json`; generated workspace roots intentionally do not contain a root `moon.mod.json`.
 
+Frontend-only templates can instead use a single MoonBit module with a root `moon.mod.json` and no `moon.work`.
+
 ## Implementation Notes
 
 - `apps/web` renders the app-develop page with a left project rail, center chat workspace, and right preview panel.
 - `services/control-plane` persists `users`, `sessions`, `oauth_accounts`, `projects`, `messages`, and `runs` in SQLite.
 - Each successful run rebuilds the generated project and restarts a local preview server on a stable port.
+- Static frontend previews run through `services/control-plane -- run-static-preview <port> <preview-dist-dir>`.
 - Preview URLs are public opaque paths like `/p/<preview_public_id>/` and stay same-origin through the control plane.
 - `packages/sdk` defines the shared request and response payloads used by the frontend and control plane.
 - `AgentGateway` now launches Docker-backed Codex CLI runs asynchronously and persists one `codex_thread_id` per project so later messages can resume the same Codex session.

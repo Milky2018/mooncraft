@@ -172,6 +172,16 @@ fn proxy_response_headers(
 }
 
 ///|
+fn proxy_response_body(response : @mocket.HttpResponse) -> Bytes {
+  if response.raw_body.length() > 0 {
+    response.raw_body
+  } else {
+    let body : String = response.read_body() catch { _ => "" }
+    @utf8.encode(body)
+  }
+}
+
+///|
 fn preview_target_path(remainder : String) -> String {
   if remainder == "" {
     "/"
@@ -180,6 +190,56 @@ fn preview_target_path(remainder : String) -> String {
   } else {
     "/" + remainder
   }
+}
+
+///|
+fn preview_asset_response(
+  path : String,
+  content_type : String,
+) -> @mocket.HttpResponse {
+  if !@fs.path_exists(path) {
+    return text_response(NotFound, "Not Found")
+  }
+  @mocket.HttpResponse::new(OK, headers={ "Content-Type": content_type }).body(
+    safe_read_string_or(path, ""),
+  )
+}
+
+///|
+fn static_preview_response(
+  static_dir : String,
+  target_path : String,
+) -> @mocket.HttpResponse {
+  match target_path {
+    "/" =>
+      preview_asset_response(
+        static_dir + "/index.html",
+        "text/html; charset=utf-8",
+      )
+    "/app" =>
+      preview_asset_response(
+        static_dir + "/app.js",
+        "text/javascript; charset=utf-8",
+      )
+    "/styles" =>
+      preview_asset_response(
+        static_dir + "/styles.css",
+        "text/css; charset=utf-8",
+      )
+    "/__health" | "/api/health" => json_ok(@sdk.HealthResponse::{ ok: true })
+    _ => text_response(NotFound, "Not Found")
+  }
+}
+
+///|
+fn run_static_preview_mode(port : Int, static_dir : String) -> Unit {
+  let app = @mocket.new()
+  app.get("/__health", _ => json_ok(@sdk.HealthResponse::{ ok: true }))
+  app.get("/api/health", _ => json_ok(@sdk.HealthResponse::{ ok: true }))
+  app.get("/", _ => static_preview_response(static_dir, "/"))
+  app.get("/app", _ => static_preview_response(static_dir, "/app"))
+  app.get("/styles", _ => static_preview_response(static_dir, "/styles"))
+  app.serve(port~)
 }
 
 ///|
@@ -274,6 +334,11 @@ fn control_plane_port() -> Int {
 fn main {
   let root = @env.current_dir().unwrap_or(".")
   let args = @env.args()
+  if args.length() > 3 && args[1] == "run-static-preview" {
+    let port = @string.parse_int(args[2]) catch { _ => 4300 }
+    run_static_preview_mode(port, args[3])
+    return
+  }
   if args.length() > 3 && args[1] == "run-worker" {
     @async.run_async_main(() => run_worker_mode(root, args[2], args[3]))
     return
@@ -522,7 +587,18 @@ fn main {
     }
     match project.preview {
       Some(preview) => {
-        let target_url = "http://127.0.0.1:\{preview.port}\{preview_target_path(remainder)}"
+        let target_path = preview_target_path(remainder)
+        let manifest = match ctx.load_project_template(project) {
+          Ok(manifest) => manifest
+          Err(message) => return text_response(ServiceUnavailable, message)
+        }
+        if template_preview_kind(manifest) == "static" {
+          return static_preview_response(
+            preview_dist_dir(project.workspace_path),
+            target_path,
+          )
+        }
+        let target_url = "http://127.0.0.1:\{preview.port}\{target_path}"
         let headers = proxy_request_headers(event)
         let upstream = try {
           if event.req.raw_body.length() == 0 {
@@ -552,7 +628,7 @@ fn main {
         @mocket.HttpResponse::new(
           upstream.status_code,
           headers=proxy_response_headers(upstream),
-          raw_body=upstream.raw_body,
+          raw_body=proxy_response_body(upstream),
         )
       }
       None =>

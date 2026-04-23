@@ -7,6 +7,7 @@
   "app_shape": "http-api",
   "storage": "none",
   "tenant_requirement": "platform-owner-only",
+  "workspace_kind": "workspace",
   "workspace_dir": "workspace",
   "entrypoints": {
     "frontend_main": "frontend/main.mbt",
@@ -14,6 +15,7 @@
     "shared_model": "shared/model.mbt"
   },
   "preview": {
+    "kind": "backend",
     "public_dir": "frontend/public",
     "health_path": "/api/health",
     "frontend_module": "moonbitcloud/generated-app/frontend",

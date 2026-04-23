@@ -37,7 +37,7 @@ This keeps the live preview tied to a real generated app instead of a fake demo 
 1. `POST /api/projects` creates project metadata, resolves a template manifest, and materializes the generated workspace from `templates/<id>/workspace`.
 2. `POST /api/projects/:id/runs` stores the user message, opens a run, and locks the project.
 3. `AgentGateway` updates the generated project.
-4. `PreviewManager` rebuilds the generated frontend, copies preview assets, and restarts the generated backend on a stable local port.
+4. `PreviewManager` rebuilds the generated app, copies preview assets, and restarts the configured preview runner on a stable local port.
 5. The control plane marks the run as succeeded or failed and stores the latest preview target.
 6. `apps/web` polls run status and refreshes project state.
 
@@ -77,7 +77,7 @@ Official templates live under `templates/<id>` as runnable MoonBit workspaces pl
 Each template manifest declares:
 
 - id and version
-- preview package and health-check contract
+- preview kind, package, and health-check contract
 - required entrypoints
 - editable files
 - matching knowledge document
@@ -126,7 +126,7 @@ The current preview path is same-origin and exposed through:
 - stored `preview.url` values like `/p/<preview_public_id>/`
 - `ALL /p/:preview_public_id/*` reverse proxy handling in the control plane
 
-The generated app still runs on a private local port, but the browser only talks to the control plane.
+Backend templates run their generated native executable on a private local port. Static frontend templates use the control-plane `run-static-preview <port> <preview-dist-dir>` mode to serve staged `index.html`, `app.js`, `styles.css`, and health endpoints. In both cases, the browser only talks to the control plane.
 
 ## Why This Shape
 

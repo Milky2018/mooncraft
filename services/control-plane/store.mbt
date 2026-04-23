@@ -1245,7 +1245,7 @@ fn PreviewManager::copy_preview_assets(
   let bundle_source = template_build_output_path(
     workspace_path,
     self.build_profile,
-    manifest.preview.frontend_module,
+    manifest,
   )
   if !@fs.path_exists(bundle_source) {
     return Err("The generated frontend bundle was not found after build.")
@@ -1279,24 +1279,49 @@ fn PreviewManager::rebuild_and_restart(
     Ok(dir) => dir
     Err(message) => return Err(message)
   }
-  let backend_executable = template_native_executable_path(
-    workspace_path,
-    self.build_profile,
-    manifest.preview.backend_module,
-  )
-  if !@fs.path_exists(backend_executable) {
-    return Err("The generated backend executable was not found after build.")
-  }
   let preferred_port = project.preview.map(fn(target) { target.port })
   let port = self.allocate_port(
     project.id,
     preferred=preferred_port.unwrap_or(0),
   )
   self.stop_port(port)
-  let pid = shell_status(
-    "cd '\{workspace_path}' && nohup '\{backend_executable}' \{port} '\{preview_dir}' >/tmp/moonbitcloud-preview-\{project.id}.log 2>&1 &",
-  )
-  if !self.wait_until_healthy(port, manifest.preview.health_path, 12) {
+  let pid = match template_preview_kind(manifest) {
+    "static" =>
+      shell_status(
+        "cd " +
+        shell_quote(self.root) +
+        " && nohup moon run --manifest-path " +
+        shell_quote(self.root + "/moon.work") +
+        " --target native " +
+        self.build_profile.cli_flag() +
+        "services/control-plane -- run-static-preview \{port} " +
+        shell_quote(preview_dir) +
+        " >/tmp/moonbitcloud-preview-\{project.id}.log 2>&1 &",
+      )
+    _ => {
+      let backend_module = match manifest.preview.backend_module {
+        Some(module_name) => module_name
+        None =>
+          return Err(
+            "The template preview manifest is missing a backend module.",
+          )
+      }
+      let backend_executable = template_native_executable_path(
+        workspace_path,
+        self.build_profile,
+        backend_module,
+      )
+      if !@fs.path_exists(backend_executable) {
+        return Err(
+          "The generated backend executable was not found after build.",
+        )
+      }
+      shell_status(
+        "cd '\{workspace_path}' && nohup '\{backend_executable}' \{port} '\{preview_dir}' >/tmp/moonbitcloud-preview-\{project.id}.log 2>&1 &",
+      )
+    }
+  }
+  if !self.wait_until_healthy(port, template_preview_health_path(manifest), 12) {
     return Err(
       "The preview process started, but it did not become healthy in time.",
     )
