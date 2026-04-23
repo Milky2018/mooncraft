@@ -379,6 +379,36 @@ fn Store::ensure_column(
 }
 
 ///|
+fn Store::backfill_initial_project_prompts(self : Store) -> Unit {
+  let role = chat_role_to_db(User)
+  let stmt = self.db
+    .prepare(
+      (
+        #|UPDATE projects
+        #|SET initial_project_prompt = (
+        #|  SELECT content
+        #|  FROM messages
+        #|  WHERE messages.project_id = projects.id
+        #|    AND messages.role = ?
+        #|  ORDER BY messages.created_at ASC
+        #|  LIMIT 1
+        #|)
+        #|WHERE (initial_project_prompt IS NULL OR initial_project_prompt = '')
+        #|  AND EXISTS (
+        #|    SELECT 1
+        #|    FROM messages
+        #|    WHERE messages.project_id = projects.id
+        #|      AND messages.role = ?
+        #|  );
+      ),
+    )
+    .unwrap()
+  stmt.bind_all([string_to_sql_text(role), string_to_sql_text(role)]) |> ignore
+  stmt.execute() |> ignore
+  stmt.finalize()
+}
+
+///|
 fn Store::new(db_path : String) -> Store {
   let db = @sqlite.Database::open(db_path).unwrap()
   ignore(db.busy_timeout(5000))
@@ -456,6 +486,7 @@ fn Store::init_schema(self : Store) -> Unit {
       #|  preview_public_id TEXT NOT NULL UNIQUE,
       #|  display_name TEXT NOT NULL,
       #|  workspace_path TEXT NOT NULL,
+      #|  initial_project_prompt TEXT,
       #|  codex_thread_id TEXT,
       #|  status TEXT NOT NULL,
       #|  preview_url TEXT,
@@ -485,6 +516,8 @@ fn Store::init_schema(self : Store) -> Unit {
     ),
   )
   |> ignore
+  self.ensure_column("projects", "initial_project_prompt", "TEXT")
+  self.backfill_initial_project_prompts()
   self.db.exec(
     (
       #|CREATE TABLE IF NOT EXISTS runs (
@@ -710,10 +743,11 @@ fn Store::create_project(
         #|  preview_public_id,
         #|  display_name,
         #|  workspace_path,
+        #|  initial_project_prompt,
         #|  status,
         #|  created_at,
         #|  updated_at
-        #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+        #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
       ),
     )
     .unwrap()
@@ -723,6 +757,7 @@ fn Store::create_project(
     string_to_sql_text(preview_public_id),
     string_to_sql_text(name),
     string_to_sql_text(workspace_path),
+    @sqlite.SqlValue::Null,
     string_to_sql_text(run_state_to_db(Idle)),
     string_to_sql_text(now),
     string_to_sql_text(now),
@@ -853,6 +888,10 @@ fn Store::start_run(
         #|SET
         #|  status = ?,
         #|  current_run_id = ?,
+        #|  initial_project_prompt = CASE
+        #|    WHEN initial_project_prompt IS NULL OR initial_project_prompt = '' THEN ?
+        #|    ELSE initial_project_prompt
+        #|  END,
         #|  last_error = NULL,
         #|  updated_at = ?
         #|WHERE id = ?;
@@ -862,6 +901,7 @@ fn Store::start_run(
   project_stmt.bind_all([
     string_to_sql_text(run_state_to_db(Running)),
     string_to_sql_text(run_id),
+    string_to_sql_text(content),
     string_to_sql_text(now),
     string_to_sql_text(project_id),
   ])
@@ -945,22 +985,15 @@ fn Store::get_initial_project_prompt(
   let stmt = self.db
     .prepare(
       (
-        #|SELECT content
-        #|FROM messages
-        #|WHERE project_id = ?
-        #|  AND role = ?
-        #|ORDER BY created_at ASC
-        #|LIMIT 1;
+        #|SELECT COALESCE(initial_project_prompt, '')
+        #|FROM projects
+        #|WHERE id = ?;
       ),
     )
     .unwrap()
-  stmt.bind_all([
-    string_to_sql_text(project_id),
-    string_to_sql_text(chat_role_to_db(User)),
-  ])
-  |> ignore
+  stmt.bind(1, string_to_sql_text(project_id)) |> ignore
   let result = if stmt.step() {
-    Some(bytes_to_string(stmt.column_text(0)))
+    empty_to_none(bytes_to_string(stmt.column_text(0)))
   } else {
     None
   }

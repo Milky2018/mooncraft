@@ -1087,9 +1087,20 @@ async fn AppContext::run_project_turn(
       return
     }
   }
-  let initial_project_prompt = self.store
-    .get_initial_project_prompt(project_id)
-    .unwrap_or(prompt)
+  let initial_project_prompt = match
+    self.store.get_initial_project_prompt(project_id) {
+    Some(prompt) => prompt
+    None => {
+      self.store.finish_run_failure(
+        project_id,
+        run_id,
+        default_failure_assistant_message(),
+        "The initial project prompt was not persisted for this project.",
+        project.codex_thread_id,
+      )
+      return
+    }
+  }
   let run_workspace_path = match
     hydrate_run_workspace(self.root, project_id, run_id) {
     Ok(path) => path
