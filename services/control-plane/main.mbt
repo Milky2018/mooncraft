@@ -191,15 +191,16 @@ fn workspace_page_html() -> String {
     #|    <meta charset="utf-8" />
     #|    <meta name="viewport" content="width=device-width, initial-scale=1" />
     #|    <title>MoonBit Cloud</title>
+    #|    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2305080c'/%3E%3Cpath d='M14 18h14v28H14zm22 0h14v28H36z' fill='%2338efb7'/%3E%3C/svg%3E" />
     #|    <style>
     #|      :root {
-    #|        color-scheme: light;
-    #|        font-family: "Inter", "Helvetica Neue", sans-serif;
+    #|        color-scheme: dark;
+    #|        font-family: "IBM Plex Sans", "Helvetica Neue", sans-serif;
     #|        background:
-    #|          radial-gradient(circle at top left, rgba(224, 253, 236, 0.92), transparent 34%),
-    #|          radial-gradient(circle at bottom right, rgba(223, 234, 255, 0.95), transparent 36%),
-    #|          #f7f9fc;
-    #|        color: #15263a;
+    #|          radial-gradient(circle at top left, rgba(24, 255, 176, 0.12), transparent 28%),
+    #|          radial-gradient(circle at top right, rgba(45, 125, 255, 0.14), transparent 24%),
+    #|          linear-gradient(180deg, #091119, #05080c);
+    #|        color: #eff7ff;
     #|      }
     #|
     #|      * {
@@ -209,6 +210,7 @@ fn workspace_page_html() -> String {
     #|      body {
     #|        margin: 0;
     #|        min-height: 100vh;
+    #|        background: #05080c;
     #|      }
     #|
     #|      #app {
