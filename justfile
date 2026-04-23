@@ -21,6 +21,10 @@ build-web profile='debug':
 build-control-plane profile='debug':
   @if [ "{{profile}}" = release ]; then moon build --manifest-path moon.work services/control-plane --target native --release; else moon build --manifest-path moon.work services/control-plane --target native; fi
 
+# Build the Docker image used by the Codex executor
+build-codex-image tag='moonbitcloud-codex:local' platform='linux/amd64':
+  docker build --platform {{platform}} -f docker/codex/Dockerfile -t {{tag}} .
+
 # Build the whole workspace
 build profile='debug': fmt
   @just build-sdk {{profile}}

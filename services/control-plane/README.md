@@ -20,4 +20,6 @@ Required Codex runtime configuration:
 - optional `MOONBITCLOUD_CODEX_HOME_HOST` (defaults to `$HOME/.codex`)
 - optional `MOONBITCLOUD_CODEX_CONTAINER_HOME` (defaults to `/root`)
 
+Build the local runtime image with `just build-codex-image` (defaults to `linux/amd64`), then set `MOONBITCLOUD_CODEX_DOCKER_IMAGE=moonbitcloud-codex:local`.
+
 Use `just codex-smoke` from the repository root to run an end-to-end Todo List App build through the real Docker-backed Codex CLI path.

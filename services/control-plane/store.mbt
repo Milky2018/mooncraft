@@ -116,6 +116,14 @@ fn string_to_sql_text(text : String) -> @sqlite.SqlValue {
 }
 
 ///|
+fn nullable_int_value(value : Int?) -> @sqlite.SqlValue {
+  match value {
+    Some(number) => @sqlite.SqlValue::Int(number)
+    None => @sqlite.SqlValue::Null
+  }
+}
+
+///|
 fn bool_to_int(value : Bool) -> Int {
   if value {
     1
@@ -127,6 +135,15 @@ fn bool_to_int(value : Bool) -> Int {
 ///|
 fn empty_to_none(value : String) -> String? {
   if value == "" {
+    None
+  } else {
+    Some(value)
+  }
+}
+
+///|
+fn int_to_none_if_negative(value : Int) -> Int? {
+  if value < 0 {
     None
   } else {
     Some(value)
@@ -301,6 +318,67 @@ fn preview_from_columns(
 }
 
 ///|
+fn run_failure_debug_from_columns(
+  stage : String,
+  command : String,
+  exit_code : Int,
+  codex_log_path : String,
+  validation_log_path : String,
+  final_summary_path : String,
+) -> @sdk.RunFailureDebug? {
+  if stage == "" &&
+    command == "" &&
+    exit_code < 0 &&
+    codex_log_path == "" &&
+    validation_log_path == "" &&
+    final_summary_path == "" {
+    None
+  } else {
+    Some(@sdk.RunFailureDebug::{
+      stage,
+      command: empty_to_none(command),
+      exit_code: int_to_none_if_negative(exit_code),
+      codex_log_path: empty_to_none(codex_log_path),
+      validation_log_path: empty_to_none(validation_log_path),
+      final_summary_path: empty_to_none(final_summary_path),
+    })
+  }
+}
+
+///|
+fn Store::column_exists(
+  self : Store,
+  table_name : String,
+  column_name : String,
+) -> Bool {
+  let stmt = self.db.prepare("PRAGMA table_info(\{table_name});").unwrap()
+  let mut exists = false
+  while stmt.step() {
+    if bytes_to_string(stmt.column_text(1)) == column_name {
+      exists = true
+    }
+  }
+  stmt.finalize()
+  exists
+}
+
+///|
+fn Store::ensure_column(
+  self : Store,
+  table_name : String,
+  column_name : String,
+  column_sql : String,
+) -> Unit {
+  if !self.column_exists(table_name, column_name) {
+    ignore(
+      self.db.exec(
+        "ALTER TABLE \{table_name} ADD COLUMN \{column_name} \{column_sql};",
+      ),
+    )
+  }
+}
+
+///|
 fn Store::new(db_path : String) -> Store {
   let db = @sqlite.Database::open(db_path).unwrap()
   ignore(db.busy_timeout(5000))
@@ -415,6 +493,12 @@ fn Store::init_schema(self : Store) -> Unit {
       #|  state TEXT NOT NULL,
       #|  summary TEXT,
       #|  error_message TEXT,
+      #|  failure_stage TEXT,
+      #|  failure_command TEXT,
+      #|  failure_exit_code INTEGER,
+      #|  codex_log_path TEXT,
+      #|  validation_log_path TEXT,
+      #|  final_summary_path TEXT,
       #|  preview_url TEXT,
       #|  preview_port INTEGER,
       #|  preview_healthy INTEGER NOT NULL DEFAULT 0,
@@ -424,6 +508,12 @@ fn Store::init_schema(self : Store) -> Unit {
     ),
   )
   |> ignore
+  self.ensure_column("runs", "failure_stage", "TEXT")
+  self.ensure_column("runs", "failure_command", "TEXT")
+  self.ensure_column("runs", "failure_exit_code", "INTEGER")
+  self.ensure_column("runs", "codex_log_path", "TEXT")
+  self.ensure_column("runs", "validation_log_path", "TEXT")
+  self.ensure_column("runs", "final_summary_path", "TEXT")
 }
 
 ///|
@@ -544,6 +634,12 @@ fn Store::get_run(
         #|  r.state,
         #|  COALESCE(r.summary, ''),
         #|  COALESCE(r.error_message, ''),
+        #|  COALESCE(r.failure_stage, ''),
+        #|  COALESCE(r.failure_command, ''),
+        #|  COALESCE(r.failure_exit_code, -1),
+        #|  COALESCE(r.codex_log_path, ''),
+        #|  COALESCE(r.validation_log_path, ''),
+        #|  COALESCE(r.final_summary_path, ''),
         #|  COALESCE(r.preview_url, ''),
         #|  COALESCE(r.preview_port, 0),
         #|  r.preview_healthy,
@@ -560,10 +656,18 @@ fn Store::get_run(
   |> ignore
   let result = if stmt.step() {
     let preview = preview_from_columns(
-      bytes_to_string(stmt.column_text(10)),
+      bytes_to_string(stmt.column_text(16)),
+      bytes_to_string(stmt.column_text(11)),
+      stmt.column_int(12),
+      stmt.column_int(13),
+    )
+    let failure_debug = run_failure_debug_from_columns(
       bytes_to_string(stmt.column_text(5)),
-      stmt.column_int(6),
+      bytes_to_string(stmt.column_text(6)),
       stmt.column_int(7),
+      bytes_to_string(stmt.column_text(8)),
+      bytes_to_string(stmt.column_text(9)),
+      bytes_to_string(stmt.column_text(10)),
     )
     Some(@sdk.RunStatusResponse::{
       run_id: bytes_to_string(stmt.column_text(0)),
@@ -571,9 +675,10 @@ fn Store::get_run(
       state: run_state_from_db(bytes_to_string(stmt.column_text(2))),
       summary: empty_to_none(bytes_to_string(stmt.column_text(3))),
       error_message: empty_to_none(bytes_to_string(stmt.column_text(4))),
+      failure_debug,
       preview,
-      started_at: bytes_to_string(stmt.column_text(8)),
-      finished_at: empty_to_none(bytes_to_string(stmt.column_text(9))),
+      started_at: bytes_to_string(stmt.column_text(14)),
+      finished_at: empty_to_none(bytes_to_string(stmt.column_text(15))),
     })
   } else {
     None
@@ -770,6 +875,7 @@ fn Store::start_run(
     state: @sdk.Running,
     summary: None,
     error_message: None,
+    failure_debug: None,
     preview: project.preview,
     started_at: now,
     finished_at: None,
@@ -915,6 +1021,12 @@ fn Store::finish_run_success(
         #|  state = ?,
         #|  summary = ?,
         #|  error_message = NULL,
+        #|  failure_stage = NULL,
+        #|  failure_command = NULL,
+        #|  failure_exit_code = NULL,
+        #|  codex_log_path = NULL,
+        #|  validation_log_path = NULL,
+        #|  final_summary_path = NULL,
         #|  preview_url = ?,
         #|  preview_port = ?,
         #|  preview_healthy = ?,
@@ -980,6 +1092,26 @@ fn Store::finish_run_failure(
   error_message : String,
   thread_id : String?,
 ) -> Unit {
+  self.finish_run_failure_with_debug(
+    project_id,
+    run_id,
+    assistant_message,
+    error_message,
+    thread_id,
+    None,
+  )
+}
+
+///|
+fn Store::finish_run_failure_with_debug(
+  self : Store,
+  project_id : String,
+  run_id : String,
+  assistant_message : String,
+  error_message : String,
+  thread_id : String?,
+  failure_debug : @sdk.RunFailureDebug?,
+) -> Unit {
   let now = now_string()
   match thread_id {
     Some(value) => self.set_project_thread_id(project_id, value)
@@ -990,6 +1122,16 @@ fn Store::finish_run_failure(
   } else {
     assistant_message
   }
+  let failure_stage = failure_debug.map(fn(debug) { debug.stage })
+  let failure_command = failure_debug.bind(fn(debug) { debug.command })
+  let failure_exit_code = failure_debug.bind(fn(debug) { debug.exit_code })
+  let codex_log_path = failure_debug.bind(fn(debug) { debug.codex_log_path })
+  let validation_log_path = failure_debug.bind(fn(debug) {
+    debug.validation_log_path
+  })
+  let final_summary_path = failure_debug.bind(fn(debug) {
+    debug.final_summary_path
+  })
   let message_stmt = self.db
     .prepare(
       (
@@ -1024,6 +1166,12 @@ fn Store::finish_run_failure(
         #|  state = ?,
         #|  summary = ?,
         #|  error_message = ?,
+        #|  failure_stage = ?,
+        #|  failure_command = ?,
+        #|  failure_exit_code = ?,
+        #|  codex_log_path = ?,
+        #|  validation_log_path = ?,
+        #|  final_summary_path = ?,
         #|  finished_at = ?
         #|WHERE id = ?;
       ),
@@ -1033,6 +1181,12 @@ fn Store::finish_run_failure(
     string_to_sql_text(run_state_to_db(Failed)),
     string_to_sql_text(message_text),
     string_to_sql_text(error_message),
+    nullable_text_value(failure_stage),
+    nullable_text_value(failure_command),
+    nullable_int_value(failure_exit_code),
+    nullable_text_value(codex_log_path),
+    nullable_text_value(validation_log_path),
+    nullable_text_value(final_summary_path),
     string_to_sql_text(now),
     string_to_sql_text(run_id),
   ])
@@ -1055,7 +1209,7 @@ fn Store::finish_run_failure(
     .unwrap()
   project_stmt.bind_all([
     string_to_sql_text(run_state_to_db(Failed)),
-    string_to_sql_text(error_message),
+    string_to_sql_text(message_text),
     string_to_sql_text(now),
     string_to_sql_text(project_id),
   ])

@@ -72,12 +72,23 @@ pub(all) struct ChatMessage {
 } derive(Debug, ToJson, FromJson)
 
 ///|
+pub(all) struct RunFailureDebug {
+  stage : String
+  command : String?
+  exit_code : Int?
+  codex_log_path : String?
+  validation_log_path : String?
+  final_summary_path : String?
+} derive(Debug, ToJson, FromJson)
+
+///|
 pub(all) struct RunStatusResponse {
   run_id : String
   project_id : String
   state : RunState
   summary : String?
   error_message : String?
+  failure_debug : RunFailureDebug?
   preview : PreviewTarget?
   started_at : String
   finished_at : String?

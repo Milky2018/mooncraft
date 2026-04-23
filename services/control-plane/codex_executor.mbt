@@ -9,6 +9,7 @@ struct AgentTurnFailure {
   assistant_message : String
   error_message : String
   thread_id : String?
+  failure_debug : @sdk.RunFailureDebug?
 }
 
 ///|
@@ -250,10 +251,20 @@ fn resume_session_missing(output : String) -> Bool {
 }
 
 ///|
-fn append_command_log(path : String, label : String, content : String) -> Unit {
+fn append_command_log(
+  path : String,
+  label : String,
+  command : Array[String],
+  exit_code : Int,
+  content : String,
+) -> Unit {
   safe_append_string(
     path,
-    "== \{label} ==\n" + trim_or_default(content, "(no output)") + "\n\n",
+    "== \{label} ==\ncommand: " +
+    command_display(command) +
+    "\nexit_code: \{exit_code}\n\n" +
+    trim_or_default(content, "(no output)") +
+    "\n\n",
   )
 }
 
@@ -421,6 +432,46 @@ fn stage_failure_message(
 }
 
 ///|
+fn command_display(command : Array[String]) -> String {
+  let mut text = ""
+  for index in 0..<command.length() {
+    if index > 0 {
+      text = text + " "
+    }
+    let part = if command.length() > 0 &&
+      command[0] == "codex" &&
+      index == command.length() - 1 {
+      "<prompt>"
+    } else {
+      command[index]
+    }
+    text = text + shell_quote(part)
+  }
+  text
+}
+
+///|
+fn failure_debug(
+  stage : String,
+  command : Array[String]?,
+  exit_code : Int?,
+  artifacts : RunArtifacts?,
+) -> @sdk.RunFailureDebug {
+  {
+    stage,
+    command: command.map(command_display),
+    exit_code,
+    codex_log_path: artifacts.map(fn(artifacts) { artifacts.codex_log_path }),
+    validation_log_path: artifacts.map(fn(artifacts) {
+      artifacts.validation_log_path
+    }),
+    final_summary_path: artifacts.map(fn(artifacts) {
+      artifacts.last_message_path
+    }),
+  }
+}
+
+///|
 fn docker_command_args(
   config : CodexDockerConfig,
   workspace_path : String,
@@ -538,6 +589,16 @@ fn codex_failure(
   error_message : String,
   thread_id : String?,
 ) -> AgentTurnFailure {
+  codex_failure_with_debug(assistant_message, error_message, thread_id, None)
+}
+
+///|
+fn codex_failure_with_debug(
+  assistant_message : String,
+  error_message : String,
+  thread_id : String?,
+  failure_debug : @sdk.RunFailureDebug?,
+) -> AgentTurnFailure {
   {
     assistant_message: if assistant_message == "" {
       default_failure_assistant_message()
@@ -546,6 +607,7 @@ fn codex_failure(
     },
     error_message,
     thread_id,
+    failure_debug,
   }
 }
 
@@ -567,6 +629,7 @@ async fn run_codex_turn(
     Some(thread_id) => codex_resume_command(thread_id, user_prompt)
     None => codex_exec_command(user_prompt)
   }
+  let mut active_command = command
   let codex_result = match
     collect_codex_command_output(
       root, config, project, workspace_path, artifacts, command,
@@ -574,8 +637,18 @@ async fn run_codex_turn(
     Ok(result) => result
     Err(message) =>
       return Err(
-        codex_failure(
-          "I couldn't start the Codex worker for that update.", message, thread_id_before,
+        codex_failure_with_debug(
+          "I couldn't start the Codex worker for that update.",
+          message,
+          thread_id_before,
+          Some(
+            failure_debug(
+              "Codex command startup",
+              Some(command),
+              None,
+              Some(artifacts),
+            ),
+          ),
         ),
       )
   }
@@ -590,6 +663,8 @@ async fn run_codex_turn(
     } else {
       "codex exec"
     },
+    active_command,
+    exit_code,
     output,
   )
   let mut thread_id = thread_id_before
@@ -598,7 +673,7 @@ async fn run_codex_turn(
       Some(thread_id) => Some(thread_id)
       None =>
         return Err(
-          codex_failure(
+          codex_failure_with_debug(
             default_failure_assistant_message(),
             stage_failure_message(
               "Codex session startup",
@@ -607,6 +682,14 @@ async fn run_codex_turn(
               output,
             ),
             None,
+            Some(
+              failure_debug(
+                "Codex session startup",
+                Some(active_command),
+                Some(exit_code),
+                Some(artifacts),
+              ),
+            ),
           ),
         )
     }
@@ -614,35 +697,45 @@ async fn run_codex_turn(
   if thread_id_before is Some(_) &&
     exit_code != 0 &&
     resume_session_missing(output) {
+    let recovery_command = codex_exec_command(
+      recovery_prompt(initial_project_prompt, user_prompt),
+    )
     let recovery_result = match
       collect_codex_command_output(
-        root,
-        config,
-        project,
-        workspace_path,
-        artifacts,
-        codex_exec_command(recovery_prompt(initial_project_prompt, user_prompt)),
+        root, config, project, workspace_path, artifacts, recovery_command,
       ) {
       Ok(result) => result
       Err(message) =>
         return Err(
-          codex_failure(
-            "I couldn't recover the missing Codex session for that update.", message,
+          codex_failure_with_debug(
+            "I couldn't recover the missing Codex session for that update.",
+            message,
             thread_id_before,
+            Some(
+              failure_debug(
+                "Codex session recovery startup",
+                Some(recovery_command),
+                None,
+                Some(artifacts),
+              ),
+            ),
           ),
         )
     }
     let (recovery_exit_code, recovery_output, recovery_fake_summary) = recovery_result
+    active_command = recovery_command
     append_command_log(
       artifacts.codex_log_path,
       "codex session recovery",
+      active_command,
+      recovery_exit_code,
       recovery_output,
     )
     let recovery_thread_id = match extract_thread_id(recovery_output) {
       Some(thread_id) => thread_id
       None =>
         return Err(
-          codex_failure(
+          codex_failure_with_debug(
             default_failure_assistant_message(),
             stage_failure_message(
               "Codex session recovery",
@@ -651,6 +744,14 @@ async fn run_codex_turn(
               recovery_output,
             ),
             None,
+            Some(
+              failure_debug(
+                "Codex session recovery",
+                Some(active_command),
+                Some(recovery_exit_code),
+                Some(artifacts),
+              ),
+            ),
           ),
         )
     }
@@ -663,10 +764,18 @@ async fn run_codex_turn(
     Some(thread_id) => thread_id
     None =>
       return Err(
-        codex_failure(
+        codex_failure_with_debug(
           default_failure_assistant_message(),
           "The Codex thread id could not be determined for this run.",
           None,
+          Some(
+            failure_debug(
+              "Codex session startup",
+              Some(active_command),
+              Some(exit_code),
+              Some(artifacts),
+            ),
+          ),
         ),
       )
   }
@@ -674,10 +783,18 @@ async fn run_codex_turn(
     Ok(_) => ignore(())
     Err(message) =>
       return Err(
-        codex_failure(
+        codex_failure_with_debug(
           default_failure_assistant_message(),
           message,
           Some(thread_id),
+          Some(
+            failure_debug(
+              "Workspace snapshot",
+              Some(active_command),
+              None,
+              Some(artifacts),
+            ),
+          ),
         ),
       )
   }
@@ -691,7 +808,7 @@ async fn run_codex_turn(
   }
   if exit_code != 0 {
     return Err(
-      codex_failure(
+      codex_failure_with_debug(
         default_failure_assistant_message(),
         stage_failure_message(
           "Codex execution",
@@ -700,6 +817,14 @@ async fn run_codex_turn(
           output,
         ),
         Some(thread_id),
+        Some(
+          failure_debug(
+            "Codex execution",
+            Some(active_command),
+            Some(exit_code),
+            Some(artifacts),
+          ),
+        ),
       ),
     )
   }
@@ -722,10 +847,11 @@ async fn run_validation_command(
       Ok(result) => result
       Err(message) =>
         return Err(
-          codex_failure(
+          codex_failure_with_debug(
             "I updated the workspace, but validation could not be started.",
             message,
             Some(thread_id),
+            Some(failure_debug(label, Some(command), None, Some(artifacts))),
           ),
         )
     }
@@ -739,28 +865,36 @@ async fn run_validation_command(
           Ok(result) => result
           Err(message) =>
             return Err(
-              codex_failure(
+              codex_failure_with_debug(
                 "I updated the workspace, but validation could not be started.",
                 message,
                 Some(thread_id),
+                Some(failure_debug(label, Some(command), None, Some(artifacts))),
               ),
             )
         }
       None =>
         return Err(
-          codex_failure(
+          codex_failure_with_debug(
             "I updated the workspace, but validation could not be started.",
             "The Docker-backed validator is not configured.",
             Some(thread_id),
+            Some(failure_debug(label, Some(command), None, Some(artifacts))),
           ),
         )
     }
   }
   let (exit_code, output) = result
-  append_command_log(artifacts.validation_log_path, label, output)
+  append_command_log(
+    artifacts.validation_log_path,
+    label,
+    command,
+    exit_code,
+    output,
+  )
   if exit_code != 0 {
     return Err(
-      codex_failure(
+      codex_failure_with_debug(
         "I updated the workspace, but validation failed before the preview could be refreshed.",
         stage_failure_message(
           label,
@@ -769,6 +903,9 @@ async fn run_validation_command(
           output,
         ),
         Some(thread_id),
+        Some(
+          failure_debug(label, Some(command), Some(exit_code), Some(artifacts)),
+        ),
       ),
     )
   }
@@ -812,20 +949,23 @@ async fn AgentGateway::run_turn(
     Ok(result) => result
     Err(failure) => return Err(failure)
   }
+  let artifacts = codex_result.artifacts
   let persist_validated_workspace = fn() {
     match snapshot_workspace(self.root, project.id, workspace_path) {
       Ok(_) => Ok(())
       Err(message) =>
         Err(
-          codex_failure(
+          codex_failure_with_debug(
             "I updated the workspace, but saving the latest project snapshot failed.",
             message,
             Some(codex_result.thread_id),
+            Some(
+              failure_debug("Workspace snapshot", None, None, Some(artifacts)),
+            ),
           ),
         )
     }
   }
-  let artifacts = codex_result.artifacts
   safe_write_string(artifacts.validation_log_path, "")
   match
     run_validation_command(
@@ -1032,21 +1172,23 @@ async fn AppContext::run_project_turn(
       match restore_cache_result {
         Ok(_) => ignore(())
         Err(message) =>
-          return self.store.finish_run_failure(
+          return self.store.finish_run_failure_with_debug(
             project_id,
             run_id,
             failure.assistant_message +
             "\n\nWorkspace status: the saved snapshot could not be restored into the local cache.",
             failure.error_message + "\n\nWorkspace restore failed: " + message,
             failure.thread_id,
+            failure.failure_debug,
           )
       }
-      self.store.finish_run_failure(
+      self.store.finish_run_failure_with_debug(
         project_id,
         run_id,
         failure.assistant_message,
         failure.error_message,
         failure.thread_id,
+        failure.failure_debug,
       )
     }
   }

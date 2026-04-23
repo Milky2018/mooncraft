@@ -177,6 +177,15 @@ pub(all) struct RouteSpec {
   success_status : SuccessStatus
 } derive(@debug.Debug)
 
+pub(all) struct RunFailureDebug {
+  stage : String
+  command : String?
+  exit_code : Int?
+  codex_log_path : String?
+  validation_log_path : String?
+  final_summary_path : String?
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
 pub(all) enum RunState {
   Idle
   Running
@@ -191,6 +200,7 @@ pub(all) struct RunStatusResponse {
   state : RunState
   summary : String?
   error_message : String?
+  failure_debug : RunFailureDebug?
   preview : PreviewTarget?
   started_at : String
   finished_at : String?
