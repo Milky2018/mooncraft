@@ -25,6 +25,25 @@ test "extract thread id from codex json event" {
 }
 
 ///|
+test "resume session missing detection matches codex cli error" {
+  inspect(
+    resume_session_missing(
+      "Error: thread/resume: thread/resume failed: no rollout found for thread id 00000000-0000-0000-0000-000000000000",
+    ),
+    content="true",
+  )
+}
+
+///|
+test "recovery prompt includes original and latest requests" {
+  let prompt = recovery_prompt("Build a todo app", "Add labels and due dates")
+  assert_true(prompt.contains("Original project requirement"))
+  assert_true(prompt.contains("Build a todo app"))
+  assert_true(prompt.contains("Latest user request"))
+  assert_true(prompt.contains("Add labels and due dates"))
+}
+
+///|
 test "workspace snapshot round-trips project files and excludes build outputs" {
   let root = @env.current_dir().unwrap_or(".")
   let project_id = next_id("snapshot-roundtrip")

@@ -47,13 +47,15 @@ test: build smoke
 smoke:
   #!/usr/bin/env bash
   set -euo pipefail
-  if curl -fsS http://127.0.0.1:8080/api/health >/dev/null 2>&1; then
-    echo "Port 8080 is already serving a control plane. Stop it first or use 'just smoke-running'." >&2
+  port="${MOONBITCLOUD_SMOKE_PORT:-8080}"
+  base_url="http://127.0.0.1:$port"
+  if curl -fsS "$base_url/api/health" >/dev/null 2>&1; then
+    echo "Port $port is already serving a control plane. Stop it first or use 'just smoke-running'." >&2
     exit 1
   fi
   tmpdir="$(mktemp -d)"
   log_file="$tmpdir/control-plane.log"
-  moon run --manifest-path moon.work services/control-plane --target native >"$log_file" 2>&1 &
+  MOONBITCLOUD_CODEX_FAKE_MODE=smoke MOONBITCLOUD_PORT="$port" moon run --manifest-path moon.work services/control-plane --target native >"$log_file" 2>&1 &
   server_pid=$!
   cleanup() {
     kill "$server_pid" >/dev/null 2>&1 || true
@@ -63,59 +65,82 @@ smoke:
   trap cleanup EXIT
 
   for _ in {1..20}; do
-    if curl -fsS http://127.0.0.1:8080/api/health >/dev/null 2>&1; then
+    if curl -fsS "$base_url/api/health" >/dev/null 2>&1; then
       break
     fi
     sleep 1
   done
 
-  curl -fsS http://127.0.0.1:8080/api/health | grep -q '"ok":true'
-  just smoke-running
+  curl -fsS "$base_url/api/health" | grep -q '"ok":true'
+  MOONBITCLOUD_CODEX_FAKE_MODE=smoke just smoke-running
 
 # Run the smoke test against an already running control plane
 smoke-running:
   #!/usr/bin/env bash
   set -euo pipefail
+  port="${MOONBITCLOUD_SMOKE_PORT:-8080}"
+  base_url="http://127.0.0.1:$port"
   tmpdir="$(mktemp -d)"
   cleanup() {
     rm -rf "$tmpdir"
   }
   trap cleanup EXIT
+  wait_for_response() {
+    local url="$1"
+    local needle="$2"
+    for _ in {1..20}; do
+      if curl -fsS "$url" 2>/dev/null | grep -q "$needle"; then
+        return 0
+      fi
+      sleep 1
+    done
+    curl -fsS "$url" | grep -q "$needle"
+  }
+  wait_for_ok() {
+    local url="$1"
+    for _ in {1..20}; do
+      if curl -fsS "$url" >/dev/null 2>&1; then
+        return 0
+      fi
+      sleep 1
+    done
+    curl -fsS "$url" >/dev/null
+  }
   user1_cookie="$tmpdir/user1.cookies"
   user2_cookie="$tmpdir/user2.cookies"
   user1_email="owner-$(date +%s)@example.com"
   user2_email="viewer-$(date +%s)@example.com"
   password="password123"
-  curl -fsS http://127.0.0.1:8080/api/health | grep -q '"ok":true'
-  curl -fsS http://127.0.0.1:8080/ >/dev/null
-  curl -fsS http://127.0.0.1:8080/app >/dev/null
-  curl -fsS http://127.0.0.1:8080/api/session | grep -q '"authenticated":false'
-  unauth_status="$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/projects || true)"
+  curl -fsS "$base_url/api/health" | grep -q '"ok":true'
+  curl -fsS "$base_url/" >/dev/null
+  curl -fsS "$base_url/app" >/dev/null
+  curl -fsS "$base_url/api/session" | grep -q '"authenticated":false'
+  unauth_status="$(curl -sS -o /dev/null -w '%{http_code}' "$base_url/api/projects" || true)"
   if [[ "$unauth_status" != "401" ]]; then
     echo "Expected unauthenticated project access to return 401, got $unauth_status" >&2
     exit 1
   fi
 
   curl -fsS -c "$user1_cookie" -b "$user1_cookie" \
-    -X POST http://127.0.0.1:8080/api/auth/signup \
+    -X POST "$base_url/api/auth/signup" \
     -H 'Content-Type: application/json' \
     -d "{\"email\":\"$user1_email\",\"password\":\"$password\",\"display_name\":\"Owner\"}" \
     | grep -q "\"email\":\"$user1_email\""
 
   curl -fsS -c "$user2_cookie" -b "$user2_cookie" \
-    -X POST http://127.0.0.1:8080/api/auth/signup \
+    -X POST "$base_url/api/auth/signup" \
     -H 'Content-Type: application/json' \
     -d "{\"email\":\"$user2_email\",\"password\":\"$password\",\"display_name\":\"Viewer\"}" \
     | grep -q "\"email\":\"$user2_email\""
 
-  create_response="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X POST http://127.0.0.1:8080/api/projects -H 'Content-Type: application/json' -d '{"display_name":"Smoke Running"}')"
+  create_response="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X POST "$base_url/api/projects" -H 'Content-Type: application/json' -d '{"display_name":"Smoke Running"}')"
   project_id="$(printf '%s' "$create_response" | sed -n 's/.*"project":{"id":"\([^"]*\)".*/\1/p')"
   if [[ -z "$project_id" ]]; then
     echo "Failed to parse project id from create response: $create_response" >&2
     exit 1
   fi
 
-  run_response="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X POST http://127.0.0.1:8080/api/projects/$project_id/runs -H 'Content-Type: application/json' -d '{"content":"Build a smoke test dashboard"}')"
+  run_response="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X POST "$base_url/api/projects/$project_id/runs" -H 'Content-Type: application/json' -d '{"content":"Build a smoke test dashboard"}')"
   run_id="$(printf '%s' "$run_response" | sed -n 's/.*"run":{"run_id":"\([^"]*\)".*/\1/p')"
   if [[ -z "$run_id" ]]; then
     echo "Failed to parse run id from run response: $run_response" >&2
@@ -123,7 +148,7 @@ smoke-running:
   fi
   final_run=""
   for _ in {1..60}; do
-    final_run="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" "http://127.0.0.1:8080/api/projects/$project_id/runs/$run_id")"
+    final_run="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$project_id/runs/$run_id")"
     if printf '%s' "$final_run" | grep -q '"state":"Running"'; then
       sleep 1
       continue
@@ -134,38 +159,78 @@ smoke-running:
   printf '%s' "$final_run" | grep -q '"state":"Succeeded"'
   printf '%s' "$final_run" | grep -q '"healthy":true'
   printf '%s' "$preview_url" | grep -q '^/p/'
-  curl -fsS -c "$user1_cookie" -b "$user1_cookie" "http://127.0.0.1:8080/api/projects/$project_id" | grep -q "\"url\":\"$preview_url\""
-  user2_status="$(curl -sS -o /dev/null -w '%{http_code}' -c "$user2_cookie" -b "$user2_cookie" "http://127.0.0.1:8080/api/projects/$project_id" || true)"
+  project_detail="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$project_id")"
+  first_thread_id="$(printf '%s' "$project_detail" | sed -n 's/.*"codex_thread_id":"\([^"]*\)".*/\1/p')"
+  if [[ -z "$first_thread_id" ]]; then
+    echo "Failed to parse the first codex thread id from project detail: $project_detail" >&2
+    exit 1
+  fi
+  curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$project_id" | grep -q "\"url\":\"$preview_url\""
+  user2_status="$(curl -sS -o /dev/null -w '%{http_code}' -c "$user2_cookie" -b "$user2_cookie" "$base_url/api/projects/$project_id" || true)"
   if [[ "$user2_status" != "404" ]]; then
     echo "Expected another user to receive 404 for project access, got $user2_status" >&2
     exit 1
   fi
-  if curl -fsS -c "$user2_cookie" -b "$user2_cookie" "http://127.0.0.1:8080/api/projects" | grep -q "\"id\":\"$project_id\""; then
+  if curl -fsS -c "$user2_cookie" -b "$user2_cookie" "$base_url/api/projects" | grep -q "\"id\":\"$project_id\""; then
     echo "Project leaked into another user's project list: $project_id" >&2
     exit 1
   fi
-  curl -fsS "http://127.0.0.1:8080$preview_url" | grep -q 'MoonBit Cloud Preview'
-  curl -fsS "http://127.0.0.1:8080${preview_url}api/health" | grep -q '"ok":true'
+  wait_for_ok "$base_url${preview_url}api/health"
+  [[ -f "data/projects/$project_id/workspace.tar" ]]
+  rm -rf "data/projects/$project_id/workspace"
 
-  curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X POST http://127.0.0.1:8080/api/auth/logout >/dev/null
-  logged_out_status="$(curl -sS -o /dev/null -w '%{http_code}' -c "$user1_cookie" -b "$user1_cookie" http://127.0.0.1:8080/api/projects || true)"
+  run_response_2="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X POST "$base_url/api/projects/$project_id/runs" -H 'Content-Type: application/json' -d '{"content":"Add recovery badge"}')"
+  run_id_2="$(printf '%s' "$run_response_2" | sed -n 's/.*"run":{"run_id":"\([^"]*\)".*/\1/p')"
+  if [[ -z "$run_id_2" ]]; then
+    echo "Failed to parse second run id from run response: $run_response_2" >&2
+    exit 1
+  fi
+  final_run_2=""
+  for _ in {1..60}; do
+    final_run_2="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$project_id/runs/$run_id_2")"
+    if printf '%s' "$final_run_2" | grep -q '"state":"Running"'; then
+      sleep 1
+      continue
+    fi
+    break
+  done
+  preview_url_2="$(printf '%s' "$final_run_2" | sed -n 's/.*"url":"\([^"]*\)".*/\1/p')"
+  printf '%s' "$final_run_2" | grep -q '"state":"Succeeded"'
+  printf '%s' "$final_run_2" | grep -q '"healthy":true'
+  project_detail_2="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$project_id")"
+  second_thread_id="$(printf '%s' "$project_detail_2" | sed -n 's/.*"codex_thread_id":"\([^"]*\)".*/\1/p')"
+  if [[ -z "$second_thread_id" ]]; then
+    echo "Failed to parse the recovered codex thread id from project detail: $project_detail_2" >&2
+    exit 1
+  fi
+  if [[ "$second_thread_id" == "$first_thread_id" ]]; then
+    echo "Expected session recovery to replace the Codex thread id, but it stayed at $first_thread_id" >&2
+    exit 1
+  fi
+  [[ -d "data/projects/$project_id/workspace" ]]
+  [[ ! -d "data/projects/$project_id/run-workspaces/$run_id_2" ]]
+  grep -q 'Add recovery badge' "data/projects/$project_id/workspace/README.md"
+  wait_for_ok "$base_url${preview_url_2}api/health"
+
+  curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X POST "$base_url/api/auth/logout" -d '' >/dev/null
+  logged_out_status="$(curl -sS -o /dev/null -w '%{http_code}' -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects" || true)"
   if [[ "$logged_out_status" != "401" ]]; then
     echo "Expected logged out session to lose project access, got $logged_out_status" >&2
     exit 1
   fi
   curl -fsS -c "$user1_cookie" -b "$user1_cookie" \
-    -X POST http://127.0.0.1:8080/api/auth/login \
+    -X POST "$base_url/api/auth/login" \
     -H 'Content-Type: application/json' \
     -d "{\"email\":\"$user1_email\",\"password\":\"$password\"}" \
     | grep -q "\"email\":\"$user1_email\""
-  curl -fsS -c "$user1_cookie" -b "$user1_cookie" "http://127.0.0.1:8080/api/projects" | grep -q "\"id\":\"$project_id\""
+  curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects" | grep -q "\"id\":\"$project_id\""
 
-  curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X DELETE "http://127.0.0.1:8080/api/projects/$project_id" >/dev/null
-  if curl -fsS -c "$user1_cookie" -b "$user1_cookie" "http://127.0.0.1:8080/api/projects/$project_id" >/dev/null 2>&1; then
+  curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X DELETE "$base_url/api/projects/$project_id" -d '' >/dev/null
+  if curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$project_id" >/dev/null 2>&1; then
     echo "Project still exists after deletion: $project_id" >&2
     exit 1
   fi
-  if curl -fsS -c "$user1_cookie" -b "$user1_cookie" "http://127.0.0.1:8080/api/projects" | grep -q "\"id\":\"$project_id\""; then
+  if curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects" | grep -q "\"id\":\"$project_id\""; then
     echo "Project still appears in the project list after deletion: $project_id" >&2
     exit 1
   fi

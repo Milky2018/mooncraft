@@ -420,7 +420,7 @@ fn main {
       None => api_error_response(NotFound, @sdk.NotFound, "Project not found.")
     }
   })
-  app.post(@sdk.create_run_route().path_pattern, async fn(event) noraise {
+  app.post(@sdk.create_run_route().path_pattern, fn(event) noraise {
     let user = match require_session_user(ctx, event) {
       Ok(user) => user
       Err(response) => return response

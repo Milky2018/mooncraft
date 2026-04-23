@@ -832,6 +832,37 @@ fn Store::get_run_prompt(
 }
 
 ///|
+fn Store::get_initial_project_prompt(
+  self : Store,
+  project_id : String,
+) -> String? {
+  let stmt = self.db
+    .prepare(
+      (
+        #|SELECT content
+        #|FROM messages
+        #|WHERE project_id = ?
+        #|  AND role = ?
+        #|ORDER BY created_at ASC
+        #|LIMIT 1;
+      ),
+    )
+    .unwrap()
+  stmt.bind_all([
+    string_to_sql_text(project_id),
+    string_to_sql_text(chat_role_to_db(User)),
+  ])
+  |> ignore
+  let result = if stmt.step() {
+    Some(bytes_to_string(stmt.column_text(0)))
+  } else {
+    None
+  }
+  stmt.finalize()
+  result
+}
+
+///|
 fn Store::finish_run_success(
   self : Store,
   project_id : String,
