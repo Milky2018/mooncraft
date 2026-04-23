@@ -1081,6 +1081,7 @@ fn auth_mode_button(
 ///|
 fn auth_field(
   label : String,
+  field_id : String,
   input_type : @html.InputType,
   value : String,
   placeholder : String,
@@ -1088,9 +1089,10 @@ fn auth_field(
   dispatch : @rabbita.Dispatch[Msg],
 ) -> @rabbita.Html {
   @html.div(style=["display: flex", "flex-direction: column", "gap: 8px"], [
-    @html.div(style=section_label_style(), label),
+    @html.label(for_=field_id, style=section_label_style(), label),
     @html.input(
       input_type~,
+      id=field_id,
       value~,
       placeholder~,
       on_input=fn(next) { dispatch(on_input(next)) },
@@ -1188,6 +1190,7 @@ fn render_auth_screen(
           render_notice_card(model.auth_notice, "var(--danger-soft)"),
           auth_field(
             "Email",
+            "auth-email",
             @html.Email,
             model.auth_email,
             "name@example.com",
@@ -1196,6 +1199,7 @@ fn render_auth_screen(
           ),
           auth_field(
             "Password",
+            "auth-password",
             @html.Password,
             model.auth_password,
             "At least 8 characters",
@@ -1205,6 +1209,7 @@ fn render_auth_screen(
           if model.auth_mode is Signup {
             auth_field(
               "Display Name",
+              "auth-display-name",
               @html.Text,
               model.auth_display_name,
               "Optional operator name",

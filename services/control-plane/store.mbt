@@ -61,8 +61,22 @@ fn bytes_to_string(bytes : Bytes) -> String {
 extern "C" fn shell_status_ffi(command : Bytes) -> Int = "moonbitcloud_shell_status"
 
 ///|
+#borrow(pid)
+extern "C" fn process_alive_ffi(pid : Int) -> Int = "moonbitcloud_process_alive"
+
+///|
 fn shell_status(command : String) -> Int {
   shell_status_ffi(@utf8.encode(command))
+}
+
+///|
+fn shell_quote(value : String) -> String {
+  "'" + value.split("'").to_array().join("'\\''") + "'"
+}
+
+///|
+fn process_alive(pid : Int) -> Bool {
+  process_alive_ffi(pid) == 1
 }
 
 ///|
@@ -282,6 +296,17 @@ fn generated_web_build_output_path(
 }
 
 ///|
+fn control_plane_executable_path(
+  root : String,
+  build_profile : BuildProfile,
+) -> String {
+  root +
+  "/_build/native/" +
+  build_profile.build_dir() +
+  "/build/moonbitcloud/control-plane/control-plane.exe"
+}
+
+///|
 fn preview_from_columns(
   preview_public_id : String,
   url : String,
@@ -424,6 +449,13 @@ fn Store::init_schema(self : Store) -> Unit {
     ),
   )
   |> ignore
+  self.db.exec(
+    (
+      #|ALTER TABLE runs
+      #|ADD COLUMN worker_pid INTEGER;
+    ),
+  )
+  |> ignore
 }
 
 ///|
@@ -535,6 +567,7 @@ fn Store::get_run(
   project_id : String,
   run_id : String,
 ) -> @sdk.RunStatusResponse? {
+  self.recover_interrupted_runs()
   let stmt = self.db
     .prepare(
       (
@@ -681,6 +714,7 @@ fn Store::start_run(
   project_id : String,
   content : String,
 ) -> Result[@sdk.RunStatusResponse, String] {
+  self.recover_interrupted_runs()
   let project = match self.get_project_detail(project_id) {
     Some(project) => project
     None => return Err("Project not found.")
@@ -774,6 +808,32 @@ fn Store::start_run(
     started_at: now,
     finished_at: None,
   })
+}
+
+///|
+fn Store::set_run_worker_pid(
+  self : Store,
+  project_id : String,
+  run_id : String,
+  worker_pid : Int,
+) -> Unit {
+  let stmt = self.db
+    .prepare(
+      (
+        #|UPDATE runs
+        #|SET worker_pid = ?
+        #|WHERE id = ? AND project_id = ?;
+      ),
+    )
+    .unwrap()
+  stmt.bind_all([
+    @sqlite.SqlValue::Int(worker_pid),
+    string_to_sql_text(run_id),
+    string_to_sql_text(project_id),
+  ])
+  |> ignore
+  stmt.execute() |> ignore
+  stmt.finalize()
 }
 
 ///|
@@ -1034,6 +1094,40 @@ fn Store::finish_run_failure(
 }
 
 ///|
+fn Store::recover_interrupted_runs(self : Store) -> Unit {
+  let stmt = self.db
+    .prepare(
+      (
+        #|SELECT id, project_id, COALESCE(worker_pid, 0)
+        #|FROM runs
+        #|WHERE state = ?;
+      ),
+    )
+    .unwrap()
+  stmt.bind(1, string_to_sql_text(run_state_to_db(Running))) |> ignore
+  let interrupted : Array[(String, String)] = []
+  while stmt.step() {
+    let run_id = bytes_to_string(stmt.column_text(0))
+    let project_id = bytes_to_string(stmt.column_text(1))
+    let worker_pid = stmt.column_int(2)
+    if worker_pid <= 0 || !process_alive(worker_pid) {
+      interrupted.push((project_id, run_id))
+    }
+  }
+  stmt.finalize()
+  for item in interrupted {
+    let (project_id, run_id) = item
+    self.finish_run_failure(
+      project_id,
+      run_id,
+      "The background worker stopped before finishing this update.",
+      "The background worker stopped unexpectedly. Please send the request again.",
+      None,
+    )
+  }
+}
+
+///|
 fn PreviewManager::new(
   root : String,
   build_profile : BuildProfile,
@@ -1219,18 +1313,35 @@ fn AgentGateway::new(root : String) -> AgentGateway {
 
 ///|
 fn AppContext::new(root : String) -> AppContext {
+  AppContext::new_with_recovery(root, true)
+}
+
+///|
+fn AppContext::new_for_worker(root : String) -> AppContext {
+  AppContext::new_with_recovery(root, false)
+}
+
+///|
+fn AppContext::new_with_recovery(
+  root : String,
+  recover_interrupted : Bool,
+) -> AppContext {
   let build_profile = build_profile_from_env()
   let data_dir = root + "/data/control-plane"
   ensure_dir(root + "/data")
   ensure_dir(data_dir)
   let db_path = data_dir + "/state-v2.sqlite"
-  {
+  let ctx = {
     root,
     build_profile,
     store: Store::new(db_path),
     previews: PreviewManager::new(root, build_profile),
     agent_gateway: AgentGateway::new(root),
   }
+  if recover_interrupted {
+    ctx.store.recover_interrupted_runs()
+  }
+  ctx
 }
 
 ///|

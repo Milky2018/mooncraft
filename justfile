@@ -174,6 +174,10 @@ smoke-running:
     exit 1
   fi
 
+# Run a browser smoke test for auth, theme, project lifecycle, and run failure recovery
+ui-smoke port='8094':
+  scripts/playwright_full_smoke.sh {{port}}
+
 # Remove local build outputs
 clean:
   rm -rf _build

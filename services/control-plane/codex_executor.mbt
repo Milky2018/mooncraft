@@ -506,32 +506,43 @@ async fn AgentGateway::run_turn(
 }
 
 ///|
-async fn AppContext::spawn_project_turn_worker(
+fn AppContext::spawn_project_turn_worker(
   self : AppContext,
   project_id : String,
   run_id : String,
-) -> Result[Unit, String] noraise {
-  let args : Array[String] = [
-    "run",
-    "--manifest-path",
-    self.root + "/moon.work",
-    "services/control-plane",
-    "--target",
-    "native",
-  ]
-  if self.build_profile is Release {
-    args.push("--release")
+) -> Result[Int, String] noraise {
+  let executable_path = control_plane_executable_path(
+    self.root,
+    self.build_profile,
+  )
+  if !@fs.path_exists(executable_path) {
+    return Err(
+      "The background run worker executable was not found at \{executable_path}. Build the control plane before sending a request.",
+    )
   }
-  args.push("--")
-  args.push("run-worker")
-  args.push(project_id)
-  args.push(run_id)
-  let _ = try @process.spawn_orphan("moon", args, cwd=self.root) catch {
-    err => return Err("The background run worker could not be started: \{err}")
-  } noraise {
-    pid => pid
+  let artifacts = RunArtifacts::new(self.root, project_id, run_id)
+  let worker_log_path = artifacts.dir + "/worker.log"
+  let worker_pid_path = artifacts.dir + "/worker.pid"
+  safe_write_string(worker_pid_path, "")
+  let code = shell_status(
+    "(cd \{shell_quote(self.root)} && \{shell_quote(executable_path)} run-worker \{shell_quote(project_id)} \{shell_quote(run_id)} >> \{shell_quote(worker_log_path)} 2>&1 & echo $! > \{shell_quote(worker_pid_path)})",
+  )
+  if code != 0 {
+    return Err(
+      "The background run worker could not be started. Shell returned \{code}.",
+    )
   }
-  Ok(())
+  let worker_pid = @string.parse_int(
+    safe_read_string_or(worker_pid_path, "").trim(),
+  ) catch {
+    _ => 0
+  }
+  if worker_pid <= 0 {
+    return Err(
+      "The background run worker could not be started. No worker PID was recorded.",
+    )
+  }
+  Ok(worker_pid)
 }
 
 ///|
@@ -619,6 +630,6 @@ async fn run_worker_mode(
   project_id : String,
   run_id : String,
 ) -> Unit {
-  let ctx = AppContext::new(root)
+  let ctx = AppContext::new_for_worker(root)
   ctx.run_project_turn(project_id, run_id)
 }
