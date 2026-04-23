@@ -23,3 +23,122 @@ test "extract thread id from codex json event" {
     content="Some(\"019db86f-4b45-75c3-a409-984993d1f897\")",
   )
 }
+
+///|
+test "resume session missing detection matches codex cli error" {
+  inspect(
+    resume_session_missing(
+      "Error: thread/resume: thread/resume failed: no rollout found for thread id 00000000-0000-0000-0000-000000000000",
+    ),
+    content="true",
+  )
+}
+
+///|
+test "recovery prompt includes original and latest requests" {
+  let prompt = recovery_prompt("Build a todo app", "Add labels and due dates")
+  assert_true(prompt.contains("Original project requirement"))
+  assert_true(prompt.contains("Build a todo app"))
+  assert_true(prompt.contains("Latest user request"))
+  assert_true(prompt.contains("Add labels and due dates"))
+}
+
+///|
+test "workspace snapshot round-trips project files and excludes build outputs" {
+  let root = @env.current_dir().unwrap_or(".")
+  let project_id = next_id("snapshot-roundtrip")
+  let workspace_path = project_workspace(root, project_id)
+  safe_remove_tree(project_root(root, project_id))
+  ensure_dir(workspace_path + "/frontend")
+  ensure_dir(workspace_path + "/_build/cache")
+  safe_write_string(workspace_path + "/frontend/main.mbt", "first version\n")
+  safe_write_string(workspace_path + "/_build/cache/output.txt", "generated\n")
+
+  snapshot_workspace(root, project_id, workspace_path).unwrap()
+  safe_write_string(workspace_path + "/frontend/main.mbt", "second version\n")
+  restore_workspace_snapshot(root, project_id, workspace_path).unwrap()
+
+  inspect(
+    safe_read_string_or(workspace_path + "/frontend/main.mbt", ""),
+    content="first version\n",
+  )
+  inspect(
+    @fs.path_exists(workspace_path + "/_build/cache/output.txt"),
+    content="false",
+  )
+  safe_remove_tree(project_root(root, project_id))
+}
+
+///|
+test "restoring a project without a snapshot snapshots the existing workspace" {
+  let root = @env.current_dir().unwrap_or(".")
+  let project_id = next_id("snapshot-migration")
+  let workspace_path = project_workspace(root, project_id)
+  safe_remove_tree(project_root(root, project_id))
+  ensure_dir(workspace_path)
+  safe_write_string(workspace_path + "/README.md", "persist me\n")
+
+  restore_workspace_snapshot(root, project_id, workspace_path).unwrap()
+
+  inspect(
+    @fs.path_exists(project_workspace_snapshot_path(root, project_id)),
+    content="true",
+  )
+  inspect(
+    safe_read_string_or(workspace_path + "/README.md", ""),
+    content="persist me\n",
+  )
+  safe_remove_tree(project_root(root, project_id))
+}
+
+///|
+test "hydrate run workspace restores the saved snapshot into an isolated path" {
+  let root = @env.current_dir().unwrap_or(".")
+  let project_id = next_id("snapshot-hydrate")
+  let run_id = next_id("run")
+  let workspace_path = project_workspace(root, project_id)
+  safe_remove_tree(project_root(root, project_id))
+  ensure_dir(workspace_path)
+  safe_write_string(workspace_path + "/README.md", "from snapshot\n")
+  snapshot_workspace(root, project_id, workspace_path).unwrap()
+  safe_write_string(workspace_path + "/README.md", "changed cache\n")
+
+  let run_workspace_path = hydrate_run_workspace(root, project_id, run_id).unwrap()
+
+  inspect(run_workspace_path == workspace_path, content="false")
+  inspect(
+    safe_read_string_or(run_workspace_path + "/README.md", ""),
+    content="from snapshot\n",
+  )
+  inspect(
+    safe_read_string_or(workspace_path + "/README.md", ""),
+    content="changed cache\n",
+  )
+  remove_run_workspace(root, project_id, run_id)
+  inspect(@fs.path_exists(run_workspace_path), content="false")
+  safe_remove_tree(project_root(root, project_id))
+}
+
+///|
+test "hydrate run workspace snapshots the canonical workspace for older projects" {
+  let root = @env.current_dir().unwrap_or(".")
+  let project_id = next_id("snapshot-hydrate-migration")
+  let run_id = next_id("run")
+  let workspace_path = project_workspace(root, project_id)
+  safe_remove_tree(project_root(root, project_id))
+  ensure_dir(workspace_path)
+  safe_write_string(workspace_path + "/README.md", "legacy workspace\n")
+
+  let run_workspace_path = hydrate_run_workspace(root, project_id, run_id).unwrap()
+
+  inspect(
+    @fs.path_exists(project_workspace_snapshot_path(root, project_id)),
+    content="true",
+  )
+  inspect(
+    safe_read_string_or(run_workspace_path + "/README.md", ""),
+    content="legacy workspace\n",
+  )
+  remove_run_workspace(root, project_id, run_id)
+  safe_remove_tree(project_root(root, project_id))
+}

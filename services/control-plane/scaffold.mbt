@@ -336,12 +336,20 @@ fn AppContext::materialize_project_template(
   }
   let workspace_path = project.workspace_path
   ensure_dir(workspace_path)
-  copy_template_tree(
-    template_workspace_dir(self.root, manifest),
-    workspace_path,
-    project,
-    manifest,
-  )
+  match
+    copy_template_tree(
+      template_workspace_dir(self.root, manifest),
+      workspace_path,
+      project,
+      manifest,
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match snapshot_workspace(self.root, project.id, workspace_path) {
+    Ok(_) => Ok(())
+    Err(message) => Err(message)
+  }
 }
 
 ///|

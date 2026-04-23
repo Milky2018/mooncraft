@@ -34,6 +34,14 @@ struct CodexExecutionResult {
 }
 
 ///|
+fn smoke_codex_enabled() -> Bool {
+  match @env.get_env_var("MOONBITCLOUD_CODEX_FAKE_MODE") {
+    Some(value) => value.trim() == "smoke"
+    None => false
+  }
+}
+
+///|
 fn RunArtifacts::new(
   root : String,
   project_id : String,
@@ -140,6 +148,38 @@ fn followup_prompt(user_message : String) -> String {
 }
 
 ///|
+fn recovery_prompt(
+  initial_project_prompt : String,
+  user_message : String,
+) -> String {
+  (
+    #|Continue building the same MoonBit Cloud app inside the current workspace.
+    #|
+    #|Working rules:
+    #|- Default to MoonBit unless the user explicitly asks for another technology.
+    #|- Complete the job in one turn without asking follow-up questions.
+    #|- Use subagents only for concrete, bounded implementation tasks.
+    #|- The current workspace already contains the latest saved project state.
+    #|- You may inspect, edit, create, and delete files anywhere in this workspace.
+    #|- You may run shell commands as needed.
+    #|- Before finishing, run `moon fmt`, `moon check`, and `moon test`.
+    #|- Your final response must be brief: summarize what you built, mention validation status, and mention any blocking failure.
+    #|
+    #|Original project requirement:
+    #|
+  ) +
+  initial_project_prompt +
+  (
+    #|
+    #|
+    #|Latest user request:
+    #|
+  ) +
+  user_message +
+  "\n"
+}
+
+///|
 fn default_success_summary() -> String {
   "I updated the workspace and the app passed validation."
 }
@@ -200,11 +240,169 @@ fn extract_thread_id(events : String) -> String? {
 }
 
 ///|
+fn resume_session_missing(output : String) -> Bool {
+  let lower = output.to_lower()
+  lower.contains("thread/resume failed") &&
+  (
+    lower.contains("no rollout found") ||
+    (lower.contains("thread id") && lower.contains("not found"))
+  )
+}
+
+///|
 fn append_command_log(path : String, label : String, content : String) -> Unit {
   safe_append_string(
     path,
     "== \{label} ==\n" + trim_or_default(content, "(no output)") + "\n\n",
   )
+}
+
+///|
+fn moonbit_string_literal(value : String) -> String {
+  "\"" +
+  value
+  .replace_all(old="\\", new="\\\\")
+  .replace_all(old="\"", new="\\\"")
+  .replace_all(old="\n", new="\\n") +
+  "\""
+}
+
+///|
+fn fake_codex_state_dir(root : String, project_id : String) -> String {
+  project_root(root, project_id) + "/fake-codex"
+}
+
+///|
+fn fake_codex_resume_reset_marker(root : String, project_id : String) -> String {
+  fake_codex_state_dir(root, project_id) + "/resume-reset-once"
+}
+
+///|
+fn fake_codex_update_workspace(
+  workspace_path : String,
+  prompt : String,
+) -> Result[String, String] {
+  let normalized = trim_or_default(prompt, "MoonBit Cloud update")
+  let title = if normalized.length() > 48 {
+    normalized.unsafe_substring(start=0, end=48)
+  } else {
+    normalized
+  }
+  let subtitle = "Smoke mode applied: " + normalized
+  let content = (
+      #|///|
+      #|pub(all) struct AppInfo {
+      #|  title : String
+      #|  subtitle : String
+      #|} derive(Debug, ToJson, FromJson)
+      #|
+      #|///|
+      #|pub(all) struct HealthStatus {
+      #|  ok : Bool
+      #|  title : String
+      #|  subtitle : String
+      #|} derive(Debug, ToJson, FromJson)
+      #|
+      #|///|
+      #|pub fn default_info() -> AppInfo {
+      #|  {
+    ) +
+    "    title: " +
+    moonbit_string_literal(title) +
+    (
+      #|,
+    ) +
+    "    subtitle: " +
+    moonbit_string_literal(subtitle) +
+    (
+      #|,
+      #|  }
+      #|}
+    )
+  safe_write_string(workspace_path + "/shared/model.mbt", content)
+  safe_write_string(
+    workspace_path + "/README.md",
+    "# Smoke Mode\n\nLatest request: " + normalized + "\n",
+  )
+  Ok(
+    "Smoke mode updated the workspace for: " +
+    normalized +
+    ". Validation completed.",
+  )
+}
+
+///|
+fn command_args(command : Array[String]) -> Array[String] {
+  let args : Array[String] = []
+  for i in 1..<command.length() {
+    args.push(command[i])
+  }
+  args
+}
+
+///|
+async fn collect_local_output(
+  executable : String,
+  args : Array[String],
+  cwd : String,
+) -> Result[(Int, String), String] noraise {
+  let result = try
+    @process.collect_output_merged(executable, args, cwd~)
+  catch {
+    err => return Err("The local command could not be started: \{err}")
+  } noraise {
+    value => value
+  }
+  let (exit_code, output) = result
+  let text = output.text() catch { _ => "" }
+  Ok((exit_code, text))
+}
+
+///|
+fn collect_fake_codex_output(
+  root : String,
+  project : @sdk.ProjectDetail,
+  workspace_path : String,
+  command : Array[String],
+) -> Result[(Int, String, String?), String] {
+  if command.length() < 2 {
+    return Err("The fake Codex command was malformed.")
+  }
+  let is_resume = command.length() > 2 && command[2] == "resume"
+  let prompt = command[command.length() - 1]
+  ensure_dir(fake_codex_state_dir(root, project.id))
+  if is_resume {
+    let thread_id = command[command.length() - 2]
+    let reset_marker = fake_codex_resume_reset_marker(root, project.id)
+    if !@fs.path_exists(reset_marker) {
+      safe_write_string(reset_marker, "reset")
+      return Ok(
+        (
+          1,
+          "Error: thread/resume: thread/resume failed: no rollout found for thread id \{thread_id}",
+          None,
+        ),
+      )
+    }
+    let summary = match fake_codex_update_workspace(workspace_path, prompt) {
+      Ok(summary) => summary
+      Err(message) => return Err(message)
+    }
+    Ok((0, "{\"type\":\"turn.completed\"}", Some(summary)))
+  } else {
+    let thread_id = next_id("fake-thread")
+    let summary = match fake_codex_update_workspace(workspace_path, prompt) {
+      Ok(summary) => summary
+      Err(message) => return Err(message)
+    }
+    Ok(
+      (
+        0,
+        "{\"type\":\"thread.started\",\"thread_id\":\"\{thread_id}\"}\n{\"type\":\"turn.completed\"}",
+        Some(summary),
+      ),
+    )
+  }
 }
 
 ///|
@@ -274,6 +472,34 @@ async fn collect_docker_output(
 }
 
 ///|
+async fn collect_codex_command_output(
+  root : String,
+  config : CodexDockerConfig?,
+  project : @sdk.ProjectDetail,
+  workspace_path : String,
+  artifacts : RunArtifacts,
+  command : Array[String],
+) -> Result[(Int, String, String?), String] noraise {
+  if smoke_codex_enabled() {
+    collect_fake_codex_output(root, project, workspace_path, command)
+  } else {
+    match config {
+      Some(config) => {
+        let result = match
+          collect_docker_output(
+            root, config, workspace_path, artifacts, command,
+          ) {
+          Ok(result) => result
+          Err(message) => return Err(message)
+        }
+        Ok((result.0, result.1, None))
+      }
+      None => Err("The Docker-backed Codex command is not configured.")
+    }
+  }
+}
+
+///|
 fn codex_exec_command(user_prompt : String) -> Array[String] {
   [
     "codex",
@@ -326,25 +552,24 @@ fn codex_failure(
 ///|
 async fn run_codex_turn(
   root : String,
-  config : CodexDockerConfig,
+  config : CodexDockerConfig?,
   project : @sdk.ProjectDetail,
+  initial_project_prompt : String,
+  workspace_path : String,
   run_id : String,
   user_prompt : String,
 ) -> Result[CodexExecutionResult, AgentTurnFailure] noraise {
   let artifacts = RunArtifacts::new(root, project.id, run_id)
   safe_write_string(artifacts.last_message_path, "")
+  safe_write_string(artifacts.codex_log_path, "")
   let thread_id_before = project.codex_thread_id
   let command = match thread_id_before {
     Some(thread_id) => codex_resume_command(thread_id, user_prompt)
     None => codex_exec_command(user_prompt)
   }
   let codex_result = match
-    collect_docker_output(
-      root,
-      config,
-      project.workspace_path,
-      artifacts,
-      command,
+    collect_codex_command_output(
+      root, config, project, workspace_path, artifacts, command,
     ) {
     Ok(result) => result
     Err(message) =>
@@ -354,32 +579,116 @@ async fn run_codex_turn(
         ),
       )
   }
-  let (exit_code, output) = codex_result
-  safe_write_string(artifacts.codex_log_path, output)
-  let thread_id = match thread_id_before {
+  let (initial_exit_code, initial_output, initial_fake_summary) = codex_result
+  let mut exit_code = initial_exit_code
+  let mut output = initial_output
+  let mut fake_summary = initial_fake_summary
+  append_command_log(
+    artifacts.codex_log_path,
+    if thread_id_before is Some(_) {
+      "codex resume"
+    } else {
+      "codex exec"
+    },
+    output,
+  )
+  let mut thread_id = thread_id_before
+  if thread_id_before is None {
+    thread_id = match extract_thread_id(output) {
+      Some(thread_id) => Some(thread_id)
+      None =>
+        return Err(
+          codex_failure(
+            default_failure_assistant_message(),
+            stage_failure_message(
+              "Codex session startup",
+              exit_code,
+              artifacts.codex_log_path,
+              output,
+            ),
+            None,
+          ),
+        )
+    }
+  }
+  if thread_id_before is Some(_) &&
+    exit_code != 0 &&
+    resume_session_missing(output) {
+    let recovery_result = match
+      collect_codex_command_output(
+        root,
+        config,
+        project,
+        workspace_path,
+        artifacts,
+        codex_exec_command(recovery_prompt(initial_project_prompt, user_prompt)),
+      ) {
+      Ok(result) => result
+      Err(message) =>
+        return Err(
+          codex_failure(
+            "I couldn't recover the missing Codex session for that update.", message,
+            thread_id_before,
+          ),
+        )
+    }
+    let (recovery_exit_code, recovery_output, recovery_fake_summary) = recovery_result
+    append_command_log(
+      artifacts.codex_log_path,
+      "codex session recovery",
+      recovery_output,
+    )
+    let recovery_thread_id = match extract_thread_id(recovery_output) {
+      Some(thread_id) => thread_id
+      None =>
+        return Err(
+          codex_failure(
+            default_failure_assistant_message(),
+            stage_failure_message(
+              "Codex session recovery",
+              recovery_exit_code,
+              artifacts.codex_log_path,
+              recovery_output,
+            ),
+            None,
+          ),
+        )
+    }
+    exit_code = recovery_exit_code
+    output = recovery_output
+    fake_summary = recovery_fake_summary
+    thread_id = Some(recovery_thread_id)
+  }
+  let thread_id = match thread_id {
     Some(thread_id) => thread_id
     None =>
-      match extract_thread_id(output) {
-        Some(thread_id) => thread_id
-        None =>
-          return Err(
-            codex_failure(
-              default_failure_assistant_message(),
-              stage_failure_message(
-                "Codex session startup",
-                exit_code,
-                artifacts.codex_log_path,
-                output,
-              ),
-              None,
-            ),
-          )
-      }
+      return Err(
+        codex_failure(
+          default_failure_assistant_message(),
+          "The Codex thread id could not be determined for this run.",
+          None,
+        ),
+      )
   }
-  let summary = trim_or_default(
-    safe_read_string_or(artifacts.last_message_path, ""),
-    default_success_summary(),
-  )
+  match snapshot_workspace(root, project.id, workspace_path) {
+    Ok(_) => ignore(())
+    Err(message) =>
+      return Err(
+        codex_failure(
+          default_failure_assistant_message(),
+          message,
+          Some(thread_id),
+        ),
+      )
+  }
+  let summary = match fake_summary {
+    Some(summary) => trim_or_default(summary, default_success_summary())
+    None =>
+      trim_or_default(
+        safe_read_string_or(artifacts.last_message_path, ""),
+        default_success_summary(),
+      )
+  }
   if exit_code != 0 {
     return Err(
       codex_failure(
@@ -400,24 +709,52 @@ async fn run_codex_turn(
 ///|
 async fn run_validation_command(
   root : String,
-  config : CodexDockerConfig,
+  config : CodexDockerConfig?,
   workspace_path : String,
   artifacts : RunArtifacts,
   label : String,
   command : Array[String],
   thread_id : String,
 ) -> Result[Unit, AgentTurnFailure] noraise {
-  let result = match
-    collect_docker_output(root, config, workspace_path, artifacts, command) {
-    Ok(result) => result
-    Err(message) =>
-      return Err(
-        codex_failure(
-          "I updated the workspace, but validation could not be started.",
-          message,
-          Some(thread_id),
-        ),
-      )
+  let result = if smoke_codex_enabled() {
+    match
+      collect_local_output(command[0], command_args(command), workspace_path) {
+      Ok(result) => result
+      Err(message) =>
+        return Err(
+          codex_failure(
+            "I updated the workspace, but validation could not be started.",
+            message,
+            Some(thread_id),
+          ),
+        )
+    }
+  } else {
+    match config {
+      Some(config) =>
+        match
+          collect_docker_output(
+            root, config, workspace_path, artifacts, command,
+          ) {
+          Ok(result) => result
+          Err(message) =>
+            return Err(
+              codex_failure(
+                "I updated the workspace, but validation could not be started.",
+                message,
+                Some(thread_id),
+              ),
+            )
+        }
+      None =>
+        return Err(
+          codex_failure(
+            "I updated the workspace, but validation could not be started.",
+            "The Docker-backed validator is not configured.",
+            Some(thread_id),
+          ),
+        )
+    }
   }
   let (exit_code, output) = result
   append_command_log(artifacts.validation_log_path, label, output)
@@ -442,24 +779,51 @@ async fn run_validation_command(
 async fn AgentGateway::run_turn(
   self : AgentGateway,
   project : @sdk.ProjectDetail,
+  initial_project_prompt : String,
+  workspace_path : String,
   run_id : String,
   user_prompt : String,
 ) -> Result[AgentTurnSuccess, AgentTurnFailure] noraise {
-  let config = match CodexDockerConfig::load() {
-    Ok(config) => config
-    Err(message) =>
-      return Err(
-        codex_failure(
-          "I couldn't start the Codex worker for that update.",
-          message,
-          project.codex_thread_id,
-        ),
-      )
+  let config = if smoke_codex_enabled() {
+    None
+  } else {
+    match CodexDockerConfig::load() {
+      Ok(config) => Some(config)
+      Err(message) =>
+        return Err(
+          codex_failure(
+            "I couldn't start the Codex worker for that update.",
+            message,
+            project.codex_thread_id,
+          ),
+        )
+    }
   }
   let codex_result = match
-    run_codex_turn(self.root, config, project, run_id, user_prompt) {
+    run_codex_turn(
+      self.root,
+      config,
+      project,
+      initial_project_prompt,
+      workspace_path,
+      run_id,
+      user_prompt,
+    ) {
     Ok(result) => result
     Err(failure) => return Err(failure)
+  }
+  let persist_validated_workspace = fn() {
+    match snapshot_workspace(self.root, project.id, workspace_path) {
+      Ok(_) => Ok(())
+      Err(message) =>
+        Err(
+          codex_failure(
+            "I updated the workspace, but saving the latest project snapshot failed.",
+            message,
+            Some(codex_result.thread_id),
+          ),
+        )
+    }
   }
   let artifacts = codex_result.artifacts
   safe_write_string(artifacts.validation_log_path, "")
@@ -467,38 +831,51 @@ async fn AgentGateway::run_turn(
     run_validation_command(
       self.root,
       config,
-      project.workspace_path,
+      workspace_path,
       artifacts,
       "moon fmt",
       ["moon", "fmt"],
       codex_result.thread_id,
     ) {
     Ok(_) => ignore(())
-    Err(failure) => return Err(failure)
+    Err(failure) => {
+      ignore(persist_validated_workspace())
+      return Err(failure)
+    }
   }
   match
     run_validation_command(
       self.root,
       config,
-      project.workspace_path,
+      workspace_path,
       artifacts,
       "moon check",
       ["moon", "check"],
       codex_result.thread_id,
     ) {
     Ok(_) => ignore(())
-    Err(failure) => return Err(failure)
+    Err(failure) => {
+      ignore(persist_validated_workspace())
+      return Err(failure)
+    }
   }
   match
     run_validation_command(
       self.root,
       config,
-      project.workspace_path,
+      workspace_path,
       artifacts,
       "moon test",
       ["moon", "test"],
       codex_result.thread_id,
     ) {
+    Ok(_) => ignore(())
+    Err(failure) => {
+      ignore(persist_validated_workspace())
+      return Err(failure)
+    }
+  }
+  match persist_validated_workspace() {
     Ok(_) => ignore(())
     Err(failure) => return Err(failure)
   }
@@ -511,13 +888,32 @@ fn AppContext::spawn_project_turn_worker(
   project_id : String,
   run_id : String,
 ) -> Result[Unit, String] {
-  let code = shell_status(
-    "cd '\{self.root}' && nohup moon run --manifest-path '\{self.root}/moon.work' \{self.build_profile.cli_flag()}--target native services/control-plane -- run-worker '\{project_id}' '\{run_id}' >/tmp/moonbitcloud-run-\{project_id}-\{run_id}.log 2>&1 &",
-  )
-  if code != 0 {
-    return Err("The background run worker could not be started.")
+  let release_flag = if self.build_profile is Release {
+    "--release "
+  } else {
+    ""
   }
-  Ok(())
+  let log_path = "/tmp/moonbitcloud-worker-\{project_id}-\{run_id}.log"
+  let command = "cd " +
+    shell_quote(self.root) +
+    " && nohup moon run --manifest-path " +
+    shell_quote(self.root + "/moon.work") +
+    " --target native " +
+    release_flag +
+    "services/control-plane " +
+    "-- run-worker " +
+    shell_quote(project_id) +
+    " " +
+    shell_quote(run_id) +
+    " >" +
+    shell_quote(log_path) +
+    " 2>&1 &"
+  let code = shell_status(command)
+  if code != 0 {
+    Err("The background run worker could not be started. Log: \{log_path}")
+  } else {
+    Ok(())
+  }
 }
 
 ///|
@@ -552,9 +948,48 @@ async fn AppContext::run_project_turn(
       return
     }
   }
-  let agent_result = self.agent_gateway.run_turn(project, run_id, prompt)
+  let initial_project_prompt = self.store
+    .get_initial_project_prompt(project_id)
+    .unwrap_or(prompt)
+  let run_workspace_path = match
+    hydrate_run_workspace(self.root, project_id, run_id) {
+    Ok(path) => path
+    Err(message) => {
+      self.store.finish_run_failure(
+        project_id,
+        run_id,
+        default_failure_assistant_message(),
+        message,
+        project.codex_thread_id,
+      )
+      return
+    }
+  }
+  let agent_result = self.agent_gateway.run_turn(
+    project, initial_project_prompt, run_workspace_path, run_id, prompt,
+  )
   match agent_result {
     Ok(result) => {
+      let restore_cache_result = restore_workspace_snapshot(
+        self.root,
+        project_id,
+        project.workspace_path,
+      )
+      remove_run_workspace(self.root, project_id, run_id)
+      match restore_cache_result {
+        Ok(_) => ignore(())
+        Err(message) => {
+          self.store.finish_run_failure(
+            project_id,
+            run_id,
+            result.summary +
+            "\n\nWorkspace status: the saved snapshot could not be restored into the local cache.",
+            message,
+            result.thread_id,
+          )
+          return
+        }
+      }
       let updated_project = match self.store.get_project_detail(project_id) {
         Some(project) => project
         None => {
@@ -588,7 +1023,25 @@ async fn AppContext::run_project_turn(
           )
       }
     }
-    Err(failure) =>
+    Err(failure) => {
+      let restore_cache_result = restore_workspace_snapshot(
+        self.root,
+        project_id,
+        project.workspace_path,
+      )
+      remove_run_workspace(self.root, project_id, run_id)
+      match restore_cache_result {
+        Ok(_) => ignore(())
+        Err(message) =>
+          return self.store.finish_run_failure(
+            project_id,
+            run_id,
+            failure.assistant_message +
+            "\n\nWorkspace status: the saved snapshot could not be restored into the local cache.",
+            failure.error_message + "\n\nWorkspace restore failed: " + message,
+            failure.thread_id,
+          )
+      }
       self.store.finish_run_failure(
         project_id,
         run_id,
@@ -596,6 +1049,7 @@ async fn AppContext::run_project_turn(
         failure.error_message,
         failure.thread_id,
       )
+    }
   }
 }
 
