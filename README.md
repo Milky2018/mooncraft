@@ -84,6 +84,7 @@ Notes:
   - `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
   - optional `MOONBITCLOUD_CODEX_HOME_HOST` (defaults to `$HOME/.codex`)
   - optional `MOONBITCLOUD_CODEX_CONTAINER_HOME` (defaults to `/root`)
+- run `just codex-smoke` to verify the real Docker-backed Codex CLI path by building a Todo List App end to end
 - GitHub OAuth is optional and uses:
   - `MOONBITCLOUD_GITHUB_CLIENT_ID`
   - `MOONBITCLOUD_GITHUB_CLIENT_SECRET`

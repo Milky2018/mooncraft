@@ -239,6 +239,145 @@ smoke-running:
     exit 1
   fi
 
+# Run an end-to-end smoke test against the real Docker-backed Codex CLI
+codex-smoke:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [[ -z "${MOONBITCLOUD_CODEX_DOCKER_IMAGE:-}" ]]; then
+    echo "Set MOONBITCLOUD_CODEX_DOCKER_IMAGE to a Docker image that contains codex and the MoonBit toolchain." >&2
+    exit 1
+  fi
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "docker is required for the real Codex smoke test." >&2
+    exit 1
+  fi
+  codex_home="${MOONBITCLOUD_CODEX_HOME_HOST:-${HOME:-}/.codex}"
+  if [[ -z "$codex_home" || ! -d "$codex_home" ]]; then
+    echo "Codex auth directory not found at '$codex_home'. Log in locally first or set MOONBITCLOUD_CODEX_HOME_HOST." >&2
+    exit 1
+  fi
+
+  port="${MOONBITCLOUD_CODEX_SMOKE_PORT:-${MOONBITCLOUD_SMOKE_PORT:-18081}}"
+  timeout_seconds="${MOONBITCLOUD_CODEX_SMOKE_TIMEOUT_SECONDS:-1800}"
+  base_url="http://127.0.0.1:$port"
+  if curl -fsS "$base_url/api/health" >/dev/null 2>&1; then
+    echo "Port $port is already serving a control plane. Stop it first or choose MOONBITCLOUD_CODEX_SMOKE_PORT." >&2
+    exit 1
+  fi
+
+  tmpdir="$(mktemp -d)"
+  log_file="$tmpdir/control-plane.log"
+  user_cookie="$tmpdir/user.cookies"
+  project_id=""
+  run_id=""
+  cleanup() {
+    if [[ -n "$project_id" && -f "$user_cookie" ]]; then
+      curl -fsS -c "$user_cookie" -b "$user_cookie" -X DELETE "$base_url/api/projects/$project_id" -d '' >/dev/null 2>&1 || true
+    fi
+    if [[ -n "${server_pid:-}" ]]; then
+      kill "$server_pid" >/dev/null 2>&1 || true
+      wait "$server_pid" >/dev/null 2>&1 || true
+    fi
+    rm -rf "$tmpdir"
+  }
+  show_artifacts() {
+    if [[ -n "$project_id" && -n "$run_id" ]]; then
+      artifact_dir="data/projects/$project_id/artifacts/runs/$run_id"
+      echo "Run artifacts: $artifact_dir"
+      for artifact in codex.log validation.log last_message.txt; do
+        artifact_path="$artifact_dir/$artifact"
+        if [[ -f "$artifact_path" ]]; then
+          echo
+          echo "==> $artifact_path"
+          tail -n 120 "$artifact_path" || true
+        fi
+      done
+    fi
+    echo
+    echo "==> control plane log: $log_file"
+    tail -n 160 "$log_file" || true
+  }
+  fail() {
+    echo "$1" >&2
+    show_artifacts >&2
+    exit 1
+  }
+  wait_for_ok() {
+    local url="$1"
+    for _ in {1..60}; do
+      if curl -fsS "$url" >/dev/null 2>&1; then
+        return 0
+      fi
+      sleep 1
+    done
+    curl -fsS "$url" >/dev/null
+  }
+  trap cleanup EXIT
+
+  MOONBITCLOUD_CODEX_FAKE_MODE= MOONBITCLOUD_PORT="$port" moon run --manifest-path moon.work services/control-plane --target native >"$log_file" 2>&1 &
+  server_pid=$!
+  for _ in {1..60}; do
+    if curl -fsS "$base_url/api/health" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 1
+  done
+  curl -fsS "$base_url/api/health" | grep -q '"ok":true' || fail "The control plane did not become healthy on port $port."
+
+  user_email="codex-smoke-$(date +%s)-$$@example.com"
+  password="password123"
+  curl -fsS -c "$user_cookie" -b "$user_cookie" \
+    -X POST "$base_url/api/auth/signup" \
+    -H 'Content-Type: application/json' \
+    -d "{\"email\":\"$user_email\",\"password\":\"$password\",\"display_name\":\"Codex Smoke\"}" \
+    | grep -q "\"email\":\"$user_email\"" || fail "Signup failed."
+
+  create_response="$(curl -fsS -c "$user_cookie" -b "$user_cookie" -X POST "$base_url/api/projects" -H 'Content-Type: application/json' -d '{"display_name":"Codex Todo Smoke"}')"
+  project_id="$(printf '%s' "$create_response" | sed -n 's/.*"project":{"id":"\([^"]*\)".*/\1/p')"
+  if [[ -z "$project_id" ]]; then
+    fail "Failed to parse project id from create response: $create_response"
+  fi
+
+  run_response="$(curl -fsS -c "$user_cookie" -b "$user_cookie" -X POST "$base_url/api/projects/$project_id/runs" -H 'Content-Type: application/json' -d '{"content":"Build a Todo List App in MoonBit. It should let users create todo items, list them, mark them complete, delete them, and present a simple usable preview UI."}')"
+  run_id="$(printf '%s' "$run_response" | sed -n 's/.*"run":{"run_id":"\([^"]*\)".*/\1/p')"
+  if [[ -z "$run_id" ]]; then
+    fail "Failed to parse run id from run response: $run_response"
+  fi
+
+  final_run=""
+  deadline=$((SECONDS + timeout_seconds))
+  while (( SECONDS < deadline )); do
+    final_run="$(curl -fsS -c "$user_cookie" -b "$user_cookie" "$base_url/api/projects/$project_id/runs/$run_id" || true)"
+    if [[ -n "$final_run" ]] && ! printf '%s' "$final_run" | grep -q '"state":"Running"'; then
+      break
+    fi
+    sleep 5
+  done
+  if [[ -z "$final_run" ]]; then
+    fail "Codex smoke did not receive a final run response."
+  fi
+  if printf '%s' "$final_run" | grep -q '"state":"Running"'; then
+    fail "Codex smoke timed out after ${timeout_seconds}s waiting for run $run_id."
+  fi
+  printf '%s' "$final_run" | grep -q '"state":"Succeeded"' || fail "Codex smoke run did not succeed: $final_run"
+  printf '%s' "$final_run" | grep -q '"healthy":true' || fail "Codex smoke run did not report a healthy preview: $final_run"
+  preview_url="$(printf '%s' "$final_run" | sed -n 's/.*"url":"\([^"]*\)".*/\1/p')"
+  printf '%s' "$preview_url" | grep -q '^/p/' || fail "Codex smoke did not return a preview URL: $final_run"
+
+  project_detail="$(curl -fsS -c "$user_cookie" -b "$user_cookie" "$base_url/api/projects/$project_id")"
+  thread_id="$(printf '%s' "$project_detail" | sed -n 's/.*"codex_thread_id":"\([^"]*\)".*/\1/p')"
+  if [[ -z "$thread_id" ]]; then
+    fail "Codex smoke did not persist a codex_thread_id: $project_detail"
+  fi
+  [[ -f "data/projects/$project_id/workspace.tar" ]] || fail "Codex smoke did not persist workspace.tar."
+  [[ -d "data/projects/$project_id/workspace" ]] || fail "Codex smoke did not restore the canonical workspace cache."
+  [[ ! -d "data/projects/$project_id/run-workspaces/$run_id" ]] || fail "Codex smoke left the run workspace behind."
+  wait_for_ok "$base_url${preview_url}api/health" || fail "Codex smoke preview health endpoint was not reachable."
+
+  curl -fsS -c "$user_cookie" -b "$user_cookie" -X DELETE "$base_url/api/projects/$project_id" -d '' >/dev/null
+  project_id=""
+  echo "Codex smoke passed: Todo List App run $run_id produced preview $preview_url"
+
 # Remove local build outputs
 clean:
   rm -rf _build
