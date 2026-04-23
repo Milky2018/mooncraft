@@ -31,28 +31,28 @@ struct Model {
 ///|
 enum Msg {
   Bootstrap
-  SessionLoaded(Result[@sdk.SessionResponse, Error])
+  SessionLoaded(Result[@sdk.SessionResponse, @sdk.ApiError])
   AuthModeSelected(AuthMode)
   AuthEmailChanged(String)
   AuthPasswordChanged(String)
   AuthDisplayNameChanged(String)
   SubmitAuth
-  AuthCompleted(Result[@sdk.AuthResponse, Error])
+  AuthCompleted(Result[@sdk.AuthResponse, @sdk.ApiError])
   Logout
-  LoggedOut(Error?)
-  ProjectsLoaded(Result[Array[@sdk.ProjectSummary], Error])
+  LoggedOut(Result[Unit, @sdk.ApiError])
+  ProjectsLoaded(Result[@sdk.ListProjectsResponse, @sdk.ApiError])
   SelectProject(String)
-  ProjectLoaded(Result[@sdk.ProjectDetail, Error])
-  MessagesLoaded(Result[Array[@sdk.ChatMessage], Error])
+  ProjectLoaded(Result[@sdk.ProjectDetail, @sdk.ApiError])
+  MessagesLoaded(Result[@sdk.ListMessagesResponse, @sdk.ApiError])
   DraftChanged(String)
   CreateProject
   DeleteProject(String)
-  ProjectCreated(Result[@sdk.CreateProjectResponse, Error])
-  ProjectDeleted(String, Error?)
+  ProjectCreated(Result[@sdk.CreateProjectResponse, @sdk.ApiError])
+  ProjectDeleted(String, Result[Unit, @sdk.ApiError])
   SendDraft
-  MessageSent(Result[@sdk.SendMessageResponse, Error])
+  RunCreated(Result[@sdk.CreateRunResponse, @sdk.ApiError])
   PollRun(String, String)
-  RunLoaded(String, String, Result[@sdk.RunStatusResponse, Error])
+  RunLoaded(String, String, Result[@sdk.RunStatusResponse, @sdk.ApiError])
 }
 
 ///|
@@ -109,15 +109,21 @@ fn subscriptions(dispatch : @rabbita.Dispatch[Msg], model : Model) -> @sub.Sub {
 
 ///|
 fn load_session_cmd(dispatch : @rabbita.Dispatch[Msg]) -> @rabbita.Cmd {
-  @http.get("/api/session").expect_json(fn(result) {
-    dispatch(SessionLoaded(result))
-  })
+  get_json(@sdk.session_path(), fn(result) { dispatch(SessionLoaded(result)) })
 }
 
 ///|
 fn load_projects_cmd(dispatch : @rabbita.Dispatch[Msg]) -> @rabbita.Cmd {
-  @http.get("/api/projects").expect_json(fn(result) {
-    dispatch(ProjectsLoaded(result))
+  get_json(@sdk.projects_path(), fn(result) { dispatch(ProjectsLoaded(result)) })
+}
+
+///|
+fn load_messages_cmd(
+  dispatch : @rabbita.Dispatch[Msg],
+  project_id : String,
+) -> @rabbita.Cmd {
+  get_json(@sdk.messages_path(project_id), fn(result) {
+    dispatch(MessagesLoaded(result))
   })
 }
 
@@ -127,12 +133,10 @@ fn load_project_cmd(
   project_id : String,
 ) -> @rabbita.Cmd {
   @rabbita.batch([
-    @http.get("/api/projects/\{project_id}").expect_json(fn(result) {
+    get_json(@sdk.project_path(project_id), fn(result) {
       dispatch(ProjectLoaded(result))
     }),
-    @http.get("/api/projects/\{project_id}/messages").expect_json(fn(result) {
-      dispatch(MessagesLoaded(result))
-    }),
+    load_messages_cmd(dispatch, project_id),
   ])
 }
 
@@ -141,21 +145,21 @@ fn create_project_cmd(dispatch : @rabbita.Dispatch[Msg]) -> @rabbita.Cmd {
   let payload : @sdk.CreateProjectRequest = @sdk.CreateProjectRequest::{
     display_name: None,
   }
-  @http.post("/api/projects")
-  .with_json(payload)
-  .expect_json(fn(result) { dispatch(ProjectCreated(result)) })
+  post_json(@sdk.projects_path(), payload, fn(result) {
+    dispatch(ProjectCreated(result))
+  })
 }
 
 ///|
-fn send_message_cmd(
+fn create_run_cmd(
   dispatch : @rabbita.Dispatch[Msg],
   project_id : String,
   content : String,
 ) -> @rabbita.Cmd {
-  let payload : @sdk.SendMessageRequest = @sdk.SendMessageRequest::{ content, }
-  @http.post("/api/projects/\{project_id}/messages")
-  .with_json(payload)
-  .expect_json(fn(result) { dispatch(MessageSent(result)) })
+  let payload : @sdk.CreateRunRequest = @sdk.CreateRunRequest::{ content, }
+  post_json(@sdk.create_run_path(project_id), payload, fn(result) {
+    dispatch(RunCreated(result))
+  })
 }
 
 ///|
@@ -163,7 +167,7 @@ fn delete_project_cmd(
   dispatch : @rabbita.Dispatch[Msg],
   project_id : String,
 ) -> @rabbita.Cmd {
-  @http.delete("/api/projects/\{project_id}").expect_empty(fn(result) {
+  delete_empty(@sdk.project_path(project_id), fn(result) {
     dispatch(ProjectDeleted(project_id, result))
   })
 }
@@ -174,9 +178,7 @@ fn load_run_cmd(
   project_id : String,
   run_id : String,
 ) -> @rabbita.Cmd {
-  @http.get("/api/projects/\{project_id}/runs/\{run_id}").expect_json(fn(
-    result,
-  ) {
+  get_json(@sdk.run_path(project_id, run_id), fn(result) {
     dispatch(RunLoaded(project_id, run_id, result))
   })
 }
@@ -192,9 +194,9 @@ fn submit_auth_cmd(
         email: model.auth_email,
         password: model.auth_password,
       }
-      @http.post("/api/auth/login")
-      .with_json(payload)
-      .expect_json(fn(result) { dispatch(AuthCompleted(result)) })
+      post_json(@sdk.login_path(), payload, fn(result) {
+        dispatch(AuthCompleted(result))
+      })
     }
     Signup => {
       let payload : @sdk.SignupRequest = @sdk.SignupRequest::{
@@ -206,18 +208,16 @@ fn submit_auth_cmd(
           Some(model.auth_display_name)
         },
       }
-      @http.post("/api/auth/signup")
-      .with_json(payload)
-      .expect_json(fn(result) { dispatch(AuthCompleted(result)) })
+      post_json(@sdk.signup_path(), payload, fn(result) {
+        dispatch(AuthCompleted(result))
+      })
     }
   }
 }
 
 ///|
 fn logout_cmd(dispatch : @rabbita.Dispatch[Msg]) -> @rabbita.Cmd {
-  @http.post("/api/auth/logout")
-  .with_text("")
-  .expect_empty(fn(result) { dispatch(LoggedOut(result)) })
+  post_empty(@sdk.logout_path(), fn(result) { dispatch(LoggedOut(result)) })
 }
 
 ///|
@@ -297,14 +297,13 @@ fn append_local_user_message(
 }
 
 ///|
-fn error_notice(prefix : String, error : Error) -> String {
-  prefix + " " + error.to_string()
+fn error_notice(prefix : String, error : @sdk.ApiError) -> String {
+  prefix + " " + error.message
 }
 
 ///|
-fn is_unauthorized_error(error : Error) -> Bool {
-  let text = error.to_string().to_lower()
-  text.contains("401") || text.contains("unauthorized")
+fn is_unauthorized_error(error : @sdk.ApiError) -> Bool {
+  error.code == @sdk.Unauthorized
 }
 
 ///|
@@ -419,11 +418,11 @@ fn update(
     AuthCompleted(Err(error)) =>
       (
         @rabbita.none,
-        { ..model, auth_pending: false, auth_notice: Some(error.to_string()) },
+        { ..model, auth_pending: false, auth_notice: Some(error.message) },
       )
     Logout =>
       (logout_cmd(dispatch), { ..model, auth_notice: None, notice: None })
-    LoggedOut(None) =>
+    LoggedOut(Ok(_)) =>
       (
         load_session_cmd(dispatch),
         {
@@ -433,12 +432,13 @@ fn update(
           auth_notice: None,
         },
       )
-    LoggedOut(Some(error)) =>
+    LoggedOut(Err(error)) =>
       (
         @rabbita.none,
         { ..model, auth_notice: Some(error_notice("Sign-out failed.", error)) },
       )
-    ProjectsLoaded(Ok(projects)) => {
+    ProjectsLoaded(Ok(response)) => {
+      let projects = response.items
       let selected_project_id = pick_selected_project_id(model, projects)
       let selection_changed = selected_project_id != model.selected_project_id
       let cmd = match selected_project_id {
@@ -504,7 +504,8 @@ fn update(
           },
         )
       }
-    MessagesLoaded(Ok(messages)) => (@rabbita.none, { ..model, messages, })
+    MessagesLoaded(Ok(response)) =>
+      (@rabbita.none, { ..model, messages: response.items })
     MessagesLoaded(Err(error)) =>
       if is_unauthorized_error(error) {
         auth_recovery(dispatch, model, "Your session expired. Sign in again.")
@@ -543,11 +544,7 @@ fn update(
       (
         @rabbita.batch([
           load_projects_cmd(dispatch),
-          @http.get("/api/projects/\{project.id}/messages").expect_json(fn(
-            result,
-          ) {
-            dispatch(MessagesLoaded(result))
-          }),
+          load_messages_cmd(dispatch, project.id),
         ]),
         {
           ..model,
@@ -574,7 +571,7 @@ fn update(
           },
         )
       }
-    ProjectDeleted(project_id, None) => {
+    ProjectDeleted(project_id, Ok(_)) => {
       let next_model = if model.selected_project_id == Some(project_id) {
         {
           ..model,
@@ -590,7 +587,7 @@ fn update(
       }
       (load_projects_cmd(dispatch), next_model)
     }
-    ProjectDeleted(_, Some(error)) =>
+    ProjectDeleted(_, Err(error)) =>
       if is_unauthorized_error(error) {
         auth_recovery(dispatch, model, "Your session expired. Sign in again.")
       } else {
@@ -610,7 +607,7 @@ fn update(
         Some(project_id) if can_send(model) => {
           let content = model.draft
           (
-            send_message_cmd(dispatch, project_id, content),
+            create_run_cmd(dispatch, project_id, content),
             {
               ..model,
               draft: "",
@@ -622,15 +619,31 @@ fn update(
         }
         _ => (@rabbita.none, model)
       }
-    MessageSent(Ok(response)) =>
-      (
-        @rabbita.delay(
-          dispatch(PollRun(response.run.project_id, response.run.run_id)),
-          1000,
-        ),
-        { ..model, run_status: Some(response.run), sending_message: false },
-      )
-    MessageSent(Err(error)) =>
+    RunCreated(Ok(response)) =>
+      match response.poll_after_ms {
+        Some(delay_ms) if response.run.state is @sdk.Running =>
+          (
+            @rabbita.delay(
+              dispatch(PollRun(response.run.project_id, response.run.run_id)),
+              delay_ms,
+            ),
+            { ..model, run_status: Some(response.run), sending_message: false },
+          )
+        _ =>
+          (
+            @rabbita.batch([
+              load_projects_cmd(dispatch),
+              load_project_cmd(dispatch, response.run.project_id),
+            ]),
+            {
+              ..model,
+              run_status: Some(response.run),
+              sending_message: false,
+              notice: response.run.error_message,
+            },
+          )
+      }
+    RunCreated(Err(error)) =>
       if is_unauthorized_error(error) {
         auth_recovery(dispatch, model, "Your session expired. Sign in again.")
       } else {

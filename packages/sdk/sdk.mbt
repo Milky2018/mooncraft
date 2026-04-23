@@ -94,13 +94,24 @@ pub(all) struct CreateProjectResponse {
 } derive(Debug, ToJson, FromJson)
 
 ///|
-pub(all) struct SendMessageRequest {
+pub(all) struct ListProjectsResponse {
+  items : Array[ProjectSummary]
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct ListMessagesResponse {
+  items : Array[ChatMessage]
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct CreateRunRequest {
   content : String
 } derive(Debug, ToJson, FromJson)
 
 ///|
-pub(all) struct SendMessageResponse {
+pub(all) struct CreateRunResponse {
   run : RunStatusResponse
+  poll_after_ms : Int?
 } derive(Debug, ToJson, FromJson)
 
 ///|
@@ -119,6 +130,11 @@ pub(all) struct LoginRequest {
 ///|
 pub(all) struct AuthResponse {
   user : UserSummary
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct HealthResponse {
+  ok : Bool
 } derive(Debug, ToJson, FromJson)
 
 ///|

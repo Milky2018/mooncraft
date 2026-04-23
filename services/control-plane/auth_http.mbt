@@ -153,6 +153,7 @@ fn authenticated_response(
   ctx : AppContext,
   event : @mocket.MocketEvent,
   user : @sdk.UserSummary,
+  status? : @mocket.StatusCode = OK,
 ) -> @mocket.HttpResponse {
   let token = new_session_token()
   ctx.store.create_session(
@@ -161,7 +162,7 @@ fn authenticated_response(
     future_unix_millis_string(session_max_age_millis),
   )
   set_session_cookie(event.res, token)
-  ok_json(@sdk.AuthResponse::{ user, })
+  json_response(status, @sdk.AuthResponse::{ user, })
 }
 
 ///|

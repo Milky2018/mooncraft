@@ -35,7 +35,7 @@ This keeps the live preview tied to a real generated app instead of a fake demo 
 ## Current Runtime Flow
 
 1. `POST /api/projects` creates project metadata and scaffolds the generated workspace.
-2. `POST /api/projects/:id/messages` stores the user message, opens a run, and locks the project.
+2. `POST /api/projects/:id/runs` stores the user message, opens a run, and locks the project.
 3. `AgentGateway` updates the generated project.
 4. `PreviewManager` rebuilds the generated frontend, copies preview assets, and restarts the generated backend on a stable local port.
 5. The control plane marks the run as succeeded or failed and stores the latest preview target.

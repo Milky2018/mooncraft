@@ -69,7 +69,7 @@ smoke:
     sleep 1
   done
 
-  curl -fsS http://127.0.0.1:8080/api/health >/dev/null
+  curl -fsS http://127.0.0.1:8080/api/health | grep -q '"ok":true'
   just smoke-running
 
 # Run the smoke test against an already running control plane
@@ -86,7 +86,7 @@ smoke-running:
   user1_email="owner-$(date +%s)@example.com"
   user2_email="viewer-$(date +%s)@example.com"
   password="password123"
-  curl -fsS http://127.0.0.1:8080/api/health >/dev/null
+  curl -fsS http://127.0.0.1:8080/api/health | grep -q '"ok":true'
   curl -fsS http://127.0.0.1:8080/ >/dev/null
   curl -fsS http://127.0.0.1:8080/app >/dev/null
   curl -fsS http://127.0.0.1:8080/api/session | grep -q '"authenticated":false'
@@ -115,8 +115,8 @@ smoke-running:
     exit 1
   fi
 
-  run_response="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X POST http://127.0.0.1:8080/api/projects/$project_id/messages -H 'Content-Type: application/json' -d '{"content":"Build a smoke test dashboard"}')"
-  run_id="$(printf '%s' "$run_response" | sed -n 's/.*"run_id":"\([^"]*\)".*/\1/p')"
+  run_response="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X POST http://127.0.0.1:8080/api/projects/$project_id/runs -H 'Content-Type: application/json' -d '{"content":"Build a smoke test dashboard"}')"
+  run_id="$(printf '%s' "$run_response" | sed -n 's/.*"run":{"run_id":"\([^"]*\)".*/\1/p')"
   if [[ -z "$run_id" ]]; then
     echo "Failed to parse run id from run response: $run_response" >&2
     exit 1
@@ -147,7 +147,7 @@ smoke-running:
   curl -fsS "http://127.0.0.1:8080$preview_url" | grep -q 'MoonBit Cloud Preview'
   curl -fsS "http://127.0.0.1:8080${preview_url}api/health" | grep -q '"ok":true'
 
-  curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X POST http://127.0.0.1:8080/api/auth/logout -H 'Content-Type: text/plain' -d '' >/dev/null
+  curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X POST http://127.0.0.1:8080/api/auth/logout >/dev/null
   logged_out_status="$(curl -sS -o /dev/null -w '%{http_code}' -c "$user1_cookie" -b "$user1_cookie" http://127.0.0.1:8080/api/projects || true)"
   if [[ "$logged_out_status" != "401" ]]; then
     echo "Expected logged out session to lose project access, got $logged_out_status" >&2

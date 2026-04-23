@@ -1,6 +1,35 @@
 ///|
-fn ok_json(value : &ToJson) -> @mocket.HttpResponse {
-  @mocket.HttpResponse::new(OK).json(value)
+fn json_response(
+  code : @mocket.StatusCode,
+  value : &ToJson,
+) -> @mocket.HttpResponse {
+  @mocket.HttpResponse::new(code).json(value)
+}
+
+///|
+fn json_ok(value : &ToJson) -> @mocket.HttpResponse {
+  json_response(OK, value)
+}
+
+///|
+fn json_created(value : &ToJson) -> @mocket.HttpResponse {
+  json_response(Created, value)
+}
+
+///|
+fn json_no_content() -> @mocket.HttpResponse {
+  @mocket.HttpResponse::new(NoContent).body("")
+}
+
+///|
+fn api_error_response(
+  status : @mocket.StatusCode,
+  code : @sdk.ApiErrorCode,
+  message : String,
+) -> @mocket.HttpResponse {
+  json_response(status, @sdk.ApiErrorResponse::{
+    error: @sdk.ApiError::{ code, message },
+  })
 }
 
 ///|
@@ -27,7 +56,7 @@ fn javascript_response(content : Bytes) -> @mocket.HttpResponse {
 
 ///|
 fn unauthorized_response() -> @mocket.HttpResponse {
-  @mocket.HttpResponse::new(Unauthorized).body("Sign in to continue.")
+  api_error_response(Unauthorized, @sdk.Unauthorized, "Sign in to continue.")
 }
 
 ///|
@@ -38,13 +67,27 @@ fn redirect_response(location : String) -> @mocket.HttpResponse {
 ///|
 fn[T : FromJson] decode_json_body(
   event : @mocket.MocketEvent,
-) -> Result[T, String] {
+) -> Result[T, @mocket.HttpResponse] {
   let body : Json = event.req.body() catch {
-    _ => return Err("The request body must be valid JSON.")
+    _ =>
+      return Err(
+        api_error_response(
+          BadRequest,
+          @sdk.InvalidJson,
+          "The request body must be valid JSON.",
+        ),
+      )
   }
   Ok(
     @json.from_json(body) catch {
-      _ => return Err("The JSON body does not match the expected shape.")
+      _ =>
+        return Err(
+          api_error_response(
+            BadRequest,
+            @sdk.InvalidJson,
+            "The JSON body does not match the expected shape.",
+          ),
+        )
     },
   )
 }
@@ -53,10 +96,17 @@ fn[T : FromJson] decode_json_body(
 fn path_param(
   event : @mocket.MocketEvent,
   name : String,
-) -> Result[String, String] {
+) -> Result[String, @mocket.HttpResponse] {
   match event.params.get(name) {
     Some(value) => Ok(value.to_string())
-    None => Err("Missing route parameter: \{name}.")
+    None =>
+      Err(
+        api_error_response(
+          BadRequest,
+          @sdk.ValidationFailed,
+          "Missing route parameter: \{name}.",
+        ),
+      )
   }
 }
 
@@ -211,6 +261,14 @@ fn AppContext::serve_platform_bundle(self : AppContext) -> @mocket.HttpResponse 
 }
 
 ///|
+fn control_plane_port() -> Int {
+  match @env.get_env_var("MOONBITCLOUD_PORT") {
+    Some(value) => @string.parse_int(value) catch { _ => 8080 }
+    None => 8080
+  }
+}
+
+///|
 fn main {
   let root = @env.current_dir().unwrap_or(".")
   let args = @env.args()
@@ -218,6 +276,7 @@ fn main {
     @async.run_async_main(() => run_worker_mode(root, args[2], args[3]))
     return
   }
+  let port = control_plane_port()
   let ctx = AppContext::new(root)
   ctx.ensure_platform_web_bundle()
 
@@ -225,36 +284,40 @@ fn main {
 
   app.get("/", _ => html_response(workspace_page_html()))
   app.get("/app", _ => ctx.serve_platform_bundle())
-  app.get("/api/health", _ => text_response(OK, "ok"))
-  app.get("/api/session", event => ok_json(session_status_response(ctx, event)))
-  app.post("/api/auth/signup", event => {
+  app.get(@sdk.health_path(), _ => json_ok(@sdk.HealthResponse::{ ok: true }))
+  app.get(@sdk.session_path(), event => {
+    json_ok(session_status_response(ctx, event))
+  })
+  app.post(@sdk.signup_path(), event => {
     let request : @sdk.SignupRequest = match decode_json_body(event) {
       Ok(request) => request
-      Err(message) => return text_response(BadRequest, message)
+      Err(response) => return response
     }
     match signup_user(ctx, request) {
-      Ok(user) => authenticated_response(ctx, event, user)
-      Err(message) => text_response(BadRequest, message)
+      Ok(user) => authenticated_response(ctx, event, user, status=Created)
+      Err(message) =>
+        api_error_response(UnprocessableEntity, @sdk.ValidationFailed, message)
     }
   })
-  app.post("/api/auth/login", event => {
+  app.post(@sdk.login_path(), event => {
     let request : @sdk.LoginRequest = match decode_json_body(event) {
       Ok(request) => request
-      Err(message) => return text_response(BadRequest, message)
+      Err(response) => return response
     }
     match login_user(ctx, request) {
       Ok(user) => authenticated_response(ctx, event, user)
-      Err(message) => text_response(Unauthorized, message)
+      Err(message) =>
+        api_error_response(Unauthorized, @sdk.InvalidCredentials, message)
     }
   })
-  app.post("/api/auth/logout", event => {
+  app.post(@sdk.logout_path(), event => {
     match event.req.get_cookie(session_cookie_name) {
       Some(cookie) if cookie.value != "" =>
         ctx.store.delete_session(session_token_hash(cookie.value))
       _ => ignore(())
     }
     clear_session_cookie(event.res)
-    @mocket.HttpResponse::new(OK).body("")
+    json_no_content()
   })
   app.get("/auth/github/start", _ => github_authorization_response(ctx))
   app.get("/auth/github/callback", _ => {
@@ -263,29 +326,32 @@ fn main {
   app.post("/api/auth/github/callback", async fn(event) noraise {
     let payload : GitHubCallbackPayload = match decode_json_body(event) {
       Ok(payload) => payload
-      Err(message) => return text_response(BadRequest, message)
+      Err(response) => return response
     }
     match ctx.complete_github_sign_in(payload) {
       Ok(user) => authenticated_response(ctx, event, user)
-      Err(message) => text_response(BadRequest, message)
+      Err(message) =>
+        api_error_response(BadRequest, @sdk.ValidationFailed, message)
     }
   })
 
-  app.get("/api/projects", event => {
+  app.get(@sdk.projects_path(), event => {
     let user = match require_session_user(ctx, event) {
       Ok(user) => user
       Err(response) => return response
     }
-    ok_json(ctx.store.list_projects_for_user(user.id))
+    json_ok(@sdk.ListProjectsResponse::{
+      items: ctx.store.list_projects_for_user(user.id),
+    })
   })
-  app.post("/api/projects", event => {
+  app.post(@sdk.projects_path(), event => {
     let user = match require_session_user(ctx, event) {
       Ok(user) => user
       Err(response) => return response
     }
     let request : @sdk.CreateProjectRequest = match decode_json_body(event) {
       Ok(request) => request
-      Err(message) => return text_response(BadRequest, message)
+      Err(response) => return response
     }
     let project_id = next_id("project")
     let workspace_path = project_workspace(ctx.root, project_id)
@@ -296,81 +362,87 @@ fn main {
       workspace_path,
     )
     ctx.create_project_workspace(project)
-    ok_json(@sdk.CreateProjectResponse::{ project, })
+    json_created(@sdk.CreateProjectResponse::{ project, })
   })
-  app.delete("/api/projects/:id", event => {
+  app.delete(@sdk.delete_project_route().path_pattern, event => {
     let user = match require_session_user(ctx, event) {
       Ok(user) => user
       Err(response) => return response
     }
     let project_id = match path_param(event, "id") {
       Ok(value) => value
-      Err(message) => return text_response(BadRequest, message)
+      Err(response) => return response
     }
     if ctx.store.get_project_detail_for_user(project_id, user.id) is None {
-      return text_response(NotFound, "Project not found.")
+      return api_error_response(NotFound, @sdk.NotFound, "Project not found.")
     }
     match ctx.delete_project(project_id) {
-      Ok(_) => @mocket.HttpResponse::new(OK).body("")
+      Ok(_) => json_no_content()
       Err(message) =>
         if message == "Project not found." {
-          text_response(NotFound, message)
+          api_error_response(NotFound, @sdk.NotFound, message)
         } else {
-          text_response(Conflict, message)
+          api_error_response(Conflict, @sdk.Conflict, message)
         }
     }
   })
-  app.get("/api/projects/:id", event => {
+  app.get(@sdk.project_route().path_pattern, event => {
     let user = match require_session_user(ctx, event) {
       Ok(user) => user
       Err(response) => return response
     }
     let project_id = match path_param(event, "id") {
       Ok(value) => value
-      Err(message) => return text_response(BadRequest, message)
+      Err(response) => return response
     }
     match ctx.store.get_project_detail_for_user(project_id, user.id) {
-      Some(project) => ok_json(project)
-      None => text_response(NotFound, "Project not found.")
+      Some(project) => json_ok(project)
+      None => api_error_response(NotFound, @sdk.NotFound, "Project not found.")
     }
   })
-  app.get("/api/projects/:id/messages", event => {
+  app.get(@sdk.list_messages_route().path_pattern, event => {
     let user = match require_session_user(ctx, event) {
       Ok(user) => user
       Err(response) => return response
     }
     let project_id = match path_param(event, "id") {
       Ok(value) => value
-      Err(message) => return text_response(BadRequest, message)
+      Err(response) => return response
     }
     match ctx.store.list_messages_for_user(user.id, project_id) {
-      Some(messages) => ok_json(messages)
-      None => text_response(NotFound, "Project not found.")
+      Some(messages) => json_ok(@sdk.ListMessagesResponse::{ items: messages })
+      None => api_error_response(NotFound, @sdk.NotFound, "Project not found.")
     }
   })
-  app.post("/api/projects/:id/messages", async fn(event) noraise {
+  app.post(@sdk.create_run_route().path_pattern, async fn(event) noraise {
     let user = match require_session_user(ctx, event) {
       Ok(user) => user
       Err(response) => return response
     }
     let project_id = match path_param(event, "id") {
       Ok(value) => value
-      Err(message) => return text_response(BadRequest, message)
+      Err(response) => return response
     }
-    let request : @sdk.SendMessageRequest = match decode_json_body(event) {
+    let request : @sdk.CreateRunRequest = match decode_json_body(event) {
       Ok(request) => request
-      Err(message) => return text_response(BadRequest, message)
+      Err(response) => return response
     }
     if request.content == "" {
-      return text_response(BadRequest, "Message content cannot be empty.")
+      return api_error_response(
+        UnprocessableEntity,
+        @sdk.ValidationFailed,
+        "Message content cannot be empty.",
+      )
     }
     let run = match
       ctx.store.start_run_for_user(user.id, project_id, request.content) {
       Ok(run) => run
-      Err(message) => return text_response(Conflict, message)
+      Err(message) =>
+        return api_error_response(Conflict, @sdk.Conflict, message)
     }
     match ctx.spawn_project_turn_worker(project_id, run.run_id) {
-      Ok(_) => ok_json(@sdk.SendMessageResponse::{ run, })
+      Ok(_) =>
+        json_created(@sdk.CreateRunResponse::{ run, poll_after_ms: Some(1000) })
       Err(message) => {
         ctx.store.finish_run_failure(
           project_id,
@@ -382,32 +454,35 @@ fn main {
         let latest_run = ctx.store
           .get_run(project_id, run.run_id)
           .unwrap_or(run)
-        ok_json(@sdk.SendMessageResponse::{ run: latest_run })
+        json_created(@sdk.CreateRunResponse::{
+          run: latest_run,
+          poll_after_ms: None,
+        })
       }
     }
   })
-  app.get("/api/projects/:id/runs/:run_id", event => {
+  app.get(@sdk.get_run_route().path_pattern, event => {
     let user = match require_session_user(ctx, event) {
       Ok(user) => user
       Err(response) => return response
     }
     let project_id = match path_param(event, "id") {
       Ok(value) => value
-      Err(message) => return text_response(BadRequest, message)
+      Err(response) => return response
     }
     let run_id = match path_param(event, "run_id") {
       Ok(value) => value
-      Err(message) => return text_response(BadRequest, message)
+      Err(response) => return response
     }
     match ctx.store.get_run_for_user(user.id, project_id, run_id) {
-      Some(run) => ok_json(run)
-      None => text_response(NotFound, "Run not found.")
+      Some(run) => json_ok(run)
+      None => api_error_response(NotFound, @sdk.NotFound, "Run not found.")
     }
   })
-  app.all("/p/:preview_public_id/**", async fn(event) noraise {
+  app.all(@sdk.preview_route_pattern(), async fn(event) noraise {
     let preview_public_id = match path_param(event, "preview_public_id") {
       Ok(value) => value
-      Err(message) => return text_response(BadRequest, message)
+      Err(response) => return response
     }
     let remainder = event.params
       .get("_")
@@ -458,6 +533,6 @@ fn main {
     }
   })
 
-  println("MoonBit Cloud running at http://localhost:8080")
-  app.serve(port=8080)
+  println("MoonBit Cloud running at http://localhost:\{port}")
+  app.serve(port~)
 }
