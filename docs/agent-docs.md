@@ -22,15 +22,17 @@ If the docs do not improve those four behaviors, they are not doing their job.
 Write the first documents in this order:
 
 1. project layout and file ownership
-2. request/response handler contract
-3. tenant model for the local prototype
-4. storage and persistence pattern
-5. routing pattern
-6. logging and debugging pattern
-7. run and deploy workflow
-8. template selection policy
-9. common failure modes
-10. migration path for adding new platform libraries
+2. platform auth and session model
+3. project ownership and public preview token model
+4. request/response handler contract
+5. tenant model for the local prototype
+6. storage and persistence pattern
+7. routing pattern
+8. logging and debugging pattern
+9. run and deploy workflow
+10. template selection policy
+11. common failure modes
+12. migration path for adding new platform libraries
 
 ## Recommended Knowledge Base Shape
 
@@ -106,6 +108,7 @@ Explain the architecture and mental model:
 
 - chat-first product model
 - hidden-code UX model
+- platform auth and session model
 - template-first app generation
 - tenant model
 
@@ -113,6 +116,10 @@ Explain the architecture and mental model:
 
 Define stable interfaces:
 
+- `User`
+- `Session`
+- `ProjectOwner`
+- `PreviewPublicId`
 - `Request`
 - `Response`
 - `Context`
@@ -150,6 +157,8 @@ Capture repeat failures:
 The first set should be:
 
 - `knowledge/concepts/app-model.md`
+- `knowledge/contracts/platform-auth.md`
+- `knowledge/contracts/project-ownership.md`
 - `knowledge/contracts/http-handler.md`
 - `knowledge/contracts/tenant-model.md`
 - `knowledge/recipes/build-a-todo-api.md`

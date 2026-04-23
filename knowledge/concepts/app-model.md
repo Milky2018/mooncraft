@@ -23,15 +23,19 @@ The first platform model is:
 
 - HTTP API only
 - request/response execution
-- local single-user prototype
+- local single-instance multi-user prototype
+- platform-level cookie sessions for project ownership
+- public preview access through opaque preview URLs
 - durable storage when required
 - explicit tenant scoping when required
 
 # Invariants
 
 - The main user interface is chat, not a code editor.
+- Platform users own projects explicitly; project access must stay owner-scoped.
 - The app must remain runnable through the platform runner.
 - The app should preserve a recognizable template structure.
+- Public previews must stay tied to opaque preview identifiers, not predictable project ids.
 - Tenant-aware apps must scope data explicitly.
 - Product-facing complexity should stay hidden from the end user.
 

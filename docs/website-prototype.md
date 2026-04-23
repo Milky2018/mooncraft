@@ -6,6 +6,7 @@ The first website prototype is one desktop-first app-develop page.
 
 It includes:
 
+- auth gate before the workspace when signed out
 - left project rail
 - center chat workspace
 - right live preview panel
@@ -13,7 +14,6 @@ It includes:
 It excludes:
 
 - landing page
-- auth
 - deploy flow
 - settings
 - template browser
@@ -25,13 +25,22 @@ The page should feel consumer-friendly, calm, and obvious to use. It should not 
 
 The main user loop is:
 
-1. create or select a project
-2. type a request
-3. wait on a spinner
-4. inspect the live preview
-5. continue in chat
+1. sign up or log in
+2. create or select a project
+3. type a request
+4. wait on a spinner
+5. inspect the live preview
+6. continue in chat
+
+The signed-out state should feel like the same product, not a separate admin tool.
 
 ## Current UI Contract
+
+### Signed-Out State
+
+- shows email/password auth first
+- may offer GitHub sign-in when configured
+- should hand off into the same workspace shell after session creation
 
 ### Left Rail
 
@@ -49,6 +58,7 @@ The main user loop is:
 ### Preview Panel
 
 - embeds the live preview URL in an iframe when available
+- loads same-origin public preview URLs backed by opaque tokens
 - shows clear empty, loading, and failure states
 - never shows source code
 
