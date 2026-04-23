@@ -328,6 +328,7 @@ async fn run_codex_turn(
   root : String,
   config : CodexDockerConfig,
   project : @sdk.ProjectDetail,
+  workspace_path : String,
   run_id : String,
   user_prompt : String,
 ) -> Result[CodexExecutionResult, AgentTurnFailure] noraise {
@@ -339,13 +340,7 @@ async fn run_codex_turn(
     None => codex_exec_command(user_prompt)
   }
   let codex_result = match
-    collect_docker_output(
-      root,
-      config,
-      project.workspace_path,
-      artifacts,
-      command,
-    ) {
+    collect_docker_output(root, config, workspace_path, artifacts, command) {
     Ok(result) => result
     Err(message) =>
       return Err(
@@ -376,7 +371,7 @@ async fn run_codex_turn(
           )
       }
   }
-  match snapshot_workspace(root, project.id, project.workspace_path) {
+  match snapshot_workspace(root, project.id, workspace_path) {
     Ok(_) => ignore(())
     Err(message) =>
       return Err(
@@ -453,6 +448,7 @@ async fn run_validation_command(
 async fn AgentGateway::run_turn(
   self : AgentGateway,
   project : @sdk.ProjectDetail,
+  workspace_path : String,
   run_id : String,
   user_prompt : String,
 ) -> Result[AgentTurnSuccess, AgentTurnFailure] noraise {
@@ -468,12 +464,19 @@ async fn AgentGateway::run_turn(
       )
   }
   let codex_result = match
-    run_codex_turn(self.root, config, project, run_id, user_prompt) {
+    run_codex_turn(
+      self.root,
+      config,
+      project,
+      workspace_path,
+      run_id,
+      user_prompt,
+    ) {
     Ok(result) => result
     Err(failure) => return Err(failure)
   }
   let persist_validated_workspace = fn() {
-    match snapshot_workspace(self.root, project.id, project.workspace_path) {
+    match snapshot_workspace(self.root, project.id, workspace_path) {
       Ok(_) => Ok(())
       Err(message) =>
         Err(
@@ -491,7 +494,7 @@ async fn AgentGateway::run_turn(
     run_validation_command(
       self.root,
       config,
-      project.workspace_path,
+      workspace_path,
       artifacts,
       "moon fmt",
       ["moon", "fmt"],
@@ -507,7 +510,7 @@ async fn AgentGateway::run_turn(
     run_validation_command(
       self.root,
       config,
-      project.workspace_path,
+      workspace_path,
       artifacts,
       "moon check",
       ["moon", "check"],
@@ -523,7 +526,7 @@ async fn AgentGateway::run_turn(
     run_validation_command(
       self.root,
       config,
-      project.workspace_path,
+      workspace_path,
       artifacts,
       "moon test",
       ["moon", "test"],
@@ -603,9 +606,9 @@ async fn AppContext::run_project_turn(
       return
     }
   }
-  match
-    restore_workspace_snapshot(self.root, project_id, project.workspace_path) {
-    Ok(_) => ignore(())
+  let run_workspace_path = match
+    hydrate_run_workspace(self.root, project_id, run_id) {
+    Ok(path) => path
     Err(message) => {
       self.store.finish_run_failure(
         project_id,
@@ -617,9 +620,31 @@ async fn AppContext::run_project_turn(
       return
     }
   }
-  let agent_result = self.agent_gateway.run_turn(project, run_id, prompt)
+  let agent_result = self.agent_gateway.run_turn(
+    project, run_workspace_path, run_id, prompt,
+  )
   match agent_result {
     Ok(result) => {
+      let restore_cache_result = restore_workspace_snapshot(
+        self.root,
+        project_id,
+        project.workspace_path,
+      )
+      remove_run_workspace(self.root, project_id, run_id)
+      match restore_cache_result {
+        Ok(_) => ignore(())
+        Err(message) => {
+          self.store.finish_run_failure(
+            project_id,
+            run_id,
+            result.summary +
+            "\n\nWorkspace status: the saved snapshot could not be restored into the local cache.",
+            message,
+            result.thread_id,
+          )
+          return
+        }
+      }
       let updated_project = match self.store.get_project_detail(project_id) {
         Some(project) => project
         None => {
@@ -653,7 +678,8 @@ async fn AppContext::run_project_turn(
           )
       }
     }
-    Err(failure) =>
+    Err(failure) => {
+      remove_run_workspace(self.root, project_id, run_id)
       self.store.finish_run_failure(
         project_id,
         run_id,
@@ -661,6 +687,7 @@ async fn AppContext::run_project_turn(
         failure.error_message,
         failure.thread_id,
       )
+    }
   }
 }
 

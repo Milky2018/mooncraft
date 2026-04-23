@@ -71,3 +71,55 @@ test "restoring a project without a snapshot snapshots the existing workspace" {
   )
   safe_remove_tree(project_root(root, project_id))
 }
+
+///|
+test "hydrate run workspace restores the saved snapshot into an isolated path" {
+  let root = @env.current_dir().unwrap_or(".")
+  let project_id = next_id("snapshot-hydrate")
+  let run_id = next_id("run")
+  let workspace_path = project_workspace(root, project_id)
+  safe_remove_tree(project_root(root, project_id))
+  ensure_dir(workspace_path)
+  safe_write_string(workspace_path + "/README.md", "from snapshot\n")
+  snapshot_workspace(root, project_id, workspace_path).unwrap()
+  safe_write_string(workspace_path + "/README.md", "changed cache\n")
+
+  let run_workspace_path = hydrate_run_workspace(root, project_id, run_id).unwrap()
+
+  inspect(run_workspace_path == workspace_path, content="false")
+  inspect(
+    safe_read_string_or(run_workspace_path + "/README.md", ""),
+    content="from snapshot\n",
+  )
+  inspect(
+    safe_read_string_or(workspace_path + "/README.md", ""),
+    content="changed cache\n",
+  )
+  remove_run_workspace(root, project_id, run_id)
+  inspect(@fs.path_exists(run_workspace_path), content="false")
+  safe_remove_tree(project_root(root, project_id))
+}
+
+///|
+test "hydrate run workspace snapshots the canonical workspace for older projects" {
+  let root = @env.current_dir().unwrap_or(".")
+  let project_id = next_id("snapshot-hydrate-migration")
+  let run_id = next_id("run")
+  let workspace_path = project_workspace(root, project_id)
+  safe_remove_tree(project_root(root, project_id))
+  ensure_dir(workspace_path)
+  safe_write_string(workspace_path + "/README.md", "legacy workspace\n")
+
+  let run_workspace_path = hydrate_run_workspace(root, project_id, run_id).unwrap()
+
+  inspect(
+    @fs.path_exists(project_workspace_snapshot_path(root, project_id)),
+    content="true",
+  )
+  inspect(
+    safe_read_string_or(run_workspace_path + "/README.md", ""),
+    content="legacy workspace\n",
+  )
+  remove_run_workspace(root, project_id, run_id)
+  safe_remove_tree(project_root(root, project_id))
+}

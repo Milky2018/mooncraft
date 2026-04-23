@@ -15,6 +15,20 @@ fn project_workspace_snapshot_temp_path(
 }
 
 ///|
+fn project_run_workspaces_root(root : String, project_id : String) -> String {
+  project_root(root, project_id) + "/run-workspaces"
+}
+
+///|
+fn project_run_workspace_path(
+  root : String,
+  project_id : String,
+  run_id : String,
+) -> String {
+  project_run_workspaces_root(root, project_id) + "/" + run_id
+}
+
+///|
 fn shell_quote(value : String) -> String {
   "'" + value.replace_all(old="'", new="'\"'\"'") + "'"
 }
@@ -61,27 +75,27 @@ fn snapshot_workspace(
 }
 
 ///|
-fn restore_workspace_snapshot(
+fn restore_workspace_snapshot_to_path(
   root : String,
   project_id : String,
-  workspace_path : String,
+  target_path : String,
 ) -> Result[Unit, String] {
   let snapshot_path = project_workspace_snapshot_path(root, project_id)
   if !@fs.path_exists(snapshot_path) {
-    if @fs.path_exists(workspace_path) {
-      return snapshot_workspace(root, project_id, workspace_path)
+    if @fs.path_exists(target_path) {
+      return snapshot_workspace(root, project_id, target_path)
     }
     return Err(
       "No persisted workspace snapshot is available for project \{project_id}.",
     )
   }
-  safe_remove_tree(workspace_path)
-  ensure_dir(workspace_path)
+  safe_remove_tree(target_path)
+  ensure_dir(target_path)
   let restore_code = shell_status(
     "tar -xf " +
     shell_quote(snapshot_path) +
     " -C " +
-    shell_quote(workspace_path) +
+    shell_quote(target_path) +
     " >/dev/null 2>&1",
   )
   if restore_code != 0 {
@@ -90,4 +104,47 @@ fn restore_workspace_snapshot(
     )
   }
   Ok(())
+}
+
+///|
+fn restore_workspace_snapshot(
+  root : String,
+  project_id : String,
+  workspace_path : String,
+) -> Result[Unit, String] {
+  restore_workspace_snapshot_to_path(root, project_id, workspace_path)
+}
+
+///|
+fn hydrate_run_workspace(
+  root : String,
+  project_id : String,
+  run_id : String,
+) -> Result[String, String] {
+  let run_workspace_path = project_run_workspace_path(root, project_id, run_id)
+  let snapshot_path = project_workspace_snapshot_path(root, project_id)
+  if !@fs.path_exists(snapshot_path) {
+    let workspace_path = project_workspace(root, project_id)
+    if @fs.path_exists(workspace_path) {
+      match snapshot_workspace(root, project_id, workspace_path) {
+        Ok(_) => ignore(())
+        Err(message) => return Err(message)
+      }
+    }
+  }
+  ensure_dir(project_run_workspaces_root(root, project_id))
+  match
+    restore_workspace_snapshot_to_path(root, project_id, run_workspace_path) {
+    Ok(_) => Ok(run_workspace_path)
+    Err(message) => Err(message)
+  }
+}
+
+///|
+fn remove_run_workspace(
+  root : String,
+  project_id : String,
+  run_id : String,
+) -> Unit {
+  safe_remove_tree(project_run_workspace_path(root, project_id, run_id))
 }
