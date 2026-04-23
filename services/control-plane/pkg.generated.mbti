@@ -13,9 +13,17 @@ import {
 // Types and methods
 type AgentGateway
 
+type AgentTurnFailure
+
+type AgentTurnSuccess
+
 type AppContext
 
 type BuildProfile
+
+type CodexDockerConfig
+
+type CodexExecutionResult
 
 type GitHubCallbackPayload derive(@debug.Debug, @json.FromJson)
 
@@ -29,6 +37,8 @@ pub(all) struct PreviewRuntime {
   port : Int
   pid : Int
 }
+
+type RunArtifacts
 
 type Store
 

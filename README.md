@@ -51,8 +51,7 @@ Generated user projects live under `data/projects/<project-id>/workspace/` and u
 - Each successful run rebuilds the generated project and restarts a local preview server on a stable port.
 - Preview URLs are public opaque paths like `/p/<preview_public_id>/` and stay same-origin through the control plane.
 - `packages/sdk` defines the shared request and response payloads used by the frontend and control plane.
-
-The current `AgentGateway` is a local deterministic adapter that keeps the system runnable while preserving a clean seam for future Codex integration.
+- `AgentGateway` now launches Docker-backed Codex CLI runs asynchronously and persists one `codex_thread_id` per project so later messages can resume the same Codex session.
 
 ## Core Docs
 
@@ -81,6 +80,10 @@ Notes:
 
 - the image includes the MoonBit toolchain because the control plane still rebuilds generated previews at runtime
 - set `MOONBITCLOUD_BUILD_PROFILE=release` if you want the control plane to stage and run release artifacts inside the container
+- Codex-backed editing also needs a separate Docker image that contains both `codex` and the MoonBit toolchain, exposed through:
+  - `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
+  - optional `MOONBITCLOUD_CODEX_HOME_HOST` (defaults to `$HOME/.codex`)
+  - optional `MOONBITCLOUD_CODEX_CONTAINER_HOME` (defaults to `/root`)
 - GitHub OAuth is optional and uses:
   - `MOONBITCLOUD_GITHUB_CLIENT_ID`
   - `MOONBITCLOUD_GITHUB_CLIENT_SECRET`
@@ -101,7 +104,7 @@ just serve release
 
 ## Next Major Steps
 
-1. replace the local `AgentGateway` adapter with real Codex-driven project editing
+1. harden the Docker-backed Codex executor and persist generated workspaces beyond local disk
 2. extract preview execution into a dedicated runner boundary
 3. build the first durable multi-tenant todo template
 4. connect the knowledge base to real template validation

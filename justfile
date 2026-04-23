@@ -116,9 +116,23 @@ smoke-running:
   fi
 
   run_response="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X POST http://127.0.0.1:8080/api/projects/$project_id/messages -H 'Content-Type: application/json' -d '{"content":"Build a smoke test dashboard"}')"
-  preview_url="$(printf '%s' "$run_response" | sed -n 's/.*"url":"\([^"]*\)".*/\1/p')"
-  printf '%s' "$run_response" | grep -q '"state":"Succeeded"'
-  printf '%s' "$run_response" | grep -q '"healthy":true'
+  run_id="$(printf '%s' "$run_response" | sed -n 's/.*"run_id":"\([^"]*\)".*/\1/p')"
+  if [[ -z "$run_id" ]]; then
+    echo "Failed to parse run id from run response: $run_response" >&2
+    exit 1
+  fi
+  final_run=""
+  for _ in {1..60}; do
+    final_run="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" "http://127.0.0.1:8080/api/projects/$project_id/runs/$run_id")"
+    if printf '%s' "$final_run" | grep -q '"state":"Running"'; then
+      sleep 1
+      continue
+    fi
+    break
+  done
+  preview_url="$(printf '%s' "$final_run" | sed -n 's/.*"url":"\([^"]*\)".*/\1/p')"
+  printf '%s' "$final_run" | grep -q '"state":"Succeeded"'
+  printf '%s' "$final_run" | grep -q '"healthy":true'
   printf '%s' "$preview_url" | grep -q '^/p/'
   curl -fsS -c "$user1_cookie" -b "$user1_cookie" "http://127.0.0.1:8080/api/projects/$project_id" | grep -q "\"url\":\"$preview_url\""
   user2_status="$(curl -sS -o /dev/null -w '%{http_code}' -c "$user2_cookie" -b "$user2_cookie" "http://127.0.0.1:8080/api/projects/$project_id" || true)"

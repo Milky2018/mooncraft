@@ -17,7 +17,7 @@ Last updated: 2026-04-23
 | EPIC-003 | Runtime | Extract preview execution into a dedicated runner boundary. | IN_PROGRESS | Preview rebuild and restart are real, but they still live inside `services/control-plane`. |
 | EPIC-004 | UI | Build the chat-first app-develop page with projects, chat, and live preview. | DONE | Implemented in `apps/web` and served by `services/control-plane`. |
 | EPIC-005 | Persistence | Persist users, sessions, projects, messages, runs, and preview metadata in a dev-friendly store. | DONE | Implemented with SQLite plus generated workspaces on disk. |
-| EPIC-006 | Agent | Replace the local `AgentGateway` adapter with real Codex-driven editing. | TODO | The seam exists and is ready for a real integration. |
+| EPIC-006 | Agent | Replace the local `AgentGateway` adapter with real Codex-driven editing. | IN_PROGRESS | Docker-backed Codex CLI runs and persistent `codex_thread_id` sessions are wired in; workspace persistence and executor hardening still need follow-up. |
 | EPIC-007 | Templates | Build the first durable multi-tenant todo template and its recipe-backed validation flow. | TODO | Recipe docs exist; runnable template does not. |
 | EPIC-008 | Auth | Add multi-user platform auth, user-owned projects, and public preview tokens. | DONE | Email/password and cookie sessions are verified locally; GitHub OAuth is implemented but still needs live credential verification. |
 
@@ -37,7 +37,7 @@ Last updated: 2026-04-23
 | TASK-010 | Docs | Create the initial `knowledge/` source documents for app model, handler contract, and tenant model. | DONE | Starter docs exist under `knowledge/`. |
 | TASK-011 | Docs | Draft the canonical recipe for the multi-tenant todo API template. | DONE | `knowledge/recipes/build-a-todo-api.md` exists. |
 | TASK-012 | Docs | Define the first website prototype for the app-develop page. | DONE | `docs/website-prototype.md` now matches the implemented page. |
-| TASK-013 | Agent | Integrate real Codex project editing behind `AgentGateway`. | TODO | Preserve the current project/run/preview interfaces. |
+| TASK-013 | Agent | Integrate real Codex project editing behind `AgentGateway`. | IN_PROGRESS | Background worker mode, persistent Codex sessions, and validation-before-preview are implemented; Docker/runtime hardening remains. |
 | TASK-014 | Runtime | Move preview execution out of `services/control-plane` into a dedicated runner service. | TODO | Keep stable ports and health checks. |
 | TASK-015 | Auth | Add signup, login, logout, cookie sessions, and owner-scoped project APIs. | DONE | Verified locally through `just smoke` and `just test`. |
 | TASK-016 | Auth | Add GitHub OAuth support for platform sign-in. | IN_PROGRESS | The flow is implemented, but only the unconfigured-path behavior has been verified locally. |
@@ -45,7 +45,7 @@ Last updated: 2026-04-23
 
 ## Current Work Queue
 
-- `TASK-013`: replace the local `AgentGateway` adapter with a real Codex-backed implementation
+- `TASK-013`: harden the Docker-backed Codex executor and persistent session flow
 - `TASK-014`: extract preview execution into a dedicated runner service
 - `TASK-016`: verify the GitHub OAuth happy path with real client credentials
 - `TASK-005`: build the first durable multi-tenant todo template

@@ -80,6 +80,11 @@ fn safe_write_string(path : String, content : String) -> Unit {
 }
 
 ///|
+fn safe_append_string(path : String, content : String) -> Unit {
+  safe_write_string(path, safe_read_string_or(path, "") + content)
+}
+
+///|
 fn safe_write_bytes(path : String, content : Bytes) -> Unit {
   @fs.write_bytes_to_file(path, content) catch {
     _ => ()
@@ -231,6 +236,20 @@ fn public_preview_url(preview_public_id : String) -> String {
 }
 
 ///|
+fn project_artifacts_root(root : String, project_id : String) -> String {
+  project_root(root, project_id) + "/artifacts"
+}
+
+///|
+fn run_artifacts_dir(
+  root : String,
+  project_id : String,
+  run_id : String,
+) -> String {
+  project_artifacts_root(root, project_id) + "/runs/" + run_id
+}
+
+///|
 fn platform_web_dist_dir(root : String) -> String {
   root + "/data/platform/web"
 }
@@ -284,6 +303,9 @@ fn preview_from_columns(
 ///|
 fn Store::new(db_path : String) -> Store {
   let db = @sqlite.Database::open(db_path).unwrap()
+  ignore(db.busy_timeout(5000))
+  ignore(db.exec("PRAGMA journal_mode=WAL;"))
+  ignore(db.exec("PRAGMA synchronous=NORMAL;"))
   let store = Store::{ db, }
   store.init_schema()
   store
@@ -776,6 +798,40 @@ fn Store::set_project_thread_id(
 }
 
 ///|
+fn Store::get_run_prompt(
+  self : Store,
+  project_id : String,
+  run_id : String,
+) -> String? {
+  let stmt = self.db
+    .prepare(
+      (
+        #|SELECT content
+        #|FROM messages
+        #|WHERE project_id = ?
+        #|  AND run_id = ?
+        #|  AND role = ?
+        #|ORDER BY created_at DESC
+        #|LIMIT 1;
+      ),
+    )
+    .unwrap()
+  stmt.bind_all([
+    string_to_sql_text(project_id),
+    string_to_sql_text(run_id),
+    string_to_sql_text(chat_role_to_db(User)),
+  ])
+  |> ignore
+  let result = if stmt.step() {
+    Some(bytes_to_string(stmt.column_text(0)))
+  } else {
+    None
+  }
+  stmt.finalize()
+  result
+}
+
+///|
 fn Store::finish_run_success(
   self : Store,
   project_id : String,
@@ -1162,85 +1218,6 @@ fn AgentGateway::new(root : String) -> AgentGateway {
 }
 
 ///|
-fn agent_title(prompt : String) -> String {
-  if prompt.contains("todo") || prompt.contains("task") {
-    "Todo Workspace"
-  } else if prompt.contains("dashboard") {
-    "Insight Dashboard"
-  } else if prompt.contains("shop") || prompt.contains("store") {
-    "Storefront Studio"
-  } else {
-    "MoonBit Cloud App"
-  }
-}
-
-///|
-fn agent_subtitle(prompt : String) -> String {
-  if prompt == "" {
-    "Describe what you want, then let the agent reshape this project."
-  } else {
-    prompt.replace_all(old="\n", new=" ")
-  }
-}
-
-///|
-fn mbt_string_literal(value : String) -> String {
-  "\"" +
-  value
-  .replace_all(old="\\", new="\\\\")
-  .replace_all(old="\"", new="\\\"")
-  .replace_all(old="\n", new="\\n") +
-  "\""
-}
-
-///|
-fn generated_custom_shared_model(title : String, subtitle : String) -> String {
-  "///|\n" +
-  "pub(all) struct AppInfo {\n" +
-  "  title : String\n" +
-  "  subtitle : String\n" +
-  "} derive(Debug, ToJson, FromJson)\n\n" +
-  "///|\n" +
-  "pub(all) struct HealthStatus {\n" +
-  "  ok : Bool\n" +
-  "  title : String\n" +
-  "  subtitle : String\n" +
-  "} derive(Debug, ToJson, FromJson)\n\n" +
-  "///|\n" +
-  "pub fn default_info() -> AppInfo {\n" +
-  "  {\n" +
-  "    title: " +
-  mbt_string_literal(title) +
-  ",\n" +
-  "    subtitle: " +
-  mbt_string_literal(subtitle) +
-  ",\n" +
-  "  }\n" +
-  "}\n"
-}
-
-///|
-fn AgentGateway::run_turn(
-  self : AgentGateway,
-  project : @sdk.ProjectDetail,
-  user_prompt : String,
-) -> Result[(String, String?), String] {
-  let _ = self.root
-  let title = agent_title(user_prompt)
-  let subtitle = agent_subtitle(user_prompt)
-  safe_write_string(
-    project.workspace_path + "/shared/model.mbt",
-    generated_custom_shared_model(title, subtitle),
-  )
-  Ok(
-    (
-      "I refreshed the app around your latest request and rebuilt the preview.",
-      Some("local-thread-" + project.id),
-    ),
-  )
-}
-
-///|
 fn AppContext::new(root : String) -> AppContext {
   let build_profile = build_profile_from_env()
   let data_dir = root + "/data/control-plane"
@@ -1253,51 +1230,6 @@ fn AppContext::new(root : String) -> AppContext {
     store: Store::new(db_path),
     previews: PreviewManager::new(root, build_profile),
     agent_gateway: AgentGateway::new(root),
-  }
-}
-
-///|
-fn AppContext::run_project_turn(
-  self : AppContext,
-  project_id : String,
-  run_id : String,
-  prompt : String,
-) -> Unit {
-  let project = match self.store.get_project_detail(project_id) {
-    Some(project) => project
-    None => return
-  }
-  let agent_result = self.agent_gateway.run_turn(project, prompt)
-  match agent_result {
-    Ok((summary, thread_id)) => {
-      let updated_project = match self.store.get_project_detail(project_id) {
-        Some(project) => project
-        None => return
-      }
-      let preview_result = self.previews.rebuild_and_restart(updated_project)
-      match preview_result {
-        Ok(preview) =>
-          self.store.finish_run_success(
-            project_id, run_id, summary, thread_id, preview,
-          )
-        Err(message) =>
-          self.store.finish_run_failure(
-            project_id,
-            run_id,
-            summary + "\n\nPreview status: " + message,
-            message,
-            thread_id,
-          )
-      }
-    }
-    Err(message) =>
-      self.store.finish_run_failure(
-        project_id,
-        run_id,
-        "I couldn't finish that update. The last working preview is still available.",
-        message,
-        None,
-      )
   }
 }
 

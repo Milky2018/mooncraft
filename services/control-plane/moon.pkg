@@ -1,6 +1,8 @@
 import {
   "moonbitcloud/sdk" @sdk,
   "oboard/mocket",
+  "moonbitlang/async" @async,
+  "moonbitlang/async/process" @process,
   "moonbitlang/core/json",
   "moonbitlang/core/env",
   "moonbitlang/core/ref",

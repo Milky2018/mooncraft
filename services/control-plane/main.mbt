@@ -213,6 +213,11 @@ fn AppContext::serve_platform_bundle(self : AppContext) -> @mocket.HttpResponse 
 ///|
 fn main {
   let root = @env.current_dir().unwrap_or(".")
+  let args = @env.args()
+  if args.length() > 3 && args[1] == "run-worker" {
+    @async.run_async_main(() => run_worker_mode(root, args[2], args[3]))
+    return
+  }
   let ctx = AppContext::new(root)
   ctx.ensure_platform_web_bundle()
 
@@ -343,7 +348,7 @@ fn main {
       None => text_response(NotFound, "Project not found.")
     }
   })
-  app.post("/api/projects/:id/messages", event => {
+  app.post("/api/projects/:id/messages", async fn(event) noraise {
     let user = match require_session_user(ctx, event) {
       Ok(user) => user
       Err(response) => return response
@@ -364,9 +369,22 @@ fn main {
       Ok(run) => run
       Err(message) => return text_response(Conflict, message)
     }
-    ctx.run_project_turn(project_id, run.run_id, request.content)
-    let latest_run = ctx.store.get_run(project_id, run.run_id).unwrap_or(run)
-    ok_json(@sdk.SendMessageResponse::{ run: latest_run })
+    match ctx.spawn_project_turn_worker(project_id, run.run_id) {
+      Ok(_) => ok_json(@sdk.SendMessageResponse::{ run, })
+      Err(message) => {
+        ctx.store.finish_run_failure(
+          project_id,
+          run.run_id,
+          "I couldn't start the background worker for that update.",
+          message,
+          None,
+        )
+        let latest_run = ctx.store
+          .get_run(project_id, run.run_id)
+          .unwrap_or(run)
+        ok_json(@sdk.SendMessageResponse::{ run: latest_run })
+      }
+    }
   })
   app.get("/api/projects/:id/runs/:run_id", event => {
     let user = match require_session_user(ctx, event) {
