@@ -7,4 +7,4 @@ if [[ $# -gt 0 ]]; then
   exec "$@"
 fi
 
-exec moon run --manifest-path /app/moon.work services/control-plane --target native
+exec moon run --manifest-path /app/moon.work --target native services/control-plane

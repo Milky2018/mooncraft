@@ -26,9 +26,7 @@ WORKDIR /app
 COPY . /app
 
 RUN chmod +x /app/docker/entrypoint.sh \
-  && moon build --manifest-path /app/moon.work packages/sdk --target native \
-  && moon build --manifest-path /app/moon.work apps/web --target js \
-  && moon build --manifest-path /app/moon.work services/control-plane --target native
+  && moon build --manifest-path /app/moon.work
 
 EXPOSE 8080
 

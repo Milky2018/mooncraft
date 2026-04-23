@@ -512,7 +512,7 @@ fn AppContext::spawn_project_turn_worker(
   run_id : String,
 ) -> Result[Unit, String] {
   let code = shell_status(
-    "cd '\{self.root}' && nohup moon run --manifest-path '\{self.root}/moon.work' services/control-plane \{self.build_profile.cli_flag()}--target native -- run-worker '\{project_id}' '\{run_id}' >/tmp/moonbitcloud-run-\{project_id}-\{run_id}.log 2>&1 &",
+    "cd '\{self.root}' && nohup moon run --manifest-path '\{self.root}/moon.work' \{self.build_profile.cli_flag()}--target native services/control-plane -- run-worker '\{project_id}' '\{run_id}' >/tmp/moonbitcloud-run-\{project_id}-\{run_id}.log 2>&1 &",
   )
   if code != 0 {
     return Err("The background run worker could not be started.")

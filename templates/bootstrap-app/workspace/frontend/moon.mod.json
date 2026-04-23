@@ -1,0 +1,14 @@
+{
+  "name": "moonbitcloud/generated-app/frontend",
+  "version": "0.1.0",
+  "preferred-target": "js",
+  "deps": {
+    "moonbitcloud/generated-app/shared": "0.1.0",
+    "moonbit-community/rabbita": "0.12.1"
+  },
+  "readme": "README.md",
+  "repository": "",
+  "license": "Apache-2.0",
+  "keywords": ["moonbit", "generated-app", "frontend"],
+  "description": "Frontend for the generated MoonBit Cloud app."
+}

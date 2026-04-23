@@ -40,9 +40,12 @@ moonbitcloud/
 
 Generated user projects live under `data/projects/<project-id>/workspace/` and use a simple MoonBit full-stack shape:
 
+- `moon.work` at the workspace root
 - `frontend/`
 - `backend/`
 - `shared/`
+
+Each generated module owns its own `moon.mod.json`; generated workspace roots intentionally do not contain a root `moon.mod.json`.
 
 ## Implementation Notes
 

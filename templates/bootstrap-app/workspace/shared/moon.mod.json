@@ -1,0 +1,11 @@
+{
+  "name": "moonbitcloud/generated-app/shared",
+  "version": "0.1.0",
+  "preferred-target": "native",
+  "deps": {},
+  "readme": "README.md",
+  "repository": "",
+  "license": "Apache-2.0",
+  "keywords": ["moonbit", "generated-app", "shared"],
+  "description": "Shared types for the generated MoonBit Cloud app."
+}

@@ -9,13 +9,15 @@ struct TemplateEntrypoints {
 struct TemplatePreviewConfig {
   public_dir : String
   health_path : String
+  frontend_module : String
+  backend_module : String
   frontend_package : String
   backend_package : String
 } derive(Debug, FromJson)
 
 ///|
 struct TemplateValidationConfig {
-  build_frontend : String
+  build_workspace : String
   run_backend : String
 } derive(Debug, FromJson)
 
@@ -103,16 +105,32 @@ fn template_package_leaf(package_path : String) -> String {
 fn template_build_output_path(
   workspace_path : String,
   build_profile : BuildProfile,
-  frontend_package : String,
+  frontend_module : String,
 ) -> String {
   workspace_path +
   "/_build/js/" +
   build_profile.build_dir() +
   "/build/" +
-  frontend_package +
+  frontend_module +
   "/" +
-  template_package_leaf(frontend_package) +
+  template_package_leaf(frontend_module) +
   ".js"
+}
+
+///|
+fn template_native_executable_path(
+  workspace_path : String,
+  build_profile : BuildProfile,
+  backend_module : String,
+) -> String {
+  workspace_path +
+  "/_build/native/" +
+  build_profile.build_dir() +
+  "/build/" +
+  backend_module +
+  "/" +
+  template_package_leaf(backend_module) +
+  ".exe"
 }
 
 ///|
@@ -124,6 +142,16 @@ fn validate_template_manifest(
   if !(@fs.is_dir(workspace_dir) catch { _ => false }) {
     return Err(
       "Template '\{manifest.id}' is missing its workspace directory: \{workspace_dir}",
+    )
+  }
+  if !(@fs.is_file(workspace_dir + "/moon.work") catch { _ => false }) {
+    return Err(
+      "Template '\{manifest.id}' is missing its workspace manifest: moon.work",
+    )
+  }
+  if @fs.path_exists(workspace_dir + "/moon.mod.json") {
+    return Err(
+      "Template '\{manifest.id}' must use moon.work at the workspace root, not a root moon.mod.json.",
     )
   }
   for relative in template_entrypoint_paths(manifest) {
@@ -194,6 +222,14 @@ fn is_binary_template_file(path : String) -> Bool {
 }
 
 ///|
+fn is_template_copy_ignored_entry(entry : String) -> Bool {
+  entry == "_build" ||
+  entry == ".mooncakes" ||
+  entry == "preview-dist" ||
+  entry == ".DS_Store"
+}
+
+///|
 fn render_template_text(
   content : String,
   project : @sdk.ProjectDetail,
@@ -248,6 +284,9 @@ fn copy_template_tree(
   }
   for entry in entries {
     if entry == "." || entry == ".." {
+      continue
+    }
+    if is_template_copy_ignored_entry(entry) {
       continue
     }
     let source = source_root + "/" + entry

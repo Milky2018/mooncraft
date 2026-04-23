@@ -13,8 +13,9 @@ entrypoints:
   - backend/main.mbt
   - shared/model.mbt
 validation:
-  - moon build frontend --target js
-  - moon run backend --target native -- <port> <public_dir>
+  - moon check
+  - moon build
+  - _build/native/debug/build/moonbitcloud/generated-app/backend/backend.exe <port> <public_dir>
 status: draft
 ---
 
@@ -27,12 +28,17 @@ This is the default starter template used when a project is created without an e
 - `frontend/main.mbt`: small Rabbita preview shell
 - `backend/main.mbt`: static asset server plus `/api/health`
 - `shared/model.mbt`: app title and health payload
+- `moon.work`: workspace root that joins the `frontend`, `backend`, and `shared` modules
+- each module has its own `moon.mod.json`; the workspace root must not have one
 
 # Invariants
 
 - Keep the project runnable through the standard preview runner.
 - Preserve the `frontend`, `backend`, and `shared` package layout.
 - Keep `/api/health` available for preview health checks.
+- Template materialization must copy source files only; MoonBit build/cache outputs such as `_build` and `.mooncakes` are ignored.
+- Run preview servers from the built native executable, not `moon run`, so the backend is not served through `tcc -run`.
+- Run `moon check` and `moon build` once at the workspace root without target flags; module `preferred-target` fields select the appropriate backend.
 
 # Supported Edits
 

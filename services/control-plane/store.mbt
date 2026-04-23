@@ -1208,7 +1208,7 @@ fn PreviewManager::copy_preview_assets(
   let bundle_source = template_build_output_path(
     workspace_path,
     self.build_profile,
-    manifest.preview.frontend_package,
+    manifest.preview.frontend_module,
   )
   if !@fs.path_exists(bundle_source) {
     return Err("The generated frontend bundle was not found after build.")
@@ -1231,7 +1231,7 @@ fn PreviewManager::rebuild_and_restart(
   }
   let workspace_path = project.workspace_path
   let build_code = shell_status(
-    "cd '\{workspace_path}' && moon build \{manifest.preview.frontend_package} \{self.build_profile.cli_flag()}--target js >/dev/null 2>&1",
+    "cd '\{workspace_path}' && moon build \{self.build_profile.cli_flag()}>/dev/null 2>&1",
   )
   if build_code != 0 {
     return Err(
@@ -1242,6 +1242,14 @@ fn PreviewManager::rebuild_and_restart(
     Ok(dir) => dir
     Err(message) => return Err(message)
   }
+  let backend_executable = template_native_executable_path(
+    workspace_path,
+    self.build_profile,
+    manifest.preview.backend_module,
+  )
+  if !@fs.path_exists(backend_executable) {
+    return Err("The generated backend executable was not found after build.")
+  }
   let preferred_port = project.preview.map(fn(target) { target.port })
   let port = self.allocate_port(
     project.id,
@@ -1249,7 +1257,7 @@ fn PreviewManager::rebuild_and_restart(
   )
   self.stop_port(port)
   let pid = shell_status(
-    "cd '\{workspace_path}' && nohup moon run \{manifest.preview.backend_package} \{self.build_profile.cli_flag()}--target native -- \{port} '\{preview_dir}' >/tmp/moonbitcloud-preview-\{project.id}.log 2>&1 &",
+    "cd '\{workspace_path}' && nohup '\{backend_executable}' \{port} '\{preview_dir}' >/tmp/moonbitcloud-preview-\{project.id}.log 2>&1 &",
   )
   if !self.wait_until_healthy(port, manifest.preview.health_path, 12) {
     return Err(

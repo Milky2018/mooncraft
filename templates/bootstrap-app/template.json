@@ -16,12 +16,14 @@
   "preview": {
     "public_dir": "frontend/public",
     "health_path": "/api/health",
+    "frontend_module": "moonbitcloud/generated-app/frontend",
+    "backend_module": "moonbitcloud/generated-app/backend",
     "frontend_package": "frontend",
     "backend_package": "backend"
   },
   "validation": {
-    "build_frontend": "moon build frontend --target js",
-    "run_backend": "moon run backend --target native -- {port} {public_dir}"
+    "build_workspace": "moon build",
+    "run_backend": "_build/native/debug/build/moonbitcloud/generated-app/backend/backend.exe {port} {public_dir}"
   },
   "editable_files": [
     "frontend",
