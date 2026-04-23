@@ -6,6 +6,7 @@ enum AuthMode {
 
 ///|
 struct Model {
+  boot_requested : Bool
   session_ready : Bool
   current_user : @sdk.UserSummary?
   github_enabled : Bool
@@ -55,8 +56,14 @@ enum Msg {
 }
 
 ///|
+priv suberror BootstrapSubscription {
+  ScheduleBootstrap(@rabbita.Cmd)
+}
+
+///|
 fn initial_model() -> Model {
   {
+    boot_requested: false,
     session_ready: false,
     current_user: None,
     github_enabled: false,
@@ -77,6 +84,27 @@ fn initial_model() -> Model {
     sending_message: false,
     notice: None,
   }
+}
+
+///|
+fn subscriptions(dispatch : @rabbita.Dispatch[Msg], model : Model) -> @sub.Sub {
+  if model.boot_requested {
+    return @sub.none
+  }
+  @sub.custom_sub(
+    "bootstrap",
+    @sub.Local,
+    ScheduleBootstrap(dispatch(Bootstrap)),
+    @sub.SubLoader((payload, scheduler) => {
+      match payload {
+        ScheduleBootstrap(cmd) => {
+          scheduler.add(cmd)
+          None
+        }
+        _ => None
+      }
+    }),
+  )
 }
 
 ///|
@@ -337,7 +365,11 @@ fn update(
   model : Model,
 ) -> (@rabbita.Cmd, Model) {
   match msg {
-    Bootstrap => (load_session_cmd(dispatch), { ..model, notice: None })
+    Bootstrap =>
+      (
+        load_session_cmd(dispatch),
+        { ..model, boot_requested: true, notice: None },
+      )
     SessionLoaded(Ok(session)) => {
       let next_model = apply_session(model, session)
       let cmd = if session.authenticated {
@@ -1386,8 +1418,8 @@ fn main {
     model=initial_model(),
     update~,
     view~,
+    subscriptions~,
   )
-  let app = @rabbita.new(root)
-  app.with_init(dispatch(Bootstrap))
-  app.mount("app")
+  ignore(dispatch)
+  @rabbita.new(root).mount("app")
 }

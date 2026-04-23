@@ -3,6 +3,7 @@ import {
   "moonbit-community/rabbita",
   "moonbit-community/rabbita/html" @html,
   "moonbit-community/rabbita/http" @http,
+  "moonbit-community/rabbita/sub" @sub,
 }
 
 supported_targets = "js"
