@@ -1,14 +1,15 @@
 import {
   "moonbitcloud/sdk" @sdk,
   "oboard/mocket",
-  "moonbitlang/core/encoding/base64" @base64,
   "moonbitlang/core/json",
   "moonbitlang/core/env",
   "moonbitlang/core/ref",
   "moonbitlang/core/encoding/utf8" @utf8,
   "moonbitlang/core/string",
+  "moonbitlang/x/crypto" @crypto,
   "moonbitlang/x/fs",
   "mizchi/sqlite",
+  "ryota0624/oauth2" @oauth2,
 }
 
 supported_targets = "native"

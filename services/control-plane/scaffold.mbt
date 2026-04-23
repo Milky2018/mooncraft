@@ -144,7 +144,8 @@ fn generated_backend_main() -> String {
     #|  @mocket.HttpResponse::new(
     #|    OK,
     #|    headers={ "Content-Type": content_type },
-    #|  ).body(@fs.read_file_to_bytes(path)) catch {
+    #|    raw_body=@fs.read_file_to_bytes(path),
+    #|  ) catch {
     #|    _ => @mocket.HttpResponse::new(NotFound).body("Not Found")
     #|  }
     #|}

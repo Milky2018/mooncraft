@@ -1,6 +1,11 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "moonbitcloud/control-plane"
 
+import {
+  "moonbitlang/core/debug",
+  "moonbitlang/core/json",
+}
+
 // Values
 
 // Errors
@@ -11,6 +16,12 @@ type AgentGateway
 type AppContext
 
 type BuildProfile
+
+type GitHubCallbackPayload derive(@debug.Debug, @json.FromJson)
+
+type GitHubUserEmail derive(@debug.Debug, @json.FromJson)
+
+type GitHubUserProfile derive(@debug.Debug, @json.FromJson)
 
 type PreviewManager
 

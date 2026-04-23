@@ -1,5 +1,20 @@
 ///|
+enum AuthMode {
+  Login
+  Signup
+} derive(Eq)
+
+///|
 struct Model {
+  session_ready : Bool
+  current_user : @sdk.UserSummary?
+  github_enabled : Bool
+  auth_mode : AuthMode
+  auth_email : String
+  auth_password : String
+  auth_display_name : String
+  auth_pending : Bool
+  auth_notice : String?
   projects : Array[@sdk.ProjectSummary]
   selected_project_id : String?
   project_detail : @sdk.ProjectDetail?
@@ -15,6 +30,15 @@ struct Model {
 ///|
 enum Msg {
   Bootstrap
+  SessionLoaded(Result[@sdk.SessionResponse, Error])
+  AuthModeSelected(AuthMode)
+  AuthEmailChanged(String)
+  AuthPasswordChanged(String)
+  AuthDisplayNameChanged(String)
+  SubmitAuth
+  AuthCompleted(Result[@sdk.AuthResponse, Error])
+  Logout
+  LoggedOut(Error?)
   ProjectsLoaded(Result[Array[@sdk.ProjectSummary], Error])
   SelectProject(String)
   ProjectLoaded(Result[@sdk.ProjectDetail, Error])
@@ -33,6 +57,15 @@ enum Msg {
 ///|
 fn initial_model() -> Model {
   {
+    session_ready: false,
+    current_user: None,
+    github_enabled: false,
+    auth_mode: Signup,
+    auth_email: "",
+    auth_password: "",
+    auth_display_name: "",
+    auth_pending: false,
+    auth_notice: None,
     projects: [],
     selected_project_id: None,
     project_detail: None,
@@ -44,6 +77,13 @@ fn initial_model() -> Model {
     sending_message: false,
     notice: None,
   }
+}
+
+///|
+fn load_session_cmd(dispatch : @rabbita.Dispatch[Msg]) -> @rabbita.Cmd {
+  @http.get("/api/session").expect_json(fn(result) {
+    dispatch(SessionLoaded(result))
+  })
 }
 
 ///|
@@ -114,6 +154,45 @@ fn load_run_cmd(
 }
 
 ///|
+fn submit_auth_cmd(
+  dispatch : @rabbita.Dispatch[Msg],
+  model : Model,
+) -> @rabbita.Cmd {
+  match model.auth_mode {
+    Login => {
+      let payload : @sdk.LoginRequest = @sdk.LoginRequest::{
+        email: model.auth_email,
+        password: model.auth_password,
+      }
+      @http.post("/api/auth/login")
+      .with_json(payload)
+      .expect_json(fn(result) { dispatch(AuthCompleted(result)) })
+    }
+    Signup => {
+      let payload : @sdk.SignupRequest = @sdk.SignupRequest::{
+        email: model.auth_email,
+        password: model.auth_password,
+        display_name: if model.auth_display_name == "" {
+          None
+        } else {
+          Some(model.auth_display_name)
+        },
+      }
+      @http.post("/api/auth/signup")
+      .with_json(payload)
+      .expect_json(fn(result) { dispatch(AuthCompleted(result)) })
+    }
+  }
+}
+
+///|
+fn logout_cmd(dispatch : @rabbita.Dispatch[Msg]) -> @rabbita.Cmd {
+  @http.post("/api/auth/logout")
+  .with_text("")
+  .expect_empty(fn(result) { dispatch(LoggedOut(result)) })
+}
+
+///|
 fn pick_selected_project_id(
   model : Model,
   projects : Array[@sdk.ProjectSummary],
@@ -159,10 +238,16 @@ fn active_run(model : Model) -> @sdk.RunStatusResponse? {
 
 ///|
 fn can_send(model : Model) -> Bool {
+  model.current_user is Some(_) &&
   model.selected_project_id is Some(_) &&
   model.draft != "" &&
   !model.sending_message &&
   active_run(model) is None
+}
+
+///|
+fn can_submit_auth(model : Model) -> Bool {
+  model.auth_email != "" && model.auth_password != "" && !model.auth_pending
 }
 
 ///|
@@ -189,13 +274,138 @@ fn error_notice(prefix : String, error : Error) -> String {
 }
 
 ///|
+fn is_unauthorized_error(error : Error) -> Bool {
+  let text = error.to_string().to_lower()
+  text.contains("401") || text.contains("unauthorized")
+}
+
+///|
+fn clear_workspace(model : Model) -> Model {
+  {
+    ..model,
+    projects: [],
+    selected_project_id: None,
+    project_detail: None,
+    messages: [],
+    run_status: None,
+    draft: "",
+    create_project_pending: false,
+    delete_project_pending: None,
+    sending_message: false,
+    notice: None,
+  }
+}
+
+///|
+fn apply_session(model : Model, session : @sdk.SessionResponse) -> Model {
+  let next = if session.authenticated { model } else { clear_workspace(model) }
+  {
+    ..next,
+    session_ready: true,
+    current_user: if session.authenticated {
+      session.user
+    } else {
+      None
+    },
+    github_enabled: session.github_enabled,
+    auth_pending: false,
+    auth_notice: None,
+  }
+}
+
+///|
+fn auth_recovery(
+  dispatch : @rabbita.Dispatch[Msg],
+  model : Model,
+  message : String,
+) -> (@rabbita.Cmd, Model) {
+  (
+    load_session_cmd(dispatch),
+    {
+      ..clear_workspace(model),
+      current_user: None,
+      auth_pending: false,
+      auth_notice: Some(message),
+    },
+  )
+}
+
+///|
 fn update(
   dispatch : @rabbita.Dispatch[Msg],
   msg : Msg,
   model : Model,
 ) -> (@rabbita.Cmd, Model) {
   match msg {
-    Bootstrap => (load_projects_cmd(dispatch), { ..model, notice: None })
+    Bootstrap => (load_session_cmd(dispatch), { ..model, notice: None })
+    SessionLoaded(Ok(session)) => {
+      let next_model = apply_session(model, session)
+      let cmd = if session.authenticated {
+        load_projects_cmd(dispatch)
+      } else {
+        @rabbita.none
+      }
+      (cmd, next_model)
+    }
+    SessionLoaded(Err(error)) =>
+      (
+        @rabbita.none,
+        {
+          ..clear_workspace(model),
+          session_ready: true,
+          current_user: None,
+          auth_pending: false,
+          auth_notice: Some(
+            error_notice("Session state could not be loaded.", error),
+          ),
+        },
+      )
+    AuthModeSelected(mode) =>
+      (
+        @rabbita.none,
+        { ..model, auth_mode: mode, auth_notice: None, auth_password: "" },
+      )
+    AuthEmailChanged(value) => (@rabbita.none, { ..model, auth_email: value })
+    AuthPasswordChanged(value) =>
+      (@rabbita.none, { ..model, auth_password: value })
+    AuthDisplayNameChanged(value) =>
+      (@rabbita.none, { ..model, auth_display_name: value })
+    SubmitAuth =>
+      if !can_submit_auth(model) {
+        (@rabbita.none, model)
+      } else {
+        (
+          submit_auth_cmd(dispatch, model),
+          { ..model, auth_pending: true, auth_notice: None },
+        )
+      }
+    AuthCompleted(Ok(_)) =>
+      (
+        load_session_cmd(dispatch),
+        { ..model, auth_pending: false, auth_password: "", auth_notice: None },
+      )
+    AuthCompleted(Err(error)) =>
+      (
+        @rabbita.none,
+        { ..model, auth_pending: false, auth_notice: Some(error.to_string()) },
+      )
+    Logout =>
+      (logout_cmd(dispatch), { ..model, auth_notice: None, notice: None })
+    LoggedOut(None) =>
+      (
+        load_session_cmd(dispatch),
+        {
+          ..clear_workspace(model),
+          current_user: None,
+          auth_password: "",
+          auth_notice: None,
+        },
+      )
+    LoggedOut(Some(error)) =>
+      (
+        @rabbita.none,
+        { ..model, auth_notice: Some(error_notice("Sign-out failed.", error)) },
+      )
     ProjectsLoaded(Ok(projects)) => {
       let selected_project_id = pick_selected_project_id(model, projects)
       let selection_changed = selected_project_id != model.selected_project_id
@@ -218,13 +428,17 @@ fn update(
       (cmd, next_model)
     }
     ProjectsLoaded(Err(error)) =>
-      (
-        @rabbita.none,
-        {
-          ..model,
-          notice: Some(error_notice("Projects could not be loaded.", error)),
-        },
-      )
+      if is_unauthorized_error(error) {
+        auth_recovery(dispatch, model, "Your session expired. Sign in again.")
+      } else {
+        (
+          @rabbita.none,
+          {
+            ..model,
+            notice: Some(error_notice("Projects could not be loaded.", error)),
+          },
+        )
+      }
     SelectProject(project_id) =>
       (
         load_project_cmd(dispatch, project_id),
@@ -242,30 +456,40 @@ fn update(
           @rabbita.delay(dispatch(PollRun(project.id, run_id)), 1000)
         _ => @rabbita.none
       }
-      (cmd, { ..model, project_detail: Some(project) })
+      (cmd, { ..model, project_detail: Some(project), notice: None })
     }
     ProjectLoaded(Err(error)) =>
-      (
-        @rabbita.none,
-        {
-          ..model,
-          notice: Some(
-            error_notice("Project details could not be loaded.", error),
-          ),
-        },
-      )
+      if is_unauthorized_error(error) {
+        auth_recovery(dispatch, model, "Your session expired. Sign in again.")
+      } else {
+        (
+          @rabbita.none,
+          {
+            ..model,
+            notice: Some(
+              error_notice("Project details could not be loaded.", error),
+            ),
+          },
+        )
+      }
     MessagesLoaded(Ok(messages)) => (@rabbita.none, { ..model, messages, })
     MessagesLoaded(Err(error)) =>
-      (
-        @rabbita.none,
-        {
-          ..model,
-          notice: Some(error_notice("Chat history could not be loaded.", error)),
-        },
-      )
+      if is_unauthorized_error(error) {
+        auth_recovery(dispatch, model, "Your session expired. Sign in again.")
+      } else {
+        (
+          @rabbita.none,
+          {
+            ..model,
+            notice: Some(
+              error_notice("Chat history could not be loaded.", error),
+            ),
+          },
+        )
+      }
     DraftChanged(value) => (@rabbita.none, { ..model, draft: value })
     CreateProject =>
-      if model.create_project_pending {
+      if model.create_project_pending || model.current_user is None {
         (@rabbita.none, model)
       } else {
         (
@@ -304,16 +528,20 @@ fn update(
       )
     }
     ProjectCreated(Err(error)) =>
-      (
-        @rabbita.none,
-        {
-          ..model,
-          create_project_pending: false,
-          notice: Some(
-            error_notice("A new project could not be created.", error),
-          ),
-        },
-      )
+      if is_unauthorized_error(error) {
+        auth_recovery(dispatch, model, "Your session expired. Sign in again.")
+      } else {
+        (
+          @rabbita.none,
+          {
+            ..model,
+            create_project_pending: false,
+            notice: Some(
+              error_notice("A new project could not be created.", error),
+            ),
+          },
+        )
+      }
     ProjectDeleted(project_id, None) => {
       let next_model = if model.selected_project_id == Some(project_id) {
         {
@@ -331,14 +559,20 @@ fn update(
       (load_projects_cmd(dispatch), next_model)
     }
     ProjectDeleted(_, Some(error)) =>
-      (
-        @rabbita.none,
-        {
-          ..model,
-          delete_project_pending: None,
-          notice: Some(error_notice("The project could not be deleted.", error)),
-        },
-      )
+      if is_unauthorized_error(error) {
+        auth_recovery(dispatch, model, "Your session expired. Sign in again.")
+      } else {
+        (
+          @rabbita.none,
+          {
+            ..model,
+            delete_project_pending: None,
+            notice: Some(
+              error_notice("The project could not be deleted.", error),
+            ),
+          },
+        )
+      }
     SendDraft =>
       match model.selected_project_id {
         Some(project_id) if can_send(model) => {
@@ -365,14 +599,18 @@ fn update(
         { ..model, run_status: Some(response.run), sending_message: false },
       )
     MessageSent(Err(error)) =>
-      (
-        @rabbita.none,
-        {
-          ..model,
-          sending_message: false,
-          notice: Some(error_notice("The request could not be sent.", error)),
-        },
-      )
+      if is_unauthorized_error(error) {
+        auth_recovery(dispatch, model, "Your session expired. Sign in again.")
+      } else {
+        (
+          @rabbita.none,
+          {
+            ..model,
+            sending_message: false,
+            notice: Some(error_notice("The request could not be sent.", error)),
+          },
+        )
+      }
     PollRun(project_id, run_id) =>
       (load_run_cmd(dispatch, project_id, run_id), model)
     RunLoaded(project_id, run_id, Ok(run)) =>
@@ -391,15 +629,19 @@ fn update(
         )
       }
     RunLoaded(_, _, Err(error)) =>
-      (
-        @rabbita.none,
-        {
-          ..model,
-          notice: Some(
-            error_notice("Run status could not be refreshed.", error),
-          ),
-        },
-      )
+      if is_unauthorized_error(error) {
+        auth_recovery(dispatch, model, "Your session expired. Sign in again.")
+      } else {
+        (
+          @rabbita.none,
+          {
+            ..model,
+            notice: Some(
+              error_notice("Run status could not be refreshed.", error),
+            ),
+          },
+        )
+      }
   }
 }
 
@@ -446,78 +688,6 @@ fn status_badge(state : @sdk.RunState) -> @rabbita.Html {
     ],
     label,
   )
-}
-
-///|
-fn render_project_tile(
-  dispatch : @rabbita.Dispatch[Msg],
-  selected_project_id : String?,
-  delete_project_pending : String?,
-  project : @sdk.ProjectSummary,
-) -> @rabbita.Html {
-  let is_selected = selected_project_id == Some(project.id)
-  let is_deleting = delete_project_pending == Some(project.id)
-  let background = if is_selected {
-    "linear-gradient(135deg, #1f7cff, #3fb6ff)"
-  } else {
-    "rgba(244, 247, 251, 0.92)"
-  }
-  let foreground = if is_selected { "#ffffff" } else { "#15263a" }
-  @html.div(style=["display: flex", "gap: 10px", "align-items: stretch"], [
-    @html.button(
-      type_="button",
-      on_click=dispatch(SelectProject(project.id)),
-      style=[
-        "flex: 1",
-        "display: flex",
-        "justify-content: space-between",
-        "align-items: center",
-        "gap: 12px",
-        "padding: 14px 16px",
-        "border: none",
-        "border-radius: 18px",
-        "background: " + background,
-        "color: " + foreground,
-        "text-align: left",
-        "cursor: pointer",
-      ],
-      [
-        @html.div(
-          style=[
-            "display: flex", "flex-direction: column", "gap: 4px", "min-width: 0",
-          ],
-          [
-            @html.div(
-              style=[
-                "font-size: 15px", "font-weight: 650", "white-space: nowrap", "overflow: hidden",
-                "text-overflow: ellipsis",
-              ],
-              project.display_name,
-            ),
-            @html.div(
-              style=["font-size: 12px", "opacity: 0.75"],
-              project.updated_at,
-            ),
-          ],
-        ),
-        status_badge(project.status),
-      ],
-    ),
-    @html.button(
-      type_="button",
-      disabled=project.status is @sdk.Running || is_deleting,
-      on_click=dispatch(DeleteProject(project.id)),
-      style=[
-        "padding: 0 14px", "border: none", "border-radius: 18px", "background: rgba(255, 240, 234, 0.95)",
-        "color: #b34722", "font-size: 13px", "font-weight: 700", "cursor: pointer",
-      ],
-      if is_deleting {
-        "Deleting..."
-      } else {
-        "Delete"
-      },
-    ),
-  ])
 }
 
 ///|
@@ -603,6 +773,276 @@ fn render_spinner(model : Model) -> @rabbita.Html {
 }
 
 ///|
+fn auth_mode_button(
+  dispatch : @rabbita.Dispatch[Msg],
+  current : AuthMode,
+  value : AuthMode,
+  label : String,
+) -> @rabbita.Html {
+  let active = current == value
+  let background = if active {
+    "linear-gradient(135deg, #1f7cff, #4ab4ff)"
+  } else {
+    "rgba(242, 246, 251, 0.96)"
+  }
+  let foreground = if active { "#ffffff" } else { "#456074" }
+  @html.button(
+    type_="button",
+    on_click=dispatch(AuthModeSelected(value)),
+    style=[
+      "flex: 1",
+      "padding: 12px 14px",
+      "border: none",
+      "border-radius: 16px",
+      "background: " + background,
+      "color: " + foreground,
+      "font-size: 14px",
+      "font-weight: 700",
+      "cursor: pointer",
+    ],
+    label,
+  )
+}
+
+///|
+fn auth_input(
+  input_type : @html.InputType,
+  value : String,
+  placeholder : String,
+  on_input : (String) -> Msg,
+  dispatch : @rabbita.Dispatch[Msg],
+) -> @rabbita.Html {
+  @html.input(
+    input_type~,
+    value~,
+    placeholder~,
+    on_input=fn(next) { dispatch(on_input(next)) },
+    style=[
+      "width: 100%", "padding: 15px 16px", "border: 1px solid rgba(21, 38, 58, 0.08)",
+      "border-radius: 18px", "background: rgba(248, 250, 253, 0.96)", "font-size: 15px",
+      "color: #17304a",
+    ],
+    "",
+  )
+}
+
+///|
+fn render_auth_screen(
+  dispatch : @rabbita.Dispatch[Msg],
+  model : Model,
+) -> @rabbita.Html {
+  let title = match model.auth_mode {
+    Login => "Welcome back"
+    Signup => "Build without seeing the code"
+  }
+  let subtitle = match model.auth_mode {
+    Login => "Sign in to continue with your projects and previews."
+    Signup =>
+      "Create an account to start with a blank chat, hidden code, and a live preview-first workflow."
+  }
+  @html.div(
+    style=[
+      "min-height: 100vh", "display: grid", "place-items: center", "padding: 24px",
+    ],
+    @html.div(
+      style=panel_style() +
+        [
+          "width: min(560px, calc(100vw - 32px))", "padding: 28px", "display: flex",
+          "flex-direction: column", "gap: 18px",
+        ],
+      [
+        @html.div([
+          @html.div(
+            style=[
+              "font-size: 13px", "font-weight: 700", "letter-spacing: 0.08em", "text-transform: uppercase",
+              "color: #4d6278",
+            ],
+            "MoonBit Cloud",
+          ),
+          @html.div(
+            style=["margin-top: 6px", "font-size: 34px", "font-weight: 780"],
+            title,
+          ),
+          @html.div(
+            style=[
+              "margin-top: 10px", "font-size: 15px", "line-height: 1.7", "color: #5c6d7f",
+            ],
+            subtitle,
+          ),
+        ]),
+        @html.div(
+          style=[
+            "display: flex", "gap: 10px", "padding: 6px", "border-radius: 20px",
+            "background: rgba(241, 245, 249, 0.9)",
+          ],
+          [
+            auth_mode_button(dispatch, model.auth_mode, Signup, "Sign Up"),
+            auth_mode_button(dispatch, model.auth_mode, Login, "Log In"),
+          ],
+        ),
+        render_notice(model.auth_notice),
+        @html.div(
+          style=["display: flex", "flex-direction: column", "gap: 12px"],
+          [
+            auth_input(
+              @html.Email,
+              model.auth_email,
+              "Email address",
+              fn(value) { AuthEmailChanged(value) },
+              dispatch,
+            ),
+            auth_input(
+              @html.Password,
+              model.auth_password,
+              "Password",
+              fn(value) { AuthPasswordChanged(value) },
+              dispatch,
+            ),
+            if model.auth_mode is Signup {
+              auth_input(
+                @html.Text,
+                model.auth_display_name,
+                "Display name (optional)",
+                fn(value) { AuthDisplayNameChanged(value) },
+                dispatch,
+              )
+            } else {
+              @html.nothing
+            },
+          ],
+        ),
+        @html.button(
+          type_="button",
+          disabled=!can_submit_auth(model),
+          on_click=dispatch(SubmitAuth),
+          style=[
+            "padding: 15px 18px", "border: none", "border-radius: 18px", "background: linear-gradient(135deg, #1f7cff, #45b0ff)",
+            "color: #ffffff", "font-size: 15px", "font-weight: 760", "cursor: pointer",
+          ],
+          if model.auth_pending {
+            "Working..."
+          } else {
+            match model.auth_mode {
+              Login => "Log In"
+              Signup => "Create Account"
+            }
+          },
+        ),
+        if model.github_enabled {
+          @html.fragment([
+            @html.div(
+              style=[
+                "display: flex", "align-items: center", "gap: 12px", "color: #7b8ea2",
+                "font-size: 12px", "font-weight: 700", "letter-spacing: 0.08em",
+                "text-transform: uppercase",
+              ],
+              [
+                @html.div(
+                  style=[
+                    "flex: 1", "height: 1px", "background: rgba(21, 38, 58, 0.08)",
+                  ],
+                  "",
+                ),
+                @html.div("or"),
+                @html.div(
+                  style=[
+                    "flex: 1", "height: 1px", "background: rgba(21, 38, 58, 0.08)",
+                  ],
+                  "",
+                ),
+              ],
+            ),
+            @html.a(
+              href="/auth/github/start",
+              style=[
+                "display: flex", "justify-content: center", "align-items: center",
+                "padding: 15px 18px", "border-radius: 18px", "background: #111827",
+                "color: #ffffff", "font-size: 15px", "font-weight: 760", "text-decoration: none",
+              ],
+              "Continue with GitHub",
+            ),
+          ])
+        } else {
+          @html.nothing
+        },
+      ],
+    ),
+  )
+}
+
+///|
+fn render_project_tile(
+  dispatch : @rabbita.Dispatch[Msg],
+  selected_project_id : String?,
+  delete_project_pending : String?,
+  project : @sdk.ProjectSummary,
+) -> @rabbita.Html {
+  let is_selected = selected_project_id == Some(project.id)
+  let is_deleting = delete_project_pending == Some(project.id)
+  let background = if is_selected {
+    "linear-gradient(135deg, #1f7cff, #3fb6ff)"
+  } else {
+    "rgba(244, 247, 251, 0.92)"
+  }
+  let foreground = if is_selected { "#ffffff" } else { "#15263a" }
+  @html.div(style=["display: flex", "gap: 10px", "align-items: stretch"], [
+    @html.button(
+      type_="button",
+      on_click=dispatch(SelectProject(project.id)),
+      style=[
+        "flex: 1",
+        "display: flex",
+        "justify-content: space-between",
+        "align-items: center",
+        "gap: 12px",
+        "padding: 14px 16px",
+        "border: none",
+        "border-radius: 18px",
+        "background: " + background,
+        "color: " + foreground,
+        "text-align: left",
+        "cursor: pointer",
+      ],
+      [
+        @html.div(
+          style=[
+            "display: flex", "flex-direction: column", "gap: 4px", "min-width: 0",
+          ],
+          [
+            @html.div(
+              style=[
+                "font-size: 15px", "font-weight: 650", "white-space: nowrap", "overflow: hidden",
+                "text-overflow: ellipsis",
+              ],
+              project.display_name,
+            ),
+            @html.div(
+              style=["font-size: 12px", "opacity: 0.75"],
+              project.updated_at,
+            ),
+          ],
+        ),
+        status_badge(project.status),
+      ],
+    ),
+    @html.button(
+      type_="button",
+      disabled=project.status is @sdk.Running || is_deleting,
+      on_click=dispatch(DeleteProject(project.id)),
+      style=[
+        "padding: 0 14px", "border: none", "border-radius: 18px", "background: rgba(255, 240, 234, 0.95)",
+        "color: #b34722", "font-size: 13px", "font-weight: 700", "cursor: pointer",
+      ],
+      if is_deleting {
+        "Deleting..."
+      } else {
+        "Delete"
+      },
+    ),
+  ])
+}
+
+///|
 fn render_projects_panel(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
@@ -615,13 +1055,21 @@ fn render_projects_panel(
       project,
     )
   })
+  let user_name = match model.current_user {
+    Some(user) => user.display_name
+    None => "MoonBit Cloud"
+  }
+  let user_email = match model.current_user {
+    Some(user) => user.email
+    None => ""
+  }
   @html.div(
     style=panel_style() +
       ["display: flex", "flex-direction: column", "padding: 18px", "gap: 18px"],
     [
       @html.div(
         style=[
-          "display: flex", "justify-content: space-between", "align-items: center",
+          "display: flex", "justify-content: space-between", "align-items: flex-start",
           "gap: 12px",
         ],
         [
@@ -651,6 +1099,34 @@ fn render_projects_panel(
             } else {
               "+ New"
             },
+          ),
+        ],
+      ),
+      @html.div(
+        style=[
+          "padding: 16px 18px", "border-radius: 20px", "background: rgba(244, 247, 251, 0.92)",
+          "display: flex", "justify-content: space-between", "align-items: center",
+          "gap: 12px",
+        ],
+        [
+          @html.div([
+            @html.div(
+              style=["font-size: 15px", "font-weight: 700", "color: #17304a"],
+              user_name,
+            ),
+            @html.div(
+              style=["margin-top: 4px", "font-size: 13px", "color: #617386"],
+              user_email,
+            ),
+          ]),
+          @html.button(
+            type_="button",
+            on_click=dispatch(Logout),
+            style=[
+              "padding: 10px 14px", "border: none", "border-radius: 14px", "background: rgba(255,255,255,0.96)",
+              "color: #425466", "font-size: 13px", "font-weight: 700", "cursor: pointer",
+            ],
+            "Log Out",
           ),
         ],
       ),
@@ -873,7 +1349,30 @@ fn render_preview_panel(model : Model) -> @rabbita.Html {
 }
 
 ///|
+fn render_loading_screen() -> @rabbita.Html {
+  @html.div(
+    style=[
+      "min-height: 100vh", "display: grid", "place-items: center", "padding: 24px",
+    ],
+    @html.div(
+      style=[
+        "padding: 28px 32px", "border-radius: 28px", "background: rgba(255, 255, 255, 0.92)",
+        "box-shadow: 0 24px 70px rgba(17, 40, 66, 0.10)", "font-size: 16px", "font-weight: 700",
+        "color: #17304a",
+      ],
+      "Loading MoonBit Cloud...",
+    ),
+  )
+}
+
+///|
 fn view(dispatch : @rabbita.Dispatch[Msg], model : Model) -> @rabbita.Html {
+  if !model.session_ready {
+    return render_loading_screen()
+  }
+  if model.current_user is None {
+    return render_auth_screen(dispatch, model)
+  }
   @html.div(style=shell_style(), [
     render_projects_panel(dispatch, model),
     render_workspace_panel(dispatch, model),

@@ -1,16 +1,21 @@
 {
   "name": "moonbitcloud/control-plane",
   "version": "0.1.0",
-  "preferred-target": "native",
   "deps": {
     "moonbitcloud/sdk": "0.1.0",
     "oboard/mocket": "0.6.13",
     "mizchi/sqlite": "0.2.4",
-    "moonbitlang/x": "0.4.14"
+    "moonbitlang/x": "0.4.14",
+    "ryota0624/oauth2": "0.2.2"
   },
   "readme": "README.md",
   "repository": "",
   "license": "Apache-2.0",
-  "keywords": ["moonbit", "cloud", "backend"],
-  "description": "MoonBit Cloud local control plane."
+  "keywords": [
+    "moonbit",
+    "cloud",
+    "backend"
+  ],
+  "description": "MoonBit Cloud local control plane.",
+  "preferred-target": "native"
 }

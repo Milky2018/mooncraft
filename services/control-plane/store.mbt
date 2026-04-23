@@ -226,8 +226,8 @@ fn preview_dist_dir(workspace_path : String) -> String {
 }
 
 ///|
-fn public_preview_url(project_id : String) -> String {
-  "/preview/\{project_id}/"
+fn public_preview_url(preview_public_id : String) -> String {
+  "/p/\{preview_public_id}/"
 }
 
 ///|
@@ -264,7 +264,7 @@ fn generated_web_build_output_path(
 
 ///|
 fn preview_from_columns(
-  project_id : String,
+  preview_public_id : String,
   url : String,
   port : Int,
   healthy : Int,
@@ -273,7 +273,7 @@ fn preview_from_columns(
     None
   } else {
     let public_url = if url.has_prefix("http://127.0.0.1:") {
-      public_preview_url(project_id)
+      public_preview_url(preview_public_id)
     } else {
       url
     }
@@ -293,8 +293,67 @@ fn Store::new(db_path : String) -> Store {
 fn Store::init_schema(self : Store) -> Unit {
   self.db.exec(
     (
+      #|CREATE TABLE IF NOT EXISTS users (
+      #|  id TEXT PRIMARY KEY,
+      #|  email TEXT NOT NULL UNIQUE,
+      #|  password_hash TEXT,
+      #|  display_name TEXT NOT NULL,
+      #|  github_login TEXT,
+      #|  created_at TEXT NOT NULL,
+      #|  updated_at TEXT NOT NULL
+      #|);
+    ),
+  )
+  |> ignore
+  self.db.exec(
+    (
+      #|CREATE TABLE IF NOT EXISTS sessions (
+      #|  token_hash TEXT PRIMARY KEY,
+      #|  user_id TEXT NOT NULL,
+      #|  expires_at TEXT NOT NULL,
+      #|  created_at TEXT NOT NULL
+      #|);
+    ),
+  )
+  |> ignore
+  self.db.exec(
+    (
+      #|CREATE TABLE IF NOT EXISTS oauth_accounts (
+      #|  id TEXT PRIMARY KEY,
+      #|  user_id TEXT NOT NULL,
+      #|  provider TEXT NOT NULL,
+      #|  provider_user_id TEXT NOT NULL,
+      #|  created_at TEXT NOT NULL,
+      #|  updated_at TEXT NOT NULL
+      #|);
+    ),
+  )
+  |> ignore
+  self.db.exec(
+    (
+      #|CREATE UNIQUE INDEX IF NOT EXISTS oauth_accounts_provider_user_id_idx
+      #|ON oauth_accounts(provider, provider_user_id);
+    ),
+  )
+  |> ignore
+  self.db.exec(
+    (
+      #|CREATE TABLE IF NOT EXISTS oauth_states (
+      #|  state TEXT PRIMARY KEY,
+      #|  provider TEXT NOT NULL,
+      #|  pkce_verifier TEXT NOT NULL,
+      #|  expires_at TEXT NOT NULL,
+      #|  created_at TEXT NOT NULL
+      #|);
+    ),
+  )
+  |> ignore
+  self.db.exec(
+    (
       #|CREATE TABLE IF NOT EXISTS projects (
       #|  id TEXT PRIMARY KEY,
+      #|  owner_user_id TEXT NOT NULL,
+      #|  preview_public_id TEXT NOT NULL UNIQUE,
       #|  display_name TEXT NOT NULL,
       #|  workspace_path TEXT NOT NULL,
       #|  codex_thread_id TEXT,
@@ -357,47 +416,6 @@ fn Store::count_projects(self : Store) -> Int {
 }
 
 ///|
-fn Store::list_projects(self : Store) -> Array[@sdk.ProjectSummary] {
-  let stmt = self.db
-    .prepare(
-      (
-        #|SELECT
-        #|  id,
-        #|  display_name,
-        #|  status,
-        #|  COALESCE(preview_url, ''),
-        #|  COALESCE(preview_port, 0),
-        #|  preview_healthy,
-        #|  COALESCE(current_run_id, ''),
-        #|  updated_at
-        #|FROM projects
-        #|ORDER BY updated_at DESC;
-      ),
-    )
-    .unwrap()
-  let items : Array[@sdk.ProjectSummary] = []
-  while stmt.step() {
-    let project_id = bytes_to_string(stmt.column_text(0))
-    let preview = preview_from_columns(
-      project_id,
-      bytes_to_string(stmt.column_text(3)),
-      stmt.column_int(4),
-      stmt.column_int(5),
-    )
-    items.push(@sdk.ProjectSummary::{
-      id: project_id,
-      display_name: bytes_to_string(stmt.column_text(1)),
-      status: run_state_from_db(bytes_to_string(stmt.column_text(2))),
-      preview,
-      current_run_id: empty_to_none(bytes_to_string(stmt.column_text(6))),
-      updated_at: bytes_to_string(stmt.column_text(7)),
-    })
-  }
-  stmt.finalize()
-  items
-}
-
-///|
 fn Store::get_project_detail(
   self : Store,
   project_id : String,
@@ -407,6 +425,7 @@ fn Store::get_project_detail(
       (
         #|SELECT
         #|  id,
+        #|  preview_public_id,
         #|  display_name,
         #|  workspace_path,
         #|  COALESCE(codex_thread_id, ''),
@@ -426,22 +445,23 @@ fn Store::get_project_detail(
   stmt.bind(1, string_to_sql_text(project_id)) |> ignore
   let result = if stmt.step() {
     let preview = preview_from_columns(
-      project_id,
-      bytes_to_string(stmt.column_text(5)),
-      stmt.column_int(6),
+      bytes_to_string(stmt.column_text(1)),
+      bytes_to_string(stmt.column_text(6)),
       stmt.column_int(7),
+      stmt.column_int(8),
     )
     Some(@sdk.ProjectDetail::{
       id: bytes_to_string(stmt.column_text(0)),
-      display_name: bytes_to_string(stmt.column_text(1)),
-      workspace_path: bytes_to_string(stmt.column_text(2)),
-      codex_thread_id: empty_to_none(bytes_to_string(stmt.column_text(3))),
-      status: run_state_from_db(bytes_to_string(stmt.column_text(4))),
+      preview_public_id: bytes_to_string(stmt.column_text(1)),
+      display_name: bytes_to_string(stmt.column_text(2)),
+      workspace_path: bytes_to_string(stmt.column_text(3)),
+      codex_thread_id: empty_to_none(bytes_to_string(stmt.column_text(4))),
+      status: run_state_from_db(bytes_to_string(stmt.column_text(5))),
       preview,
-      current_run_id: empty_to_none(bytes_to_string(stmt.column_text(9))),
-      last_error: empty_to_none(bytes_to_string(stmt.column_text(8))),
-      created_at: bytes_to_string(stmt.column_text(10)),
-      updated_at: bytes_to_string(stmt.column_text(11)),
+      current_run_id: empty_to_none(bytes_to_string(stmt.column_text(10))),
+      last_error: empty_to_none(bytes_to_string(stmt.column_text(9))),
+      created_at: bytes_to_string(stmt.column_text(11)),
+      updated_at: bytes_to_string(stmt.column_text(12)),
     })
   } else {
     None
@@ -497,18 +517,20 @@ fn Store::get_run(
     .prepare(
       (
         #|SELECT
-        #|  id,
-        #|  project_id,
-        #|  state,
-        #|  COALESCE(summary, ''),
-        #|  COALESCE(error_message, ''),
-        #|  COALESCE(preview_url, ''),
-        #|  COALESCE(preview_port, 0),
-        #|  preview_healthy,
-        #|  started_at,
-        #|  COALESCE(finished_at, '')
-        #|FROM runs
-        #|WHERE id = ? AND project_id = ?;
+        #|  r.id,
+        #|  r.project_id,
+        #|  r.state,
+        #|  COALESCE(r.summary, ''),
+        #|  COALESCE(r.error_message, ''),
+        #|  COALESCE(r.preview_url, ''),
+        #|  COALESCE(r.preview_port, 0),
+        #|  r.preview_healthy,
+        #|  r.started_at,
+        #|  COALESCE(r.finished_at, ''),
+        #|  p.preview_public_id
+        #|FROM runs r
+        #|JOIN projects p ON p.id = r.project_id
+        #|WHERE r.id = ? AND r.project_id = ?;
       ),
     )
     .unwrap()
@@ -516,7 +538,7 @@ fn Store::get_run(
   |> ignore
   let result = if stmt.step() {
     let preview = preview_from_columns(
-      project_id,
+      bytes_to_string(stmt.column_text(10)),
       bytes_to_string(stmt.column_text(5)),
       stmt.column_int(6),
       stmt.column_int(7),
@@ -542,6 +564,8 @@ fn Store::get_run(
 fn Store::create_project(
   self : Store,
   project_id : String,
+  owner_user_id : String,
+  preview_public_id : String,
   display_name : String?,
   workspace_path : String,
 ) -> @sdk.ProjectDetail {
@@ -555,17 +579,21 @@ fn Store::create_project(
       (
         #|INSERT INTO projects (
         #|  id,
+        #|  owner_user_id,
+        #|  preview_public_id,
         #|  display_name,
         #|  workspace_path,
         #|  status,
         #|  created_at,
         #|  updated_at
-        #|) VALUES (?, ?, ?, ?, ?, ?);
+        #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
       ),
     )
     .unwrap()
   stmt.bind_all([
     string_to_sql_text(project_id),
+    string_to_sql_text(owner_user_id),
+    string_to_sql_text(preview_public_id),
     string_to_sql_text(name),
     string_to_sql_text(workspace_path),
     string_to_sql_text(run_state_to_db(Idle)),
@@ -1122,7 +1150,7 @@ fn PreviewManager::rebuild_and_restart(
   }
   self.runtimes[project.id] = { port, pid }
   Ok(@sdk.PreviewTarget::{
-    url: public_preview_url(project.id),
+    url: public_preview_url(project.preview_public_id),
     port,
     healthy: true,
   })
@@ -1218,7 +1246,7 @@ fn AppContext::new(root : String) -> AppContext {
   let data_dir = root + "/data/control-plane"
   ensure_dir(root + "/data")
   ensure_dir(data_dir)
-  let db_path = data_dir + "/state.sqlite"
+  let db_path = data_dir + "/state-v2.sqlite"
   {
     root,
     build_profile,

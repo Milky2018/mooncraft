@@ -14,6 +14,22 @@ pub(all) enum ChatRole {
 } derive(Eq, Debug, ToJson, FromJson)
 
 ///|
+pub(all) struct UserSummary {
+  id : String
+  email : String
+  display_name : String
+  github_login : String?
+  created_at : String
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct SessionResponse {
+  authenticated : Bool
+  user : UserSummary?
+  github_enabled : Bool
+} derive(Debug, ToJson, FromJson)
+
+///|
 pub(all) struct PreviewTarget {
   url : String
   port : Int
@@ -33,6 +49,7 @@ pub(all) struct ProjectSummary {
 ///|
 pub(all) struct ProjectDetail {
   id : String
+  preview_public_id : String
   display_name : String
   workspace_path : String
   codex_thread_id : String?
@@ -84,6 +101,24 @@ pub(all) struct SendMessageRequest {
 ///|
 pub(all) struct SendMessageResponse {
   run : RunStatusResponse
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct SignupRequest {
+  email : String
+  password : String
+  display_name : String?
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct LoginRequest {
+  email : String
+  password : String
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct AuthResponse {
+  user : UserSummary
 } derive(Debug, ToJson, FromJson)
 
 ///|

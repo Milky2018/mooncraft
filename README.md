@@ -15,8 +15,9 @@ The repo now implements the first real app-develop loop:
 This slice is intentionally narrow:
 
 - desktop-first
-- local single-user only
-- no auth
+- local single-instance only
+- email/password auth
+- optional GitHub OAuth
 - no deploy
 - no code viewer
 - one project rail, one chat workspace, one live preview panel
@@ -46,8 +47,9 @@ Generated user projects live under `data/projects/<project-id>/workspace/` and u
 ## Implementation Notes
 
 - `apps/web` renders the app-develop page with a left project rail, center chat workspace, and right preview panel.
-- `services/control-plane` persists `projects`, `messages`, and `runs` in SQLite.
+- `services/control-plane` persists `users`, `sessions`, `oauth_accounts`, `projects`, `messages`, and `runs` in SQLite.
 - Each successful run rebuilds the generated project and restarts a local preview server on a stable port.
+- Preview URLs are public opaque paths like `/p/<preview_public_id>/` and stay same-origin through the control plane.
 - `packages/sdk` defines the shared request and response payloads used by the frontend and control plane.
 
 The current `AgentGateway` is a local deterministic adapter that keeps the system runnable while preserving a clean seam for future Codex integration.
@@ -69,7 +71,6 @@ You can run the current single-instance control plane in Docker:
 docker build -t moonbitcloud .
 docker run --rm \
   -p 8080:8080 \
-  -e MOONBITCLOUD_ADMIN_PASSWORD=change-me \
   -v moonbitcloud-data:/app/data \
   moonbitcloud
 ```
@@ -79,8 +80,11 @@ Then open `http://localhost:8080`.
 Notes:
 
 - the image includes the MoonBit toolchain because the control plane still rebuilds generated previews at runtime
-- `MOONBITCLOUD_ADMIN_USERNAME` is optional and defaults to `admin`
 - set `MOONBITCLOUD_BUILD_PROFILE=release` if you want the control plane to stage and run release artifacts inside the container
+- GitHub OAuth is optional and uses:
+  - `MOONBITCLOUD_GITHUB_CLIENT_ID`
+  - `MOONBITCLOUD_GITHUB_CLIENT_SECRET`
+  - `MOONBITCLOUD_PUBLIC_BASE_URL`
 
 ## Build Profiles
 

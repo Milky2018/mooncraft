@@ -4,7 +4,7 @@
 
 MoonBit Cloud is an agent-first app builder for AI-first indie builders who do not want to choose languages, frameworks, or backend architecture. The user should describe intent in chat, wait briefly, and see a working app preview.
 
-The current product target is a local single-user prototype.
+The current product target is a local single-instance multi-user prototype.
 
 ## Target User
 
@@ -28,6 +28,8 @@ When I describe an app in natural language, I want the platform to generate and 
 Included:
 
 - one desktop-first app-develop page
+- email/password auth
+- optional GitHub OAuth
 - projects rail
 - chat workspace
 - live preview panel
@@ -38,7 +40,6 @@ Included:
 
 Not included:
 
-- auth
 - deploy flow
 - template browser
 - mobile UX

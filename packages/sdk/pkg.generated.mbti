@@ -11,6 +11,10 @@ import {
 // Errors
 
 // Types and methods
+pub(all) struct AuthResponse {
+  user : UserSummary
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
 pub(all) struct ChatMessage {
   id : String
   project_id : String
@@ -35,6 +39,11 @@ pub(all) struct CreateProjectResponse {
   project : ProjectDetail
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
+pub(all) struct LoginRequest {
+  email : String
+  password : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
 pub(all) struct PreviewTarget {
   url : String
   port : Int
@@ -43,6 +52,7 @@ pub(all) struct PreviewTarget {
 
 pub(all) struct ProjectDetail {
   id : String
+  preview_public_id : String
   display_name : String
   workspace_path : String
   codex_thread_id : String?
@@ -88,6 +98,26 @@ pub(all) struct SendMessageRequest {
 
 pub(all) struct SendMessageResponse {
   run : RunStatusResponse
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct SessionResponse {
+  authenticated : Bool
+  user : UserSummary?
+  github_enabled : Bool
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct SignupRequest {
+  email : String
+  password : String
+  display_name : String?
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct UserSummary {
+  id : String
+  email : String
+  display_name : String
+  github_login : String?
+  created_at : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 // Type aliases

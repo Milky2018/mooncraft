@@ -27,9 +27,12 @@ fn javascript_response(content : Bytes) -> @mocket.HttpResponse {
 
 ///|
 fn unauthorized_response() -> @mocket.HttpResponse {
-  @mocket.HttpResponse::new(Unauthorized, headers={
-    "WWW-Authenticate": "Basic realm=\"MoonBit Cloud\"",
-  }).body("Authentication required.")
+  @mocket.HttpResponse::new(Unauthorized).body("Sign in to continue.")
+}
+
+///|
+fn redirect_response(location : String) -> @mocket.HttpResponse {
+  @mocket.HttpResponse::new(Found, headers={ "Location": location }).body("")
 }
 
 ///|
@@ -54,67 +57,6 @@ fn path_param(
   match event.params.get(name) {
     Some(value) => Ok(value.to_string())
     None => Err("Missing route parameter: \{name}.")
-  }
-}
-
-///|
-fn auth_credentials() -> (String, String)? {
-  match @env.get_env_var("MOONBITCLOUD_ADMIN_PASSWORD") {
-    Some(password) if password != "" =>
-      Some(
-        (
-          @env.get_env_var("MOONBITCLOUD_ADMIN_USERNAME").unwrap_or("admin"),
-          password,
-        ),
-      )
-    _ => None
-  }
-}
-
-///|
-fn authorization_header(event : @mocket.MocketEvent) -> String? {
-  match event.req.headers.get("Authorization") {
-    Some(value) => Some(value.to_string())
-    None =>
-      match event.req.headers.get("authorization") {
-        Some(value) => Some(value.to_string())
-        None => None
-      }
-  }
-}
-
-///|
-fn has_valid_basic_auth(
-  event : @mocket.MocketEvent,
-  credentials : (String, String),
-) -> Bool {
-  let expected = credentials.0 + ":" + credentials.1
-  match authorization_header(event) {
-    Some(header) if header.has_prefix("Basic ") => {
-      let encoded = header[6:]
-      let decoded_bytes = @base64.decode(encoded) catch { _ => return false }
-      let decoded = @utf8.decode(decoded_bytes) catch { _ => return false }
-      decoded == expected
-    }
-    _ => false
-  }
-}
-
-///|
-fn auth_middleware(credentials : (String, String)?) -> @mocket.Middleware {
-  async fn(event, next) noraise {
-    if event.req.url == "/api/health" {
-      return next()
-    }
-    match credentials {
-      Some(creds) =>
-        if has_valid_basic_auth(event, creds) {
-          next()
-        } else {
-          unauthorized_response()
-        }
-      None => next()
-    }
   }
 }
 
@@ -272,25 +214,78 @@ fn AppContext::serve_platform_bundle(self : AppContext) -> @mocket.HttpResponse 
 fn main {
   let root = @env.current_dir().unwrap_or(".")
   let ctx = AppContext::new(root)
-  let credentials = auth_credentials()
   ctx.ensure_platform_web_bundle()
 
   let app = @mocket.new()
-  app.use_middleware(auth_middleware(credentials))
 
   app.get("/", _ => html_response(workspace_page_html()))
   app.get("/app", _ => ctx.serve_platform_bundle())
   app.get("/api/health", _ => text_response(OK, "ok"))
+  app.get("/api/session", event => ok_json(session_status_response(ctx, event)))
+  app.post("/api/auth/signup", event => {
+    let request : @sdk.SignupRequest = match decode_json_body(event) {
+      Ok(request) => request
+      Err(message) => return text_response(BadRequest, message)
+    }
+    match signup_user(ctx, request) {
+      Ok(user) => authenticated_response(ctx, event, user)
+      Err(message) => text_response(BadRequest, message)
+    }
+  })
+  app.post("/api/auth/login", event => {
+    let request : @sdk.LoginRequest = match decode_json_body(event) {
+      Ok(request) => request
+      Err(message) => return text_response(BadRequest, message)
+    }
+    match login_user(ctx, request) {
+      Ok(user) => authenticated_response(ctx, event, user)
+      Err(message) => text_response(Unauthorized, message)
+    }
+  })
+  app.post("/api/auth/logout", event => {
+    match event.req.get_cookie(session_cookie_name) {
+      Some(cookie) if cookie.value != "" =>
+        ctx.store.delete_session(session_token_hash(cookie.value))
+      _ => ignore(())
+    }
+    clear_session_cookie(event.res)
+    @mocket.HttpResponse::new(OK).body("")
+  })
+  app.get("/auth/github/start", _ => github_authorization_response(ctx))
+  app.get("/auth/github/callback", _ => {
+    html_response(github_callback_page_html())
+  })
+  app.post("/api/auth/github/callback", async fn(event) noraise {
+    let payload : GitHubCallbackPayload = match decode_json_body(event) {
+      Ok(payload) => payload
+      Err(message) => return text_response(BadRequest, message)
+    }
+    match ctx.complete_github_sign_in(payload) {
+      Ok(user) => authenticated_response(ctx, event, user)
+      Err(message) => text_response(BadRequest, message)
+    }
+  })
 
-  app.get("/api/projects", _ => ok_json(ctx.store.list_projects()))
+  app.get("/api/projects", event => {
+    let user = match require_session_user(ctx, event) {
+      Ok(user) => user
+      Err(response) => return response
+    }
+    ok_json(ctx.store.list_projects_for_user(user.id))
+  })
   app.post("/api/projects", event => {
+    let user = match require_session_user(ctx, event) {
+      Ok(user) => user
+      Err(response) => return response
+    }
     let request : @sdk.CreateProjectRequest = match decode_json_body(event) {
       Ok(request) => request
       Err(message) => return text_response(BadRequest, message)
     }
     let project_id = next_id("project")
     let workspace_path = project_workspace(ctx.root, project_id)
-    let project = ctx.store.create_project(
+    let project = ctx.store.create_project_for_user(
+      user.id,
       project_id,
       request.display_name,
       workspace_path,
@@ -299,9 +294,16 @@ fn main {
     ok_json(@sdk.CreateProjectResponse::{ project, })
   })
   app.delete("/api/projects/:id", event => {
+    let user = match require_session_user(ctx, event) {
+      Ok(user) => user
+      Err(response) => return response
+    }
     let project_id = match path_param(event, "id") {
       Ok(value) => value
       Err(message) => return text_response(BadRequest, message)
+    }
+    if ctx.store.get_project_detail_for_user(project_id, user.id) is None {
+      return text_response(NotFound, "Project not found.")
     }
     match ctx.delete_project(project_id) {
       Ok(_) => @mocket.HttpResponse::new(OK).body("")
@@ -314,26 +316,38 @@ fn main {
     }
   })
   app.get("/api/projects/:id", event => {
+    let user = match require_session_user(ctx, event) {
+      Ok(user) => user
+      Err(response) => return response
+    }
     let project_id = match path_param(event, "id") {
       Ok(value) => value
       Err(message) => return text_response(BadRequest, message)
     }
-    match ctx.store.get_project_detail(project_id) {
+    match ctx.store.get_project_detail_for_user(project_id, user.id) {
       Some(project) => ok_json(project)
       None => text_response(NotFound, "Project not found.")
     }
   })
   app.get("/api/projects/:id/messages", event => {
+    let user = match require_session_user(ctx, event) {
+      Ok(user) => user
+      Err(response) => return response
+    }
     let project_id = match path_param(event, "id") {
       Ok(value) => value
       Err(message) => return text_response(BadRequest, message)
     }
-    if ctx.store.get_project_detail(project_id) is None {
-      return text_response(NotFound, "Project not found.")
+    match ctx.store.list_messages_for_user(user.id, project_id) {
+      Some(messages) => ok_json(messages)
+      None => text_response(NotFound, "Project not found.")
     }
-    ok_json(ctx.store.list_messages(project_id))
   })
   app.post("/api/projects/:id/messages", event => {
+    let user = match require_session_user(ctx, event) {
+      Ok(user) => user
+      Err(response) => return response
+    }
     let project_id = match path_param(event, "id") {
       Ok(value) => value
       Err(message) => return text_response(BadRequest, message)
@@ -345,7 +359,8 @@ fn main {
     if request.content == "" {
       return text_response(BadRequest, "Message content cannot be empty.")
     }
-    let run = match ctx.store.start_run(project_id, request.content) {
+    let run = match
+      ctx.store.start_run_for_user(user.id, project_id, request.content) {
       Ok(run) => run
       Err(message) => return text_response(Conflict, message)
     }
@@ -354,6 +369,10 @@ fn main {
     ok_json(@sdk.SendMessageResponse::{ run: latest_run })
   })
   app.get("/api/projects/:id/runs/:run_id", event => {
+    let user = match require_session_user(ctx, event) {
+      Ok(user) => user
+      Err(response) => return response
+    }
     let project_id = match path_param(event, "id") {
       Ok(value) => value
       Err(message) => return text_response(BadRequest, message)
@@ -362,13 +381,13 @@ fn main {
       Ok(value) => value
       Err(message) => return text_response(BadRequest, message)
     }
-    match ctx.store.get_run(project_id, run_id) {
+    match ctx.store.get_run_for_user(user.id, project_id, run_id) {
       Some(run) => ok_json(run)
       None => text_response(NotFound, "Run not found.")
     }
   })
-  app.all("/preview/:project_id/**", async fn(event) noraise {
-    let project_id = match path_param(event, "project_id") {
+  app.all("/p/:preview_public_id/**", async fn(event) noraise {
+    let preview_public_id = match path_param(event, "preview_public_id") {
       Ok(value) => value
       Err(message) => return text_response(BadRequest, message)
     }
@@ -376,7 +395,8 @@ fn main {
       .get("_")
       .map(fn(value) { value.to_string() })
       .unwrap_or("")
-    let project = match ctx.store.get_project_detail(project_id) {
+    let project = match
+      ctx.store.get_project_detail_by_preview_public_id(preview_public_id) {
       Some(project) => project
       None => return text_response(NotFound, "Project not found.")
     }

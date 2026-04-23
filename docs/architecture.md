@@ -45,6 +45,9 @@ This keeps the live preview tied to a real generated app instead of a fake demo 
 
 SQLite stores:
 
+- `users`
+- `sessions`
+- `oauth_accounts`
 - `projects`
 - `messages`
 - `runs`
@@ -53,7 +56,11 @@ The database is the metadata layer. Source code remains on disk in generated pro
 
 Important persisted fields include:
 
+- user id
+- session token hash
 - project id
+- project owner id
+- preview public id
 - display name
 - workspace path
 - current status
@@ -74,7 +81,6 @@ Default UX constraints:
 
 - code hidden
 - no deploy
-- no auth
 - no template picker
 - plain-English errors only
 
@@ -104,8 +110,8 @@ This separation matters because the frontend, persistence model, and preview lif
 
 The current preview path is same-origin and exposed through:
 
-- stored `preview.url` values like `/preview/<project_id>/`
-- `ALL /preview/:project_id/*` reverse proxy handling in the control plane
+- stored `preview.url` values like `/p/<preview_public_id>/`
+- `ALL /p/:preview_public_id/*` reverse proxy handling in the control plane
 
 The generated app still runs on a private local port, but the browser only talks to the control plane.
 

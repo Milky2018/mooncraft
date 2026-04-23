@@ -60,10 +60,10 @@ Required fix:
 
 The repo now includes two deployment-oriented fixes:
 
-- preview URLs are same-origin paths like `/preview/<project_id>/`, and the control plane reverse-proxies them to the private preview port
-- optional HTTP Basic auth is available through `MOONBITCLOUD_ADMIN_USERNAME` and `MOONBITCLOUD_ADMIN_PASSWORD`
+- preview URLs are same-origin paths like `/p/<preview_public_id>/`, and the control plane reverse-proxies them to the private preview port
+- cookie-session auth is available for platform users, with optional GitHub OAuth on top of email/password
 
-This is enough for a protected single-admin staging setup, but not enough for a full product auth model.
+This is enough for a first staged multi-user demo, but not enough for hardened production auth.
 
 ## Recommended First Hosted Shape
 
@@ -92,9 +92,10 @@ Why this is the right first hosted shape:
 
 ### Phase 1: Make the app internet-correct
 
-1. Set `MOONBITCLOUD_ADMIN_PASSWORD` and optionally `MOONBITCLOUD_ADMIN_USERNAME` for the first hosted environment.
-2. Decide whether the first hosted target is staging-only or true production.
-3. Keep the deployment single-instance until the real agent runtime and preview supervision are stronger.
+1. Set `MOONBITCLOUD_PUBLIC_BASE_URL` for the first hosted environment.
+2. Optionally set `MOONBITCLOUD_GITHUB_CLIENT_ID` and `MOONBITCLOUD_GITHUB_CLIENT_SECRET` if GitHub OAuth should be live.
+3. Decide whether the first hosted target is staging-only or true production.
+4. Keep the deployment single-instance until the real agent runtime and preview supervision are stronger.
 
 ### Phase 2: Prepare the host
 
@@ -116,7 +117,7 @@ Why this is the right first hosted shape:
 2. Create an ACM certificate for the chosen domain.
 3. Point the ALB target group at the EC2 instance on port `8080`.
 4. Route the domain to the ALB.
-5. Confirm that `/`, `/api/projects`, and `/preview/:project_id/*` work through the public domain.
+5. Confirm that `/`, `/api/projects`, and `/p/:preview_public_id/*` work through the public domain.
 
 ### Phase 5: Add basic operations
 
@@ -132,7 +133,7 @@ This should be enough for a public demo or staging environment:
 - single EC2 instance
 - ALB + HTTPS
 - private app port
-- admin auth through HTTP Basic auth
+- cookie-session auth
 - reverse-proxied preview routes
 - SQLite on EBS
 - snapshot backups
