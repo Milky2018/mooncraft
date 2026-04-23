@@ -376,6 +376,17 @@ async fn run_codex_turn(
           )
       }
   }
+  match snapshot_workspace(root, project.id, project.workspace_path) {
+    Ok(_) => ignore(())
+    Err(message) =>
+      return Err(
+        codex_failure(
+          default_failure_assistant_message(),
+          message,
+          Some(thread_id),
+        ),
+      )
+  }
   let summary = trim_or_default(
     safe_read_string_or(artifacts.last_message_path, ""),
     default_success_summary(),
@@ -461,6 +472,19 @@ async fn AgentGateway::run_turn(
     Ok(result) => result
     Err(failure) => return Err(failure)
   }
+  let persist_validated_workspace = fn() {
+    match snapshot_workspace(self.root, project.id, project.workspace_path) {
+      Ok(_) => Ok(())
+      Err(message) =>
+        Err(
+          codex_failure(
+            "I updated the workspace, but saving the latest project snapshot failed.",
+            message,
+            Some(codex_result.thread_id),
+          ),
+        )
+    }
+  }
   let artifacts = codex_result.artifacts
   safe_write_string(artifacts.validation_log_path, "")
   match
@@ -474,7 +498,10 @@ async fn AgentGateway::run_turn(
       codex_result.thread_id,
     ) {
     Ok(_) => ignore(())
-    Err(failure) => return Err(failure)
+    Err(failure) => {
+      ignore(persist_validated_workspace())
+      return Err(failure)
+    }
   }
   match
     run_validation_command(
@@ -487,7 +514,10 @@ async fn AgentGateway::run_turn(
       codex_result.thread_id,
     ) {
     Ok(_) => ignore(())
-    Err(failure) => return Err(failure)
+    Err(failure) => {
+      ignore(persist_validated_workspace())
+      return Err(failure)
+    }
   }
   match
     run_validation_command(
@@ -499,6 +529,13 @@ async fn AgentGateway::run_turn(
       ["moon", "test"],
       codex_result.thread_id,
     ) {
+    Ok(_) => ignore(())
+    Err(failure) => {
+      ignore(persist_validated_workspace())
+      return Err(failure)
+    }
+  }
+  match persist_validated_workspace() {
     Ok(_) => ignore(())
     Err(failure) => return Err(failure)
   }
@@ -561,6 +598,20 @@ async fn AppContext::run_project_turn(
         run_id,
         default_failure_assistant_message(),
         "The user message for this run was not found.",
+        project.codex_thread_id,
+      )
+      return
+    }
+  }
+  match
+    restore_workspace_snapshot(self.root, project_id, project.workspace_path) {
+    Ok(_) => ignore(())
+    Err(message) => {
+      self.store.finish_run_failure(
+        project_id,
+        run_id,
+        default_failure_assistant_message(),
+        message,
         project.codex_thread_id,
       )
       return

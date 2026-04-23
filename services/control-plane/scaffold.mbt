@@ -256,8 +256,7 @@ fn generated_preview_styles() -> String {
 fn AppContext::create_project_workspace(
   self : AppContext,
   project : @sdk.ProjectDetail,
-) -> Unit {
-  let _ = self
+) -> Result[Unit, String] {
   let workspace_path = project.workspace_path
   ensure_dir(workspace_path)
   ensure_dir(workspace_path + "/frontend")
@@ -304,4 +303,5 @@ fn AppContext::create_project_workspace(
     workspace_path + "/backend/main.mbt",
     generated_backend_main(),
   )
+  snapshot_workspace(self.root, project.id, workspace_path)
 }

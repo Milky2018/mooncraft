@@ -361,8 +361,14 @@ fn main {
       request.display_name,
       workspace_path,
     )
-    ctx.create_project_workspace(project)
-    json_created(@sdk.CreateProjectResponse::{ project, })
+    match ctx.create_project_workspace(project) {
+      Ok(_) => json_created(@sdk.CreateProjectResponse::{ project, })
+      Err(message) => {
+        safe_remove_tree(project_root(ctx.root, project_id))
+        ignore(ctx.store.delete_project(project_id))
+        api_error_response(ServiceUnavailable, @sdk.ServiceUnavailable, message)
+      }
+    }
   })
   app.delete(@sdk.delete_project_route().path_pattern, event => {
     let user = match require_session_user(ctx, event) {

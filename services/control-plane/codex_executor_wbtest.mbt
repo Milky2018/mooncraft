@@ -23,3 +23,51 @@ test "extract thread id from codex json event" {
     content="Some(\"019db86f-4b45-75c3-a409-984993d1f897\")",
   )
 }
+
+///|
+test "workspace snapshot round-trips project files and excludes build outputs" {
+  let root = @env.current_dir().unwrap_or(".")
+  let project_id = next_id("snapshot-roundtrip")
+  let workspace_path = project_workspace(root, project_id)
+  safe_remove_tree(project_root(root, project_id))
+  ensure_dir(workspace_path + "/frontend")
+  ensure_dir(workspace_path + "/_build/cache")
+  safe_write_string(workspace_path + "/frontend/main.mbt", "first version\n")
+  safe_write_string(workspace_path + "/_build/cache/output.txt", "generated\n")
+
+  snapshot_workspace(root, project_id, workspace_path).unwrap()
+  safe_write_string(workspace_path + "/frontend/main.mbt", "second version\n")
+  restore_workspace_snapshot(root, project_id, workspace_path).unwrap()
+
+  inspect(
+    safe_read_string_or(workspace_path + "/frontend/main.mbt", ""),
+    content="first version\n",
+  )
+  inspect(
+    @fs.path_exists(workspace_path + "/_build/cache/output.txt"),
+    content="false",
+  )
+  safe_remove_tree(project_root(root, project_id))
+}
+
+///|
+test "restoring a project without a snapshot snapshots the existing workspace" {
+  let root = @env.current_dir().unwrap_or(".")
+  let project_id = next_id("snapshot-migration")
+  let workspace_path = project_workspace(root, project_id)
+  safe_remove_tree(project_root(root, project_id))
+  ensure_dir(workspace_path)
+  safe_write_string(workspace_path + "/README.md", "persist me\n")
+
+  restore_workspace_snapshot(root, project_id, workspace_path).unwrap()
+
+  inspect(
+    @fs.path_exists(project_workspace_snapshot_path(root, project_id)),
+    content="true",
+  )
+  inspect(
+    safe_read_string_or(workspace_path + "/README.md", ""),
+    content="persist me\n",
+  )
+  safe_remove_tree(project_root(root, project_id))
+}
