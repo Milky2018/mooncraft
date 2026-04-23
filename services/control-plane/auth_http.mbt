@@ -438,22 +438,27 @@ fn github_callback_page_html() -> String {
     #|    <meta charset="utf-8" />
     #|    <meta name="viewport" content="width=device-width, initial-scale=1" />
     #|    <title>MoonBit Cloud GitHub Sign-In</title>
+    #|    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2305080c'/%3E%3Cpath d='M14 18h14v28H14zm22 0h14v28H36z' fill='%2338efb7'/%3E%3C/svg%3E" />
     #|    <style>
     #|      body {
     #|        margin: 0;
     #|        min-height: 100vh;
     #|        display: grid;
     #|        place-items: center;
-    #|        background: linear-gradient(180deg, #f6f9fd, #edf4ff);
-    #|        color: #17304a;
-    #|        font-family: "Inter", "Helvetica Neue", sans-serif;
+    #|        background:
+    #|          radial-gradient(circle at top left, rgba(24, 255, 176, 0.12), transparent 28%),
+    #|          radial-gradient(circle at top right, rgba(45, 125, 255, 0.14), transparent 24%),
+    #|          linear-gradient(180deg, #091119, #05080c);
+    #|        color: #eff7ff;
+    #|        font-family: "IBM Plex Sans", "Helvetica Neue", sans-serif;
     #|      }
     #|      .card {
     #|        width: min(420px, calc(100vw - 32px));
     #|        padding: 28px;
-    #|        border-radius: 28px;
-    #|        background: rgba(255, 255, 255, 0.96);
-    #|        box-shadow: 0 30px 80px rgba(19, 48, 74, 0.14);
+    #|        border-radius: 16px;
+    #|        background: rgba(8, 13, 19, 0.92);
+    #|        border: 1px solid rgba(120, 140, 166, 0.16);
+    #|        box-shadow: 0 24px 90px rgba(0, 0, 0, 0.36);
     #|      }
     #|      h1 {
     #|        margin: 0 0 10px;
@@ -463,11 +468,11 @@ fn github_callback_page_html() -> String {
     #|        margin: 0;
     #|        font-size: 15px;
     #|        line-height: 1.7;
-    #|        color: #55708a;
+    #|        color: #a7bad0;
     #|      }
     #|      #status {
     #|        margin-top: 16px;
-    #|        color: #b34722;
+    #|        color: #ffcf66;
     #|      }
     #|    </style>
     #|  </head>
