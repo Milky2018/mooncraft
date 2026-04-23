@@ -6,6 +6,16 @@ Agents do not edit this. This file is maintainable by human developers.
 - [x] Hydrate that snapshot into a temp directory before each Codex run.
 - [x] Run Codex against the hydrated temp workspace.
 - [x] Save the resulting workspace back after the run, whether success or failure.
-- [ ] Keep codex_thread_id, but also persist the initial project brief explicitly so you can recover if the session ever becomes unusable.
+- [x] Keep codex_thread_id, but also persist the initial project brief explicitly so you can recover if the session ever becomes unusable.
 - [ ] Now it is hard coded template.
-- [ ] Add a real durability smoke test: first run, delete the canonical workspace/, send a follow-up message, and verify the run hydrates from workspace.tar, validates, and refreshes preview.
+- [x] Add a real durability smoke test: first run, delete the canonical workspace/, send a follow-up message, and verify the run hydrates from workspace.tar, validates, and refreshes preview.
+- [ ] Real codex docker e2e
+  - [x] Add a real just codex-smoke that requires MOONBITCLOUD_CODEX_DOCKER_IMAGE and builds the Todo List App end-to-end with actual Codex CLI.
+  - [x] Save enough failure detail from real Codex runs to debug quickly: command, exit code, codex.log, validation.log, and final summary path are already close; make sure the UI exposes the failure summary cleanly.
+  - [x] Persist the initial project prompt explicitly on the project record instead of deriving it from the first user message. The current recovery path works, but explicit persistence is safer for long-term session recovery.
+  - [ ] Replace the nohup moon run ... run-worker worker launch with a small durable worker model: mark stale Running runs failed/retryable on startup, and prevent orphaned state after crashes.
+  - [ ] Add Docker resource boundaries: container name prefix, timeout, memory/CPU limits, and cleanup policy. We are intentionally using --dangerously-bypass-approvals-and-sandbox, so Docker must become the real boundary.
+  - [ ] After that, consider the App Server path. Keep CLI for now, but define a CodexRuntime interface so switching from CLI to App Server later is adapter work, not another control-plane rewrite.
+- [ ] Message with commands:
+  - [ ] `:template-preview <template-name>`
+  - [ ] 
