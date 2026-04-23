@@ -22,6 +22,7 @@ struct Model {
   auth_password : String
   auth_display_name : String
   auth_pending : Bool
+  logout_pending : Bool
   auth_notice : String?
   projects : Array[@sdk.ProjectSummary]
   selected_project_id : String?
@@ -78,6 +79,14 @@ fn ThemeMode::storage_value(self : ThemeMode) -> String {
 }
 
 ///|
+fn ThemeMode::label(self : ThemeMode) -> String {
+  match self {
+    Dark => "Dark"
+    Light => "Light"
+  }
+}
+
+///|
 fn ThemeMode::toggle(self : ThemeMode) -> ThemeMode {
   match self {
     Dark => Light
@@ -107,6 +116,7 @@ fn initial_model() -> Model {
     auth_password: "",
     auth_display_name: "",
     auth_pending: false,
+    logout_pending: false,
     auth_notice: None,
     projects: [],
     selected_project_id: None,
@@ -390,6 +400,7 @@ fn apply_session(model : Model, session : @sdk.SessionResponse) -> Model {
     },
     github_enabled: session.github_enabled,
     auth_pending: false,
+    logout_pending: false,
     auth_notice: None,
   }
 }
@@ -406,6 +417,7 @@ fn auth_recovery(
       ..clear_workspace(model),
       current_user: None,
       auth_pending: false,
+      logout_pending: false,
       auth_notice: Some(message),
     },
   )
@@ -480,21 +492,37 @@ fn update(
         { ..model, auth_pending: false, auth_notice: Some(error.message) },
       )
     Logout =>
-      (logout_cmd(dispatch), { ..model, auth_notice: None, notice: None })
+      if model.logout_pending {
+        (@rabbita.none, model)
+      } else {
+        (
+          logout_cmd(dispatch),
+          { ..model, logout_pending: true, auth_notice: None, notice: None },
+        )
+      }
     LoggedOut(Ok(_)) =>
       (
         load_session_cmd(dispatch),
         {
           ..clear_workspace(model),
           current_user: None,
+          auth_mode: Login,
+          auth_email: "",
           auth_password: "",
+          auth_display_name: "",
+          logout_pending: false,
           auth_notice: None,
         },
       )
     LoggedOut(Err(error)) =>
       (
         @rabbita.none,
-        { ..model, auth_notice: Some(error_notice("Sign-out failed.", error)) },
+        {
+          ..model,
+          logout_pending: false,
+          auth_notice: Some(error_notice("Sign-out failed.", error)),
+          notice: Some(error_notice("Sign-out failed.", error)),
+        },
       )
     ProjectsLoaded(Ok(response)) => {
       let projects = response.items
@@ -759,36 +787,34 @@ fn theme_variables(theme_mode : ThemeMode) -> Array[String] {
   match theme_mode {
     Dark =>
       [
-        "--page-bg: #05080c", "--page-bg-alt: #091119", "--page-grid: rgba(123, 145, 170, 0.08)",
-        "--page-glow-a: rgba(24, 255, 176, 0.14)", "--page-glow-b: rgba(45, 125, 255, 0.16)",
-        "--surface-1: rgba(8, 13, 19, 0.92)", "--surface-2: rgba(11, 18, 26, 0.96)",
-        "--surface-3: rgba(16, 24, 34, 0.98)", "--surface-raised: rgba(17, 29, 42, 1)",
-        "--border-soft: rgba(120, 140, 166, 0.16)", "--border-strong: rgba(92, 255, 196, 0.34)",
-        "--text-1: #eff7ff", "--text-2: #a7bad0", "--text-3: #72849a", "--accent: #38efb7",
-        "--accent-strong: #12d89c", "--accent-soft: rgba(18, 216, 156, 0.12)", "--action: #5fa8ff",
-        "--action-strong: #2d7dff", "--action-soft: rgba(45, 125, 255, 0.18)", "--danger: #ff7a7a",
-        "--danger-soft: rgba(255, 122, 122, 0.12)", "--warning: #ffcf66", "--warning-soft: rgba(255, 207, 102, 0.12)",
-        "--shadow: 0 24px 90px rgba(0, 0, 0, 0.42)", "--badge-idle-bg: rgba(115, 137, 160, 0.14)",
-        "--badge-idle-fg: #a7bad0", "--badge-running-bg: rgba(45, 125, 255, 0.16)",
-        "--badge-running-fg: #91c0ff", "--badge-success-bg: rgba(18, 216, 156, 0.14)",
-        "--badge-success-fg: #7af0c6", "--badge-failed-bg: rgba(255, 122, 122, 0.14)",
-        "--badge-failed-fg: #ffb0b0", "color-scheme: dark",
+        "--page-bg: #101113", "--page-bg-alt: #111214", "--sidebar-bg: #17181a",
+        "--surface-1: #17181b", "--surface-2: #1c1d20", "--surface-3: #222328", "--surface-raised: #25262b",
+        "--preview-bg: #111214", "--border-soft: rgba(255, 255, 255, 0.09)", "--border-strong: rgba(47, 132, 255, 0.72)",
+        "--text-1: #f4f4f5", "--text-2: #c7c7cb", "--text-3: #8c8e95", "--accent: #0b8f7f",
+        "--accent-strong: #007f72", "--accent-soft: rgba(0, 127, 114, 0.18)", "--action: #2f84ff",
+        "--action-strong: #136dff", "--action-soft: rgba(47, 132, 255, 0.20)", "--on-action: #ffffff",
+        "--danger: #ff7a7a", "--danger-soft: rgba(255, 122, 122, 0.12)", "--warning: #ffcf66",
+        "--warning-soft: rgba(255, 207, 102, 0.12)", "--shadow: 0 10px 24px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.02)",
+        "--badge-idle-bg: rgba(115, 137, 160, 0.14)", "--badge-idle-fg: #a7bad0",
+        "--badge-running-bg: rgba(45, 125, 255, 0.16)", "--badge-running-fg: #91c0ff",
+        "--badge-success-bg: rgba(18, 216, 156, 0.14)", "--badge-success-fg: #7af0c6",
+        "--badge-failed-bg: rgba(255, 122, 122, 0.14)", "--badge-failed-fg: #ffb0b0",
+        "color-scheme: dark",
       ]
     Light =>
       [
-        "--page-bg: #edf3f8", "--page-bg-alt: #f8fbfd", "--page-grid: rgba(74, 91, 115, 0.06)",
-        "--page-glow-a: rgba(18, 216, 156, 0.10)", "--page-glow-b: rgba(45, 125, 255, 0.10)",
-        "--surface-1: rgba(255, 255, 255, 0.92)", "--surface-2: rgba(247, 250, 252, 0.97)",
-        "--surface-3: rgba(240, 245, 249, 0.98)", "--surface-raised: #ffffff", "--border-soft: rgba(57, 74, 96, 0.12)",
-        "--border-strong: rgba(9, 143, 109, 0.20)", "--text-1: #18283c", "--text-2: #4b6078",
-        "--text-3: #708196", "--accent: #0ea277", "--accent-strong: #0a8a65", "--accent-soft: rgba(10, 138, 101, 0.10)",
-        "--action: #2f84ff", "--action-strong: #1a63ea", "--action-soft: rgba(26, 99, 234, 0.12)",
-        "--danger: #cc4f4f", "--danger-soft: rgba(204, 79, 79, 0.10)", "--warning: #b88614",
-        "--warning-soft: rgba(184, 134, 20, 0.12)", "--shadow: 0 20px 60px rgba(19, 40, 66, 0.10)",
-        "--badge-idle-bg: rgba(115, 137, 160, 0.12)", "--badge-idle-fg: #4f6277",
-        "--badge-running-bg: rgba(45, 125, 255, 0.12)", "--badge-running-fg: #1d5cc9",
-        "--badge-success-bg: rgba(10, 138, 101, 0.12)", "--badge-success-fg: #0a7f5d",
-        "--badge-failed-bg: rgba(204, 79, 79, 0.12)", "--badge-failed-fg: #a84343",
+        "--page-bg: #f4f6f8", "--page-bg-alt: #ffffff", "--sidebar-bg: #eef1f5",
+        "--surface-1: #ffffff", "--surface-2: #f6f8fb", "--surface-3: #edf1f5", "--surface-raised: #ffffff",
+        "--preview-bg: #f7f9fc", "--border-soft: rgba(25, 35, 48, 0.14)", "--border-strong: rgba(47, 132, 255, 0.54)",
+        "--text-1: #121821", "--text-2: #3f4b5a", "--text-3: #707b8a", "--accent: #087b6d",
+        "--accent-strong: #006e63", "--accent-soft: rgba(0, 110, 99, 0.12)", "--action: #1f73e8",
+        "--action-strong: #155fd0", "--action-soft: rgba(31, 115, 232, 0.14)", "--on-action: #ffffff",
+        "--danger: #b94747", "--danger-soft: rgba(185, 71, 71, 0.10)", "--warning: #9b6b10",
+        "--warning-soft: rgba(155, 107, 16, 0.12)", "--shadow: 0 10px 24px rgba(24, 36, 52, 0.10), 0 0 0 1px rgba(25, 35, 48, 0.03)",
+        "--badge-idle-bg: rgba(92, 110, 130, 0.12)", "--badge-idle-fg: #526173",
+        "--badge-running-bg: rgba(31, 115, 232, 0.12)", "--badge-running-fg: #175ab9",
+        "--badge-success-bg: rgba(0, 110, 99, 0.12)", "--badge-success-fg: #075f56",
+        "--badge-failed-bg: rgba(185, 71, 71, 0.12)", "--badge-failed-fg: #9d3838",
         "color-scheme: light",
       ]
   }
@@ -798,24 +824,23 @@ fn theme_variables(theme_mode : ThemeMode) -> Array[String] {
 fn app_root_style(theme_mode : ThemeMode) -> Array[String] {
   theme_variables(theme_mode) +
   [
-    "min-height: 100vh", "padding: 18px", "background-color: var(--page-bg)", "background-image: radial-gradient(circle at top left, var(--page-glow-a), transparent 26%), radial-gradient(circle at top right, var(--page-glow-b), transparent 24%), linear-gradient(180deg, var(--page-bg-alt), var(--page-bg)), repeating-linear-gradient(0deg, transparent, transparent 39px, var(--page-grid) 40px), repeating-linear-gradient(90deg, transparent, transparent 39px, var(--page-grid) 40px)",
-    "background-size: auto, auto, auto, 40px 40px, 40px 40px", "color: var(--text-1)",
-    "font-family: \"IBM Plex Sans\", \"Avenir Next\", \"Segoe UI\", sans-serif",
+    "min-height: 100vh", "padding: 0", "background-color: var(--page-bg)", "background-image: linear-gradient(180deg, var(--page-bg-alt), var(--page-bg))",
+    "background-size: auto", "color: var(--text-1)", "font-family: \"IBM Plex Sans\", \"Avenir Next\", \"Segoe UI\", sans-serif",
   ]
 }
 
 ///|
 fn app_stack_style() -> Array[String] {
   [
-    "min-height: calc(100vh - 36px)", "display: flex", "flex-direction: column",
-    "gap: 18px",
+    "min-height: calc(100vh - 24px)", "display: flex", "flex-direction: column",
+    "gap: 10px", "padding: 12px",
   ]
 }
 
 ///|
 fn panel_style() -> Array[String] {
   [
-    "background: var(--surface-1)", "border: 1px solid var(--border-soft)", "border-radius: 14px",
+    "background: var(--surface-1)", "border: 1px solid var(--border-soft)", "border-radius: 8px",
     "box-shadow: var(--shadow)", "overflow: hidden", "backdrop-filter: blur(14px)",
   ]
 }
@@ -823,7 +848,7 @@ fn panel_style() -> Array[String] {
 ///|
 fn inset_panel_style() -> Array[String] {
   [
-    "background: var(--surface-2)", "border: 1px solid var(--border-soft)", "border-radius: 12px",
+    "background: var(--surface-2)", "border: 1px solid var(--border-soft)", "border-radius: 6px",
   ]
 }
 
@@ -849,9 +874,9 @@ fn button_style(
     "align-items: center",
     "justify-content: center",
     "gap: 10px",
-    "padding: 12px 16px",
+    "padding: 10px 14px",
     "border: 1px solid var(--border-soft)",
-    "border-radius: 12px",
+    "border-radius: 6px",
     "background: " + background,
     "color: " + foreground,
     "font-size: 14px",
@@ -865,9 +890,10 @@ fn button_style(
 ///|
 fn primary_button_style(enabled : Bool) -> Array[String] {
   button_style(
-    "linear-gradient(135deg, var(--action-strong), var(--action))", "#ffffff", enabled,
+    "linear-gradient(135deg, var(--action-strong), var(--action))", "var(--on-action)",
+    enabled,
   ) +
-  ["box-shadow: 0 12px 30px var(--action-soft)"]
+  ["box-shadow: 0 8px 18px var(--action-soft)"]
 }
 
 ///|
@@ -897,7 +923,7 @@ fn subtle_danger_button_style(enabled : Bool) -> Array[String] {
     "justify-content: center",
     "padding: 8px 10px",
     "border: 1px solid " + border_color,
-    "border-radius: 10px",
+    "border-radius: 5px",
     "background: " + background,
     "color: " + foreground,
     "font-size: 11px",
@@ -907,11 +933,6 @@ fn subtle_danger_button_style(enabled : Bool) -> Array[String] {
     "cursor: " + cursor,
     "opacity: " + opacity,
   ]
-}
-
-///|
-fn ghost_button_style(enabled : Bool) -> Array[String] {
-  button_style("transparent", "var(--text-2)", enabled)
 }
 
 ///|
@@ -928,9 +949,9 @@ fn input_style(disabled : Bool) -> Array[String] {
   }
   [
     "width: 100%",
-    "padding: 14px 16px",
+    "padding: 12px 14px",
     "border: 1px solid " + border_color,
-    "border-radius: 12px",
+    "border-radius: 6px",
     "background: " + background,
     "font-size: 15px",
     "line-height: 1.5",
@@ -952,7 +973,7 @@ fn status_badge(state : @sdk.RunState) -> @rabbita.Html {
     style=mono_style() +
       [
         "padding: 6px 10px",
-        "border-radius: 999px",
+        "border-radius: 6px",
         "background: " + background,
         "color: " + foreground,
         "font-size: 11px",
@@ -1016,41 +1037,15 @@ fn render_app_header(
   @html.div(
     style=panel_style() +
       [
-        "padding: 14px 18px", "display: flex", "justify-content: space-between",
-        "align-items: center", "gap: 14px", "flex-wrap: wrap",
+        "padding: 12px 14px", "display: flex", "align-items: center", "justify-content: space-between",
+        "gap: 12px",
       ],
     [
       @html.div(
         style=["font-size: 22px", "font-weight: 780", "letter-spacing: -0.02em"],
         "MoonBit Cloud",
       ),
-      @html.div(
-        style=[
-          "display: flex", "align-items: center", "gap: 10px", "flex-wrap: wrap",
-          "justify-content: flex-end",
-        ],
-        [
-          if model.current_user is Some(_) {
-            @html.div(
-              style=["font-size: 14px", "color: var(--text-2)"],
-              user_name(model),
-            )
-          } else {
-            @html.nothing
-          },
-          theme_toggle_button(dispatch, model),
-          if model.current_user is Some(_) {
-            @html.button(
-              type_="button",
-              on_click=dispatch(Logout),
-              style=ghost_button_style(true),
-              "Log Out",
-            )
-          } else {
-            @html.nothing
-          },
-        ],
-      ),
+      theme_toggle_button(dispatch, model),
     ],
   )
 }
@@ -1073,7 +1068,7 @@ fn auth_mode_button(
           "transparent"
         },
         if active {
-          "#ffffff"
+          "var(--on-action)"
         } else {
           "var(--text-2)"
         },
@@ -1087,6 +1082,7 @@ fn auth_mode_button(
 ///|
 fn auth_field(
   label : String,
+  field_id : String,
   input_type : @html.InputType,
   value : String,
   placeholder : String,
@@ -1094,9 +1090,10 @@ fn auth_field(
   dispatch : @rabbita.Dispatch[Msg],
 ) -> @rabbita.Html {
   @html.div(style=["display: flex", "flex-direction: column", "gap: 8px"], [
-    @html.div(style=section_label_style(), label),
+    @html.label(for_=field_id, style=section_label_style(), label),
     @html.input(
       input_type~,
+      id=field_id,
       value~,
       placeholder~,
       on_input=fn(next) { dispatch(on_input(next)) },
@@ -1112,8 +1109,8 @@ fn render_notice_card(notice : String?, tone : String) -> @rabbita.Html {
     Some(message) =>
       @html.div(
         style=[
-          "padding: 14px 16px",
-          "border-radius: 12px",
+          "padding: 12px 14px",
+          "border-radius: 6px",
           "background: " + tone,
           "border: 1px solid var(--border-soft)",
           "font-size: 14px",
@@ -1150,14 +1147,14 @@ fn render_auth_screen(
   }
   @html.div(
     style=[
-      "display: flex", "flex-wrap: wrap", "gap: 18px", "align-items: stretch", "flex: 1",
+      "display: flex", "flex-wrap: wrap", "gap: 10px", "align-items: stretch", "flex: 1",
     ],
     [
       @html.div(
         style=panel_style() +
           [
-            "flex: 1 1 360px", "min-width: 320px", "padding: 26px", "display: flex",
-            "flex-direction: column", "gap: 16px", "justify-content: center",
+            "flex: 1 1 360px", "min-width: 320px", "padding: 22px", "display: flex",
+            "flex-direction: column", "gap: 12px", "justify-content: center",
           ],
         [
           @html.div(
@@ -1177,13 +1174,13 @@ fn render_auth_screen(
       @html.div(
         style=panel_style() +
           [
-            "flex: 1 1 420px", "min-width: 320px", "max-width: 560px", "padding: 26px",
-            "display: flex", "flex-direction: column", "gap: 18px",
+            "flex: 1 1 420px", "min-width: 320px", "max-width: 560px", "padding: 22px",
+            "display: flex", "flex-direction: column", "gap: 14px",
           ],
         [
           @html.div(
             style=[
-              "display: flex", "gap: 10px", "padding: 6px", "border-radius: 14px",
+              "display: flex", "gap: 6px", "padding: 4px", "border-radius: 8px",
               "background: var(--surface-3)", "border: 1px solid var(--border-soft)",
             ],
             [
@@ -1194,6 +1191,7 @@ fn render_auth_screen(
           render_notice_card(model.auth_notice, "var(--danger-soft)"),
           auth_field(
             "Email",
+            "auth-email",
             @html.Email,
             model.auth_email,
             "name@example.com",
@@ -1202,6 +1200,7 @@ fn render_auth_screen(
           ),
           auth_field(
             "Password",
+            "auth-password",
             @html.Password,
             model.auth_password,
             "At least 8 characters",
@@ -1211,6 +1210,7 @@ fn render_auth_screen(
           if model.auth_mode is Signup {
             auth_field(
               "Display Name",
+              "auth-display-name",
               @html.Text,
               model.auth_display_name,
               "Optional operator name",
@@ -1253,7 +1253,7 @@ fn render_auth_screen(
                 href="/auth/github/start",
                 style=secondary_button_style(true) +
                   [
-                    "text-decoration: none", "justify-content: center", "padding: 14px 16px",
+                    "text-decoration: none", "justify-content: center", "padding: 12px 14px",
                   ],
                 "Continue with GitHub",
               ),
@@ -1268,158 +1268,6 @@ fn render_auth_screen(
 }
 
 ///|
-fn render_project_tile(
-  dispatch : @rabbita.Dispatch[Msg],
-  selected_project_id : String?,
-  delete_project_pending : String?,
-  project : @sdk.ProjectSummary,
-) -> @rabbita.Html {
-  let is_selected = selected_project_id == Some(project.id)
-  let is_deleting = delete_project_pending == Some(project.id)
-  let delete_enabled = !(project.status is @sdk.Running || is_deleting)
-  let tile_background = if is_selected {
-    "var(--surface-3)"
-  } else {
-    "var(--surface-2)"
-  }
-  let tile_border_color = if is_selected {
-    "var(--border-strong)"
-  } else {
-    "var(--border-soft)"
-  }
-  let tile_foreground = "var(--text-1)"
-  let meta_color = "var(--text-3)"
-  let delete_label = if is_deleting { "Deleting..." } else { "Delete" }
-  @html.div(
-    style=inset_panel_style() +
-      [
-        "padding: 14px 16px",
-        "display: flex",
-        "flex-direction: column",
-        "gap: 12px",
-        "background: " + tile_background,
-        "border-color: " + tile_border_color,
-        "color: " + tile_foreground,
-      ],
-    [
-      @html.button(
-        type_="button",
-        on_click=dispatch(SelectProject(project.id)),
-        style=[
-          "width: 100%", "padding: 0", "display: flex", "justify-content: space-between",
-          "align-items: center", "gap: 14px", "border: none", "background: transparent",
-          "color: inherit", "cursor: pointer", "text-align: left",
-        ],
-        [
-          @html.div(
-            style=[
-              "display: flex", "flex-direction: column", "gap: 6px", "min-width: 0",
-              "text-align: left",
-            ],
-            [
-              @html.div(
-                style=["font-size: 15px", "font-weight: 700"],
-                project.display_name,
-              ),
-              @html.div(
-                style=mono_style() +
-                  [
-                    "font-size: 12px",
-                    "color: " + meta_color,
-                    "white-space: nowrap",
-                    "overflow: hidden",
-                    "text-overflow: ellipsis",
-                  ],
-                project.updated_at,
-              ),
-            ],
-          ),
-          status_badge(project.status),
-        ],
-      ),
-      if is_selected || is_deleting {
-        @html.div(
-          style=["display: flex", "justify-content: flex-end"],
-          @html.button(
-            type_="button",
-            disabled=!delete_enabled,
-            on_click=dispatch(DeleteProject(project.id)),
-            style=subtle_danger_button_style(delete_enabled),
-            delete_label,
-          ),
-        )
-      } else {
-        @html.nothing
-      },
-    ],
-  )
-}
-
-///|
-fn render_projects_panel(
-  dispatch : @rabbita.Dispatch[Msg],
-  model : Model,
-) -> @rabbita.Html {
-  let tiles = model.projects.map(fn(project) {
-    render_project_tile(
-      dispatch,
-      model.selected_project_id,
-      model.delete_project_pending,
-      project,
-    )
-  })
-  @html.div(
-    style=panel_style() +
-      [
-        "flex: 0 1 300px", "min-width: 280px", "display: flex", "flex-direction: column",
-        "padding: 18px", "gap: 16px",
-      ],
-    [
-      @html.div(
-        style=[
-          "display: flex", "justify-content: space-between", "align-items: center",
-          "gap: 12px",
-        ],
-        [
-          @html.div(style=["font-size: 28px", "font-weight: 780"], "Projects"),
-          @html.button(
-            type_="button",
-            disabled=model.create_project_pending,
-            on_click=dispatch(CreateProject),
-            style=button_style(
-              "linear-gradient(135deg, var(--accent-strong), var(--accent))",
-              "#04110d",
-              !model.create_project_pending,
-            ),
-            if model.create_project_pending {
-              "Creating..."
-            } else {
-              "+ New"
-            },
-          ),
-        ],
-      ),
-      @html.div(
-        style=["display: flex", "flex-direction: column", "gap: 10px"],
-        if tiles.length() == 0 {
-          [
-            @html.div(
-              style=inset_panel_style() +
-                [
-                  "padding: 16px", "font-size: 14px", "line-height: 1.7", "color: var(--text-2)",
-                ],
-              "Create your first project to start.",
-            ),
-          ]
-        } else {
-          tiles
-        },
-      ),
-    ],
-  )
-}
-
-///|
 fn render_message(message : @sdk.ChatMessage) -> @rabbita.Html {
   let is_user = message.role is @sdk.User
   let bubble_background = if is_user {
@@ -1427,7 +1275,11 @@ fn render_message(message : @sdk.ChatMessage) -> @rabbita.Html {
   } else {
     "var(--surface-2)"
   }
-  let bubble_foreground = if is_user { "#ffffff" } else { "var(--text-1)" }
+  let bubble_foreground = if is_user {
+    "var(--on-action)"
+  } else {
+    "var(--text-1)"
+  }
   let justify = if is_user { "flex-end" } else { "flex-start" }
   let bubble_border = if is_user {
     "rgba(255,255,255,0.08)"
@@ -1439,12 +1291,12 @@ fn render_message(message : @sdk.ChatMessage) -> @rabbita.Html {
     @html.div(
       style=[
         "max-width: min(720px, 88%)",
-        "padding: 16px 18px",
-        "border-radius: 14px",
+        "padding: 14px 16px",
+        "border-radius: 6px",
         "background: " + bubble_background,
         "color: " + bubble_foreground,
         "border: 1px solid " + bubble_border,
-        "box-shadow: 0 16px 36px rgba(0, 0, 0, 0.12)",
+        "box-shadow: 0 8px 18px rgba(0, 0, 0, 0.14)",
       ],
       [
         @html.div(
@@ -1470,7 +1322,7 @@ fn render_run_banner(model : Model) -> @rabbita.Html {
     Some(run) =>
       @html.div(
         style=[
-          "padding: 12px 14px", "border-radius: 12px", "background: var(--action-soft)",
+          "padding: 10px 12px", "border-radius: 6px", "background: var(--action-soft)",
           "border: 1px solid var(--border-soft)", "display: flex", "justify-content: space-between",
           "align-items: center", "gap: 12px",
         ],
@@ -1498,7 +1350,7 @@ fn render_workspace_empty(
       @html.div(
         style=inset_panel_style() +
           [
-            "padding: 22px", "display: flex", "flex-direction: column", "gap: 14px",
+            "padding: 18px", "display: flex", "flex-direction: column", "gap: 10px",
           ],
         [
           @html.div(
@@ -1528,7 +1380,7 @@ fn render_workspace_empty(
       @html.div(
         style=inset_panel_style() +
           [
-            "padding: 18px", "display: flex", "flex-direction: column", "gap: 8px",
+            "padding: 14px", "display: flex", "flex-direction: column", "gap: 8px",
           ],
         [
           @html.div(
@@ -1566,12 +1418,12 @@ fn render_workspace_panel(
     style=panel_style() +
       [
         "flex: 1 1 620px", "min-width: 360px", "display: flex", "flex-direction: column",
-        "min-height: 760px",
+        "min-height: 720px",
       ],
     [
       @html.div(
         style=[
-          "padding: 20px 22px", "border-bottom: 1px solid var(--border-soft)", "display: flex",
+          "padding: 16px 18px", "border-bottom: 1px solid var(--border-soft)", "display: flex",
           "justify-content: space-between", "align-items: flex-start", "gap: 12px",
           "flex-wrap: wrap",
         ],
@@ -1592,7 +1444,7 @@ fn render_workspace_panel(
       ),
       @html.div(
         style=[
-          "padding: 18px 22px 0", "display: flex", "flex-direction: column", "gap: 12px",
+          "padding: 12px 18px 0", "display: flex", "flex-direction: column", "gap: 8px",
         ],
         [
           render_notice_card(model.notice, "var(--warning-soft)"),
@@ -1601,14 +1453,14 @@ fn render_workspace_panel(
       ),
       @html.div(
         style=[
-          "flex: 1", "min-height: 0", "padding: 18px 22px", "display: flex", "flex-direction: column",
-          "gap: 14px", "overflow-y: auto",
+          "flex: 1", "min-height: 0", "padding: 12px 18px", "display: flex", "flex-direction: column",
+          "gap: 10px", "overflow-y: auto",
         ],
         messages,
       ),
       @html.div(
         style=[
-          "padding: 18px 22px 22px", "border-top: 1px solid var(--border-soft)",
+          "padding: 14px 18px 18px", "border-top: 1px solid var(--border-soft)",
           "display: flex", "flex-direction: column", "gap: 10px",
         ],
         [
@@ -1667,14 +1519,14 @@ fn render_preview_empty(model : Model) -> @rabbita.Html {
   }
   @html.div(
     style=[
-      "height: 100%", "padding: 20px", "display: flex", "flex-direction: column",
-      "gap: 14px",
+      "height: 100%", "padding: 14px", "display: flex", "flex-direction: column",
+      "gap: 10px",
     ],
     [
       @html.div(
         style=inset_panel_style() +
           [
-            "padding: 18px", "display: flex", "flex-direction: column", "gap: 10px",
+            "padding: 14px", "display: flex", "flex-direction: column", "gap: 8px",
             "min-height: 220px", "justify-content: center",
           ],
         [
@@ -1696,6 +1548,12 @@ fn render_preview_empty(model : Model) -> @rabbita.Html {
 }
 
 ///|
+fn preview_url_with_theme(url : String, theme_mode : ThemeMode) -> String {
+  let separator = if url.contains("?") { "&" } else { "?" }
+  url + separator + "theme=" + theme_mode.storage_value()
+}
+
+///|
 fn render_preview_panel(model : Model) -> @rabbita.Html {
   let preview = model.project_detail.bind(fn(project) { project.preview })
   let status = match preview {
@@ -1706,12 +1564,12 @@ fn render_preview_panel(model : Model) -> @rabbita.Html {
     style=panel_style() +
       [
         "flex: 1 1 420px", "min-width: 320px", "display: flex", "flex-direction: column",
-        "min-height: 760px",
+        "min-height: 720px",
       ],
     [
       @html.div(
         style=[
-          "padding: 20px 22px", "border-bottom: 1px solid var(--border-soft)", "display: flex",
+          "padding: 16px 18px", "border-bottom: 1px solid var(--border-soft)", "display: flex",
           "justify-content: space-between", "align-items: flex-start", "gap: 12px",
           "flex-wrap: wrap",
         ],
@@ -1740,10 +1598,10 @@ fn render_preview_panel(model : Model) -> @rabbita.Html {
               style=["height: 100%"],
               @html.iframe(
                 title="Live Preview",
-                src=target.url,
+                src=preview_url_with_theme(target.url, model.theme_mode),
                 loading="eager",
                 style=[
-                  "height: 100%", "width: 100%", "border: none", "background: #ffffff",
+                  "height: 100%", "width: 100%", "border: none", "background: var(--preview-bg)",
                 ],
               ),
             )
@@ -1761,7 +1619,7 @@ fn render_loading_screen() -> @rabbita.Html {
     @html.div(
       style=panel_style() +
         [
-          "padding: 22px 26px", "display: flex", "flex-direction: column", "gap: 8px",
+          "padding: 18px 20px", "display: flex", "flex-direction: column", "gap: 8px",
           "min-width: 320px",
         ],
       [
@@ -1775,57 +1633,298 @@ fn render_loading_screen() -> @rabbita.Html {
 }
 
 ///|
+fn workspace_name(model : Model) -> String {
+  user_name(model) + "'s Workspace"
+}
+
+///|
+fn avatar_chip(label : String) -> @rabbita.Html {
+  @html.div(
+    style=[
+      "width: 28px", "height: 28px", "border-radius: 999px", "display: grid", "place-items: center",
+      "background: var(--accent-strong)", "color: var(--on-action)", "font-size: 13px",
+      "font-weight: 760",
+    ],
+    label,
+  )
+}
+
+///|
+fn sidebar_project_item(
+  dispatch : @rabbita.Dispatch[Msg],
+  model : Model,
+  project : @sdk.ProjectSummary,
+) -> @rabbita.Html {
+  let selected = model.selected_project_id == Some(project.id)
+  let background = if selected { "var(--surface-2)" } else { "transparent" }
+  let border_color = if selected {
+    "var(--border-strong)"
+  } else {
+    "transparent"
+  }
+  let deleting = model.delete_project_pending == Some(project.id)
+  let delete_enabled = !(project.status is @sdk.Running || deleting)
+  @html.div(
+    style=[
+      "border: 1px solid " + border_color,
+      "border-radius: 6px",
+      "background: " + background,
+      "padding: 8px",
+      "display: flex",
+      "flex-direction: column",
+      "gap: 8px",
+    ],
+    [
+      @html.button(
+        type_="button",
+        on_click=dispatch(SelectProject(project.id)),
+        style=[
+          "width: 100%", "padding: 0", "border: none", "background: transparent",
+          "color: var(--text-1)", "cursor: pointer", "display: flex", "align-items: center",
+          "gap: 10px", "text-align: left",
+        ],
+        [
+          @html.div(
+            style=[
+              "width: 30px", "height: 30px", "border-radius: 6px", "background: var(--surface-raised)",
+              "border: 1px solid var(--border-soft)",
+            ],
+            "",
+          ),
+          @html.div(
+            style=[
+              "min-width: 0", "display: flex", "flex-direction: column", "gap: 3px",
+            ],
+            [
+              @html.div(
+                style=[
+                  "font-size: 14px", "font-weight: 720", "white-space: nowrap", "overflow: hidden",
+                  "text-overflow: ellipsis",
+                ],
+                project.display_name,
+              ),
+              @html.div(
+                style=mono_style() + ["font-size: 11px", "color: var(--text-3)"],
+                project.status.label(),
+              ),
+            ],
+          ),
+        ],
+      ),
+      if selected || deleting {
+        @html.button(
+          type_="button",
+          disabled=!delete_enabled,
+          on_click=dispatch(DeleteProject(project.id)),
+          style=subtle_danger_button_style(delete_enabled) +
+            ["align-self: flex-start"],
+          if deleting {
+            "Deleting..."
+          } else {
+            "Delete"
+          },
+        )
+      } else {
+        @html.nothing
+      },
+    ],
+  )
+}
+
+///|
+fn render_project_sidebar(
+  dispatch : @rabbita.Dispatch[Msg],
+  model : Model,
+) -> @rabbita.Html {
+  let project_items = model.projects.map(fn(project) {
+    sidebar_project_item(dispatch, model, project)
+  })
+  @html.div(
+    style=[
+      "width: 300px", "min-height: 100vh", "padding: 14px 12px", "display: flex",
+      "flex-direction: column", "gap: 14px", "background: var(--sidebar-bg)", "border-right: 1px solid var(--border-soft)",
+      "box-sizing: border-box", "flex-shrink: 0",
+    ],
+    [
+      @html.div(style=["display: flex", "align-items: center", "gap: 10px"], [
+        avatar_chip("M"),
+        @html.div(
+          style=[
+            "min-width: 0", "display: flex", "flex-direction: column", "gap: 2px",
+          ],
+          [
+            @html.div(
+              style=["font-size: 16px", "font-weight: 800"],
+              "MoonBit Cloud",
+            ),
+            @html.div(
+              style=[
+                "font-size: 12px", "color: var(--text-3)", "white-space: nowrap",
+                "overflow: hidden", "text-overflow: ellipsis",
+              ],
+              workspace_name(model),
+            ),
+          ],
+        ),
+      ]),
+      @html.button(
+        type_="button",
+        disabled=model.create_project_pending,
+        on_click=dispatch(CreateProject),
+        style=primary_button_style(!model.create_project_pending) +
+          ["width: 100%"],
+        if model.create_project_pending {
+          "Creating..."
+        } else {
+          "+ New Project"
+        },
+      ),
+      @html.div(
+        style=[
+          "display: flex", "justify-content: space-between", "align-items: center",
+          "color: var(--text-2)", "font-size: 13px", "font-weight: 760",
+        ],
+        [
+          @html.div("Projects"),
+          @html.div(style=mono_style(), model.projects.length().to_string()),
+        ],
+      ),
+      @html.div(
+        style=[
+          "display: flex", "flex-direction: column", "gap: 8px", "min-height: 0",
+          "overflow-y: auto",
+        ],
+        if project_items.length() == 0 {
+          [
+            @html.div(
+              style=[
+                "padding: 12px", "border: 1px solid var(--border-soft)", "border-radius: 6px",
+                "color: var(--text-3)", "font-size: 13px", "line-height: 1.5",
+              ],
+              "Create a project to begin.",
+            ),
+          ]
+        } else {
+          project_items
+        },
+      ),
+      @html.div(style=["flex: 1"], ""),
+      @html.div(
+        style=[
+          "display: flex", "flex-direction: column", "gap: 10px", "color: var(--text-3)",
+          "font-size: 14px",
+        ],
+        [
+          @html.div(
+            style=[
+              "padding-top: 8px", "border-top: 1px solid var(--border-soft)", "display: flex",
+              "flex-direction: column", "gap: 8px",
+            ],
+            [
+              @html.div(
+                style=["color: var(--text-1)", "font-weight: 700"],
+                user_name(model),
+              ),
+              @html.div(style=mono_style() + ["font-size: 11px"], "Signed in"),
+              @html.div(
+                style=[
+                  "display: flex", "align-items: center", "justify-content: space-between",
+                  "gap: 8px",
+                ],
+                [
+                  @html.div(
+                    style=mono_style() + ["font-size: 11px"],
+                    "Theme: " + model.theme_mode.label(),
+                  ),
+                  theme_toggle_button(dispatch, model),
+                ],
+              ),
+            ],
+          ),
+          @html.button(
+            type_="button",
+            disabled=model.logout_pending,
+            on_click=dispatch(Logout),
+            style=button_style(
+                "var(--surface-2)",
+                "var(--text-2)",
+                !model.logout_pending,
+              ) +
+              ["width: 100%", "justify-content: flex-start"],
+            if model.logout_pending {
+              "Logging out..."
+            } else {
+              "Log Out"
+            },
+          ),
+        ],
+      ),
+    ],
+  )
+}
+
+///|
 fn render_workspace_shell(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
 ) -> @rabbita.Html {
   @html.div(
     style=[
-      "display: flex", "flex-wrap: wrap", "align-items: stretch", "gap: 18px", "flex: 1",
+      "min-height: 100vh", "display: flex", "align-items: stretch", "background: var(--page-bg)",
     ],
     [
-      render_projects_panel(dispatch, model),
-      render_workspace_panel(dispatch, model),
-      render_preview_panel(model),
+      render_project_sidebar(dispatch, model),
+      @html.div(
+        style=[
+          "flex: 1", "min-width: 0", "padding: 10px", "display: flex", "gap: 10px",
+          "align-items: stretch", "box-sizing: border-box",
+        ],
+        [render_workspace_panel(dispatch, model), render_preview_panel(model)],
+      ),
     ],
   )
 }
 
 ///|
 fn view(dispatch : @rabbita.Dispatch[Msg], model : Model) -> @rabbita.Html {
-  let body = if !model.session_ready {
-    render_loading_screen()
-  } else if model.current_user is None {
-    render_auth_screen(dispatch, model)
+  if model.session_ready && model.current_user is Some(_) {
+    @html.div(
+      style=app_root_style(model.theme_mode),
+      render_workspace_shell(dispatch, model),
+    )
   } else {
-    render_workspace_shell(dispatch, model)
+    let body = if !model.session_ready {
+      render_loading_screen()
+    } else {
+      render_auth_screen(dispatch, model)
+    }
+    @html.div(
+      style=app_root_style(model.theme_mode),
+      @html.div(style=app_stack_style(), [
+        render_app_header(dispatch, model),
+        body,
+      ]),
+    )
   }
-  @html.div(
-    style=app_root_style(model.theme_mode),
-    @html.div(style=app_stack_style(), [
-      render_app_header(dispatch, model),
-      body,
-    ]),
-  )
 }
 
 ///|
 extern "js" fn js_load_theme_mode(succeed~ : (String) -> Unit) =
   #| (succeed) => {
+  #|   let mode = "dark";
   #|   try {
   #|     const stored = window.localStorage.getItem("moonbitcloud-theme");
   #|     if (stored === "dark" || stored === "light") {
-  #|       document.documentElement.style.colorScheme = stored;
-  #|       succeed(stored);
-  #|       return;
+  #|       mode = stored;
+  #|     } else if (
+  #|       window.matchMedia &&
+  #|       window.matchMedia("(prefers-color-scheme: light)").matches
+  #|     ) {
+  #|       mode = "light";
   #|     }
   #|   } catch (_) {}
-  #|   const mode =
-  #|     window.matchMedia &&
-  #|     window.matchMedia("(prefers-color-scheme: dark)").matches
-  #|       ? "dark"
-  #|       : "light";
   #|   try {
+  #|     document.documentElement.dataset.theme = mode;
   #|     document.documentElement.style.colorScheme = mode;
   #|   } catch (_) {}
   #|   succeed(mode);
@@ -1838,6 +1937,7 @@ extern "js" fn js_persist_theme_mode(value : String) =
   #|     window.localStorage.setItem("moonbitcloud-theme", value);
   #|   } catch (_) {}
   #|   try {
+  #|     document.documentElement.dataset.theme = value;
   #|     document.documentElement.style.colorScheme = value;
   #|   } catch (_) {}
   #| }

@@ -29,11 +29,6 @@ fn project_run_workspace_path(
 }
 
 ///|
-fn shell_quote(value : String) -> String {
-  "'" + value.replace_all(old="'", new="'\"'\"'") + "'"
-}
-
-///|
 fn snapshot_workspace(
   root : String,
   project_id : String,

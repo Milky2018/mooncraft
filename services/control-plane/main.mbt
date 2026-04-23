@@ -533,8 +533,10 @@ fn main {
         return api_error_response(Conflict, @sdk.Conflict, message)
     }
     match ctx.spawn_project_turn_worker(project_id, run.run_id) {
-      Ok(_) =>
+      Ok(worker_pid) => {
+        ctx.store.set_run_worker_pid(project_id, run.run_id, worker_pid)
         json_created(@sdk.CreateRunResponse::{ run, poll_after_ms: Some(1000) })
+      }
       Err(message) => {
         ctx.store.finish_run_failure(
           project_id,
