@@ -185,6 +185,13 @@ fn generated_preview_index_html() -> String {
     #|    <meta charset="utf-8" />
     #|    <meta name="viewport" content="width=device-width, initial-scale=1" />
     #|    <title>MoonBit Cloud Preview</title>
+    #|    <script>
+    #|      (() => {
+    #|        const theme = new URLSearchParams(window.location.search).get("theme") === "light" ? "light" : "dark";
+    #|        document.documentElement.dataset.theme = theme;
+    #|        document.documentElement.style.colorScheme = theme;
+    #|      })();
+    #|    </script>
     #|    <link rel="stylesheet" href="/styles" />
     #|  </head>
     #|  <body>
@@ -199,13 +206,26 @@ fn generated_preview_index_html() -> String {
 fn generated_preview_styles() -> String {
   (
     #|:root {
+    #|  color-scheme: dark;
+    #|  font-family: "IBM Plex Sans", "Helvetica Neue", sans-serif;
+    #|  --preview-bg: #101113;
+    #|  --preview-card: #17181b;
+    #|  --preview-border: rgba(255, 255, 255, 0.09);
+    #|  --preview-text: #f4f4f5;
+    #|  --preview-muted: #8c8e95;
+    #|  --preview-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+    #|  background: var(--preview-bg);
+    #|  color: var(--preview-text);
+    #|}
+    #|
+    #|:root[data-theme="light"] {
     #|  color-scheme: light;
-    #|  font-family: "Inter", "Helvetica Neue", sans-serif;
-    #|  background:
-    #|    radial-gradient(circle at top left, #eefdf4, transparent 32%),
-    #|    radial-gradient(circle at bottom right, #edf4ff, transparent 36%),
-    #|    #fbfcff;
-    #|  color: #112033;
+    #|  --preview-bg: #f7f9fc;
+    #|  --preview-card: #ffffff;
+    #|  --preview-border: rgba(25, 35, 48, 0.14);
+    #|  --preview-text: #121821;
+    #|  --preview-muted: #707b8a;
+    #|  --preview-shadow: 0 10px 24px rgba(24, 36, 52, 0.10);
     #|}
     #|
     #|* {
@@ -215,6 +235,7 @@ fn generated_preview_styles() -> String {
     #|body {
     #|  margin: 0;
     #|  min-height: 100vh;
+    #|  background: var(--preview-bg);
     #|}
     #|
     #|.preview-shell {
@@ -226,11 +247,11 @@ fn generated_preview_styles() -> String {
     #|
     #|.preview-card {
     #|  width: min(560px, 100%);
-    #|  padding: 32px;
-    #|  border-radius: 28px;
-    #|  background: rgba(255, 255, 255, 0.9);
-    #|  border: 1px solid rgba(17, 32, 51, 0.08);
-    #|  box-shadow: 0 30px 80px rgba(24, 62, 92, 0.12);
+    #|  padding: 28px;
+    #|  border-radius: 8px;
+    #|  background: var(--preview-card);
+    #|  border: 1px solid var(--preview-border);
+    #|  box-shadow: var(--preview-shadow);
     #|}
     #|
     #|.preview-title {
@@ -247,7 +268,7 @@ fn generated_preview_styles() -> String {
     #|
     #|.preview-copy.muted {
     #|  margin-top: 14px;
-    #|  color: #5e6d7d;
+    #|  color: var(--preview-muted);
     #|}
   )
 }
