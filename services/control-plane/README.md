@@ -18,7 +18,7 @@ The current `AgentGateway` uses Docker-backed Codex CLI runs. Each project keeps
 
 ## Static Preview Mode
 
-Frontend-only templates can declare `preview.kind: "static"` in `template.json`. The control plane still builds the generated MoonBit workspace, copies the public preview shell plus the JS bundle into `preview-dist/`, and launches a lightweight static preview process.
+Frontend-only templates can declare `preview.kind: "static"` in `template.json`. The control plane still builds the generated MoonBit workspace, copies the full public preview tree into `preview-dist/`, stages declared build artifacts, and launches a lightweight static preview process.
 
 The static preview process is implemented by the control-plane executable:
 
@@ -30,8 +30,8 @@ moon run --manifest-path moon.work --target native services/control-plane -- \
 It serves:
 
 - `/`: `index.html`
-- `/app`: generated JavaScript bundle
-- `/styles`: generated stylesheet
+- arbitrary staged files such as `loader.js`, `app.js`, `styles.css`, and `app.wasm.txt`
+- compatibility aliases `/app` -> `app.js` and `/styles` -> `styles.css`
 - `/__health` and `/api/health`: JSON health response
 
 To test the `frontend-dashboard` template directly:
@@ -59,7 +59,7 @@ curl -fsS http://127.0.0.1:19301/__health
 curl -fsS http://127.0.0.1:19301/app | wc -c
 ```
 
-Template HTML must reference preview assets with relative URLs, such as `href="styles"` and `src="app"`. Absolute URLs like `/styles` and `/app` bypass `/p/<preview_public_id>/` and load control-plane assets when the page is opened through the product preview route.
+Template HTML must reference preview assets with relative URLs, such as `href="styles.css"` and `src="app.js"`. Absolute URLs like `/styles` and `/app` bypass `/p/<preview_public_id>/` and load control-plane assets when the page is opened through the product preview route.
 
 Required Codex runtime configuration:
 

@@ -33,7 +33,7 @@ This is a pure frontend MoonBit template for dashboard, landing page, and produc
 - Do not add `moon.work`; the root `moon.mod.json` is intentional.
 - Keep validation to one `moon check` and one `moon build` at the module root.
 - Keep the preview static-only; do not add a generated backend.
-- Use relative preview asset URLs in `public/index.html`, such as `styles` and `app`, so the page works under `/p/<preview_public_id>/`.
+- Use relative preview asset URLs in `public/index.html`, such as `styles.css` and `app.js`, so the page works under `/p/<preview_public_id>/`.
 
 # Manual Preview Smoke
 

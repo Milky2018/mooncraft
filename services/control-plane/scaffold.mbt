@@ -6,14 +6,24 @@ struct TemplateEntrypoints {
 } derive(Debug, FromJson)
 
 ///|
+struct TemplatePreviewArtifact {
+  backend : String
+  source_module : String?
+  encoding : String?
+  target_path : String
+} derive(Debug, FromJson)
+
+///|
 struct TemplatePreviewConfig {
   kind : String?
   public_dir : String
   health_path : String?
   frontend_module : String
+  frontend_backend : String?
   backend_module : String?
   frontend_package : String?
   backend_package : String?
+  build_artifacts : Array[TemplatePreviewArtifact]?
 } derive(Debug, FromJson)
 
 ///|
@@ -83,6 +93,11 @@ fn template_preview_kind(manifest : TemplateManifest) -> String {
 }
 
 ///|
+fn template_frontend_backend(manifest : TemplateManifest) -> String {
+  manifest.preview.frontend_backend.unwrap_or("js")
+}
+
+///|
 fn template_preview_health_path(manifest : TemplateManifest) -> String {
   match manifest.preview.health_path {
     Some(path) if path != "" => path
@@ -93,6 +108,57 @@ fn template_preview_health_path(manifest : TemplateManifest) -> String {
         "/api/health"
       }
   }
+}
+
+///|
+fn template_build_output_extension(backend : String) -> String {
+  match backend {
+    "js" => ".js"
+    "wasm" | "wasm-gc" => ".wasm"
+    _ => ""
+  }
+}
+
+///|
+fn template_default_build_artifact(
+  manifest : TemplateManifest,
+) -> TemplatePreviewArtifact {
+  let backend = template_frontend_backend(manifest)
+  {
+    backend,
+    source_module: Some(manifest.preview.frontend_module),
+    encoding: None,
+    target_path: if backend == "js" {
+      "app.js"
+    } else {
+      "app.wasm"
+    },
+  }
+}
+
+///|
+fn template_preview_build_artifacts(
+  manifest : TemplateManifest,
+) -> Array[TemplatePreviewArtifact] {
+  match manifest.preview.build_artifacts {
+    Some(artifacts) if artifacts.length() > 0 => artifacts
+    _ => [template_default_build_artifact(manifest)]
+  }
+}
+
+///|
+fn template_preview_artifact_source_module(
+  manifest : TemplateManifest,
+  artifact : TemplatePreviewArtifact,
+) -> String {
+  artifact.source_module.unwrap_or(manifest.preview.frontend_module)
+}
+
+///|
+fn template_preview_artifact_encoding(
+  artifact : TemplatePreviewArtifact,
+) -> String {
+  artifact.encoding.unwrap_or("identity")
 }
 
 ///|
@@ -122,21 +188,22 @@ fn template_package_leaf(package_path : String) -> String {
 fn template_build_output_path(
   workspace_path : String,
   build_profile : BuildProfile,
-  manifest : TemplateManifest,
+  source_module : String,
+  backend : String,
 ) -> String {
-  let frontend_module = manifest.preview.frontend_module
   let build_root = workspace_path +
-    "/_build/js/" +
+    "/_build/" +
+    backend +
+    "/" +
     build_profile.build_dir() +
     "/build/"
-  if template_workspace_kind(manifest) == "module" {
-    build_root + template_package_leaf(frontend_module) + ".js"
+  let basename = template_package_leaf(source_module) +
+    template_build_output_extension(backend)
+  let nested = build_root + source_module + "/" + basename
+  if @fs.path_exists(nested) {
+    nested
   } else {
-    build_root +
-    frontend_module +
-    "/" +
-    template_package_leaf(frontend_module) +
-    ".js"
+    build_root + basename
   }
 }
 
@@ -251,6 +318,36 @@ fn validate_template_manifest(
     return Err(
       "Template '\{manifest.id}' is missing its preview public directory: \{manifest.preview.public_dir}",
     )
+  }
+  let preview_build_artifacts = template_preview_build_artifacts(manifest)
+  for artifact in preview_build_artifacts {
+    if artifact.target_path == "" ||
+      artifact.target_path.has_prefix("/") ||
+      artifact.target_path.contains("..") {
+      return Err(
+        "Template '\{manifest.id}' has invalid preview build artifact target '\{artifact.target_path}'.",
+      )
+    }
+    let backend = artifact.backend
+    if template_build_output_extension(backend) == "" {
+      return Err(
+        "Template '\{manifest.id}' uses unsupported preview build backend '\{backend}'.",
+      )
+    }
+    let encoding = template_preview_artifact_encoding(artifact)
+    if encoding != "identity" && encoding != "base64" {
+      return Err(
+        "Template '\{manifest.id}' uses unsupported preview artifact encoding '\{encoding}'.",
+      )
+    }
+    let module_name = template_preview_artifact_source_module(
+      manifest, artifact,
+    )
+    if module_name == "" {
+      return Err(
+        "Template '\{manifest.id}' has a preview build artifact without a source module.",
+      )
+    }
   }
   let knowledge_doc = repo_relative_path(root, manifest.knowledge_doc)
   if !(@fs.is_file(knowledge_doc) catch { _ => false }) {
@@ -449,11 +546,11 @@ fn generated_preview_index_html() -> String {
     #|        document.documentElement.style.colorScheme = theme;
     #|      })();
     #|    </script>
-    #|    <link rel="stylesheet" href="styles" />
+    #|    <link rel="stylesheet" href="styles.css" />
     #|  </head>
     #|  <body>
     #|    <div id="app"></div>
-    #|    <script type="module" src="app"></script>
+    #|    <script type="module" src="app.js"></script>
     #|  </body>
     #|</html>
   )

@@ -54,7 +54,7 @@ Frontend-only templates can instead use a single MoonBit module with a root `moo
 - `apps/web` renders the app-develop page with a left project rail, center chat workspace, and right preview panel.
 - `services/control-plane` persists `users`, `sessions`, `oauth_accounts`, `projects`, `messages`, and `runs` in SQLite.
 - Each successful run rebuilds the generated project and restarts a local preview server on a stable port.
-- Static frontend previews run through `services/control-plane -- run-static-preview <port> <preview-dist-dir>`.
+- Static frontend previews run through `services/control-plane -- run-static-preview <port> <preview-dist-dir>` and can stage arbitrary assets, including wasm host files.
 - Preview URLs are public opaque paths like `/p/<preview_public_id>/` and stay same-origin through the control plane.
 - `packages/sdk` defines the shared request and response payloads used by the frontend and control plane.
 - `AgentGateway` now launches Docker-backed Codex CLI runs asynchronously and persists one `codex_thread_id` per project so later messages can resume the same Codex session.

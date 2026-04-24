@@ -1,0 +1,6 @@
+supported_targets = "wasm-gc"
+
+options(
+  "is-main": true,
+  link: { "wasm-gc": { "exports": [ "render_scene_pixel", "filter_pixel" ] } },
+)

@@ -1,0 +1,10 @@
+{
+  "name": "moonbitcloud/wasm-image-lab",
+  "version": "0.1.0",
+  "preferred-target": "wasm-gc",
+  "readme": "README.md",
+  "repository": "",
+  "license": "Apache-2.0",
+  "keywords": ["moonbit", "wasm", "wasm-gc", "image", "frontend"],
+  "description": "Single-module MoonBit wasm-gc image lab template."
+}

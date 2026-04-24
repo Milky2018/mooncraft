@@ -126,7 +126,7 @@ The current preview path is same-origin and exposed through:
 - stored `preview.url` values like `/p/<preview_public_id>/`
 - `ALL /p/:preview_public_id/*` reverse proxy handling in the control plane
 
-Backend templates run their generated native executable on a private local port. Static frontend templates use the control-plane `run-static-preview <port> <preview-dist-dir>` mode to serve staged `index.html`, `app.js`, `styles.css`, and health endpoints. In both cases, the browser only talks to the control plane.
+Backend templates run their generated native executable on a private local port. Static frontend templates use the control-plane `run-static-preview <port> <preview-dist-dir>` mode to serve staged files from `preview-dist/`, including assets such as `index.html`, `loader.js`, `app.js`, `styles.css`, `app.wasm.txt`, and health endpoints. In both cases, the browser only talks to the control plane.
 
 ## Why This Shape
 

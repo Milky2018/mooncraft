@@ -55,6 +55,18 @@ fn javascript_response(content : Bytes) -> @mocket.HttpResponse {
 }
 
 ///|
+fn asset_response_bytes(
+  content_type : String,
+  content : Bytes,
+) -> @mocket.HttpResponse {
+  @mocket.HttpResponse::new(
+    OK,
+    headers={ "Content-Type": content_type },
+    raw_body=content,
+  )
+}
+
+///|
 fn unauthorized_response() -> @mocket.HttpResponse {
   api_error_response(Unauthorized, @sdk.Unauthorized, "Sign in to continue.")
 }
@@ -200,9 +212,63 @@ fn preview_asset_response(
   if !@fs.path_exists(path) {
     return text_response(NotFound, "Not Found")
   }
-  @mocket.HttpResponse::new(OK, headers={ "Content-Type": content_type }).body(
-    safe_read_string_or(path, ""),
-  )
+  asset_response_bytes(content_type, safe_read_bytes_or(path, b""))
+}
+
+///|
+fn static_preview_content_type(path : String) -> String {
+  if path.has_suffix(".html") {
+    "text/html; charset=utf-8"
+  } else if path.has_suffix(".css") {
+    "text/css; charset=utf-8"
+  } else if path.has_suffix(".js") || path.has_suffix(".mjs") {
+    "text/javascript; charset=utf-8"
+  } else if path.has_suffix(".json") || path.has_suffix(".map") {
+    "application/json; charset=utf-8"
+  } else if path.has_suffix(".wasm") {
+    "application/wasm"
+  } else if path.has_suffix(".svg") {
+    "image/svg+xml"
+  } else if path.has_suffix(".png") {
+    "image/png"
+  } else if path.has_suffix(".jpg") || path.has_suffix(".jpeg") {
+    "image/jpeg"
+  } else if path.has_suffix(".webp") {
+    "image/webp"
+  } else if path.has_suffix(".ico") {
+    "image/x-icon"
+  } else if path.has_suffix(".txt") {
+    "text/plain; charset=utf-8"
+  } else {
+    "application/octet-stream"
+  }
+}
+
+///|
+fn static_preview_relative_path(target_path : String) -> String? {
+  let normalized_target = match target_path {
+    "/" => "index.html"
+    "/app" => "app.js"
+    "/styles" => "styles.css"
+    other => other
+  }
+  let parts = normalized_target.split("/").to_array()
+  let safe_parts : Array[String] = []
+  for part in parts {
+    let piece = part.to_string()
+    if piece == "" {
+      continue
+    }
+    if piece == "." || piece == ".." {
+      return None
+    }
+    safe_parts.push(piece)
+  }
+  if safe_parts.length() == 0 {
+    Some("index.html")
+  } else {
+    Some(safe_parts.join("/"))
+  }
 }
 
 ///|
@@ -210,24 +276,16 @@ fn static_preview_response(
   static_dir : String,
   target_path : String,
 ) -> @mocket.HttpResponse {
-  match target_path {
-    "/" =>
+  if target_path == "/__health" || target_path == "/api/health" {
+    return json_ok(@sdk.HealthResponse::{ ok: true })
+  }
+  match static_preview_relative_path(target_path) {
+    Some(relative_path) =>
       preview_asset_response(
-        static_dir + "/index.html",
-        "text/html; charset=utf-8",
+        static_dir + "/" + relative_path,
+        static_preview_content_type(relative_path),
       )
-    "/app" =>
-      preview_asset_response(
-        static_dir + "/app.js",
-        "text/javascript; charset=utf-8",
-      )
-    "/styles" =>
-      preview_asset_response(
-        static_dir + "/styles.css",
-        "text/css; charset=utf-8",
-      )
-    "/__health" | "/api/health" => json_ok(@sdk.HealthResponse::{ ok: true })
-    _ => text_response(NotFound, "Not Found")
+    None => text_response(NotFound, "Not Found")
   }
 }
 
@@ -237,8 +295,13 @@ fn run_static_preview_mode(port : Int, static_dir : String) -> Unit {
   app.get("/__health", _ => json_ok(@sdk.HealthResponse::{ ok: true }))
   app.get("/api/health", _ => json_ok(@sdk.HealthResponse::{ ok: true }))
   app.get("/", _ => static_preview_response(static_dir, "/"))
-  app.get("/app", _ => static_preview_response(static_dir, "/app"))
-  app.get("/styles", _ => static_preview_response(static_dir, "/styles"))
+  app.get("/**", event => {
+    let remainder = event.params
+      .get("_")
+      .map(fn(value) { value.to_string() })
+      .unwrap_or("")
+    static_preview_response(static_dir, preview_target_path(remainder))
+  })
   app.serve(port~)
 }
 
