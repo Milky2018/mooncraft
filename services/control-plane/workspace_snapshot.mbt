@@ -1,9 +1,4 @@
 ///|
-fn legacy_project_root(root : String, project_id : String) -> String {
-  root + "/data/projects/" + project_id
-}
-
-///|
 fn project_workspace_snapshot_temp_path(
   root : String,
   project_id : String,
@@ -23,11 +18,6 @@ fn project_run_workspace_path(
   run_id : String,
 ) -> String {
   project_run_workspaces_root(root, project_id) + "/" + run_id
-}
-
-///|
-fn safe_remove_legacy_project_root(root : String, project_id : String) -> Unit {
-  safe_remove_tree(legacy_project_root(root, project_id))
 }
 
 ///|
@@ -72,17 +62,14 @@ fn snapshot_workspace(
 ///|
 fn load_workspace_snapshot_archive(
   store : Store,
-  root : String,
   project_id : String,
 ) -> Result[Bytes, String] {
   match store.get_workspace_snapshot(project_id) {
     Some(archive) => Ok(archive)
-    None => {
-      safe_remove_legacy_project_root(root, project_id)
+    None =>
       Err(
         "No persisted workspace snapshot is available for project \{project_id}.",
       )
-    }
   }
 }
 
@@ -93,7 +80,7 @@ fn restore_workspace_snapshot_to_path(
   project_id : String,
   target_path : String,
 ) -> Result[Unit, String] {
-  let archive = match load_workspace_snapshot_archive(store, root, project_id) {
+  let archive = match load_workspace_snapshot_archive(store, project_id) {
     Ok(archive) => archive
     Err(message) => return Err(message)
   }
@@ -115,10 +102,6 @@ fn restore_workspace_snapshot_to_path(
     return Err(
       "Restoring the saved workspace snapshot failed for project \{project_id}.",
     )
-  }
-  let legacy_root = legacy_project_root(root, project_id)
-  if target_path != legacy_root && !target_path.has_prefix(legacy_root + "/") {
-    safe_remove_legacy_project_root(root, project_id)
   }
   Ok(())
 }

@@ -56,7 +56,53 @@ fn new_test_store(root : String, prefix : String) -> (Store, String) {
   ensure_dir(db_dir)
   let db_path = db_dir + "/" + next_id(prefix) + ".sqlite"
   cleanup_test_db(db_path)
-  (Store::new(db_path), db_path)
+  (Store::try_new(db_path).unwrap(), db_path)
+}
+
+///|
+test "store reports database open failures" {
+  let root = @env.current_dir().unwrap_or(".")
+  let db_dir = root + "/data/control-plane-test-dbs"
+  ensure_dir(db_dir)
+  let db_path = db_dir + "/" + next_id("db-open-failure")
+  safe_remove_tree(db_path)
+  ensure_dir(db_path)
+
+  let result = Store::try_new(db_path)
+
+  inspect(
+    match result {
+      Err(_) => true
+      Ok(_) => false
+    },
+    content="true",
+  )
+  safe_remove_tree(db_path)
+}
+
+///|
+test "app context cleans legacy project workspaces at startup" {
+  let root = @env.current_dir().unwrap_or(".") +
+    "/data/control-plane-test-roots/" +
+    next_id("legacy-cleanup")
+  let legacy_root = legacy_project_workspaces_root(root)
+  safe_remove_tree(root)
+  ensure_dir(legacy_root + "/project-legacy/workspace")
+  safe_write_string(
+    legacy_root + "/project-legacy/workspace/README.md",
+    "legacy\n",
+  )
+
+  let result = AppContext::try_new_with_recovery(root, false)
+
+  inspect(
+    match result {
+      Ok(_) => @fs.path_exists(legacy_root)
+      Err(_) => true
+    },
+    content="false",
+  )
+  safe_remove_tree(root)
 }
 
 ///|
@@ -128,18 +174,16 @@ test "workspace snapshot round-trips project files and excludes build outputs" {
 }
 
 ///|
-test "restore without a database snapshot fails and cleans legacy files" {
+test "restore without a database snapshot fails without legacy fallback" {
   let root = @env.current_dir().unwrap_or(".")
   let (store, db_path) = new_test_store(root, "snapshot-migration-db")
   let project_id = next_id("snapshot-migration")
   let workspace_path = project_workspace(root, project_id)
+  let legacy_root = legacy_project_workspaces_root(root) + "/" + project_id
   safe_remove_tree(project_root(root, project_id))
-  safe_remove_tree(legacy_project_root(root, project_id))
-  ensure_dir(legacy_project_root(root, project_id))
-  safe_write_string(
-    legacy_project_root(root, project_id) + "/README.md",
-    "legacy\n",
-  )
+  safe_remove_tree(legacy_root)
+  ensure_dir(legacy_root)
+  safe_write_string(legacy_root + "/README.md", "legacy\n")
 
   let result = restore_workspace_snapshot(
     store, root, project_id, workspace_path,
@@ -152,10 +196,8 @@ test "restore without a database snapshot fails and cleans legacy files" {
     },
     content="true",
   )
-  inspect(
-    @fs.path_exists(legacy_project_root(root, project_id)),
-    content="false",
-  )
+  inspect(@fs.path_exists(legacy_root), content="true")
+  safe_remove_tree(legacy_root)
   safe_remove_tree(project_root(root, project_id))
   cleanup_test_db(db_path)
 }
@@ -193,18 +235,16 @@ test "hydrate run workspace restores the saved snapshot into an isolated path" {
 }
 
 ///|
-test "hydrate without a database snapshot fails and cleans legacy files" {
+test "hydrate without a database snapshot fails without legacy fallback" {
   let root = @env.current_dir().unwrap_or(".")
   let (store, db_path) = new_test_store(root, "snapshot-hydrate-legacy-db")
   let project_id = next_id("snapshot-hydrate-legacy")
   let run_id = next_id("run")
+  let legacy_root = legacy_project_workspaces_root(root) + "/" + project_id
   safe_remove_tree(project_root(root, project_id))
-  safe_remove_tree(legacy_project_root(root, project_id))
-  ensure_dir(legacy_project_root(root, project_id))
-  safe_write_string(
-    legacy_project_root(root, project_id) + "/README.md",
-    "legacy\n",
-  )
+  safe_remove_tree(legacy_root)
+  ensure_dir(legacy_root)
+  safe_write_string(legacy_root + "/README.md", "legacy\n")
 
   let result = hydrate_run_workspace(store, root, project_id, run_id)
 
@@ -215,14 +255,12 @@ test "hydrate without a database snapshot fails and cleans legacy files" {
     },
     content="true",
   )
-  inspect(
-    @fs.path_exists(legacy_project_root(root, project_id)),
-    content="false",
-  )
+  inspect(@fs.path_exists(legacy_root), content="true")
   inspect(
     @fs.path_exists(project_run_workspace_path(root, project_id, run_id)),
     content="false",
   )
+  safe_remove_tree(legacy_root)
   safe_remove_tree(project_root(root, project_id))
   cleanup_test_db(db_path)
 }

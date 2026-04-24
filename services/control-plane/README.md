@@ -20,6 +20,10 @@ The current `AgentGateway` uses Docker-backed Codex CLI runs. Each project keeps
 
 Workspace directories are no longer durable state. The control plane saves the latest source archive in SQLite after template materialization and after Codex edits. Each run hydrates that database snapshot into an isolated runtime workspace before starting Codex, then restores the local preview cache from the saved snapshot.
 
+The legacy `data/projects` workspace root is cleaned at startup. It is not used as a restore fallback, because generated files must come from the database snapshot or be treated as unavailable.
+
+SQLite is a required dependency for the control plane. If the database cannot be opened or schema initialization fails, the service exits during startup. The health endpoint also checks database availability and returns unavailable when the probe fails.
+
 For real Docker-backed runs, validation first runs `moon update` inside the generated workspace. The Codex runtime image also runs `moon update` at image build time so the MoonBit registry index exists before Codex starts editing. Without this registry preflight, generated template workspaces can fail before compilation with unresolved dependencies such as `moonbit-community/rabbita`, `oboard/mocket`, or `moonbitlang/x`.
 
 ## Control Plane Assets

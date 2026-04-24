@@ -1249,6 +1249,9 @@ async fn run_worker_mode(
   project_id : String,
   run_id : String,
 ) -> Unit {
-  let ctx = AppContext::new_for_worker(root)
+  let ctx = match AppContext::try_new_for_worker(root) {
+    Ok(ctx) => ctx
+    Err(message) => abort("MoonBit Cloud worker cannot start: " + message)
+  }
   ctx.run_project_turn(project_id, run_id)
 }

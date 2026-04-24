@@ -368,7 +368,10 @@ fn main {
     return
   }
   let port = control_plane_port()
-  let ctx = AppContext::new(root)
+  let ctx = match AppContext::try_new(root) {
+    Ok(ctx) => ctx
+    Err(message) => abort("MoonBit Cloud cannot start: " + message)
+  }
   ctx.ensure_platform_web_bundle()
 
   let app = @mocket.new()
@@ -382,7 +385,17 @@ fn main {
     control_plane_asset_response(ctx.root, remainder)
   })
   app.get("/app", _ => ctx.serve_platform_bundle())
-  app.get(@sdk.health_path(), _ => json_ok(@sdk.HealthResponse::{ ok: true }))
+  app.get(@sdk.health_path(), _ => {
+    if ctx.store.is_available() {
+      json_ok(@sdk.HealthResponse::{ ok: true })
+    } else {
+      api_error_response(
+        ServiceUnavailable,
+        @sdk.ServiceUnavailable,
+        "The database is not available.",
+      )
+    }
+  })
   app.get(@sdk.session_path(), event => {
     json_ok(session_status_response(ctx, event))
   })

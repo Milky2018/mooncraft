@@ -512,7 +512,7 @@ fn AppContext::materialize_project_template(
     Ok(manifest) => manifest
     Err(message) => return Err(message)
   }
-  let workspace_path = project.workspace_path
+  let workspace_path = project_workspace(self.root, project.id)
   ensure_dir(workspace_path)
   match
     copy_template_tree(
