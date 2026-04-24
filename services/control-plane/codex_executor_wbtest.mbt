@@ -160,13 +160,7 @@ test "start_run persists the initial project prompt once" {
 ///|
 test "startup recovery makes stale running runs retryable" {
   let root = @env.current_dir().unwrap_or(".")
-  let db_dir = root + "/data/control-plane-test-dbs"
-  ensure_dir(db_dir)
-  let db_path = db_dir + "/" + next_id("stale-running-run") + ".sqlite"
-  safe_remove_tree(db_path)
-  safe_remove_tree(db_path + "-shm")
-  safe_remove_tree(db_path + "-wal")
-  let store = Store::new(db_path)
+  let (store, db_path) = new_test_store(root, "stale-running-run")
   let project_id = next_id("project")
   ignore(
     store.create_project(
@@ -203,10 +197,7 @@ test "startup recovery makes stale running runs retryable" {
     },
     content="true",
   )
-
-  safe_remove_tree(db_path)
-  safe_remove_tree(db_path + "-shm")
-  safe_remove_tree(db_path + "-wal")
+  cleanup_test_db(db_path)
 }
 
 ///|
