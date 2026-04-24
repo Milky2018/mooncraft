@@ -79,6 +79,14 @@ check-templates:
 check-template template:
   ./scripts/check_templates.sh "{{template}}"
 
+# Check all official templates inside the Codex runtime image
+check-templates-codex image=codex_image:
+  MOONBITCLOUD_TEMPLATE_CHECK_DOCKER_IMAGE="{{image}}" ./scripts/check_templates_in_codex_image.sh
+
+# Check one official template inside the Codex runtime image
+check-template-codex template image=codex_image:
+  MOONBITCLOUD_TEMPLATE_CHECK_DOCKER_IMAGE="{{image}}" ./scripts/check_templates_in_codex_image.sh "{{template}}"
+
 # Serve the app at http://localhost:8080
 serve profile='debug':
   @echo "MoonBit Cloud: http://localhost:8080"

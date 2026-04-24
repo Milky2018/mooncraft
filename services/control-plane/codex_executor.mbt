@@ -969,6 +969,24 @@ async fn AgentGateway::run_turn(
     }
   }
   safe_write_string(artifacts.validation_log_path, "")
+  if !smoke_codex_enabled() {
+    match
+      run_validation_command(
+        self.root,
+        config,
+        workspace_path,
+        artifacts,
+        "moon update",
+        ["moon", "update"],
+        codex_result.thread_id,
+      ) {
+      Ok(_) => ignore(())
+      Err(failure) => {
+        ignore(persist_validated_workspace())
+        return Err(failure)
+      }
+    }
+  }
   match
     run_validation_command(
       self.root,

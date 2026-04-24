@@ -15,6 +15,8 @@ RUN for tool in /opt/moon/bin/*; do \
   fi; \
   done
 
+RUN moon update
+
 RUN npm install -g "@openai/codex@${CODEX_CLI_VERSION}" \
   && npm cache clean --force
 

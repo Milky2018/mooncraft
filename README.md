@@ -94,6 +94,7 @@ Notes:
 - the default Codex runtime image is `docker.io/moonbitcloud/codex:codex-0.123.0-node24`; override it through `.env` or `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
 - inspect the effective Codex runtime config with `just codex-config`
 - build the Codex runtime image locally with `just build-codex-image` (defaults to the official tag for `linux/amd64`)
+- the Codex runtime image must have an initialized MoonBit registry; the bundled Dockerfile runs `moon update`, and the control plane also runs `moon update` before Docker-backed validation
 - publish the multi-arch Codex runtime image with `just docker-codex-publish` after `docker login` (defaults to `docker.io/moonbitcloud/codex:codex-0.123.0-node24` and `docker.io/moonbitcloud/codex:latest` for `linux/amd64,linux/arm64`)
 - publish to another Docker Hub namespace with `just docker-codex-publish docker.io/<namespace>/codex`
 - for shared environments, prefer `MOONBITCLOUD_CODEX_DOCKER_IMAGE=docker.io/moonbitcloud/codex:codex-0.123.0-node24` over `latest`
@@ -118,6 +119,8 @@ just serve release
 `just serve release` sets `MOONBITCLOUD_BUILD_PROFILE=release`, so the control plane stages the platform bundle and generated preview bundles from the release build output directories.
 
 `just check-templates` validates every official template in a temporary sandbox by running target-less `moon check` and `moon build`. Use `just check-template <template_id>` for one template.
+
+`just check-templates-codex` runs the same template workspaces inside the Codex runtime image with `moon update`, `moon check`, and `moon build`. Use it after changing the Codex image, template dependencies, or validation flow.
 
 Control-plane HTML/CSS shells are runtime files under `services/control-plane/assets`. They are available in the documented local workflow because `just serve` and `moon run --manifest-path moon.work --target native services/control-plane` run from the repository root. `moon build` does not embed those assets into the native executable, so standalone runs must preserve that directory next to the runtime working directory.
 

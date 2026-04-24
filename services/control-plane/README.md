@@ -17,6 +17,8 @@ Official templates live under `templates/<id>`. Each template has a `template.js
 
 The current `AgentGateway` uses Docker-backed Codex CLI runs. Each project keeps one persistent `codex_thread_id`, and each new chat message spawns a background worker that resumes that session, validates the workspace with `moon fmt`, `moon check`, and `moon test`, then refreshes the preview.
 
+For real Docker-backed runs, validation first runs `moon update` inside the generated workspace. The Codex runtime image also runs `moon update` at image build time so the MoonBit registry index exists before Codex starts editing. Without this registry preflight, generated template workspaces can fail before compilation with unresolved dependencies such as `moonbit-community/rabbita`, `oboard/mocket`, or `moonbitlang/x`.
+
 ## Control Plane Assets
 
 Static control-plane shells live under `services/control-plane/assets` instead of MoonBit string literals. This includes:
@@ -89,6 +91,7 @@ Direct template smoke validates the template workspace in isolation:
 
 - run `just check-templates` from the repository root to copy each template workspace into a temporary sandbox and run `moon check` plus `moon build`
 - run `just check-template <template_id>` to validate one template the same way
+- run `just check-templates-codex` when template dependencies or the Codex runtime image change, so the same workspaces are checked inside Docker with `moon update`, `moon check`, and `moon build`
 - stage a temporary preview directory from `public/` plus the template's declared build artifacts
 - launch the preview runner directly
   - static templates: `services/control-plane -- run-static-preview <port> <preview-dist-dir>`
