@@ -441,6 +441,8 @@ fn Store::init_schema(self : Store) -> Unit {
       #|CREATE TABLE IF NOT EXISTS users (
       #|  id TEXT PRIMARY KEY,
       #|  email TEXT NOT NULL UNIQUE,
+      #|  email_verified INTEGER NOT NULL DEFAULT 1,
+      #|  email_verified_at TEXT,
       #|  password_hash TEXT,
       #|  display_name TEXT NOT NULL,
       #|  github_login TEXT,
@@ -450,6 +452,8 @@ fn Store::init_schema(self : Store) -> Unit {
     ),
   )
   |> ignore
+  self.ensure_column("users", "email_verified", "INTEGER NOT NULL DEFAULT 1")
+  self.ensure_column("users", "email_verified_at", "TEXT")
   self.db.exec(
     (
       #|CREATE TABLE IF NOT EXISTS sessions (
@@ -579,6 +583,27 @@ fn Store::init_schema(self : Store) -> Unit {
   self.ensure_column("runs", "validation_log_path", "TEXT")
   self.ensure_column("runs", "final_summary_path", "TEXT")
   self.ensure_column("runs", "worker_pid", "INTEGER")
+  self.db.exec(
+    (
+      #|CREATE TABLE IF NOT EXISTS account_action_tokens (
+      #|  id TEXT PRIMARY KEY,
+      #|  user_id TEXT NOT NULL,
+      #|  purpose TEXT NOT NULL,
+      #|  token_hash TEXT NOT NULL UNIQUE,
+      #|  expires_at TEXT NOT NULL,
+      #|  consumed_at TEXT,
+      #|  created_at TEXT NOT NULL
+      #|);
+    ),
+  )
+  |> ignore
+  self.db.exec(
+    (
+      #|CREATE INDEX IF NOT EXISTS account_action_tokens_user_purpose_idx
+      #|ON account_action_tokens(user_id, purpose);
+    ),
+  )
+  |> ignore
 }
 
 ///|

@@ -99,7 +99,7 @@ smoke:
   fi
   tmpdir="$(mktemp -d)"
   log_file="$tmpdir/control-plane.log"
-  MOONBITCLOUD_CODEX_FAKE_MODE=smoke MOONBITCLOUD_PORT="$port" moon run --manifest-path moon.work --target native services/control-plane >"$log_file" 2>&1 &
+  MOONBITCLOUD_CODEX_FAKE_MODE=smoke MOONBITCLOUD_PORT="$port" MOONBITCLOUD_PUBLIC_BASE_URL="$base_url" moon run --manifest-path moon.work --target native services/control-plane >"$log_file" 2>&1 &
   server_pid=$!
   cleanup() {
     kill "$server_pid" >/dev/null 2>&1 || true
@@ -155,6 +155,14 @@ smoke-running:
   user1_email="owner-$(date +%s)@example.com"
   user2_email="viewer-$(date +%s)@example.com"
   password="password123"
+  outbox="data/control-plane/account-emails.log"
+  extract_outbox_token() {
+    local email="$1"
+    local path_fragment="$2"
+    { grep -A8 "to: $email" "$outbox" || true; } \
+      | sed -n "s#.*$path_fragment?token=\([^[:space:]]*\).*#\1#p" \
+      | tail -n1
+  }
   curl -fsS "$base_url/api/health" | grep -q '"ok":true'
   curl -fsS "$base_url/" >/dev/null
   curl -fsS "$base_url/app" >/dev/null
@@ -165,17 +173,32 @@ smoke-running:
     exit 1
   fi
 
-  curl -fsS -c "$user1_cookie" -b "$user1_cookie" \
+  user1_signup="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" \
     -X POST "$base_url/api/auth/signup" \
     -H 'Content-Type: application/json' \
-    -d "{\"email\":\"$user1_email\",\"password\":\"$password\",\"display_name\":\"Owner\"}" \
-    | grep -q "\"email\":\"$user1_email\""
+    -d "{\"email\":\"$user1_email\",\"password\":\"$password\",\"display_name\":\"Owner\"}")"
+  printf '%s' "$user1_signup" | grep -q "\"email\":\"$user1_email\""
+  printf '%s' "$user1_signup" | grep -q '"email_verified":false'
+  verify_token="$(extract_outbox_token "$user1_email" "/auth/email/verify")"
+  if [[ -z "$verify_token" ]]; then
+    echo "Failed to parse verification token for $user1_email from $outbox" >&2
+    exit 1
+  fi
+  curl -fsS -X POST "$base_url/api/auth/email/verification/confirm" \
+    -H 'Content-Type: application/json' \
+    -d "{\"token\":\"$verify_token\"}" \
+    | grep -q 'Email address verified'
+  curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/session" | grep -q '"email_verified":true'
 
   curl -fsS -c "$user2_cookie" -b "$user2_cookie" \
     -X POST "$base_url/api/auth/signup" \
     -H 'Content-Type: application/json' \
     -d "{\"email\":\"$user2_email\",\"password\":\"$password\",\"display_name\":\"Viewer\"}" \
     | grep -q "\"email\":\"$user2_email\""
+  curl -fsS -c "$user2_cookie" -b "$user2_cookie" \
+    -X POST "$base_url/api/auth/email/verification/resend" \
+    -d '' \
+    | grep -q 'Verification link has been queued'
 
   create_response="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X POST "$base_url/api/projects" -H 'Content-Type: application/json' -d '{"display_name":"Smoke Running"}')"
   project_id="$(printf '%s' "$create_response" | sed -n 's/.*"project":{"id":"\([^"]*\)".*/\1/p')"
@@ -256,6 +279,14 @@ smoke-running:
   grep -q 'Add recovery badge' "data/projects/$project_id/workspace/README.md"
   wait_for_ok "$base_url${preview_url_2}api/health"
 
+  changed_password="password456"
+  curl -fsS -c "$user1_cookie" -b "$user1_cookie" \
+    -X POST "$base_url/api/auth/password/change" \
+    -H 'Content-Type: application/json' \
+    -d "{\"current_password\":\"$password\",\"new_password\":\"$changed_password\"}" \
+    | grep -q 'Password changed'
+  password="$changed_password"
+
   curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X POST "$base_url/api/auth/logout" -d '' >/dev/null
   logged_out_status="$(curl -sS -o /dev/null -w '%{http_code}' -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects" || true)"
   if [[ "$logged_out_status" != "401" ]]; then
@@ -282,6 +313,26 @@ smoke-running:
     echo "Project workspace still exists after deletion: data/projects/$project_id" >&2
     exit 1
   fi
+
+  reset_password="password789"
+  curl -fsS -X POST "$base_url/api/auth/password-reset/request" \
+    -H 'Content-Type: application/json' \
+    -d "{\"email\":\"$user1_email\"}" \
+    | grep -q 'reset link has been queued'
+  reset_token="$(extract_outbox_token "$user1_email" "/auth/password/reset")"
+  if [[ -z "$reset_token" ]]; then
+    echo "Failed to parse password reset token for $user1_email from $outbox" >&2
+    exit 1
+  fi
+  curl -fsS -X POST "$base_url/api/auth/password-reset/confirm" \
+    -H 'Content-Type: application/json' \
+    -d "{\"token\":\"$reset_token\",\"password\":\"$reset_password\"}" \
+    | grep -q 'Password updated'
+  curl -fsS -c "$user1_cookie" -b "$user1_cookie" \
+    -X POST "$base_url/api/auth/login" \
+    -H 'Content-Type: application/json' \
+    -d "{\"email\":\"$user1_email\",\"password\":\"$reset_password\"}" \
+    | grep -q "\"email\":\"$user1_email\""
 
 # Run an end-to-end smoke test against the real Docker-backed Codex CLI
 codex-smoke:

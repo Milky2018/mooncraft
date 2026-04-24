@@ -2,6 +2,7 @@
 enum AuthMode {
   Login
   Signup
+  ForgotPassword
 } derive(Eq)
 
 ///|
@@ -24,6 +25,10 @@ struct Model {
   auth_pending : Bool
   logout_pending : Bool
   auth_notice : String?
+  account_current_password : String
+  account_new_password : String
+  account_pending : Bool
+  account_notice : String?
   projects : Array[@sdk.ProjectSummary]
   selected_project_id : String?
   project_detail : @sdk.ProjectDetail?
@@ -48,8 +53,15 @@ enum Msg {
   AuthDisplayNameChanged(String)
   SubmitAuth
   AuthCompleted(Result[@sdk.AuthResponse, @sdk.ApiError])
+  RequestPasswordResetCompleted(Result[@sdk.AuthActionResponse, @sdk.ApiError])
   Logout
   LoggedOut(Result[Unit, @sdk.ApiError])
+  AccountCurrentPasswordChanged(String)
+  AccountNewPasswordChanged(String)
+  ChangePassword
+  PasswordChanged(Result[@sdk.AuthActionResponse, @sdk.ApiError])
+  ResendEmailVerification
+  EmailVerificationResent(Result[@sdk.AuthActionResponse, @sdk.ApiError])
   ProjectsLoaded(Result[@sdk.ListProjectsResponse, @sdk.ApiError])
   SelectProject(String)
   ProjectLoaded(Result[@sdk.ProjectDetail, @sdk.ApiError])
@@ -118,6 +130,10 @@ fn initial_model() -> Model {
     auth_pending: false,
     logout_pending: false,
     auth_notice: None,
+    account_current_password: "",
+    account_new_password: "",
+    account_pending: false,
+    account_notice: None,
     projects: [],
     selected_project_id: None,
     project_detail: None,
@@ -274,12 +290,43 @@ fn submit_auth_cmd(
         dispatch(AuthCompleted(result))
       })
     }
+    ForgotPassword => {
+      let payload : @sdk.RequestPasswordResetRequest = @sdk.RequestPasswordResetRequest::{
+        email: model.auth_email,
+      }
+      post_json(@sdk.request_password_reset_path(), payload, fn(result) {
+        dispatch(RequestPasswordResetCompleted(result))
+      })
+    }
   }
 }
 
 ///|
 fn logout_cmd(dispatch : @rabbita.Dispatch[Msg]) -> @rabbita.Cmd {
   post_empty(@sdk.logout_path(), fn(result) { dispatch(LoggedOut(result)) })
+}
+
+///|
+fn change_password_cmd(
+  dispatch : @rabbita.Dispatch[Msg],
+  model : Model,
+) -> @rabbita.Cmd {
+  let payload : @sdk.ChangePasswordRequest = @sdk.ChangePasswordRequest::{
+    current_password: model.account_current_password,
+    new_password: model.account_new_password,
+  }
+  post_json(@sdk.change_password_path(), payload, fn(result) {
+    dispatch(PasswordChanged(result))
+  })
+}
+
+///|
+fn resend_email_verification_cmd(
+  dispatch : @rabbita.Dispatch[Msg],
+) -> @rabbita.Cmd {
+  post_empty_json(@sdk.resend_email_verification_path(), fn(result) {
+    dispatch(EmailVerificationResent(result))
+  })
 }
 
 ///|
@@ -338,9 +385,19 @@ fn can_send(model : Model) -> Bool {
 
 ///|
 fn can_submit_auth(model : Model) -> Bool {
-  model.auth_email.trim() != "" &&
-  model.auth_password != "" &&
-  !model.auth_pending
+  let has_required_fields = if model.auth_mode is ForgotPassword {
+    true
+  } else {
+    model.auth_password != ""
+  }
+  model.auth_email.trim() != "" && !model.auth_pending && has_required_fields
+}
+
+///|
+fn can_change_password(model : Model) -> Bool {
+  model.account_current_password != "" &&
+  model.account_new_password != "" &&
+  !model.account_pending
 }
 
 ///|
@@ -414,6 +471,7 @@ fn apply_session(model : Model, session : @sdk.SessionResponse) -> Model {
     github_enabled: session.github_enabled,
     auth_pending: false,
     logout_pending: false,
+    account_pending: false,
     auth_notice: None,
   }
 }
@@ -431,6 +489,10 @@ fn auth_recovery(
       current_user: None,
       auth_pending: false,
       logout_pending: false,
+      account_current_password: "",
+      account_new_password: "",
+      account_pending: false,
+      account_notice: None,
       auth_notice: Some(message),
     },
   )
@@ -497,9 +559,34 @@ fn update(
     AuthCompleted(Ok(_)) =>
       (
         load_session_cmd(dispatch),
-        { ..model, auth_pending: false, auth_password: "", auth_notice: None },
+        {
+          ..model,
+          auth_pending: false,
+          auth_password: "",
+          auth_notice: None,
+          account_notice: if model.auth_mode is Signup {
+            Some("Verification link queued in the local account email outbox.")
+          } else {
+            model.account_notice
+          },
+        },
       )
     AuthCompleted(Err(error)) =>
+      (
+        @rabbita.none,
+        { ..model, auth_pending: false, auth_notice: Some(error.message) },
+      )
+    RequestPasswordResetCompleted(Ok(response)) =>
+      (
+        @rabbita.none,
+        {
+          ..model,
+          auth_pending: false,
+          auth_password: "",
+          auth_notice: Some(response.message),
+        },
+      )
+    RequestPasswordResetCompleted(Err(error)) =>
       (
         @rabbita.none,
         { ..model, auth_pending: false, auth_notice: Some(error.message) },
@@ -524,6 +611,10 @@ fn update(
           auth_password: "",
           auth_display_name: "",
           logout_pending: false,
+          account_current_password: "",
+          account_new_password: "",
+          account_pending: false,
+          account_notice: None,
           auth_notice: None,
         },
       )
@@ -537,6 +628,74 @@ fn update(
           notice: Some(error_notice("Sign-out failed.", error)),
         },
       )
+    AccountCurrentPasswordChanged(value) =>
+      (@rabbita.none, { ..model, account_current_password: value })
+    AccountNewPasswordChanged(value) =>
+      (@rabbita.none, { ..model, account_new_password: value })
+    ChangePassword =>
+      if !can_change_password(model) {
+        (@rabbita.none, model)
+      } else {
+        (
+          change_password_cmd(dispatch, model),
+          { ..model, account_pending: true, account_notice: None },
+        )
+      }
+    PasswordChanged(Ok(response)) =>
+      (
+        @rabbita.none,
+        {
+          ..model,
+          account_current_password: "",
+          account_new_password: "",
+          account_pending: false,
+          account_notice: Some(response.message),
+        },
+      )
+    PasswordChanged(Err(error)) =>
+      if is_unauthorized_error(error) {
+        auth_recovery(dispatch, model, "Your session expired. Sign in again.")
+      } else {
+        (
+          @rabbita.none,
+          {
+            ..model,
+            account_pending: false,
+            account_notice: Some(error.message),
+          },
+        )
+      }
+    ResendEmailVerification =>
+      if model.account_pending {
+        (@rabbita.none, model)
+      } else {
+        (
+          resend_email_verification_cmd(dispatch),
+          { ..model, account_pending: true, account_notice: None },
+        )
+      }
+    EmailVerificationResent(Ok(response)) =>
+      (
+        @rabbita.none,
+        {
+          ..model,
+          account_pending: false,
+          account_notice: Some(response.message),
+        },
+      )
+    EmailVerificationResent(Err(error)) =>
+      if is_unauthorized_error(error) {
+        auth_recovery(dispatch, model, "Your session expired. Sign in again.")
+      } else {
+        (
+          @rabbita.none,
+          {
+            ..model,
+            account_pending: false,
+            account_notice: Some(error.message),
+          },
+        )
+      }
     ProjectsLoaded(Ok(response)) => {
       let projects = response.items
       let selected_project_id = pick_selected_project_id(model, projects)
@@ -1144,11 +1303,13 @@ fn render_auth_screen(
   let title = match model.auth_mode {
     Login => "Return to the workspace"
     Signup => "Build apps without opening the code"
+    ForgotPassword => "Reset your password"
   }
   let subtitle = match model.auth_mode {
     Login => "Sign in to resume your projects and previews."
     Signup =>
       "Describe what you want, let the agent update the workspace, and watch the preview."
+    ForgotPassword => "Enter your email and use the local outbox reset link."
   }
   let submit_label = if model.auth_pending {
     "Working..."
@@ -1156,6 +1317,7 @@ fn render_auth_screen(
     match model.auth_mode {
       Login => "Log In"
       Signup => "Create Account"
+      ForgotPassword => "Send Reset Link"
     }
   }
   @html.div(
@@ -1211,15 +1373,19 @@ fn render_auth_screen(
             fn(value) { AuthEmailChanged(value) },
             dispatch,
           ),
-          auth_field(
-            "Password",
-            "auth-password",
-            @html.Password,
-            model.auth_password,
-            "At least 8 characters",
-            fn(value) { AuthPasswordChanged(value) },
-            dispatch,
-          ),
+          if model.auth_mode is ForgotPassword {
+            @html.nothing
+          } else {
+            auth_field(
+              "Password",
+              "auth-password",
+              @html.Password,
+              model.auth_password,
+              "At least 8 characters",
+              fn(value) { AuthPasswordChanged(value) },
+              dispatch,
+            )
+          },
           if model.auth_mode is Signup {
             auth_field(
               "Display Name",
@@ -1233,6 +1399,31 @@ fn render_auth_screen(
           } else {
             @html.nothing
           },
+          if model.auth_mode is Login {
+            @html.button(
+              type_="button",
+              on_click=dispatch(AuthModeSelected(ForgotPassword)),
+              style=[
+                "align-self: flex-start", "border: none", "background: transparent",
+                "color: var(--text-2)", "padding: 0", "font-size: 13px", "font-weight: 700",
+                "cursor: pointer",
+              ],
+              "Forgot password?",
+            )
+          } else if model.auth_mode is ForgotPassword {
+            @html.button(
+              type_="button",
+              on_click=dispatch(AuthModeSelected(Login)),
+              style=[
+                "align-self: flex-start", "border: none", "background: transparent",
+                "color: var(--text-2)", "padding: 0", "font-size: 13px", "font-weight: 700",
+                "cursor: pointer",
+              ],
+              "Back to log in",
+            )
+          } else {
+            @html.nothing
+          },
           @html.button(
             type_="button",
             disabled=!can_submit_auth(model),
@@ -1240,7 +1431,7 @@ fn render_auth_screen(
             style=primary_button_style(can_submit_auth(model)),
             submit_label,
           ),
-          if model.github_enabled {
+          if model.github_enabled && !(model.auth_mode is ForgotPassword) {
             @html.fragment([
               @html.div(
                 style=[
@@ -1874,6 +2065,104 @@ fn sidebar_project_item(
 }
 
 ///|
+fn sidebar_password_input(
+  value : String,
+  placeholder : String,
+  on_input : (String) -> Msg,
+  dispatch : @rabbita.Dispatch[Msg],
+) -> @rabbita.Html {
+  @html.input(
+    input_type=@html.Password,
+    value~,
+    placeholder~,
+    on_input=fn(next) { dispatch(on_input(next)) },
+    style=input_style(false) +
+      [
+        "padding: 9px 10px", "font-size: 13px", "border-color: var(--border-soft)",
+      ],
+    "",
+  )
+}
+
+///|
+fn render_account_security(
+  dispatch : @rabbita.Dispatch[Msg],
+  model : Model,
+) -> @rabbita.Html {
+  match model.current_user {
+    Some(user) => {
+      let verification_text = if user.email_verified {
+        "Verified"
+      } else {
+        "Verification pending"
+      }
+      let resend_enabled = !user.email_verified && !model.account_pending
+      @html.div(
+        style=[
+          "padding-top: 8px", "border-top: 1px solid var(--border-soft)", "display: flex",
+          "flex-direction: column", "gap: 8px",
+        ],
+        [
+          @html.div(style=section_label_style(), "Account Security"),
+          @html.div(
+            style=[
+              "display: flex", "justify-content: space-between", "gap: 8px", "font-size: 12px",
+              "color: var(--text-3)",
+            ],
+            [
+              @html.span("Email"),
+              @html.span(style=mono_style(), verification_text),
+            ],
+          ),
+          if user.email_verified {
+            @html.nothing
+          } else {
+            @html.button(
+              type_="button",
+              disabled=!resend_enabled,
+              on_click=dispatch(ResendEmailVerification),
+              style=secondary_button_style(resend_enabled) +
+                ["width: 100%", "padding: 8px 10px", "font-size: 12px"],
+              if model.account_pending {
+                "Queueing..."
+              } else {
+                "Resend Verification"
+              },
+            )
+          },
+          render_notice_card(model.account_notice, "var(--warning-soft)"),
+          sidebar_password_input(
+            model.account_current_password,
+            "Current password",
+            fn(value) { AccountCurrentPasswordChanged(value) },
+            dispatch,
+          ),
+          sidebar_password_input(
+            model.account_new_password,
+            "New password",
+            fn(value) { AccountNewPasswordChanged(value) },
+            dispatch,
+          ),
+          @html.button(
+            type_="button",
+            disabled=!can_change_password(model),
+            on_click=dispatch(ChangePassword),
+            style=secondary_button_style(can_change_password(model)) +
+              ["width: 100%", "padding: 8px 10px", "font-size: 12px"],
+            if model.account_pending {
+              "Updating..."
+            } else {
+              "Change Password"
+            },
+          ),
+        ],
+      )
+    }
+    None => @html.nothing
+  }
+}
+
+///|
 fn render_project_sidebar(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
@@ -1981,6 +2270,7 @@ fn render_project_sidebar(
                   theme_toggle_button(dispatch, model),
                 ],
               ),
+              render_account_security(dispatch, model),
             ],
           ),
           @html.button(

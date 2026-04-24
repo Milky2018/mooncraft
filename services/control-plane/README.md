@@ -16,6 +16,10 @@ Official templates live under `templates/<id>`. Each template has a `template.js
 
 The current `AgentGateway` uses Docker-backed Codex CLI runs. Each project keeps one persistent `codex_thread_id`, and each new chat message spawns a background worker that resumes that session, validates the workspace with `moon fmt`, `moon check`, and `moon test`, then refreshes the preview.
 
+## Account Emails
+
+Password reset and email verification links are queued to `data/control-plane/account-emails.log` in local development. Set `MOONBITCLOUD_PUBLIC_BASE_URL` when the control plane is served from a non-default origin so generated links point at the correct host.
+
 ## Static Preview Mode
 
 Frontend-only templates can declare `preview.kind: "static"` in `template.json`. The control plane still builds the generated MoonBit workspace, copies the public preview shell plus the JS bundle into `preview-dist/`, and launches a lightweight static preview process.

@@ -220,6 +220,14 @@ pub fn post_empty(
 }
 
 ///|
+pub fn[Resp : FromJson] post_empty_json(
+  url : String,
+  msg : Dispatch[Result[Resp, @sdk.ApiError]],
+) -> Cmd {
+  { url, http_method: "POST", body: Empty }.expect_json(msg)
+}
+
+///|
 pub fn delete_empty(
   url : String,
   msg : Dispatch[Result[Unit, @sdk.ApiError]],

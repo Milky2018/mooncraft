@@ -7,6 +7,10 @@ import {
 }
 
 // Values
+pub fn change_password_path() -> String
+
+pub fn change_password_route() -> RouteSpec
+
 pub fn create_project_route() -> RouteSpec
 
 pub fn create_run_path(String) -> String
@@ -45,6 +49,18 @@ pub fn project_route() -> RouteSpec
 
 pub fn projects_path() -> String
 
+pub fn request_password_reset_path() -> String
+
+pub fn request_password_reset_route() -> RouteSpec
+
+pub fn resend_email_verification_path() -> String
+
+pub fn resend_email_verification_route() -> RouteSpec
+
+pub fn reset_password_path() -> String
+
+pub fn reset_password_route() -> RouteSpec
+
 pub fn run_path(String, String) -> String
 
 pub fn session_path() -> String
@@ -54,6 +70,10 @@ pub fn session_route() -> RouteSpec
 pub fn signup_path() -> String
 
 pub fn signup_route() -> RouteSpec
+
+pub fn verify_email_path() -> String
+
+pub fn verify_email_route() -> RouteSpec
 
 // Errors
 
@@ -80,8 +100,17 @@ pub(all) struct ApiErrorResponse {
   error : ApiError
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
+pub(all) struct AuthActionResponse {
+  message : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
 pub(all) struct AuthResponse {
   user : UserSummary
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct ChangePasswordRequest {
+  current_password : String
+  new_password : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct ChatMessage {
@@ -176,6 +205,15 @@ pub(all) struct ProjectSummary {
   updated_at : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
+pub(all) struct RequestPasswordResetRequest {
+  email : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct ResetPasswordRequest {
+  token : String
+  password : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
 pub(all) struct RouteSpec {
   http_method : HttpMethod
   path_pattern : String
@@ -234,9 +272,14 @@ pub fn SuccessStatus::code(Self) -> Int
 pub(all) struct UserSummary {
   id : String
   email : String
+  email_verified : Bool
   display_name : String
   github_login : String?
   created_at : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct VerifyEmailRequest {
+  token : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 // Type aliases
