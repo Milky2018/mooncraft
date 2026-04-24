@@ -100,10 +100,13 @@ Each template knowledge document should record:
 Required Codex runtime configuration:
 
 - `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
+- optional `MOONBITCLOUD_CODEX_MODEL` (defaults to `gpt-5.3-codex`)
 - optional `MOONBITCLOUD_CODEX_HOME_HOST` (defaults to `$HOME/.codex`)
 - optional `MOONBITCLOUD_CODEX_CONTAINER_HOME` (defaults to `/root`)
 
 The default runtime image is `docker.io/moonbitcloud/codex:codex-0.123.0-node24`. Override it through `.env` or `MOONBITCLOUD_CODEX_DOCKER_IMAGE` when testing local images, PR images, rollbacks, or digest-pinned production deployments.
+
+The default Codex model is `gpt-5.3-codex`. Override it through `.env` or `MOONBITCLOUD_CODEX_MODEL` if your account needs a different accessible model.
 
 Use `just codex-config` to inspect the effective runtime configuration. Build the runtime image locally with `just build-codex-image` (defaults to the official tag for `linux/amd64`).
 

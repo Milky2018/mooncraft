@@ -4,6 +4,7 @@ set dotenv-load := true
 codex_repository := "docker.io/moonbitcloud/codex"
 codex_version := "codex-0.123.0-node24"
 codex_image := "docker.io/moonbitcloud/codex:codex-0.123.0-node24"
+codex_model := "gpt-5.3-codex"
 
 # Show available recipes
 default:
@@ -61,9 +62,11 @@ codex-config:
   #!/usr/bin/env bash
   set -euo pipefail
   image="${MOONBITCLOUD_CODEX_DOCKER_IMAGE:-{{codex_image}}}"
+  model="${MOONBITCLOUD_CODEX_MODEL:-{{codex_model}}}"
   codex_home="${MOONBITCLOUD_CODEX_HOME_HOST:-${HOME:-}/.codex}"
   container_home="${MOONBITCLOUD_CODEX_CONTAINER_HOME:-/root}"
   echo "MOONBITCLOUD_CODEX_DOCKER_IMAGE=$image"
+  echo "MOONBITCLOUD_CODEX_MODEL=$model"
   echo "MOONBITCLOUD_CODEX_HOME_HOST=$codex_home"
   echo "MOONBITCLOUD_CODEX_CONTAINER_HOME=$container_home"
 
@@ -340,7 +343,10 @@ codex-smoke:
   set -euo pipefail
   codex_image="${MOONBITCLOUD_CODEX_DOCKER_IMAGE:-{{codex_image}}}"
   export MOONBITCLOUD_CODEX_DOCKER_IMAGE="$codex_image"
+  codex_model="${MOONBITCLOUD_CODEX_MODEL:-{{codex_model}}}"
+  export MOONBITCLOUD_CODEX_MODEL="$codex_model"
   echo "Using Codex Docker image: $codex_image"
+  echo "Using Codex model: $codex_model"
   if ! command -v docker >/dev/null 2>&1; then
     echo "docker is required for the real Codex smoke test." >&2
     exit 1
