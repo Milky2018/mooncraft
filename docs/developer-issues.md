@@ -18,4 +18,13 @@ Agents do not edit this. This file is maintainable by human developers.
   - [ ] After that, consider the App Server path. Keep CLI for now, but define a CodexRuntime interface so switching from CLI to App Server later is adapter work, not another control-plane rewrite.
 - [ ] Message with commands:
   - [ ] `:template-preview <template-name>`
-  - [ ] 
+- [ ] Password reset
+  - [ ] Change password while signed in
+  - [ ] Email verification for password-created accounts
+  - [ ] Rate limiting on signup/login/reset
+  - [ ] CSRF protection for cookie-authenticated write routes
+  - [ ] Session management: “log out all devices” / revoke other sessions
+  - [ ] Resend verification email
+- [ ] Use `codex-sdk` instead of CLI
+- [ ] Improve the template
+- [ ] 
