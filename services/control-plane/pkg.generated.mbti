@@ -40,6 +40,8 @@ pub(all) struct PreviewRuntime {
 
 type RunArtifacts
 
+type RunningRun
+
 type Store
 
 type TemplateEntrypoints derive(@debug.Debug, @json.FromJson)

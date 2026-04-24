@@ -4,7 +4,7 @@ set dotenv-load := true
 codex_repository := "docker.io/moonbitcloud/codex"
 codex_version := "codex-0.123.0-node24"
 codex_image := "docker.io/moonbitcloud/codex:codex-0.123.0-node24"
-codex_model := "gpt-5.3-codex"
+codex_model := "gpt-5.4"
 
 # Show available recipes
 default:
@@ -82,18 +82,44 @@ check-templates:
 check-template template:
   ./scripts/check_templates.sh "{{template}}"
 
-# Serve the app at http://localhost:8080
-serve profile='debug':
-  @echo "MoonBit Cloud: http://localhost:8080"
-  @if [ "{{profile}}" = release ]; then MOONBITCLOUD_BUILD_PROFILE=release moon run --manifest-path moon.work --target native --release services/control-plane; else MOONBITCLOUD_BUILD_PROFILE=debug moon run --manifest-path moon.work --target native services/control-plane; fi
+# Check all official templates inside the Codex runtime image
+check-templates-codex image=codex_image:
+  MOONBITCLOUD_TEMPLATE_CHECK_DOCKER_IMAGE="{{image}}" ./scripts/check_templates_in_codex_image.sh
+
+# Check one official template inside the Codex runtime image
+check-template-codex template image=codex_image:
+  MOONBITCLOUD_TEMPLATE_CHECK_DOCKER_IMAGE="{{image}}" ./scripts/check_templates_in_codex_image.sh "{{template}}"
+
+# Serve the app. Examples: `just serve`, `just serve 8107`, `just serve release`, `just serve 8107 release`
+serve target='8080' profile='debug':
+  #!/usr/bin/env bash
+  set -euo pipefail
+  target="{{target}}"
+  profile="{{profile}}"
+  if [[ "$target" == "debug" || "$target" == "release" ]]; then
+    profile="$target"
+    port="${MOONBITCLOUD_PORT:-8080}"
+  else
+    port="$target"
+  fi
+  base_url="http://localhost:$port"
+  public_base_url="${MOONBITCLOUD_PUBLIC_BASE_URL:-$base_url}"
+  echo "MoonBit Cloud: $base_url"
+  if [[ "$profile" == "release" ]]; then
+    MOONBITCLOUD_PORT="$port" MOONBITCLOUD_PUBLIC_BASE_URL="$public_base_url" MOONBITCLOUD_BUILD_PROFILE=release \
+      moon run --manifest-path moon.work --target native --release services/control-plane
+  else
+    MOONBITCLOUD_PORT="$port" MOONBITCLOUD_PUBLIC_BASE_URL="$public_base_url" MOONBITCLOUD_BUILD_PROFILE=debug \
+      moon run --manifest-path moon.work --target native services/control-plane
+  fi
 
 # Open the app in your browser
-open:
-  open http://localhost:8080
+open port='8080':
+  open http://localhost:{{port}}
 
 # Alias for `serve`
-run profile='debug':
-  @just serve {{profile}}
+run target='8080' profile='debug':
+  @just serve {{target}} {{profile}}
 
 # Build, check templates, and run the smoke test
 test: build check-templates smoke
@@ -254,8 +280,11 @@ smoke-running:
     exit 1
   fi
   wait_for_ok "$base_url${preview_url}api/health"
-  [[ -f "data/projects/$project_id/workspace.tar" ]]
-  rm -rf "data/projects/$project_id/workspace"
+  snapshot_count="$(sqlite3 data/control-plane/state-v2.sqlite "SELECT COUNT(*) FROM project_workspace_snapshots WHERE project_id = '$project_id';")"
+  [[ "$snapshot_count" == "1" ]]
+  runtime_project_dir="data/runtime/projects/$project_id"
+  [[ -d "$runtime_project_dir/workspace" ]]
+  rm -rf "$runtime_project_dir/workspace"
 
   run_response_2="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X POST "$base_url/api/projects/$project_id/runs" -H 'Content-Type: application/json' -d '{"content":"Add recovery badge"}')"
   run_id_2="$(printf '%s' "$run_response_2" | sed -n 's/.*"run":{"run_id":"\([^"]*\)".*/\1/p')"
@@ -285,9 +314,9 @@ smoke-running:
     echo "Expected session recovery to replace the Codex thread id, but it stayed at $first_thread_id" >&2
     exit 1
   fi
-  [[ -d "data/projects/$project_id/workspace" ]]
-  [[ ! -d "data/projects/$project_id/run-workspaces/$run_id_2" ]]
-  grep -q 'Add recovery badge' "data/projects/$project_id/workspace/README.md"
+  [[ -d "$runtime_project_dir/workspace" ]]
+  [[ ! -d "$runtime_project_dir/run-workspaces/$run_id_2" ]]
+  grep -q 'Add recovery badge' "$runtime_project_dir/workspace/README.md"
   wait_for_ok "$base_url${preview_url_2}api/health"
 
   changed_password="password456"
@@ -320,8 +349,13 @@ smoke-running:
     echo "Project still appears in the project list after deletion: $project_id" >&2
     exit 1
   fi
-  if [[ -d "data/projects/$project_id" ]]; then
-    echo "Project workspace still exists after deletion: data/projects/$project_id" >&2
+  snapshot_count_after_delete="$(sqlite3 data/control-plane/state-v2.sqlite "SELECT COUNT(*) FROM project_workspace_snapshots WHERE project_id = '$project_id';")"
+  if [[ "$snapshot_count_after_delete" != "0" ]]; then
+    echo "Project workspace snapshot still exists after deletion: $project_id" >&2
+    exit 1
+  fi
+  if [[ -d "data/runtime/projects/$project_id" || -d "data/projects/$project_id" ]]; then
+    echo "Project runtime scratch still exists after deletion: $project_id" >&2
     exit 1
   fi
 
@@ -390,7 +424,7 @@ codex-smoke:
   }
   show_artifacts() {
     if [[ -n "$project_id" && -n "$run_id" ]]; then
-      artifact_dir="data/projects/$project_id/artifacts/runs/$run_id"
+      artifact_dir="data/runtime/projects/$project_id/artifacts/runs/$run_id"
       echo "Run artifacts: $artifact_dir"
       for artifact in codex.log validation.log last_message.txt; do
         artifact_path="$artifact_dir/$artifact"
@@ -477,9 +511,10 @@ codex-smoke:
   if [[ -z "$thread_id" ]]; then
     fail "Codex smoke did not persist a codex_thread_id: $project_detail"
   fi
-  [[ -f "data/projects/$project_id/workspace.tar" ]] || fail "Codex smoke did not persist workspace.tar."
-  [[ -d "data/projects/$project_id/workspace" ]] || fail "Codex smoke did not restore the canonical workspace cache."
-  [[ ! -d "data/projects/$project_id/run-workspaces/$run_id" ]] || fail "Codex smoke left the run workspace behind."
+  snapshot_count="$(sqlite3 data/control-plane/state-v2.sqlite "SELECT COUNT(*) FROM project_workspace_snapshots WHERE project_id = '$project_id';")"
+  [[ "$snapshot_count" == "1" ]] || fail "Codex smoke did not persist a database workspace snapshot."
+  [[ -d "data/runtime/projects/$project_id/workspace" ]] || fail "Codex smoke did not restore the canonical workspace cache."
+  [[ ! -d "data/runtime/projects/$project_id/run-workspaces/$run_id" ]] || fail "Codex smoke left the run workspace behind."
   wait_for_ok "$base_url${preview_url}api/health" || fail "Codex smoke preview health endpoint was not reachable."
 
   curl -fsS -c "$user_cookie" -b "$user_cookie" -X DELETE "$base_url/api/projects/$project_id" -d '' >/dev/null

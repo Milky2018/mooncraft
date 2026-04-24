@@ -28,17 +28,18 @@ Required fix:
 
 ### 2. Persistence is single-instance only
 
-Today state lives in SQLite plus generated project directories on disk.
+Today durable state lives in SQLite. Generated project directories under `data/runtime/` are scratch caches hydrated from database snapshots.
 
 Why this matters:
 
 - one-node staging is fine
 - multi-instance or high-availability production is not
+- SQLite BLOB snapshots are simple for a single node but should move to a managed database or object store before multi-instance production
 
 Short-term decision:
 
 - for one EC2 instance, SQLite on EBS is acceptable
-- for anything beyond one node, move metadata off SQLite and define a storage strategy for generated workspaces
+- for anything beyond one node, move metadata and workspace snapshots off local SQLite
 
 ### 3. Preview processes need stronger supervision
 
@@ -100,7 +101,7 @@ Why this is the right first hosted shape:
 ### Phase 2: Prepare the host
 
 1. Create an EC2 instance role that supports Systems Manager.
-2. Attach an EBS volume sized for SQLite, generated projects, and preview artifacts.
+2. Attach an EBS volume sized for SQLite plus runtime scratch and preview artifacts.
 3. Install the MoonBit toolchain and any system dependencies the control plane and generated projects need.
 4. Clone the repo and verify `just build` and `just test`.
 
@@ -123,7 +124,7 @@ Why this is the right first hosted shape:
 
 1. Schedule EBS snapshots.
 2. Add health checks and alarms.
-3. Document backup and restore for SQLite plus `data/projects/`.
+3. Document backup and restore for SQLite. Treat `data/runtime/` as rebuildable scratch.
 4. Decide how you will rotate secrets and environment variables.
 
 ## What Counts As Good Enough For The First Public Demo

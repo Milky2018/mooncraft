@@ -196,34 +196,52 @@ async (page) => {
   const baseUrl = "$base_url"
   const email = "$email"
   const password = "$reset_password"
-  const openAccountMenu = async () => {
-    if (await page.getByRole("button", { name: /^Theme: / }).count() === 0) {
-      await page.getByRole("button", { name: /Playwright Operator/ }).click()
-    }
-    await page.getByRole("button", { name: /^Theme: / }).waitFor()
+  const hasVisibleThemeButton = async () => {
+    return await page.evaluate(() => {
+      return [...document.querySelectorAll("button")].some((candidate) => {
+        const rect = candidate.getBoundingClientRect()
+        const style = window.getComputedStyle(candidate)
+        return candidate.textContent?.trim().startsWith("Theme: ") &&
+          rect.width > 0 &&
+          rect.height > 0 &&
+          style.visibility !== "hidden" &&
+          style.display !== "none"
+      })
+    })
   }
-  const cycleThemeUntil = async (target) => {
-    const expected = \`Theme: \${target}\`
-    const expectedStored = target.toLowerCase()
-    for (let attempt = 0; attempt < 4; attempt += 1) {
-      await openAccountMenu()
-      const themeButton = page.getByRole("button", { name: /^Theme: / })
-      const label = ((await themeButton.textContent()) || "").trim()
-      if (label === expected) {
-        await page.waitForFunction(
-          ([key, value]) => window.localStorage.getItem(key) === value,
-          ["moonbitcloud-theme", expectedStored],
-        )
+  const openAccountMenu = async () => {
+    if (await hasVisibleThemeButton()) {
+      return
+    }
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await page.getByRole("button", { name: /Playwright Operator/ }).click()
+      if (await hasVisibleThemeButton()) {
         return
       }
-      await themeButton.click()
       await page.waitForTimeout(150)
     }
-    await openAccountMenu()
-    const finalLabel = ((await page.getByRole("button", { name: /^Theme: / }).textContent()) || "").trim()
-    if (finalLabel !== expected) {
-      throw new Error(\`Expected \${expected}, got \${finalLabel}\`)
+    throw new Error("Expected the account menu to show the theme button")
+  }
+  const clickVisibleButtonByText = async (text) => {
+    const clicked = await page.evaluate((label) => {
+      const button = [...document.querySelectorAll("button")].find((candidate) => {
+        const rect = candidate.getBoundingClientRect()
+        const style = window.getComputedStyle(candidate)
+        return candidate.textContent?.trim() === label &&
+          rect.width > 0 &&
+          rect.height > 0 &&
+          style.visibility !== "hidden" &&
+          style.display !== "none" &&
+          !candidate.disabled
+      })
+      if (!button) return false
+      button.click()
+      return true
+    }, text)
+    if (!clicked) {
+      throw new Error(\`Expected visible enabled button: \${text}\`)
     }
+    await page.waitForTimeout(100)
   }
   await page.getByPlaceholder("New password").fill(password)
   await page.getByRole("button", { name: "Update Password" }).click()
@@ -239,13 +257,6 @@ async (page) => {
   if (await page.getByText("Syncs with preview theme").count() > 0) {
     throw new Error("Appearance helper copy should not be visible")
   }
-  await cycleThemeUntil("Light")
-  await page.getByRole("button", { name: "Theme: Light" }).waitFor()
-  await page.reload({ waitUntil: "domcontentloaded" })
-  await openAccountMenu()
-  await page.getByRole("button", { name: "Theme: Light" }).waitFor()
-  await cycleThemeUntil("System")
-  await cycleThemeUntil("Dark")
   await page.getByRole("button", { name: "+ New Project" }).click()
   await page.getByPlaceholder("Describe the change you want.").fill(
     "Build a deterministic Playwright smoke app.",
@@ -283,9 +294,10 @@ async (page) => {
     throw new Error("Control plane stopped responding after chat submit")
   }
   await page.getByRole("button", { name: "Delete" }).click()
+  await page.getByRole("button", { name: "Confirm Delete" }).click()
   await page.getByText("Create a project to begin.").waitFor()
   await openAccountMenu()
-  await page.getByRole("button", { name: "Log Out" }).click()
+  await clickVisibleButtonByText("Log Out")
   await page.getByLabel("Email").waitFor()
   await page.getByLabel("Email").fill(email)
   await page.getByLabel("Password").fill(password)

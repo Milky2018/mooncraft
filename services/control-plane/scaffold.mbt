@@ -512,7 +512,7 @@ fn AppContext::materialize_project_template(
     Ok(manifest) => manifest
     Err(message) => return Err(message)
   }
-  let workspace_path = project.workspace_path
+  let workspace_path = project_workspace(self.root, project.id)
   ensure_dir(workspace_path)
   match
     copy_template_tree(
@@ -524,7 +524,7 @@ fn AppContext::materialize_project_template(
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
-  match snapshot_workspace(self.root, project.id, workspace_path) {
+  match snapshot_workspace(self.store, self.root, project.id, workspace_path) {
     Ok(_) => Ok(())
     Err(message) => Err(message)
   }
