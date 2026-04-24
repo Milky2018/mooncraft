@@ -80,7 +80,8 @@ These templates establish:
 Every official template should include:
 
 - a working MoonBit project
-- a smoke test or validation script
+- direct preview smoke steps
+- control-plane product smoke steps
 - a matching knowledge document
 - a short product description
 - a list of supported modifications

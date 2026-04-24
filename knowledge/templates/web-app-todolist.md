@@ -16,6 +16,7 @@ validation:
   - moon check
   - moon build
   - _build/native/debug/build/moonbitcloud/generated-app/backend/backend.exe <port> <public_dir>
+  - run control-plane smoke with template_id web-app-todolist
 status: draft
 ---
 
@@ -39,6 +40,22 @@ This is the default todo-list web app template used when a project is created wi
 - Template materialization must copy source files only; MoonBit build/cache outputs such as `_build` and `.mooncakes` are ignored.
 - Run preview servers from the built native executable, not `moon run`, so the backend is not served through `tcc -run`.
 - Run `moon check` and `moon build` once at the workspace root without target flags; module `preferred-target` fields select the appropriate backend.
+
+# Product Smoke
+
+```bash
+cd /Users/zhengyu/.codex/worktrees/6b76/moonbitcloud
+MOONBITCLOUD_CODEX_FAKE_MODE=smoke MOONBITCLOUD_PORT=19312 \
+  moon run --manifest-path moon.work --target native services/control-plane
+```
+
+Then:
+
+- open `http://127.0.0.1:19312/`
+- sign up or log in
+- create a project with `template_id: "web-app-todolist"` or omit `template_id` and use the default
+- create one run and wait for a healthy preview
+- verify `/p/<preview_public_id>/api/health`, `/p/<preview_public_id>/app`, and `/p/<preview_public_id>/styles`
 
 # Supported Edits
 

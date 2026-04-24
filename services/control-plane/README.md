@@ -61,6 +61,38 @@ curl -fsS http://127.0.0.1:19301/app | wc -c
 
 Template HTML must reference preview assets with relative URLs, such as `href="styles.css"` and `src="app.js"`. Absolute URLs like `/styles` and `/app` bypass `/p/<preview_public_id>/` and load control-plane assets when the page is opened through the product preview route.
 
+## Template Testing
+
+Every official template should pass two smoke levels:
+
+1. direct template smoke
+2. control-plane product smoke
+
+Direct template smoke validates the template workspace in isolation:
+
+- run `moon clean`, `moon check`, and `moon build` inside `templates/<id>/workspace`
+- stage a temporary preview directory from `public/` plus the template's declared build artifacts
+- launch the preview runner directly
+  - static templates: `services/control-plane -- run-static-preview <port> <preview-dist-dir>`
+  - backend templates: run the built native preview executable
+- verify the health endpoint and main asset paths are non-empty
+
+Control-plane product smoke validates the real platform flow:
+
+- start a temporary control plane with `MOONBITCLOUD_CODEX_FAKE_MODE=smoke`
+- sign up or log in through the platform
+- create a project with the target `template_id`
+- create a run and wait for `Succeeded` plus a healthy preview
+- verify the public preview route `/p/<preview_public_id>/` and the template-specific asset paths
+
+The existing `just smoke` and `just smoke-running` cover the default project flow. Template-specific smokes should follow the same API path but set an explicit `template_id`.
+
+Each template knowledge document should record:
+
+- the direct preview staging command
+- the product smoke flow
+- the template-specific asset paths that must render through `/p/<preview_public_id>/`
+
 Required Codex runtime configuration:
 
 - `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
