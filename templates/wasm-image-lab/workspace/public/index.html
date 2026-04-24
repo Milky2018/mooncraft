@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{PROJECT_NAME}}</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23060b10'/%3E%3Cpath d='M18 18h28v28H18z' fill='%23ff8a3d'/%3E%3Cpath d='M26 26h12v12H26z' fill='%2358d4ff'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <aside class="rail rail-left">
+        <div class="rail-card">
+          <p class="eyebrow">Source</p>
+          <h1 class="panel-title">Wasm Image Lab</h1>
+          <p class="panel-copy">
+            A MoonBit wasm-gc filter core wrapped in a lightweight browser studio.
+          </p>
+          <div class="button-stack scene-stack" id="scene-buttons">
+            <button class="chip-button is-active" data-scene="0">Editorial Portrait</button>
+            <button class="chip-button" data-scene="1">Spectrum Poster</button>
+            <button class="chip-button" data-scene="2">X-Ray Scan</button>
+          </div>
+        </div>
+
+        <div class="rail-card">
+          <div class="split-row">
+            <div>
+              <p class="eyebrow">Upload</p>
+              <p class="tiny-copy">Bring your own image or stay on the built-in scenes.</p>
+            </div>
+            <button class="ghost-button" id="clear-upload" type="button">Clear</button>
+          </div>
+          <label class="upload-drop" for="file-input">
+            <span>Choose image</span>
+            <small>PNG, JPEG, or WebP</small>
+          </label>
+          <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp" />
+          <p class="tiny-copy" id="source-label">Using built-in procedural source</p>
+        </div>
+
+        <div class="rail-card">
+          <p class="eyebrow">Controls</p>
+          <div class="slider-stack">
+            <label class="slider-row" for="exposure">
+              <span>Exposure</span>
+              <strong id="exposure-value">12</strong>
+            </label>
+            <input id="exposure" type="range" min="-60" max="60" value="12" />
+
+            <label class="slider-row" for="contrast">
+              <span>Contrast</span>
+              <strong id="contrast-value">18</strong>
+            </label>
+            <input id="contrast" type="range" min="-40" max="80" value="18" />
+
+            <label class="slider-row" for="grain">
+              <span>Grain</span>
+              <strong id="grain-value">22</strong>
+            </label>
+            <input id="grain" type="range" min="0" max="100" value="22" />
+
+            <label class="slider-row" for="vignette">
+              <span>Vignette</span>
+              <strong id="vignette-value">26</strong>
+            </label>
+            <input id="vignette" type="range" min="0" max="100" value="26" />
+
+            <label class="slider-row" for="accent">
+              <span>Accent</span>
+              <strong id="accent-value">58</strong>
+            </label>
+            <input id="accent" type="range" min="0" max="100" value="58" />
+          </div>
+        </div>
+      </aside>
+
+      <main class="studio-column">
+        <header class="hero-card">
+          <div>
+            <p class="eyebrow">MoonBit Wasm Template</p>
+            <h2 class="hero-title">Shape pixels in wasm, keep the host thin.</h2>
+            <p class="hero-copy" id="status-copy">
+              Loading the MoonBit wasm-gc image core.
+            </p>
+          </div>
+          <div class="hero-meta">
+            <div class="meta-pill">
+              <span class="meta-label">Runtime</span>
+              <strong class="meta-value">wasm-gc</strong>
+            </div>
+            <div class="meta-pill">
+              <span class="meta-label">Preview</span>
+              <strong class="meta-value" id="render-stats">warming up</strong>
+            </div>
+          </div>
+        </header>
+
+        <section class="canvas-card">
+          <div class="canvas-frame">
+            <canvas id="preview-canvas" width="384" height="256"></canvas>
+          </div>
+          <div class="canvas-toolbar">
+            <p class="tiny-copy">
+              The browser shell handles upload, canvas, and download. MoonBit owns the filter math.
+            </p>
+            <button class="primary-button" id="download-button" type="button">
+              Download PNG
+            </button>
+          </div>
+        </section>
+
+        <section class="rail-card filter-card">
+          <div class="split-row">
+            <div>
+              <p class="eyebrow">Filters</p>
+              <h3 class="section-title">Preset shelf</h3>
+            </div>
+            <p class="tiny-copy">Swap the palette logic without touching the host.</p>
+          </div>
+          <div class="filter-grid" id="filter-buttons">
+            <button class="filter-button is-active" data-filter="0">
+              <span>Lift</span>
+              <small>clean grade</small>
+            </button>
+            <button class="filter-button" data-filter="1">
+              <span>Noir Glass</span>
+              <small>silver monochrome</small>
+            </button>
+            <button class="filter-button" data-filter="2">
+              <span>Duotone Heat</span>
+              <small>cool shadows, warm highs</small>
+            </button>
+            <button class="filter-button" data-filter="3">
+              <span>Thermal</span>
+              <small>false-color scan</small>
+            </button>
+            <button class="filter-button" data-filter="4">
+              <span>Poster</span>
+              <small>quantized bands</small>
+            </button>
+            <button class="filter-button" data-filter="5">
+              <span>Bloom</span>
+              <small>cool haze, hot edges</small>
+            </button>
+          </div>
+        </section>
+      </main>
+
+      <aside class="rail rail-right">
+        <div class="rail-card">
+          <p class="eyebrow">Template Notes</p>
+          <h3 class="section-title">Why this exists</h3>
+          <p class="panel-copy">
+            This template is for prompts where wasm is the point: image tools, visual experiments, export flows, and pixel-heavy UI ideas.
+          </p>
+        </div>
+
+        <div class="rail-card">
+          <p class="eyebrow">Good follow-ups</p>
+          <ul class="idea-list">
+            <li>Add crop boxes and comparison mode.</li>
+            <li>Introduce curve controls or LUT presets.</li>
+            <li>Replace the procedural scenes with domain-specific mockups.</li>
+            <li>Keep the MoonBit export boundary numeric and predictable.</li>
+          </ul>
+        </div>
+      </aside>
+    </div>
+
+    <script type="module" src="loader.js"></script>
+  </body>
+</html>

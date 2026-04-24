@@ -248,6 +248,21 @@ fn ensure_dir(path : String) -> Unit {
 }
 
 ///|
+fn parent_dir(path : String) -> String {
+  let parts = path.split("/").to_array()
+  if parts.length() <= 1 {
+    ""
+  } else {
+    let directory_parts : Array[String] = []
+    let last_index = parts.length() - 1
+    for i in 0..<last_index {
+      directory_parts.push(parts[i].to_string())
+    }
+    directory_parts.join("/")
+  }
+}
+
+///|
 fn project_root(root : String, project_id : String) -> String {
   root + "/data/projects/" + project_id
 }
@@ -1510,47 +1525,73 @@ fn PreviewManager::copy_preview_assets(
 ) -> Result[String, String] {
   let workspace_path = project.workspace_path
   let preview_dir = preview_dist_dir(workspace_path)
+  safe_remove_tree(preview_dir)
   ensure_dir(preview_dir)
 
   let public_dir = workspace_relative_path(
     workspace_path,
     manifest.preview.public_dir,
   )
-  let index_source = public_dir + "/index.html"
-  let style_source = public_dir + "/styles.css"
+  let copy_status = shell_status(
+    "cp -R " + shell_quote(public_dir + "/.") + " " + shell_quote(preview_dir),
+  )
+  if copy_status != 0 {
+    return Err("The preview public assets could not be copied.")
+  }
   let index_target = preview_dir + "/index.html"
   let style_target = preview_dir + "/styles.css"
-  let bundle_target = preview_dir + "/app.js"
-
-  if @fs.path_exists(index_source) {
-    safe_write_string(
-      index_target,
-      safe_read_string_or(index_source, generated_preview_index_html()),
-    )
-  } else {
+  if !@fs.path_exists(index_target) {
     safe_write_string(index_target, generated_preview_index_html())
   }
-
-  if @fs.path_exists(style_source) {
-    safe_write_string(
-      style_target,
-      safe_read_string_or(style_source, generated_preview_styles()),
-    )
-  } else {
+  if !@fs.path_exists(style_target) {
     safe_write_string(style_target, generated_preview_styles())
   }
 
-  let bundle_source = template_build_output_path(
-    workspace_path,
-    self.build_profile,
-    manifest,
-  )
-  if !@fs.path_exists(bundle_source) {
-    return Err("The generated frontend bundle was not found after build.")
-  }
-  safe_write_bytes(bundle_target, safe_read_bytes_or(bundle_source, b""))
-  if safe_read_bytes_or(bundle_target, b"").length() == 0 {
-    return Err("The generated frontend bundle could not be copied.")
+  let build_artifacts = template_preview_build_artifacts(manifest)
+  for artifact in build_artifacts {
+    let source_module = template_preview_artifact_source_module(
+      manifest, artifact,
+    )
+    let encoding = template_preview_artifact_encoding(artifact)
+    let source = template_build_output_path(
+      workspace_path,
+      self.build_profile,
+      source_module,
+      artifact.backend,
+    )
+    if !@fs.path_exists(source) {
+      return Err(
+        "The generated preview artifact '\{artifact.target_path}' was not found after build.",
+      )
+    }
+    let target = preview_dir + "/" + artifact.target_path
+    let target_directory = parent_dir(target)
+    if target_directory != "" {
+      ensure_dir(target_directory)
+    }
+    let copy_code = match encoding {
+      "base64" =>
+        shell_status(
+          "base64 < " + shell_quote(source) + " > " + shell_quote(target),
+        )
+      _ => shell_status("cp " + shell_quote(source) + " " + shell_quote(target))
+    }
+    if copy_code != 0 {
+      return Err(
+        "The generated preview artifact '\{artifact.target_path}' could not be staged.",
+      )
+    }
+    if encoding == "base64" {
+      if safe_read_string_or(target, "") == "" {
+        return Err(
+          "The generated preview artifact '\{artifact.target_path}' could not be copied.",
+        )
+      }
+    } else if safe_read_bytes_or(target, b"").length() == 0 {
+      return Err(
+        "The generated preview artifact '\{artifact.target_path}' could not be copied.",
+      )
+    }
   }
   Ok(preview_dir)
 }
