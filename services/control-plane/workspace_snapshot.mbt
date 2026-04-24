@@ -4,14 +4,6 @@ fn legacy_project_root(root : String, project_id : String) -> String {
 }
 
 ///|
-fn legacy_project_workspace_snapshot_path(
-  root : String,
-  project_id : String,
-) -> String {
-  legacy_project_root(root, project_id) + "/workspace.tar"
-}
-
-///|
 fn project_workspace_snapshot_temp_path(
   root : String,
   project_id : String,
@@ -31,6 +23,11 @@ fn project_run_workspace_path(
   run_id : String,
 ) -> String {
   project_run_workspaces_root(root, project_id) + "/" + run_id
+}
+
+///|
+fn safe_remove_legacy_project_root(root : String, project_id : String) -> Unit {
+  safe_remove_tree(legacy_project_root(root, project_id))
 }
 
 ///|
@@ -77,43 +74,14 @@ fn load_workspace_snapshot_archive(
   store : Store,
   root : String,
   project_id : String,
-  source_workspace_path : String,
 ) -> Result[Bytes, String] {
   match store.get_workspace_snapshot(project_id) {
     Some(archive) => Ok(archive)
     None => {
-      let legacy_snapshot_path = legacy_project_workspace_snapshot_path(
-        root, project_id,
+      safe_remove_legacy_project_root(root, project_id)
+      Err(
+        "No persisted workspace snapshot is available for project \{project_id}.",
       )
-      if @fs.path_exists(legacy_snapshot_path) {
-        let archive = safe_read_bytes_or(legacy_snapshot_path, b"")
-        if archive.is_empty() {
-          return Err(
-            "The legacy workspace snapshot at \{legacy_snapshot_path} is empty.",
-          )
-        }
-        match store.save_workspace_snapshot(project_id, archive) {
-          Ok(_) => Ok(archive)
-          Err(message) => Err(message)
-        }
-      } else if @fs.path_exists(source_workspace_path) {
-        match
-          snapshot_workspace(store, root, project_id, source_workspace_path) {
-          Ok(_) =>
-            match store.get_workspace_snapshot(project_id) {
-              Some(archive) => Ok(archive)
-              None =>
-                Err(
-                  "The workspace snapshot was saved but could not be read back from the database.",
-                )
-            }
-          Err(message) => Err(message)
-        }
-      } else {
-        Err(
-          "No persisted workspace snapshot is available for project \{project_id}.",
-        )
-      }
     }
   }
 }
@@ -124,12 +92,8 @@ fn restore_workspace_snapshot_to_path(
   root : String,
   project_id : String,
   target_path : String,
-  source_workspace_path : String,
 ) -> Result[Unit, String] {
-  let archive = match
-    load_workspace_snapshot_archive(
-      store, root, project_id, source_workspace_path,
-    ) {
+  let archive = match load_workspace_snapshot_archive(store, root, project_id) {
     Ok(archive) => archive
     Err(message) => return Err(message)
   }
@@ -152,6 +116,10 @@ fn restore_workspace_snapshot_to_path(
       "Restoring the saved workspace snapshot failed for project \{project_id}.",
     )
   }
+  let legacy_root = legacy_project_root(root, project_id)
+  if target_path != legacy_root && !target_path.has_prefix(legacy_root + "/") {
+    safe_remove_legacy_project_root(root, project_id)
+  }
   Ok(())
 }
 
@@ -162,9 +130,7 @@ fn restore_workspace_snapshot(
   project_id : String,
   workspace_path : String,
 ) -> Result[Unit, String] {
-  restore_workspace_snapshot_to_path(
-    store, root, project_id, workspace_path, workspace_path,
-  )
+  restore_workspace_snapshot_to_path(store, root, project_id, workspace_path)
 }
 
 ///|
@@ -173,13 +139,11 @@ fn hydrate_run_workspace(
   root : String,
   project_id : String,
   run_id : String,
-  source_workspace_path : String,
 ) -> Result[String, String] {
   let run_workspace_path = project_run_workspace_path(root, project_id, run_id)
-  ensure_dir(project_run_workspaces_root(root, project_id))
   match
     restore_workspace_snapshot_to_path(
-      store, root, project_id, run_workspace_path, source_workspace_path,
+      store, root, project_id, run_workspace_path,
     ) {
     Ok(_) => Ok(run_workspace_path)
     Err(message) => Err(message)

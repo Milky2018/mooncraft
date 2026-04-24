@@ -1131,14 +1131,9 @@ async fn AppContext::run_project_turn(
       return
     }
   }
+  let runtime_workspace_path = project_workspace(self.root, project_id)
   let run_workspace_path = match
-    hydrate_run_workspace(
-      self.store,
-      self.root,
-      project_id,
-      run_id,
-      project.workspace_path,
-    ) {
+    hydrate_run_workspace(self.store, self.root, project_id, run_id) {
     Ok(path) => path
     Err(message) => {
       self.store.finish_run_failure(
@@ -1165,7 +1160,7 @@ async fn AppContext::run_project_turn(
         self.store,
         self.root,
         project_id,
-        project.workspace_path,
+        runtime_workspace_path,
       )
       remove_run_workspace(self.root, project_id, run_id)
       match restore_cache_result {
@@ -1220,7 +1215,7 @@ async fn AppContext::run_project_turn(
         self.store,
         self.root,
         project_id,
-        project.workspace_path,
+        runtime_workspace_path,
       )
       remove_run_workspace(self.root, project_id, run_id)
       match restore_cache_result {

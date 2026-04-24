@@ -128,57 +128,35 @@ test "workspace snapshot round-trips project files and excludes build outputs" {
 }
 
 ///|
-test "restoring a project without a snapshot snapshots the existing workspace" {
+test "restore without a database snapshot fails and cleans legacy files" {
   let root = @env.current_dir().unwrap_or(".")
   let (store, db_path) = new_test_store(root, "snapshot-migration-db")
   let project_id = next_id("snapshot-migration")
   let workspace_path = project_workspace(root, project_id)
   safe_remove_tree(project_root(root, project_id))
-  ensure_dir(workspace_path)
-  safe_write_string(workspace_path + "/README.md", "persist me\n")
-
-  restore_workspace_snapshot(store, root, project_id, workspace_path).unwrap()
-
-  inspect(store.get_workspace_snapshot(project_id) is Some(_), content="true")
-  inspect(
-    safe_read_string_or(workspace_path + "/README.md", ""),
-    content="persist me\n",
-  )
-  safe_remove_tree(project_root(root, project_id))
-  cleanup_test_db(db_path)
-}
-
-///|
-test "restore migrates a legacy disk workspace snapshot into sqlite" {
-  let root = @env.current_dir().unwrap_or(".")
-  let (store, db_path) = new_test_store(root, "snapshot-legacy-db")
-  let project_id = next_id("snapshot-legacy")
-  let workspace_path = project_workspace(root, project_id)
-  let legacy_workspace_path = legacy_project_root(root, project_id) +
-    "/workspace"
-  safe_remove_tree(project_root(root, project_id))
   safe_remove_tree(legacy_project_root(root, project_id))
-  ensure_dir(legacy_workspace_path)
-  safe_write_string(legacy_workspace_path + "/README.md", "from legacy tar\n")
-  let archive_code = shell_status(
-    "cd " +
-    shell_quote(legacy_workspace_path) +
-    " && tar -cf " +
-    shell_quote(legacy_project_workspace_snapshot_path(root, project_id)) +
-    " . >/dev/null 2>&1",
+  ensure_dir(legacy_project_root(root, project_id))
+  safe_write_string(
+    legacy_project_root(root, project_id) + "/README.md",
+    "legacy\n",
   )
-  inspect(archive_code, content="0")
-  safe_remove_tree(legacy_workspace_path)
 
-  restore_workspace_snapshot(store, root, project_id, workspace_path).unwrap()
+  let result = restore_workspace_snapshot(
+    store, root, project_id, workspace_path,
+  )
 
-  inspect(store.get_workspace_snapshot(project_id) is Some(_), content="true")
   inspect(
-    safe_read_string_or(workspace_path + "/README.md", ""),
-    content="from legacy tar\n",
+    match result {
+      Err(_) => true
+      Ok(_) => false
+    },
+    content="true",
+  )
+  inspect(
+    @fs.path_exists(legacy_project_root(root, project_id)),
+    content="false",
   )
   safe_remove_tree(project_root(root, project_id))
-  safe_remove_tree(legacy_project_root(root, project_id))
   cleanup_test_db(db_path)
 }
 
@@ -196,7 +174,7 @@ test "hydrate run workspace restores the saved snapshot into an isolated path" {
   safe_write_string(workspace_path + "/README.md", "changed cache\n")
 
   let run_workspace_path = hydrate_run_workspace(
-    store, root, project_id, run_id, workspace_path,
+    store, root, project_id, run_id,
   ).unwrap()
 
   inspect(run_workspace_path == workspace_path, content="false")
@@ -215,7 +193,42 @@ test "hydrate run workspace restores the saved snapshot into an isolated path" {
 }
 
 ///|
-test "hydrate run workspace snapshots the canonical workspace for older projects" {
+test "hydrate without a database snapshot fails and cleans legacy files" {
+  let root = @env.current_dir().unwrap_or(".")
+  let (store, db_path) = new_test_store(root, "snapshot-hydrate-legacy-db")
+  let project_id = next_id("snapshot-hydrate-legacy")
+  let run_id = next_id("run")
+  safe_remove_tree(project_root(root, project_id))
+  safe_remove_tree(legacy_project_root(root, project_id))
+  ensure_dir(legacy_project_root(root, project_id))
+  safe_write_string(
+    legacy_project_root(root, project_id) + "/README.md",
+    "legacy\n",
+  )
+
+  let result = hydrate_run_workspace(store, root, project_id, run_id)
+
+  inspect(
+    match result {
+      Err(_) => true
+      Ok(_) => false
+    },
+    content="true",
+  )
+  inspect(
+    @fs.path_exists(legacy_project_root(root, project_id)),
+    content="false",
+  )
+  inspect(
+    @fs.path_exists(project_run_workspace_path(root, project_id, run_id)),
+    content="false",
+  )
+  safe_remove_tree(project_root(root, project_id))
+  cleanup_test_db(db_path)
+}
+
+///|
+test "hydrate requires a database snapshot" {
   let root = @env.current_dir().unwrap_or(".")
   let (store, db_path) = new_test_store(root, "snapshot-hydrate-migration-db")
   let project_id = next_id("snapshot-hydrate-migration")
@@ -223,18 +236,18 @@ test "hydrate run workspace snapshots the canonical workspace for older projects
   let workspace_path = project_workspace(root, project_id)
   safe_remove_tree(project_root(root, project_id))
   ensure_dir(workspace_path)
-  safe_write_string(workspace_path + "/README.md", "legacy workspace\n")
+  safe_write_string(workspace_path + "/README.md", "local cache only\n")
 
-  let run_workspace_path = hydrate_run_workspace(
-    store, root, project_id, run_id, workspace_path,
-  ).unwrap()
+  let result = hydrate_run_workspace(store, root, project_id, run_id)
 
-  inspect(store.get_workspace_snapshot(project_id) is Some(_), content="true")
   inspect(
-    safe_read_string_or(run_workspace_path + "/README.md", ""),
-    content="legacy workspace\n",
+    match result {
+      Err(_) => true
+      Ok(_) => false
+    },
+    content="true",
   )
-  remove_run_workspace(root, project_id, run_id)
+  inspect(store.get_workspace_snapshot(project_id) is Some(_), content="false")
   safe_remove_tree(project_root(root, project_id))
   cleanup_test_db(db_path)
 }

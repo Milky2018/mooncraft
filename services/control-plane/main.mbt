@@ -685,7 +685,7 @@ fn main {
         }
         if template_preview_kind(manifest) == "static" {
           return static_preview_response(
-            preview_dist_dir(project.workspace_path),
+            preview_dist_dir(project_workspace(ctx.root, project.id)),
             target_path,
           )
         }

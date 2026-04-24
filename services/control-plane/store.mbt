@@ -1613,7 +1613,7 @@ fn PreviewManager::copy_preview_assets(
   project : @sdk.ProjectDetail,
   manifest : TemplateManifest,
 ) -> Result[String, String] {
-  let workspace_path = project.workspace_path
+  let workspace_path = project_workspace(self.root, project.id)
   let preview_dir = preview_dist_dir(workspace_path)
   safe_remove_tree(preview_dir)
   ensure_dir(preview_dir)
@@ -1695,7 +1695,7 @@ fn PreviewManager::rebuild_and_restart(
     Ok(manifest) => manifest
     Err(message) => return Err(message)
   }
-  let workspace_path = project.workspace_path
+  let workspace_path = project_workspace(self.root, project.id)
   let build_code = shell_status(
     "cd '\{workspace_path}' && moon build \{self.build_profile.cli_flag()}>/dev/null 2>&1",
   )
