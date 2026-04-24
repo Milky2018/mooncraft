@@ -1,0 +1,55 @@
+:root {
+  color-scheme: light;
+  font-family: "IBM Plex Sans", "Avenir Next", "Helvetica Neue", sans-serif;
+  --preview-bg: #f7f8fa;
+  --preview-card: #ffffff;
+  --preview-border: rgba(24, 33, 47, 0.14);
+  --preview-text: #18212f;
+  --preview-muted: #667085;
+  --preview-shadow: 0 10px 24px rgba(24, 33, 47, 0.08);
+  background: var(--preview-bg);
+  color: var(--preview-text);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--preview-bg);
+}
+
+.preview-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+}
+
+.preview-card {
+  width: min(560px, 100%);
+  padding: 28px;
+  border-radius: 8px;
+  background: var(--preview-card);
+  border: 1px solid var(--preview-border);
+  box-shadow: var(--preview-shadow);
+}
+
+.preview-title {
+  margin: 0 0 12px;
+  font-size: 38px;
+  line-height: 1.05;
+}
+
+.preview-copy {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.preview-copy.muted {
+  margin-top: 14px;
+  color: var(--preview-muted);
+}
