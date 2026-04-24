@@ -112,10 +112,12 @@ The local workflow supports both debug and release profiles:
 just build
 just build release
 just serve
+just serve 8107
 just serve release
+just serve 8107 release
 ```
 
-`just serve release` sets `MOONBITCLOUD_BUILD_PROFILE=release`, so the control plane stages the platform bundle and generated preview bundles from the release build output directories.
+`just serve <port>` sets `MOONBITCLOUD_PORT` and `MOONBITCLOUD_PUBLIC_BASE_URL` for that local origin. `just serve release` sets `MOONBITCLOUD_BUILD_PROFILE=release`, so the control plane stages the platform bundle and generated preview bundles from the release build output directories.
 
 ## Next Major Steps
 

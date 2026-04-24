@@ -1880,7 +1880,7 @@ fn render_workspace_panel(
     style=panel_style() +
       [
         "flex: 1 1 620px", "min-width: 360px", "display: flex", "flex-direction: column",
-        "min-height: 720px",
+        "min-height: 0", "overflow: hidden",
       ],
     [
       @html.div(
@@ -2027,7 +2027,7 @@ fn render_preview_panel(model : Model) -> @rabbita.Html {
     style=panel_style() +
       [
         "flex: 1 1 420px", "min-width: 320px", "display: flex", "flex-direction: column",
-        "min-height: 720px",
+        "min-height: 0", "overflow: hidden",
       ],
     [
       @html.div(
@@ -2054,6 +2054,7 @@ fn render_preview_panel(model : Model) -> @rabbita.Html {
       @html.div(
         style=[
           "flex: 1", "min-height: 0", "background: linear-gradient(180deg, var(--surface-2), var(--surface-3))",
+          "overflow: hidden",
         ],
         match preview {
           Some(target) =>
@@ -2235,7 +2236,7 @@ fn render_account_panel(
           [
             "position: absolute", "right: 0", "top: calc(100% + 8px)", "width: min(360px, calc(100vw - 24px))",
             "padding: 12px", "display: flex", "flex-direction: column", "gap: 10px",
-            "z-index: 10",
+            "z-index: 10", "max-height: calc(100vh - 90px)", "overflow-y: auto",
           ],
         [
           @html.div(
@@ -2389,7 +2390,8 @@ fn render_account_toolbar(
         style=panel_style() +
           [
             "position: relative", "padding: 10px 12px", "display: flex", "align-items: center",
-            "justify-content: space-between", "gap: 10px", "flex-wrap: wrap",
+            "justify-content: space-between", "gap: 10px", "flex-wrap: wrap", "flex-shrink: 0",
+            "overflow: visible", "z-index: 20",
           ],
         [
           @html.div(
@@ -2445,7 +2447,7 @@ fn render_account_toolbar(
                       "margin-left: auto", "font-size: 12px", "color: var(--text-3)",
                     ],
                     if model.account_panel_open {
-                      "x"
+                      "^"
                     } else {
                       "v"
                     },
@@ -2475,9 +2477,9 @@ fn render_project_sidebar(
   })
   @html.div(
     style=[
-      "width: 300px", "min-height: 100vh", "padding: 14px 12px", "display: flex",
+      "width: 300px", "height: 100vh", "min-height: 0", "padding: 14px 12px", "display: flex",
       "flex-direction: column", "gap: 14px", "background: var(--sidebar-bg)", "border-right: 1px solid var(--border-soft)",
-      "box-sizing: border-box", "flex-shrink: 0",
+      "box-sizing: border-box", "flex-shrink: 0", "overflow: hidden",
     ],
     [
       @html.div(style=["display: flex", "align-items: center", "gap: 10px"], [
@@ -2526,7 +2528,7 @@ fn render_project_sidebar(
       @html.div(
         style=[
           "display: flex", "flex-direction: column", "gap: 8px", "min-height: 0",
-          "overflow-y: auto", "flex: 1",
+          "overflow-y: auto", "overscroll-behavior: contain", "flex: 1",
         ],
         if project_items.length() == 0 {
           [
@@ -2553,20 +2555,22 @@ fn render_workspace_shell(
 ) -> @rabbita.Html {
   @html.div(
     style=[
-      "min-height: 100vh", "display: flex", "align-items: stretch", "background: var(--page-bg)",
+      "height: 100vh", "min-height: 0", "display: flex", "align-items: stretch",
+      "background: var(--page-bg)", "overflow: hidden",
     ],
     [
       render_project_sidebar(dispatch, model),
       @html.div(
         style=[
           "flex: 1", "min-width: 0", "padding: 10px", "display: flex", "flex-direction: column",
-          "gap: 10px", "box-sizing: border-box",
+          "gap: 10px", "box-sizing: border-box", "min-height: 0", "overflow: hidden",
         ],
         [
           render_account_toolbar(dispatch, model),
           @html.div(
             style=[
-              "flex: 1", "min-width: 0", "display: flex", "gap: 10px", "align-items: stretch",
+              "flex: 1", "min-width: 0", "min-height: 0", "display: flex", "gap: 10px",
+              "align-items: stretch", "overflow: hidden",
             ],
             [
               render_workspace_panel(dispatch, model),
