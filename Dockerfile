@@ -1,7 +1,7 @@
 FROM ubuntu:24.04
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG MOONBIT_VERSION=0.1.20260417
+ARG MOONBIT_VERSION=latest
 
 ENV MOON_HOME=/opt/moon
 ENV PATH=/opt/moon/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -26,6 +26,7 @@ WORKDIR /app
 COPY . /app
 
 RUN chmod +x /app/docker/entrypoint.sh \
+  && moon update --manifest-path /app/moon.work \
   && moon build --manifest-path /app/moon.work
 
 EXPOSE 8080
