@@ -61,6 +61,8 @@ test "start_run persists the initial project prompt once" {
       "preview-" + project_id,
       Some("Prompt Test"),
       project_workspace(root, project_id),
+      default_template_id(),
+      default_template_version(),
     ),
   )
 
