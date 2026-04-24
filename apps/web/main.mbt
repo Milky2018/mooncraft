@@ -40,6 +40,7 @@ struct Model {
   run_status : @sdk.RunStatusResponse?
   draft : String
   create_project_pending : Bool
+  delete_project_confirming : String?
   delete_project_pending : String?
   sending_message : Bool
   notice : String?
@@ -74,7 +75,8 @@ enum Msg {
   MessagesLoaded(Result[@sdk.ListMessagesResponse, @sdk.ApiError])
   DraftChanged(String)
   CreateProject
-  DeleteProject(String)
+  RequestDeleteProject(String)
+  ConfirmDeleteProject(String)
   ProjectCreated(Result[@sdk.CreateProjectResponse, @sdk.ApiError])
   ProjectDeleted(String, Result[Unit, @sdk.ApiError])
   SendDraft
@@ -176,6 +178,7 @@ fn initial_model() -> Model {
     run_status: None,
     draft: "",
     create_project_pending: false,
+    delete_project_confirming: None,
     delete_project_pending: None,
     sending_message: false,
     notice: None,
@@ -505,6 +508,7 @@ fn clear_workspace(model : Model) -> Model {
     run_status: None,
     draft: "",
     create_project_pending: false,
+    delete_project_confirming: None,
     delete_project_pending: None,
     sending_message: false,
     notice: None,
@@ -832,6 +836,7 @@ fn update(
           selected_project_id: Some(project_id),
           project_detail: None,
           messages: [],
+          delete_project_confirming: None,
           notice: None,
         },
       )
@@ -880,16 +885,38 @@ fn update(
       } else {
         (
           create_project_cmd(dispatch),
-          { ..model, create_project_pending: true, notice: None },
+          {
+            ..model,
+            create_project_pending: true,
+            delete_project_confirming: None,
+            notice: None,
+          },
         )
       }
-    DeleteProject(project_id) =>
+    RequestDeleteProject(project_id) =>
       if model.delete_project_pending is Some(_) {
+        (@rabbita.none, model)
+      } else if model.delete_project_confirming == Some(project_id) {
+        (@rabbita.none, model)
+      } else {
+        (
+          @rabbita.none,
+          { ..model, delete_project_confirming: Some(project_id), notice: None },
+        )
+      }
+    ConfirmDeleteProject(project_id) =>
+      if model.delete_project_pending is Some(_) ||
+        model.delete_project_confirming != Some(project_id) {
         (@rabbita.none, model)
       } else {
         (
           delete_project_cmd(dispatch, project_id),
-          { ..model, delete_project_pending: Some(project_id), notice: None },
+          {
+            ..model,
+            delete_project_confirming: None,
+            delete_project_pending: Some(project_id),
+            notice: None,
+          },
         )
       }
     ProjectCreated(Ok(response)) => {
@@ -906,6 +933,7 @@ fn update(
           project_detail: Some(project),
           messages: [],
           run_status: None,
+          delete_project_confirming: None,
         },
       )
     }
@@ -918,6 +946,7 @@ fn update(
           {
             ..model,
             create_project_pending: false,
+            delete_project_confirming: None,
             notice: Some(
               error_notice("A new project could not be created.", error),
             ),
@@ -933,10 +962,15 @@ fn update(
           messages: [],
           run_status: None,
           draft: "",
+          delete_project_confirming: None,
           delete_project_pending: None,
         }
       } else {
-        { ..model, delete_project_pending: None }
+        {
+          ..model,
+          delete_project_confirming: None,
+          delete_project_pending: None,
+        }
       }
       (load_projects_cmd(dispatch), next_model)
     }
@@ -948,6 +982,7 @@ fn update(
           @rabbita.none,
           {
             ..model,
+            delete_project_confirming: None,
             delete_project_pending: None,
             notice: Some(
               error_notice("The project could not be deleted.", error),
@@ -2130,6 +2165,7 @@ fn sidebar_project_item(
     "transparent"
   }
   let deleting = model.delete_project_pending == Some(project.id)
+  let confirming = model.delete_project_confirming == Some(project.id)
   let delete_enabled = !(project.status is @sdk.Running || deleting)
   @html.div(
     style=[
@@ -2138,7 +2174,7 @@ fn sidebar_project_item(
       "background: " + background,
       "padding: 8px",
       "display: flex",
-      "flex-direction: column",
+      "align-items: center",
       "gap: 8px",
     ],
     [
@@ -2146,7 +2182,7 @@ fn sidebar_project_item(
         type_="button",
         on_click=dispatch(SelectProject(project.id)),
         style=[
-          "width: 100%", "padding: 0", "border: none", "background: transparent",
+          "flex: 1", "min-width: 0", "padding: 0", "border: none", "background: transparent",
           "color: var(--text-1)", "cursor: pointer", "display: flex", "align-items: center",
           "gap: 10px", "text-align: left",
         ],
@@ -2182,11 +2218,16 @@ fn sidebar_project_item(
         @html.button(
           type_="button",
           disabled=!delete_enabled,
-          on_click=dispatch(DeleteProject(project.id)),
-          style=subtle_danger_button_style(delete_enabled) +
-            ["align-self: flex-start"],
+          on_click=if confirming {
+            dispatch(ConfirmDeleteProject(project.id))
+          } else {
+            dispatch(RequestDeleteProject(project.id))
+          },
+          style=subtle_danger_button_style(delete_enabled) + ["flex-shrink: 0"],
           if deleting {
             "Deleting..."
+          } else if confirming {
+            "Confirm Delete"
           } else {
             "Delete"
           },
