@@ -16,6 +16,11 @@ fn new_session_token() -> String {
 }
 
 ///|
+fn new_account_action_token() -> String {
+  random_hex(32)
+}
+
+///|
 fn new_preview_public_id() -> String {
   random_hex(24)
 }
@@ -106,4 +111,9 @@ fn verify_password(password : String, stored_hash : String) -> Bool {
 ///|
 fn session_token_hash(token : String) -> String {
   @crypto.bytes_to_hex_string(@crypto.sha256(@utf8.encode(token)))
+}
+
+///|
+fn account_action_token_hash(token : String) -> String {
+  session_token_hash(token)
 }

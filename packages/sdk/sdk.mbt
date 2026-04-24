@@ -17,6 +17,7 @@ pub(all) enum ChatRole {
 pub(all) struct UserSummary {
   id : String
   email : String
+  email_verified : Bool
   display_name : String
   github_login : String?
   created_at : String
@@ -133,8 +134,35 @@ pub(all) struct LoginRequest {
 } derive(Debug, ToJson, FromJson)
 
 ///|
+pub(all) struct RequestPasswordResetRequest {
+  email : String
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct ResetPasswordRequest {
+  token : String
+  password : String
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct ChangePasswordRequest {
+  current_password : String
+  new_password : String
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct VerifyEmailRequest {
+  token : String
+} derive(Debug, ToJson, FromJson)
+
+///|
 pub(all) struct AuthResponse {
   user : UserSummary
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct AuthActionResponse {
+  message : String
 } derive(Debug, ToJson, FromJson)
 
 ///|

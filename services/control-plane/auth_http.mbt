@@ -11,6 +11,22 @@ let session_max_age_millis : UInt64 = 14UL * 24UL * 60UL * 60UL * 1000UL
 let oauth_state_max_age_millis : UInt64 = 10UL * 60UL * 1000UL
 
 ///|
+let password_reset_max_age_millis : UInt64 = 60UL * 60UL * 1000UL
+
+///|
+let email_verification_max_age_millis : UInt64 = 24UL * 60UL * 60UL * 1000UL
+
+///|
+fn password_reset_purpose() -> String {
+  "password_reset"
+}
+
+///|
+fn email_verification_purpose() -> String {
+  "email_verification"
+}
+
+///|
 struct GitHubCallbackPayload {
   code : String
   state : String
@@ -52,8 +68,44 @@ fn github_public_base_url() -> String {
     Some(value) if value != "" && value.has_suffix("/") =>
       value[:value.length() - 1].to_string()
     Some(value) if value != "" => value
-    _ => "http://localhost:8080"
+    _ =>
+      match @env.get_env_var("MOONBITCLOUD_PORT") {
+        Some(port) if port != "" => "http://localhost:\{port}"
+        _ => "http://localhost:8080"
+      }
   }
+}
+
+///|
+fn account_email_outbox_path(root : String) -> String {
+  root + "/data/control-plane/account-emails.log"
+}
+
+///|
+fn append_account_email(
+  ctx : AppContext,
+  to : String,
+  subject : String,
+  body : String,
+) -> Unit {
+  ensure_dir(ctx.root + "/data")
+  ensure_dir(ctx.root + "/data/control-plane")
+  let entry = "---\nqueued_at: " +
+    now_string() +
+    "\nto: " +
+    to +
+    "\nsubject: " +
+    subject +
+    "\n\n" +
+    body +
+    "\n\n"
+  safe_append_string(account_email_outbox_path(ctx.root), entry)
+  println("account email queued for \{to}: \{subject}")
+}
+
+///|
+fn account_action_url(path : String, token : String) -> String {
+  github_public_base_url() + path + "?token=" + token
 }
 
 ///|
@@ -166,6 +218,157 @@ fn authenticated_response(
 }
 
 ///|
+fn validate_password(password : String) -> Result[Unit, String] {
+  if password.length() < 8 {
+    Err("Passwords must be at least 8 characters long.")
+  } else {
+    Ok(())
+  }
+}
+
+///|
+fn queue_email_verification(ctx : AppContext, user : @sdk.UserSummary) -> Unit {
+  let token = new_account_action_token()
+  ctx.store.save_account_action_token(
+    user.id,
+    email_verification_purpose(),
+    account_action_token_hash(token),
+    future_unix_millis_string(email_verification_max_age_millis),
+  )
+  let url = account_action_url("/auth/email/verify", token)
+  append_account_email(
+    ctx,
+    user.email,
+    "Verify your MoonBit Cloud email",
+    "Open this link to verify your email address:\n\{url}",
+  )
+}
+
+///|
+fn queue_password_reset(ctx : AppContext, user : @sdk.UserSummary) -> Unit {
+  let token = new_account_action_token()
+  ctx.store.save_account_action_token(
+    user.id,
+    password_reset_purpose(),
+    account_action_token_hash(token),
+    future_unix_millis_string(password_reset_max_age_millis),
+  )
+  let url = account_action_url("/auth/password/reset", token)
+  append_account_email(
+    ctx,
+    user.email,
+    "Reset your MoonBit Cloud password",
+    "Open this link to set a new password:\n\{url}",
+  )
+}
+
+///|
+fn request_password_reset(
+  ctx : AppContext,
+  request : @sdk.RequestPasswordResetRequest,
+) -> @sdk.AuthActionResponse {
+  let email = normalized_email(request.email)
+  match ctx.store.get_user_by_email(email) {
+    Some(user) => queue_password_reset(ctx, user)
+    None => ignore(())
+  }
+  @sdk.AuthActionResponse::{
+    message: "If that email is registered, a reset link has been queued.",
+  }
+}
+
+///|
+fn reset_password(
+  ctx : AppContext,
+  request : @sdk.ResetPasswordRequest,
+) -> Result[@sdk.AuthActionResponse, String] {
+  let token = request.token.trim().to_string()
+  if token == "" {
+    return Err("The reset link is missing its token.")
+  }
+  match validate_password(request.password) {
+    Err(message) => return Err(message)
+    Ok(_) => ignore(())
+  }
+  let user_id = match
+    ctx.store.consume_account_action_token(
+      password_reset_purpose(),
+      account_action_token_hash(token),
+    ) {
+    Some(user_id) => user_id
+    None => return Err("This reset link is invalid or has expired.")
+  }
+  ctx.store.update_user_password_hash(user_id, hash_password(request.password))
+  ctx.store.set_user_email_verified(user_id)
+  ctx.store.delete_sessions_for_user(user_id)
+  Ok(@sdk.AuthActionResponse::{
+    message: "Password updated. Sign in with the new password.",
+  })
+}
+
+///|
+fn change_password(
+  ctx : AppContext,
+  user : @sdk.UserSummary,
+  request : @sdk.ChangePasswordRequest,
+) -> Result[@sdk.AuthActionResponse, String] {
+  match validate_password(request.new_password) {
+    Err(message) => return Err(message)
+    Ok(_) => ignore(())
+  }
+  match ctx.store.get_user_with_password_hash(user.email) {
+    Some((_, Some(password_hash))) =>
+      if verify_password(request.current_password, password_hash) {
+        ctx.store.update_user_password_hash(
+          user.id,
+          hash_password(request.new_password),
+        )
+        Ok(@sdk.AuthActionResponse::{ message: "Password changed." })
+      } else {
+        Err("The current password is incorrect.")
+      }
+    _ =>
+      Err(
+        "This account does not have a password. Use password reset to set one.",
+      )
+  }
+}
+
+///|
+fn resend_email_verification(
+  ctx : AppContext,
+  user : @sdk.UserSummary,
+) -> @sdk.AuthActionResponse {
+  if user.email_verified {
+    @sdk.AuthActionResponse::{ message: "Email is already verified." }
+  } else {
+    queue_email_verification(ctx, user)
+    @sdk.AuthActionResponse::{ message: "Verification link has been queued." }
+  }
+}
+
+///|
+fn verify_email(
+  ctx : AppContext,
+  request : @sdk.VerifyEmailRequest,
+) -> Result[@sdk.AuthActionResponse, String] {
+  let token = request.token.trim().to_string()
+  if token == "" {
+    return Err("The verification link is missing its token.")
+  }
+  let user_id = match
+    ctx.store.consume_account_action_token(
+      email_verification_purpose(),
+      account_action_token_hash(token),
+    ) {
+    Some(user_id) => user_id
+    None => return Err("This verification link is invalid or has expired.")
+  }
+  ctx.store.set_user_email_verified(user_id)
+  Ok(@sdk.AuthActionResponse::{ message: "Email address verified." })
+}
+
+///|
 fn signup_user(
   ctx : AppContext,
   request : @sdk.SignupRequest,
@@ -174,19 +377,27 @@ fn signup_user(
   if email == "" || !email.contains("@") {
     return Err("Enter a valid email address.")
   }
-  if request.password.length() < 8 {
-    return Err("Passwords must be at least 8 characters long.")
+  match validate_password(request.password) {
+    Err(message) => return Err(message)
+    Ok(_) => ignore(())
   }
   let display_name = match request.display_name {
     Some(value) if value.trim() != "" => value.trim().to_string()
     _ => default_display_name_from_email(email)
   }
-  ctx.store.create_user(
-    email,
-    Some(hash_password(request.password)),
-    display_name,
-    None,
-  )
+  let user = match
+    ctx.store.create_user(
+      email,
+      Some(hash_password(request.password)),
+      display_name,
+      None,
+      false,
+    ) {
+    Ok(user) => user
+    Err(message) => return Err(message)
+  }
+  queue_email_verification(ctx, user)
+  Ok(user)
 }
 
 ///|
@@ -389,12 +600,16 @@ async fn AppContext::complete_github_sign_in(
     ) {
     Some(user) => {
       self.store.update_user_github_login(user.id, profile.login)
+      self.store.set_user_email_verified(user.id)
       return Ok(self.store.get_user_by_id(user.id).unwrap_or(user))
     }
     None => ignore(())
   }
   let user = match self.store.get_user_by_email(email) {
-    Some(existing) => existing
+    Some(existing) => {
+      self.store.set_user_email_verified(existing.id)
+      self.store.get_user_by_id(existing.id).unwrap_or(existing)
+    }
     None =>
       match
         self.store.create_user(
@@ -402,6 +617,7 @@ async fn AppContext::complete_github_sign_in(
           None,
           github_display_name(profile),
           Some(profile.login),
+          true,
         ) {
         Ok(created) => created
         Err(message) => return Err(message)
@@ -507,6 +723,191 @@ fn github_callback_page_html() -> String {
     #|          status.textContent = err.message || "GitHub sign-in failed.";
     #|        });
     #|      }
+    #|    </script>
+    #|  </body>
+    #|</html>
+  )
+}
+
+///|
+fn account_action_page_style() -> String {
+  (
+    #|body {
+    #|  margin: 0;
+    #|  min-height: 100vh;
+    #|  display: grid;
+    #|  place-items: center;
+    #|  background: #101113;
+    #|  color: #f4f4f5;
+    #|  font-family: "IBM Plex Sans", "Helvetica Neue", sans-serif;
+    #|}
+    #|.card {
+    #|  width: min(420px, calc(100vw - 32px));
+    #|  padding: 24px;
+    #|  border-radius: 8px;
+    #|  background: #17181b;
+    #|  border: 1px solid rgba(255, 255, 255, 0.10);
+    #|  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+    #|}
+    #|h1 {
+    #|  margin: 0 0 10px;
+    #|  font-size: 28px;
+    #|}
+    #|p {
+    #|  margin: 0;
+    #|  color: #c7c7cb;
+    #|  line-height: 1.6;
+    #|}
+    #|input, button {
+    #|  width: 100%;
+    #|  box-sizing: border-box;
+    #|  border-radius: 6px;
+    #|  font: inherit;
+    #|}
+    #|input {
+    #|  margin-top: 18px;
+    #|  padding: 12px 14px;
+    #|  color: #f4f4f5;
+    #|  background: #222328;
+    #|  border: 1px solid rgba(47, 132, 255, 0.72);
+    #|}
+    #|button, a.button {
+    #|  display: flex;
+    #|  justify-content: center;
+    #|  margin-top: 14px;
+    #|  padding: 12px 14px;
+    #|  color: #fff;
+    #|  background: #2f84ff;
+    #|  border: 1px solid rgba(255, 255, 255, 0.09);
+    #|  text-decoration: none;
+    #|  font-weight: 700;
+    #|  cursor: pointer;
+    #|}
+    #|#status {
+    #|  margin-top: 14px;
+    #|  color: #ffcf66;
+    #|}
+  )
+}
+
+///|
+fn email_verification_page_html() -> String {
+  let style = account_action_page_style()
+  (
+    #|<!doctype html>
+    #|<html lang="en">
+    #|  <head>
+    #|    <meta charset="utf-8" />
+    #|    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    #|    <title>Verify Email - MoonBit Cloud</title>
+    #|    <style>
+  ) +
+  style +
+  (
+    #|    </style>
+    #|  </head>
+    #|  <body>
+    #|    <div class="card">
+    #|      <h1>Verify email</h1>
+    #|      <p>MoonBit Cloud is checking your verification link.</p>
+    #|      <p id="status"></p>
+    #|      <a class="button" href="/">Back to app</a>
+    #|    </div>
+    #|    <script>
+    #|      async function errorMessage(response) {
+    #|        const text = await response.text();
+    #|        try {
+    #|          const payload = JSON.parse(text);
+    #|          return payload.error?.message || text || "Verification failed.";
+    #|        } catch (_) {
+    #|          return text || "Verification failed.";
+    #|        }
+    #|      }
+    #|      const token = new URLSearchParams(window.location.search).get("token");
+    #|      const status = document.getElementById("status");
+    #|      if (!token) {
+    #|        status.textContent = "This verification link is missing its token.";
+    #|      } else {
+    #|        fetch("/api/auth/email/verification/confirm", {
+    #|          method: "POST",
+    #|          headers: { "Content-Type": "application/json" },
+    #|          credentials: "same-origin",
+    #|          body: JSON.stringify({ token })
+    #|        }).then(async (response) => {
+    #|          if (!response.ok) throw new Error(await errorMessage(response));
+    #|          const payload = await response.json();
+    #|          status.textContent = payload.message || "Email address verified.";
+    #|        }).catch((err) => {
+    #|          status.textContent = err.message || "Verification failed.";
+    #|        });
+    #|      }
+    #|    </script>
+    #|  </body>
+    #|</html>
+  )
+}
+
+///|
+fn password_reset_page_html() -> String {
+  let style = account_action_page_style()
+  (
+    #|<!doctype html>
+    #|<html lang="en">
+    #|  <head>
+    #|    <meta charset="utf-8" />
+    #|    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    #|    <title>Reset Password - MoonBit Cloud</title>
+    #|    <style>
+  ) +
+  style +
+  (
+    #|    </style>
+    #|  </head>
+    #|  <body>
+    #|    <form class="card" id="reset-form">
+    #|      <h1>Reset password</h1>
+    #|      <p>Set a new password for your MoonBit Cloud account.</p>
+    #|      <input id="password" type="password" placeholder="New password" autocomplete="new-password" />
+    #|      <button type="submit">Update Password</button>
+    #|      <p id="status"></p>
+    #|      <a class="button" href="/">Back to sign in</a>
+    #|    </form>
+    #|    <script>
+    #|      async function errorMessage(response) {
+    #|        const text = await response.text();
+    #|        try {
+    #|          const payload = JSON.parse(text);
+    #|          return payload.error?.message || text || "Password reset failed.";
+    #|        } catch (_) {
+    #|          return text || "Password reset failed.";
+    #|        }
+    #|      }
+    #|      const token = new URLSearchParams(window.location.search).get("token");
+    #|      const form = document.getElementById("reset-form");
+    #|      const password = document.getElementById("password");
+    #|      const status = document.getElementById("status");
+    #|      if (!token) {
+    #|        status.textContent = "This reset link is missing its token.";
+    #|      }
+    #|      form.addEventListener("submit", async (event) => {
+    #|        event.preventDefault();
+    #|        if (!token) return;
+    #|        status.textContent = "Updating password...";
+    #|        try {
+    #|          const response = await fetch("/api/auth/password-reset/confirm", {
+    #|            method: "POST",
+    #|            headers: { "Content-Type": "application/json" },
+    #|            credentials: "same-origin",
+    #|            body: JSON.stringify({ token, password: password.value })
+    #|          });
+    #|          if (!response.ok) throw new Error(await errorMessage(response));
+    #|          const payload = await response.json();
+    #|          status.textContent = payload.message || "Password updated.";
+    #|          password.value = "";
+    #|        } catch (err) {
+    #|          status.textContent = err.message || "Password reset failed.";
+    #|        }
+    #|      });
     #|    </script>
     #|  </body>
     #|</html>

@@ -58,6 +58,56 @@ pub fn logout_path() -> String {
 }
 
 ///|
+pub fn request_password_reset_route() -> RouteSpec {
+  route(POST, "/api/auth/password-reset/request", Ok)
+}
+
+///|
+pub fn request_password_reset_path() -> String {
+  request_password_reset_route().path_pattern
+}
+
+///|
+pub fn reset_password_route() -> RouteSpec {
+  route(POST, "/api/auth/password-reset/confirm", Ok)
+}
+
+///|
+pub fn reset_password_path() -> String {
+  reset_password_route().path_pattern
+}
+
+///|
+pub fn change_password_route() -> RouteSpec {
+  route(POST, "/api/auth/password/change", Ok)
+}
+
+///|
+pub fn change_password_path() -> String {
+  change_password_route().path_pattern
+}
+
+///|
+pub fn resend_email_verification_route() -> RouteSpec {
+  route(POST, "/api/auth/email/verification/resend", Ok)
+}
+
+///|
+pub fn resend_email_verification_path() -> String {
+  resend_email_verification_route().path_pattern
+}
+
+///|
+pub fn verify_email_route() -> RouteSpec {
+  route(POST, "/api/auth/email/verification/confirm", Ok)
+}
+
+///|
+pub fn verify_email_path() -> String {
+  verify_email_route().path_pattern
+}
+
+///|
 pub fn list_projects_route() -> RouteSpec {
   route(GET, "/api/projects", Ok)
 }

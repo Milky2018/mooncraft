@@ -386,6 +386,62 @@ fn main {
     clear_session_cookie(event.res)
     json_no_content()
   })
+  app.get("/auth/email/verify", _ => {
+    html_response(email_verification_page_html())
+  })
+  app.get("/auth/password/reset", _ => html_response(password_reset_page_html()))
+  app.post(@sdk.request_password_reset_path(), event => {
+    let request : @sdk.RequestPasswordResetRequest = match
+      decode_json_body(event) {
+      Ok(request) => request
+      Err(response) => return response
+    }
+    json_ok(request_password_reset(ctx, request))
+  })
+  app.post(@sdk.reset_password_path(), event => {
+    let request : @sdk.ResetPasswordRequest = match decode_json_body(event) {
+      Ok(request) => request
+      Err(response) => return response
+    }
+    match reset_password(ctx, request) {
+      Ok(response) => json_ok(response)
+      Err(message) =>
+        api_error_response(UnprocessableEntity, @sdk.ValidationFailed, message)
+    }
+  })
+  app.post(@sdk.change_password_path(), event => {
+    let user = match require_session_user(ctx, event) {
+      Ok(user) => user
+      Err(response) => return response
+    }
+    let request : @sdk.ChangePasswordRequest = match decode_json_body(event) {
+      Ok(request) => request
+      Err(response) => return response
+    }
+    match change_password(ctx, user, request) {
+      Ok(response) => json_ok(response)
+      Err(message) =>
+        api_error_response(UnprocessableEntity, @sdk.ValidationFailed, message)
+    }
+  })
+  app.post(@sdk.resend_email_verification_path(), event => {
+    let user = match require_session_user(ctx, event) {
+      Ok(user) => user
+      Err(response) => return response
+    }
+    json_ok(resend_email_verification(ctx, user))
+  })
+  app.post(@sdk.verify_email_path(), event => {
+    let request : @sdk.VerifyEmailRequest = match decode_json_body(event) {
+      Ok(request) => request
+      Err(response) => return response
+    }
+    match verify_email(ctx, request) {
+      Ok(response) => json_ok(response)
+      Err(message) =>
+        api_error_response(UnprocessableEntity, @sdk.ValidationFailed, message)
+    }
+  })
   app.get("/auth/github/start", _ => github_authorization_response(ctx))
   app.get("/auth/github/callback", _ => {
     html_response(github_callback_page_html())

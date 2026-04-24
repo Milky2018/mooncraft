@@ -333,6 +333,8 @@ fn Store::init_schema(self : Store) -> Unit {
       #|CREATE TABLE IF NOT EXISTS users (
       #|  id TEXT PRIMARY KEY,
       #|  email TEXT NOT NULL UNIQUE,
+      #|  email_verified INTEGER NOT NULL DEFAULT 1,
+      #|  email_verified_at TEXT,
       #|  password_hash TEXT,
       #|  display_name TEXT NOT NULL,
       #|  github_login TEXT,
@@ -342,6 +344,8 @@ fn Store::init_schema(self : Store) -> Unit {
     ),
   )
   |> ignore
+  self.ensure_user_column("email_verified", "INTEGER NOT NULL DEFAULT 1")
+  self.ensure_user_column("email_verified_at", "TEXT")
   self.db.exec(
     (
       #|CREATE TABLE IF NOT EXISTS sessions (
@@ -460,6 +464,55 @@ fn Store::init_schema(self : Store) -> Unit {
       #|ALTER TABLE runs
       #|ADD COLUMN worker_pid INTEGER;
     ),
+  )
+  |> ignore
+  self.db.exec(
+    (
+      #|CREATE TABLE IF NOT EXISTS account_action_tokens (
+      #|  id TEXT PRIMARY KEY,
+      #|  user_id TEXT NOT NULL,
+      #|  purpose TEXT NOT NULL,
+      #|  token_hash TEXT NOT NULL UNIQUE,
+      #|  expires_at TEXT NOT NULL,
+      #|  consumed_at TEXT,
+      #|  created_at TEXT NOT NULL
+      #|);
+    ),
+  )
+  |> ignore
+  self.db.exec(
+    (
+      #|CREATE INDEX IF NOT EXISTS account_action_tokens_user_purpose_idx
+      #|ON account_action_tokens(user_id, purpose);
+    ),
+  )
+  |> ignore
+}
+
+///|
+fn Store::user_column_exists(self : Store, column_name : String) -> Bool {
+  let stmt = self.db.prepare("PRAGMA table_info(users);").unwrap()
+  let mut exists = false
+  while stmt.step() {
+    if bytes_to_string(stmt.column_text(1)) == column_name {
+      exists = true
+    }
+  }
+  stmt.finalize()
+  exists
+}
+
+///|
+fn Store::ensure_user_column(
+  self : Store,
+  column_name : String,
+  definition : String,
+) -> Unit {
+  if self.user_column_exists(column_name) {
+    return
+  }
+  self.db.exec(
+    "ALTER TABLE users ADD COLUMN " + column_name + " " + definition + ";",
   )
   |> ignore
 }
