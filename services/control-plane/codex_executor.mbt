@@ -24,7 +24,7 @@ struct CodexDockerConfig {
 let default_codex_docker_image = "docker.io/moonbitcloud/codex:codex-0.123.0-node24"
 
 ///|
-let default_codex_model = "gpt-5.3-codex"
+let default_codex_model = "gpt-5.4"
 
 ///|
 struct RunArtifacts {

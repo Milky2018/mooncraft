@@ -36,15 +36,15 @@ test "resume session missing detection matches codex cli error" {
 
 ///|
 test "codex commands pin the configured model" {
-  let exec_command = codex_exec_command("gpt-5.3-codex", "Build a todo app")
+  let exec_command = codex_exec_command("gpt-5.4", "Build a todo app")
   inspect(exec_command[2], content="--model")
-  inspect(exec_command[3], content="gpt-5.3-codex")
+  inspect(exec_command[3], content="gpt-5.4")
   let resume_command = codex_resume_command(
-    "gpt-5.3-codex", "local-thread", "Add labels",
+    "gpt-5.4", "local-thread", "Add labels",
   )
   assert_true(codex_command_is_resume(resume_command))
   inspect(resume_command[3], content="--model")
-  inspect(resume_command[4], content="gpt-5.3-codex")
+  inspect(resume_command[4], content="gpt-5.4")
 }
 
 ///|
