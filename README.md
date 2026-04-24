@@ -109,12 +109,15 @@ The local workflow supports both debug and release profiles:
 
 ```bash
 just build
+just check-templates
 just build release
 just serve
 just serve release
 ```
 
 `just serve release` sets `MOONBITCLOUD_BUILD_PROFILE=release`, so the control plane stages the platform bundle and generated preview bundles from the release build output directories.
+
+`just check-templates` validates every official template in a temporary sandbox by running target-less `moon check` and `moon build`. Use `just check-template <template_id>` for one template.
 
 Control-plane HTML/CSS shells are runtime files under `services/control-plane/assets`. They are available in the documented local workflow because `just serve` and `moon run --manifest-path moon.work --target native services/control-plane` run from the repository root. `moon build` does not embed those assets into the native executable, so standalone runs must preserve that directory next to the runtime working directory.
 
