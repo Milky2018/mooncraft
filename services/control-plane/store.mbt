@@ -131,6 +131,11 @@ fn string_to_sql_text(text : String) -> @sqlite.SqlValue {
 }
 
 ///|
+fn bytes_to_sql_blob(content : Bytes) -> @sqlite.SqlValue {
+  @sqlite.SqlValue::Blob(content)
+}
+
+///|
 fn nullable_int_value(value : Int?) -> @sqlite.SqlValue {
   match value {
     Some(number) => @sqlite.SqlValue::Int(number)
@@ -264,7 +269,7 @@ fn parent_dir(path : String) -> String {
 
 ///|
 fn project_root(root : String, project_id : String) -> String {
-  root + "/data/projects/" + project_id
+  root + "/data/runtime/projects/" + project_id
 }
 
 ///|
@@ -539,6 +544,16 @@ fn Store::init_schema(self : Store) -> Unit {
     ),
   )
   |> ignore
+  self.db.exec(
+    (
+      #|CREATE TABLE IF NOT EXISTS project_workspace_snapshots (
+      #|  project_id TEXT PRIMARY KEY,
+      #|  archive BLOB NOT NULL,
+      #|  updated_at TEXT NOT NULL
+      #|);
+    ),
+  )
+  |> ignore
   self.ensure_project_column(
     "template_id",
     "TEXT NOT NULL DEFAULT '" + default_template_id() + "'",
@@ -658,6 +673,69 @@ fn Store::count_projects(self : Store) -> Int {
   }
   stmt.finalize()
   count
+}
+
+///|
+fn Store::save_workspace_snapshot(
+  self : Store,
+  project_id : String,
+  archive : Bytes,
+) -> Result[Unit, String] {
+  let stmt = self.db
+    .prepare(
+      (
+        #|INSERT INTO project_workspace_snapshots (
+        #|  project_id,
+        #|  archive,
+        #|  updated_at
+        #|) VALUES (?, ?, ?)
+        #|ON CONFLICT(project_id) DO UPDATE SET
+        #|  archive = excluded.archive,
+        #|  updated_at = excluded.updated_at;
+      ),
+    )
+    .unwrap()
+  stmt.bind_all([
+    string_to_sql_text(project_id),
+    bytes_to_sql_blob(archive),
+    string_to_sql_text(now_string()),
+  ])
+  |> ignore
+  let ok = stmt.execute()
+  stmt.finalize()
+  if ok {
+    Ok(())
+  } else {
+    Err(
+      "Saving the workspace snapshot to the database failed: " +
+      bytes_to_string(self.db.errmsg()),
+    )
+  }
+}
+
+///|
+fn Store::get_workspace_snapshot(self : Store, project_id : String) -> Bytes? {
+  let stmt = self.db
+    .prepare(
+      (
+        #|SELECT archive
+        #|FROM project_workspace_snapshots
+        #|WHERE project_id = ?;
+      ),
+    )
+    .unwrap()
+  stmt.bind(1, string_to_sql_text(project_id)) |> ignore
+  let result = if stmt.step() {
+    match stmt.column(0) {
+      @sqlite.SqlValue::Blob(content) => Some(content)
+      @sqlite.SqlValue::Text(content) => Some(content)
+      _ => None
+    }
+  } else {
+    None
+  }
+  stmt.finalize()
+  result
 }
 
 ///|
@@ -909,6 +987,18 @@ fn Store::delete_project(
   delete_runs_stmt.bind(1, string_to_sql_text(project_id)) |> ignore
   delete_runs_stmt.execute() |> ignore
   delete_runs_stmt.finalize()
+
+  let delete_snapshot_stmt = self.db
+    .prepare(
+      (
+        #|DELETE FROM project_workspace_snapshots
+        #|WHERE project_id = ?;
+      ),
+    )
+    .unwrap()
+  delete_snapshot_stmt.bind(1, string_to_sql_text(project_id)) |> ignore
+  delete_snapshot_stmt.execute() |> ignore
+  delete_snapshot_stmt.finalize()
 
   let delete_project_stmt = self.db
     .prepare(
@@ -1727,5 +1817,6 @@ fn AppContext::delete_project(
   }
   self.previews.remove_project_runtime(project_id, project.preview)
   safe_remove_tree(project_root(self.root, project_id))
+  safe_remove_tree(legacy_project_root(self.root, project_id))
   self.store.delete_project(project_id)
 }

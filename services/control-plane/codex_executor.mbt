@@ -615,6 +615,7 @@ fn codex_failure_with_debug(
 
 ///|
 async fn run_codex_turn(
+  store : Store,
   root : String,
   config : CodexDockerConfig?,
   project : @sdk.ProjectDetail,
@@ -781,7 +782,7 @@ async fn run_codex_turn(
         ),
       )
   }
-  match snapshot_workspace(root, project.id, workspace_path) {
+  match snapshot_workspace(store, root, project.id, workspace_path) {
     Ok(_) => ignore(())
     Err(message) =>
       return Err(
@@ -917,6 +918,7 @@ async fn run_validation_command(
 ///|
 async fn AgentGateway::run_turn(
   self : AgentGateway,
+  store : Store,
   project : @sdk.ProjectDetail,
   initial_project_prompt : String,
   workspace_path : String,
@@ -940,6 +942,7 @@ async fn AgentGateway::run_turn(
   }
   let codex_result = match
     run_codex_turn(
+      store,
       self.root,
       config,
       project,
@@ -953,7 +956,7 @@ async fn AgentGateway::run_turn(
   }
   let artifacts = codex_result.artifacts
   let persist_validated_workspace = fn() {
-    match snapshot_workspace(self.root, project.id, workspace_path) {
+    match snapshot_workspace(store, self.root, project.id, workspace_path) {
       Ok(_) => Ok(())
       Err(message) =>
         Err(
@@ -1129,7 +1132,13 @@ async fn AppContext::run_project_turn(
     }
   }
   let run_workspace_path = match
-    hydrate_run_workspace(self.root, project_id, run_id) {
+    hydrate_run_workspace(
+      self.store,
+      self.root,
+      project_id,
+      run_id,
+      project.workspace_path,
+    ) {
     Ok(path) => path
     Err(message) => {
       self.store.finish_run_failure(
@@ -1143,11 +1152,17 @@ async fn AppContext::run_project_turn(
     }
   }
   let agent_result = self.agent_gateway.run_turn(
-    project, initial_project_prompt, run_workspace_path, run_id, prompt,
+    self.store,
+    project,
+    initial_project_prompt,
+    run_workspace_path,
+    run_id,
+    prompt,
   )
   match agent_result {
     Ok(result) => {
       let restore_cache_result = restore_workspace_snapshot(
+        self.store,
         self.root,
         project_id,
         project.workspace_path,
@@ -1202,6 +1217,7 @@ async fn AppContext::run_project_turn(
     }
     Err(failure) => {
       let restore_cache_result = restore_workspace_snapshot(
+        self.store,
         self.root,
         project_id,
         project.workspace_path,

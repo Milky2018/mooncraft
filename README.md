@@ -35,10 +35,10 @@ moonbitcloud/
 │   └── sdk/                  # shared DTOs
 ├── docs/
 ├── knowledge/
-└── data/                     # local runtime state, generated projects, SQLite
+└── data/                     # local SQLite state and disposable runtime scratch
 ```
 
-Generated user projects live under `data/projects/<project-id>/workspace/`. Full-stack templates use a MoonBit workspace shape:
+Generated user projects are materialized as disposable scratch workspaces under `data/runtime/projects/<project-id>/workspace/`. The authoritative project source snapshot is stored in SQLite, not in that directory. Full-stack templates use a MoonBit workspace shape:
 
 - `moon.work` at the workspace root
 - `frontend/`
@@ -52,7 +52,7 @@ Frontend-only templates can instead use a single MoonBit module with a root `moo
 ## Implementation Notes
 
 - `apps/web` renders the app-develop page with a left project rail, center chat workspace, and right preview panel.
-- `services/control-plane` persists `users`, `sessions`, `oauth_accounts`, `projects`, `messages`, and `runs` in SQLite.
+- `services/control-plane` persists `users`, `sessions`, `oauth_accounts`, `projects`, `messages`, `runs`, and workspace snapshots in SQLite.
 - Each successful run rebuilds the generated project and restarts a local preview server on a stable port.
 - Static frontend previews run through `services/control-plane -- run-static-preview <port> <preview-dist-dir>` and can stage arbitrary assets, including wasm host files.
 - Preview URLs are public opaque paths like `/p/<preview_public_id>/` and stay same-origin through the control plane.
@@ -126,7 +126,7 @@ Control-plane HTML/CSS shells are runtime files under `services/control-plane/as
 
 ## Next Major Steps
 
-1. harden the Docker-backed Codex executor and persist generated workspaces beyond local disk
+1. harden the Docker-backed Codex executor and runtime cleanup policy
 2. extract preview execution into a dedicated runner boundary
 3. build the first durable multi-tenant todo template
 4. connect the knowledge base to real template validation

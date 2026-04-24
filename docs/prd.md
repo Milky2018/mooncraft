@@ -35,8 +35,8 @@ Included:
 - live preview panel
 - hidden code by default
 - plain-English agent feedback
-- local project generation under `data/projects`
-- SQLite persistence for projects, messages, and runs
+- local project runtime scratch under `data/runtime`
+- SQLite persistence for projects, messages, runs, and workspace snapshots
 
 Not included:
 

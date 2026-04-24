@@ -5,7 +5,8 @@ This module is the local backend for the current MoonBit Cloud prototype.
 Responsibilities:
 
 - persist projects, messages, and runs in SQLite
-- materialize template-backed MoonBit workspaces under `data/projects/<id>/workspace`
+- persist workspace source snapshots in SQLite
+- materialize template-backed MoonBit workspaces under `data/runtime/projects/<id>/workspace` as disposable execution scratch
 - serve the app-develop HTTP API
 - serve the main workspace page and platform bundle
 - serve file-backed control-plane HTML/CSS assets from `services/control-plane/assets`
@@ -16,6 +17,8 @@ Responsibilities:
 Official templates live under `templates/<id>`. Each template has a `template.json` manifest plus a runnable `workspace/` directory. Project rows persist `template_id` and `template_version` so preview rebuilds can use the originating template contract.
 
 The current `AgentGateway` uses Docker-backed Codex CLI runs. Each project keeps one persistent `codex_thread_id`, and each new chat message spawns a background worker that resumes that session, validates the workspace with `moon fmt`, `moon check`, and `moon test`, then refreshes the preview.
+
+Workspace directories are no longer durable state. The control plane saves the latest source archive in SQLite after template materialization and after Codex edits. Each run hydrates that database snapshot into an isolated runtime workspace before starting Codex, then restores the local preview cache from the saved snapshot.
 
 For real Docker-backed runs, validation first runs `moon update` inside the generated workspace. The Codex runtime image also runs `moon update` at image build time so the MoonBit registry index exists before Codex starts editing. Without this registry preflight, generated template workspaces can fail before compilation with unresolved dependencies such as `moonbit-community/rabbita`, `oboard/mocket`, or `moonbitlang/x`.
 
