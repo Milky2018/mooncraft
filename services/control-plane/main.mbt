@@ -408,6 +408,12 @@ fn main {
   }
   let port = control_plane_port()
   let ctx = AppContext::new(root)
+  let stale_runs = ctx.store.fail_stale_running_runs_on_startup()
+  if stale_runs > 0 {
+    println(
+      "Recovered \{stale_runs} stale running run(s); marked them failed so they can be retried.",
+    )
+  }
   ctx.ensure_platform_web_bundle()
 
   let app = @mocket.new()

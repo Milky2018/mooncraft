@@ -13,6 +13,13 @@ struct Store {
 }
 
 ///|
+struct RunningRun {
+  project_id : String
+  run_id : String
+  thread_id : String?
+}
+
+///|
 pub(all) struct PreviewRuntime {
   port : Int
   pid : Int
@@ -373,6 +380,16 @@ fn run_failure_debug_from_columns(
       final_summary_path: empty_to_none(final_summary_path),
     })
   }
+}
+
+///|
+fn interrupted_worker_summary() -> String {
+  "The previous worker was interrupted before it could finish. Send another message to retry this project."
+}
+
+///|
+fn interrupted_worker_error() -> String {
+  "The run was still marked Running when the control plane started. It was marked failed so the project can accept a new run."
 }
 
 ///|
@@ -823,6 +840,86 @@ fn Store::get_run(
   }
   stmt.finalize()
   result
+}
+
+///|
+fn Store::list_running_runs(self : Store) -> Array[RunningRun] {
+  let stmt = self.db
+    .prepare(
+      (
+        #|SELECT
+        #|  r.project_id,
+        #|  r.id,
+        #|  COALESCE(p.codex_thread_id, '')
+        #|FROM runs r
+        #|JOIN projects p ON p.id = r.project_id
+        #|WHERE r.state = ?
+        #|ORDER BY r.started_at ASC;
+      ),
+    )
+    .unwrap()
+  stmt.bind(1, string_to_sql_text(run_state_to_db(Running))) |> ignore
+  let runs : Array[RunningRun] = []
+  while stmt.step() {
+    runs.push({
+      project_id: bytes_to_string(stmt.column_text(0)),
+      run_id: bytes_to_string(stmt.column_text(1)),
+      thread_id: empty_to_none(bytes_to_string(stmt.column_text(2))),
+    })
+  }
+  stmt.finalize()
+  runs
+}
+
+///|
+fn Store::fail_orphaned_running_projects_on_startup(self : Store) -> Unit {
+  let now = now_string()
+  let stmt = self.db
+    .prepare(
+      (
+        #|UPDATE projects
+        #|SET
+        #|  status = ?,
+        #|  current_run_id = NULL,
+        #|  last_error = ?,
+        #|  updated_at = ?
+        #|WHERE status = ?;
+      ),
+    )
+    .unwrap()
+  stmt.bind_all([
+    string_to_sql_text(run_state_to_db(Failed)),
+    string_to_sql_text(interrupted_worker_summary()),
+    string_to_sql_text(now),
+    string_to_sql_text(run_state_to_db(Running)),
+  ])
+  |> ignore
+  stmt.execute() |> ignore
+  stmt.finalize()
+}
+
+///|
+fn Store::fail_stale_running_runs_on_startup(self : Store) -> Int {
+  let runs = self.list_running_runs()
+  for run in runs {
+    self.finish_run_failure_with_debug(
+      run.project_id,
+      run.run_id,
+      interrupted_worker_summary(),
+      interrupted_worker_error(),
+      run.thread_id,
+      Some(@sdk.RunFailureDebug::{
+        stage: "Worker recovery",
+        command: None,
+        exit_code: None,
+        codex_log_path: None,
+        validation_log_path: None,
+        final_summary_path: None,
+      }),
+    )
+  }
+  self.fail_orphaned_running_projects_on_startup()
+  runs.length()
 }
 
 ///|

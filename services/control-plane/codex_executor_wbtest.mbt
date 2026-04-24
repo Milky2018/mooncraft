@@ -74,6 +74,8 @@ test "start_run persists the initial project prompt once" {
       "preview-" + project_id,
       Some("Prompt Test"),
       project_workspace(root, project_id),
+      default_template_id(),
+      default_template_version(),
     ),
   )
 
@@ -96,6 +98,58 @@ test "start_run persists the initial project prompt once" {
     store.get_initial_project_prompt(project_id),
     content="Some(\"Build a todo app\")",
   )
+  safe_remove_tree(db_path)
+  safe_remove_tree(db_path + "-shm")
+  safe_remove_tree(db_path + "-wal")
+}
+
+///|
+test "startup recovery makes stale running runs retryable" {
+  let root = @env.current_dir().unwrap_or(".")
+  let db_dir = root + "/data/control-plane-test-dbs"
+  ensure_dir(db_dir)
+  let db_path = db_dir + "/" + next_id("stale-running-run") + ".sqlite"
+  safe_remove_tree(db_path)
+  safe_remove_tree(db_path + "-shm")
+  safe_remove_tree(db_path + "-wal")
+  let store = Store::new(db_path)
+  let project_id = next_id("project")
+  ignore(
+    store.create_project(
+      project_id,
+      "user-1",
+      "preview-" + project_id,
+      Some("Recovery Test"),
+      project_workspace(root, project_id),
+      default_template_id(),
+      default_template_version(),
+    ),
+  )
+  let stale_run = store.start_run(project_id, "Build a todo app").unwrap()
+
+  inspect(store.fail_stale_running_runs_on_startup(), content="1")
+  let recovered_run = store.get_run(project_id, stale_run.run_id).unwrap()
+  inspect(recovered_run.state is @sdk.Failed, content="true")
+  inspect(
+    recovered_run.summary,
+    content="Some(\"The previous worker was interrupted before it could finish. Send another message to retry this project.\")",
+  )
+  inspect(
+    recovered_run.failure_debug.map(fn(debug) { debug.stage }),
+    content="Some(\"Worker recovery\")",
+  )
+  let project = store.get_project_detail(project_id).unwrap()
+  inspect(project.status is @sdk.Failed, content="true")
+  inspect(project.current_run_id, content="None")
+  let retry_run = store.start_run(project_id, "Retry the app")
+  inspect(
+    match retry_run {
+      Ok(_) => true
+      Err(_) => false
+    },
+    content="true",
+  )
+
   safe_remove_tree(db_path)
   safe_remove_tree(db_path + "-shm")
   safe_remove_tree(db_path + "-wal")
