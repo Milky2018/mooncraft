@@ -87,7 +87,8 @@ Every official template should pass two smoke levels:
 
 Direct template smoke validates the template workspace in isolation:
 
-- run `moon clean`, `moon check`, and `moon build` inside `templates/<id>/workspace`
+- run `just check-templates` from the repository root to copy each template workspace into a temporary sandbox and run `moon check` plus `moon build`
+- run `just check-template <template_id>` to validate one template the same way
 - stage a temporary preview directory from `public/` plus the template's declared build artifacts
 - launch the preview runner directly
   - static templates: `services/control-plane -- run-static-preview <port> <preview-dist-dir>`

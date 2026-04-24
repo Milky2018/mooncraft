@@ -74,6 +74,14 @@ codex-config:
 build profile='debug': fmt
   @if [ "{{profile}}" = release ]; then moon build --manifest-path moon.work --release; else moon build --manifest-path moon.work; fi
 
+# Check all official templates in temporary sandbox workspaces
+check-templates:
+  ./scripts/check_templates.sh
+
+# Check one official template in a temporary sandbox workspace
+check-template template:
+  ./scripts/check_templates.sh "{{template}}"
+
 # Serve the app at http://localhost:8080
 serve profile='debug':
   @echo "MoonBit Cloud: http://localhost:8080"
@@ -87,8 +95,8 @@ open:
 run profile='debug':
   @just serve {{profile}}
 
-# Build and run the smoke test
-test: build smoke
+# Build, check templates, and run the smoke test
+test: build check-templates smoke
 
 # Start a temporary control plane and run a smoke test
 smoke:

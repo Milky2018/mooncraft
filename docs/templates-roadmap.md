@@ -80,6 +80,7 @@ These templates establish:
 Every official template should include:
 
 - a working MoonBit project
+- a passing sandbox check through `just check-template <template_id>`
 - direct preview smoke steps
 - control-plane product smoke steps
 - a matching knowledge document

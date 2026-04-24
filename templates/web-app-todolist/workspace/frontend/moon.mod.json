@@ -1,14 +1,14 @@
 {
-  "name": "moonbitcloud/generated-app/frontend",
+  "name": "moonbitcloud/web-app-todolist/frontend",
   "version": "0.1.0",
   "preferred-target": "js",
   "deps": {
-    "moonbitcloud/generated-app/shared": "0.1.0",
+    "moonbitcloud/web-app-todolist/shared": "0.1.0",
     "moonbit-community/rabbita": "0.12.1"
   },
   "readme": "README.md",
   "repository": "",
   "license": "Apache-2.0",
-  "keywords": ["moonbit", "generated-app", "frontend"],
-  "description": "Frontend for the generated MoonBit Cloud app."
+  "keywords": ["moonbit", "web-app-todolist", "frontend"],
+  "description": "Frontend for the Web App Todo List template."
 }
