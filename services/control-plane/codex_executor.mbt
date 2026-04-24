@@ -15,12 +15,16 @@ struct AgentTurnFailure {
 ///|
 struct CodexDockerConfig {
   image : String
+  model : String
   host_codex_home : String
   container_home : String
 }
 
 ///|
 let default_codex_docker_image = "docker.io/moonbitcloud/codex:codex-0.123.0-node24"
+
+///|
+let default_codex_model = "gpt-5.3-codex"
 
 ///|
 struct RunArtifacts {
@@ -82,6 +86,10 @@ fn CodexDockerConfig::load() -> Result[CodexDockerConfig, String] {
     Some(value) if value.trim() != "" => value.trim().to_string()
     _ => default_codex_docker_image
   }
+  let model = match @env.get_env_var("MOONBITCLOUD_CODEX_MODEL") {
+    Some(value) if value.trim() != "" => value.trim().to_string()
+    _ => default_codex_model
+  }
   let host_codex_home = match @env.get_env_var("MOONBITCLOUD_CODEX_HOME_HOST") {
     Some(value) if value.trim() != "" => value
     _ =>
@@ -103,7 +111,7 @@ fn CodexDockerConfig::load() -> Result[CodexDockerConfig, String] {
     Some(value) if value.trim() != "" => value
     _ => "/root"
   }
-  Ok({ image, host_codex_home, container_home })
+  Ok({ image, model, host_codex_home, container_home })
 }
 
 ///|
@@ -354,6 +362,16 @@ fn command_args(command : Array[String]) -> Array[String] {
 }
 
 ///|
+fn codex_command_is_resume(command : Array[String]) -> Bool {
+  for part in command {
+    if part == "resume" {
+      return true
+    }
+  }
+  false
+}
+
+///|
 async fn collect_local_output(
   executable : String,
   args : Array[String],
@@ -381,7 +399,7 @@ fn collect_fake_codex_output(
   if command.length() < 2 {
     return Err("The fake Codex command was malformed.")
   }
-  let is_resume = command.length() > 2 && command[2] == "resume"
+  let is_resume = codex_command_is_resume(command)
   let prompt = command[command.length() - 1]
   ensure_dir(fake_codex_state_dir(root, project.id))
   if is_resume {
@@ -553,10 +571,12 @@ async fn collect_codex_command_output(
 }
 
 ///|
-fn codex_exec_command(user_prompt : String) -> Array[String] {
+fn codex_exec_command(model : String, user_prompt : String) -> Array[String] {
   [
     "codex",
     "exec",
+    "--model",
+    model,
     "--skip-git-repo-check",
     "--json",
     "--output-last-message",
@@ -568,6 +588,7 @@ fn codex_exec_command(user_prompt : String) -> Array[String] {
 
 ///|
 fn codex_resume_command(
+  model : String,
   thread_id : String,
   user_prompt : String,
 ) -> Array[String] {
@@ -575,6 +596,8 @@ fn codex_resume_command(
     "codex",
     "exec",
     "resume",
+    "--model",
+    model,
     "--skip-git-repo-check",
     "--json",
     "--output-last-message",
@@ -627,9 +650,13 @@ async fn run_codex_turn(
   safe_write_string(artifacts.last_message_path, "")
   safe_write_string(artifacts.codex_log_path, "")
   let thread_id_before = project.codex_thread_id
+  let model = match config {
+    Some(config) => config.model
+    None => default_codex_model
+  }
   let command = match thread_id_before {
-    Some(thread_id) => codex_resume_command(thread_id, user_prompt)
-    None => codex_exec_command(user_prompt)
+    Some(thread_id) => codex_resume_command(model, thread_id, user_prompt)
+    None => codex_exec_command(model, user_prompt)
   }
   let mut active_command = command
   let codex_result = match
@@ -700,6 +727,7 @@ async fn run_codex_turn(
     exit_code != 0 &&
     resume_session_missing(output) {
     let recovery_command = codex_exec_command(
+      model,
       recovery_prompt(initial_project_prompt, user_prompt),
     )
     let recovery_result = match
