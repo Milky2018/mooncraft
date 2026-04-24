@@ -66,3 +66,13 @@ Required Codex runtime configuration:
 - `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
 - optional `MOONBITCLOUD_CODEX_HOME_HOST` (defaults to `$HOME/.codex`)
 - optional `MOONBITCLOUD_CODEX_CONTAINER_HOME` (defaults to `/root`)
+
+The default runtime image is `docker.io/moonbitcloud/codex:codex-0.123.0-node24`. Override it through `.env` or `MOONBITCLOUD_CODEX_DOCKER_IMAGE` when testing local images, PR images, rollbacks, or digest-pinned production deployments.
+
+Use `just codex-config` to inspect the effective runtime configuration. Build the runtime image locally with `just build-codex-image` (defaults to the official tag for `linux/amd64`).
+
+Publish the shared multi-arch runtime image with `just docker-codex-publish` after `docker login`. By default it pushes `docker.io/moonbitcloud/codex:codex-0.123.0-node24` and `docker.io/moonbitcloud/codex:latest` for `linux/amd64,linux/arm64`. Shared environments should set `MOONBITCLOUD_CODEX_DOCKER_IMAGE=docker.io/moonbitcloud/codex:codex-0.123.0-node24` instead of relying on `latest`.
+
+To publish under another Docker Hub namespace, pass the repository explicitly: `just docker-codex-publish docker.io/<namespace>/codex`.
+
+Use `just codex-smoke` from the repository root to run an end-to-end Todo List App build through the real Docker-backed Codex CLI path.

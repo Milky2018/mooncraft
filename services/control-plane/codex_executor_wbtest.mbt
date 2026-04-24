@@ -44,6 +44,51 @@ test "recovery prompt includes original and latest requests" {
 }
 
 ///|
+test "start_run persists the initial project prompt once" {
+  let root = @env.current_dir().unwrap_or(".")
+  let db_dir = root + "/data/control-plane-test-dbs"
+  ensure_dir(db_dir)
+  let db_path = db_dir + "/" + next_id("initial-project-prompt") + ".sqlite"
+  safe_remove_tree(db_path)
+  safe_remove_tree(db_path + "-shm")
+  safe_remove_tree(db_path + "-wal")
+  let store = Store::new(db_path)
+  let project_id = next_id("project")
+  ignore(
+    store.create_project(
+      project_id,
+      "user-1",
+      "preview-" + project_id,
+      Some("Prompt Test"),
+      project_workspace(root, project_id),
+    ),
+  )
+
+  inspect(store.get_initial_project_prompt(project_id), content="None")
+  let first_run = store.start_run(project_id, "Build a todo app").unwrap()
+  inspect(
+    store.get_initial_project_prompt(project_id),
+    content="Some(\"Build a todo app\")",
+  )
+  store.finish_run_failure(
+    project_id,
+    first_run.run_id,
+    "first failed",
+    "first failed",
+    None,
+  )
+  let second_run = store.start_run(project_id, "Add labels").unwrap()
+  let _ = second_run
+  inspect(
+    store.get_initial_project_prompt(project_id),
+    content="Some(\"Build a todo app\")",
+  )
+  safe_remove_tree(db_path)
+  safe_remove_tree(db_path + "-shm")
+  safe_remove_tree(db_path + "-wal")
+}
+
+///|
 test "workspace snapshot round-trips project files and excludes build outputs" {
   let root = @env.current_dir().unwrap_or(".")
   let project_id = next_id("snapshot-roundtrip")

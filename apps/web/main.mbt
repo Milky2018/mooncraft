@@ -315,6 +315,7 @@ fn active_run(model : Model) -> @sdk.RunStatusResponse? {
                 state: @sdk.Running,
                 summary: None,
                 error_message: None,
+                failure_debug: None,
                 preview: project.preview,
                 started_at: project.updated_at,
                 finished_at: None,
@@ -363,6 +364,18 @@ fn append_local_user_message(
 ///|
 fn error_notice(prefix : String, error : @sdk.ApiError) -> String {
   prefix + " " + error.message
+}
+
+///|
+fn run_failure_summary(run : @sdk.RunStatusResponse) -> String? {
+  if !(run.state is @sdk.Failed) {
+    None
+  } else {
+    match run.summary {
+      Some(summary) => Some(summary)
+      None => run.error_message
+    }
+  }
 }
 
 ///|
@@ -726,7 +739,7 @@ fn update(
               ..model,
               run_status: Some(response.run),
               sending_message: false,
-              notice: response.run.error_message,
+              notice: None,
             },
           )
       }
@@ -757,7 +770,7 @@ fn update(
             load_projects_cmd(dispatch),
             load_project_cmd(dispatch, project_id),
           ]),
-          { ..model, run_status: Some(run), notice: run.error_message },
+          { ..model, run_status: Some(run), notice: None },
         )
       }
     RunLoaded(_, _, Err(error)) =>
@@ -1341,6 +1354,134 @@ fn render_run_banner(model : Model) -> @rabbita.Html {
 }
 
 ///|
+fn ui_empty_to_none(value : String) -> String? {
+  if value == "" {
+    None
+  } else {
+    Some(value)
+  }
+}
+
+///|
+fn debug_value_row(label : String, value : String?) -> @rabbita.Html {
+  match value {
+    Some(text) if text != "" =>
+      @html.div(
+        style=[
+          "display: grid", "grid-template-columns: 120px minmax(0, 1fr)", "gap: 10px",
+          "font-size: 12px", "line-height: 1.5",
+        ],
+        [
+          @html.div(
+            style=mono_style() + ["color: var(--text-3)", "font-weight: 700"],
+            label,
+          ),
+          @html.div(
+            style=mono_style() +
+              [
+                "color: var(--text-2)", "overflow-wrap: anywhere", "white-space: pre-wrap",
+              ],
+            text,
+          ),
+        ],
+      )
+    _ => @html.nothing
+  }
+}
+
+///|
+fn optional_int_text(value : Int?) -> String? {
+  match value {
+    Some(number) => Some(number.to_string())
+    None => None
+  }
+}
+
+///|
+fn render_run_failure_debug(run : @sdk.RunStatusResponse) -> @rabbita.Html {
+  match run.failure_debug {
+    Some(debug) =>
+      @html.div(
+        style=[
+          "padding: 12px", "border-radius: 10px", "background: var(--surface-3)",
+          "border: 1px solid var(--border-soft)", "display: flex", "flex-direction: column",
+          "gap: 8px",
+        ],
+        [
+          debug_value_row("Stage", ui_empty_to_none(debug.stage)),
+          debug_value_row("Exit Code", optional_int_text(debug.exit_code)),
+          debug_value_row("Command", debug.command),
+          debug_value_row("Codex Log", debug.codex_log_path),
+          debug_value_row("Validation Log", debug.validation_log_path),
+          debug_value_row("Final Summary", debug.final_summary_path),
+        ],
+      )
+    None => @html.nothing
+  }
+}
+
+///|
+fn render_run_failure_detail(
+  summary : String,
+  details : String?,
+) -> @rabbita.Html {
+  match details {
+    Some(text) if text != "" && text != summary =>
+      @html.div(style=["display: flex", "flex-direction: column", "gap: 8px"], [
+        @html.div(
+          style=["font-size: 12px", "font-weight: 760", "color: var(--text-2)"],
+          "Failure detail",
+        ),
+        @html.div(
+          style=mono_style() +
+            [
+              "padding: 12px", "border-radius: 10px", "background: var(--surface-2)",
+              "border: 1px solid var(--border-soft)", "font-size: 12px", "line-height: 1.5",
+              "color: var(--text-2)", "white-space: pre-wrap", "overflow-wrap: anywhere",
+            ],
+          text,
+        ),
+      ])
+    _ => @html.nothing
+  }
+}
+
+///|
+fn render_run_failure_card(model : Model) -> @rabbita.Html {
+  match model.run_status {
+    Some(run) if run.state is @sdk.Failed => {
+      let summary = run_failure_summary(run).unwrap_or(
+        "The run failed before the preview could be refreshed.",
+      )
+      @html.div(
+        style=[
+          "padding: 14px 16px", "border-radius: 12px", "background: var(--danger-soft)",
+          "border: 1px solid var(--border-soft)", "display: flex", "flex-direction: column",
+          "gap: 12px",
+        ],
+        [
+          @html.div(
+            style=[
+              "font-size: 14px", "font-weight: 760", "color: var(--text-1)",
+            ],
+            "Run failed",
+          ),
+          @html.div(
+            style=[
+              "font-size: 14px", "line-height: 1.6", "color: var(--text-1)", "white-space: pre-wrap",
+            ],
+            summary,
+          ),
+          render_run_failure_debug(run),
+          render_run_failure_detail(summary, run.error_message),
+        ],
+      )
+    }
+    _ => @html.nothing
+  }
+}
+
+///|
 fn render_workspace_empty(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
@@ -1449,6 +1590,7 @@ fn render_workspace_panel(
         [
           render_notice_card(model.notice, "var(--warning-soft)"),
           render_run_banner(model),
+          render_run_failure_card(model),
         ],
       ),
       @html.div(
