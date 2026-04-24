@@ -138,6 +138,11 @@ fn string_to_sql_text(text : String) -> @sqlite.SqlValue {
 }
 
 ///|
+fn bytes_to_sql_blob(content : Bytes) -> @sqlite.SqlValue {
+  @sqlite.SqlValue::Blob(content)
+}
+
+///|
 fn nullable_int_value(value : Int?) -> @sqlite.SqlValue {
   match value {
     Some(number) => @sqlite.SqlValue::Int(number)
@@ -271,7 +276,17 @@ fn parent_dir(path : String) -> String {
 
 ///|
 fn project_root(root : String, project_id : String) -> String {
-  root + "/data/projects/" + project_id
+  root + "/data/runtime/projects/" + project_id
+}
+
+///|
+fn legacy_project_workspaces_root(root : String) -> String {
+  root + "/data/projects"
+}
+
+///|
+fn clean_legacy_project_workspaces(root : String) -> Unit {
+  safe_remove_tree(legacy_project_workspaces_root(root))
 }
 
 ///|
@@ -397,8 +412,15 @@ fn Store::column_exists(
   self : Store,
   table_name : String,
   column_name : String,
-) -> Bool {
-  let stmt = self.db.prepare("PRAGMA table_info(\{table_name});").unwrap()
+) -> Result[Bool, String] {
+  let stmt = match self.db.prepare("PRAGMA table_info(\{table_name});") {
+    Some(stmt) => stmt
+    None =>
+      return Err(
+        "Failed to inspect table '\{table_name}': " +
+        bytes_to_string(self.db.errmsg()),
+      )
+  }
   let mut exists = false
   while stmt.step() {
     if bytes_to_string(stmt.column_text(1)) == column_name {
@@ -406,7 +428,7 @@ fn Store::column_exists(
     }
   }
   stmt.finalize()
-  exists
+  Ok(exists)
 }
 
 ///|
@@ -415,21 +437,41 @@ fn Store::ensure_column(
   table_name : String,
   column_name : String,
   column_sql : String,
-) -> Unit {
-  if !self.column_exists(table_name, column_name) {
-    ignore(
-      self.db.exec(
+) -> Result[Unit, String] {
+  match self.column_exists(table_name, column_name) {
+    Ok(true) => Ok(())
+    Ok(false) =>
+      self.exec_or_error(
         "ALTER TABLE \{table_name} ADD COLUMN \{column_name} \{column_sql};",
-      ),
+        "add column \{table_name}.\{column_name}",
+      )
+    Err(message) => Err(message)
+  }
+}
+
+///|
+fn Store::exec_or_error(
+  self : Store,
+  sql : String,
+  label : String,
+) -> Result[Unit, String] {
+  if self.db.exec(sql) {
+    Ok(())
+  } else {
+    Err(
+      "Database initialization failed while trying to \{label}: " +
+      bytes_to_string(self.db.errmsg()),
     )
   }
 }
 
 ///|
-fn Store::backfill_initial_project_prompts(self : Store) -> Unit {
+fn Store::backfill_initial_project_prompts(
+  self : Store,
+) -> Result[Unit, String] {
   let role = chat_role_to_db(User)
-  let stmt = self.db
-    .prepare(
+  let stmt = match
+    self.db.prepare(
       (
         #|UPDATE projects
         #|SET initial_project_prompt = (
@@ -448,199 +490,348 @@ fn Store::backfill_initial_project_prompts(self : Store) -> Unit {
         #|      AND messages.role = ?
         #|  );
       ),
-    )
-    .unwrap()
+    ) {
+    Some(stmt) => stmt
+    None =>
+      return Err(
+        "Failed to prepare initial project prompt backfill: " +
+        bytes_to_string(self.db.errmsg()),
+      )
+  }
   stmt.bind_all([string_to_sql_text(role), string_to_sql_text(role)]) |> ignore
-  stmt.execute() |> ignore
+  let ok = stmt.execute()
   stmt.finalize()
+  if ok {
+    Ok(())
+  } else {
+    Err(
+      "Failed to backfill initial project prompts: " +
+      bytes_to_string(self.db.errmsg()),
+    )
+  }
 }
 
 ///|
-fn Store::new(db_path : String) -> Store {
-  let db = @sqlite.Database::open(db_path).unwrap()
+fn Store::try_new(db_path : String) -> Result[Store, String] {
+  let db = match @sqlite.Database::open(db_path) {
+    Some(db) => db
+    None => return Err("Failed to open SQLite database at \{db_path}.")
+  }
   ignore(db.busy_timeout(5000))
-  ignore(db.exec("PRAGMA journal_mode=WAL;"))
-  ignore(db.exec("PRAGMA synchronous=NORMAL;"))
   let store = Store::{ db, }
-  store.init_schema()
-  store
+  match store.init_schema() {
+    Ok(_) => Ok(store)
+    Err(message) => Err(message)
+  }
 }
 
 ///|
-fn Store::init_schema(self : Store) -> Unit {
-  self.db.exec(
-    (
-      #|CREATE TABLE IF NOT EXISTS users (
-      #|  id TEXT PRIMARY KEY,
-      #|  email TEXT NOT NULL UNIQUE,
-      #|  email_verified INTEGER NOT NULL DEFAULT 1,
-      #|  email_verified_at TEXT,
-      #|  password_hash TEXT,
-      #|  display_name TEXT NOT NULL,
-      #|  github_login TEXT,
-      #|  created_at TEXT NOT NULL,
-      #|  updated_at TEXT NOT NULL
-      #|);
-    ),
-  )
-  |> ignore
-  self.ensure_column("users", "email_verified", "INTEGER NOT NULL DEFAULT 1")
-  self.ensure_column("users", "email_verified_at", "TEXT")
-  self.db.exec(
-    (
-      #|CREATE TABLE IF NOT EXISTS sessions (
-      #|  token_hash TEXT PRIMARY KEY,
-      #|  user_id TEXT NOT NULL,
-      #|  expires_at TEXT NOT NULL,
-      #|  created_at TEXT NOT NULL
-      #|);
-    ),
-  )
-  |> ignore
-  self.db.exec(
-    (
-      #|CREATE TABLE IF NOT EXISTS oauth_accounts (
-      #|  id TEXT PRIMARY KEY,
-      #|  user_id TEXT NOT NULL,
-      #|  provider TEXT NOT NULL,
-      #|  provider_user_id TEXT NOT NULL,
-      #|  created_at TEXT NOT NULL,
-      #|  updated_at TEXT NOT NULL
-      #|);
-    ),
-  )
-  |> ignore
-  self.db.exec(
-    (
-      #|CREATE UNIQUE INDEX IF NOT EXISTS oauth_accounts_provider_user_id_idx
-      #|ON oauth_accounts(provider, provider_user_id);
-    ),
-  )
-  |> ignore
-  self.db.exec(
-    (
-      #|CREATE TABLE IF NOT EXISTS oauth_states (
-      #|  state TEXT PRIMARY KEY,
-      #|  provider TEXT NOT NULL,
-      #|  pkce_verifier TEXT NOT NULL,
-      #|  expires_at TEXT NOT NULL,
-      #|  created_at TEXT NOT NULL
-      #|);
-    ),
-  )
-  |> ignore
-  self.db.exec(
-    (
-      #|CREATE TABLE IF NOT EXISTS projects (
-      #|  id TEXT PRIMARY KEY,
-      #|  owner_user_id TEXT NOT NULL,
-      #|  preview_public_id TEXT NOT NULL UNIQUE,
-      #|  display_name TEXT NOT NULL,
-      #|  workspace_path TEXT NOT NULL,
-      #|  initial_project_prompt TEXT,
-      #|  template_id TEXT NOT NULL DEFAULT 'web-app-todolist',
-      #|  template_version TEXT NOT NULL DEFAULT '0.1.0',
-      #|  codex_thread_id TEXT,
-      #|  status TEXT NOT NULL,
-      #|  preview_url TEXT,
-      #|  preview_port INTEGER,
-      #|  preview_healthy INTEGER NOT NULL DEFAULT 0,
-      #|  last_preview_url TEXT,
-      #|  last_preview_port INTEGER,
-      #|  last_preview_healthy INTEGER NOT NULL DEFAULT 0,
-      #|  last_error TEXT,
-      #|  current_run_id TEXT,
-      #|  created_at TEXT NOT NULL,
-      #|  updated_at TEXT NOT NULL
-      #|);
-    ),
-  )
-  |> ignore
-  self.ensure_project_column(
-    "template_id",
-    "TEXT NOT NULL DEFAULT '" + default_template_id() + "'",
-  )
-  self.ensure_project_column(
-    "template_version",
-    "TEXT NOT NULL DEFAULT '" + default_template_version() + "'",
-  )
-  self.db.exec(
-    "UPDATE projects SET template_id = '" +
-    default_template_id() +
-    "' WHERE template_id = 'bootstrap-app';",
-  )
-  |> ignore
-  self.db.exec(
-    (
-      #|CREATE TABLE IF NOT EXISTS messages (
-      #|  id TEXT PRIMARY KEY,
-      #|  project_id TEXT NOT NULL,
-      #|  run_id TEXT,
-      #|  role TEXT NOT NULL,
-      #|  content TEXT NOT NULL,
-      #|  created_at TEXT NOT NULL
-      #|);
-    ),
-  )
-  |> ignore
-  self.ensure_column("projects", "initial_project_prompt", "TEXT")
-  self.backfill_initial_project_prompts()
-  self.db.exec(
-    (
-      #|CREATE TABLE IF NOT EXISTS runs (
-      #|  id TEXT PRIMARY KEY,
-      #|  project_id TEXT NOT NULL,
-      #|  state TEXT NOT NULL,
-      #|  summary TEXT,
-      #|  error_message TEXT,
-      #|  failure_stage TEXT,
-      #|  failure_command TEXT,
-      #|  failure_exit_code INTEGER,
-      #|  codex_log_path TEXT,
-      #|  validation_log_path TEXT,
-      #|  final_summary_path TEXT,
-      #|  preview_url TEXT,
-      #|  preview_port INTEGER,
-      #|  preview_healthy INTEGER NOT NULL DEFAULT 0,
-      #|  started_at TEXT NOT NULL,
-      #|  finished_at TEXT
-      #|);
-    ),
-  )
-  |> ignore
-  self.ensure_column("runs", "failure_stage", "TEXT")
-  self.ensure_column("runs", "failure_command", "TEXT")
-  self.ensure_column("runs", "failure_exit_code", "INTEGER")
-  self.ensure_column("runs", "codex_log_path", "TEXT")
-  self.ensure_column("runs", "validation_log_path", "TEXT")
-  self.ensure_column("runs", "final_summary_path", "TEXT")
-  self.ensure_column("runs", "worker_pid", "INTEGER")
-  self.db.exec(
-    (
-      #|CREATE TABLE IF NOT EXISTS account_action_tokens (
-      #|  id TEXT PRIMARY KEY,
-      #|  user_id TEXT NOT NULL,
-      #|  purpose TEXT NOT NULL,
-      #|  token_hash TEXT NOT NULL UNIQUE,
-      #|  expires_at TEXT NOT NULL,
-      #|  consumed_at TEXT,
-      #|  created_at TEXT NOT NULL
-      #|);
-    ),
-  )
-  |> ignore
-  self.db.exec(
-    (
-      #|CREATE INDEX IF NOT EXISTS account_action_tokens_user_purpose_idx
-      #|ON account_action_tokens(user_id, purpose);
-    ),
-  )
-  |> ignore
+fn Store::is_available(self : Store) -> Bool {
+  match self.db.prepare("SELECT 1;") {
+    Some(stmt) => {
+      let ok = stmt.step()
+      stmt.finalize()
+      ok
+    }
+    None => false
+  }
 }
 
 ///|
-fn Store::project_column_exists(self : Store, column_name : String) -> Bool {
-  let stmt = self.db.prepare("PRAGMA table_info(projects);").unwrap()
+fn Store::init_schema(self : Store) -> Result[Unit, String] {
+  match self.exec_or_error("PRAGMA journal_mode=WAL;", "enable WAL mode") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      "PRAGMA synchronous=NORMAL;", "configure SQLite sync mode",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE TABLE IF NOT EXISTS users (
+        #|  id TEXT PRIMARY KEY,
+        #|  email TEXT NOT NULL UNIQUE,
+        #|  email_verified INTEGER NOT NULL DEFAULT 1,
+        #|  email_verified_at TEXT,
+        #|  password_hash TEXT,
+        #|  display_name TEXT NOT NULL,
+        #|  github_login TEXT,
+        #|  created_at TEXT NOT NULL,
+        #|  updated_at TEXT NOT NULL
+        #|);
+      ),
+      "create users table",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.ensure_column("users", "email_verified", "INTEGER NOT NULL DEFAULT 1") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match self.ensure_column("users", "email_verified_at", "TEXT") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE TABLE IF NOT EXISTS sessions (
+        #|  token_hash TEXT PRIMARY KEY,
+        #|  user_id TEXT NOT NULL,
+        #|  expires_at TEXT NOT NULL,
+        #|  created_at TEXT NOT NULL
+        #|);
+      ),
+      "create sessions table",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE TABLE IF NOT EXISTS oauth_accounts (
+        #|  id TEXT PRIMARY KEY,
+        #|  user_id TEXT NOT NULL,
+        #|  provider TEXT NOT NULL,
+        #|  provider_user_id TEXT NOT NULL,
+        #|  created_at TEXT NOT NULL,
+        #|  updated_at TEXT NOT NULL
+        #|);
+      ),
+      "create oauth_accounts table",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE UNIQUE INDEX IF NOT EXISTS oauth_accounts_provider_user_id_idx
+        #|ON oauth_accounts(provider, provider_user_id);
+      ),
+      "create oauth account provider index",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE TABLE IF NOT EXISTS oauth_states (
+        #|  state TEXT PRIMARY KEY,
+        #|  provider TEXT NOT NULL,
+        #|  pkce_verifier TEXT NOT NULL,
+        #|  expires_at TEXT NOT NULL,
+        #|  created_at TEXT NOT NULL
+        #|);
+      ),
+      "create oauth_states table",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE TABLE IF NOT EXISTS projects (
+        #|  id TEXT PRIMARY KEY,
+        #|  owner_user_id TEXT NOT NULL,
+        #|  preview_public_id TEXT NOT NULL UNIQUE,
+        #|  display_name TEXT NOT NULL,
+        #|  workspace_path TEXT NOT NULL,
+        #|  initial_project_prompt TEXT,
+        #|  template_id TEXT NOT NULL DEFAULT 'web-app-todolist',
+        #|  template_version TEXT NOT NULL DEFAULT '0.1.0',
+        #|  codex_thread_id TEXT,
+        #|  status TEXT NOT NULL,
+        #|  preview_url TEXT,
+        #|  preview_port INTEGER,
+        #|  preview_healthy INTEGER NOT NULL DEFAULT 0,
+        #|  last_preview_url TEXT,
+        #|  last_preview_port INTEGER,
+        #|  last_preview_healthy INTEGER NOT NULL DEFAULT 0,
+        #|  last_error TEXT,
+        #|  current_run_id TEXT,
+        #|  created_at TEXT NOT NULL,
+        #|  updated_at TEXT NOT NULL
+        #|);
+      ),
+      "create projects table",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE TABLE IF NOT EXISTS project_workspace_snapshots (
+        #|  project_id TEXT PRIMARY KEY,
+        #|  archive BLOB NOT NULL,
+        #|  updated_at TEXT NOT NULL
+        #|);
+      ),
+      "create project_workspace_snapshots table",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.ensure_project_column(
+      "template_id",
+      "TEXT NOT NULL DEFAULT '" + default_template_id() + "'",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.ensure_project_column(
+      "template_version",
+      "TEXT NOT NULL DEFAULT '" + default_template_version() + "'",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      "UPDATE projects SET template_id = '" +
+      default_template_id() +
+      "' WHERE template_id = 'bootstrap-app';",
+      "backfill template ids",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE TABLE IF NOT EXISTS messages (
+        #|  id TEXT PRIMARY KEY,
+        #|  project_id TEXT NOT NULL,
+        #|  run_id TEXT,
+        #|  role TEXT NOT NULL,
+        #|  content TEXT NOT NULL,
+        #|  created_at TEXT NOT NULL
+        #|);
+      ),
+      "create messages table",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match self.ensure_column("projects", "initial_project_prompt", "TEXT") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match self.backfill_initial_project_prompts() {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE TABLE IF NOT EXISTS runs (
+        #|  id TEXT PRIMARY KEY,
+        #|  project_id TEXT NOT NULL,
+        #|  state TEXT NOT NULL,
+        #|  summary TEXT,
+        #|  error_message TEXT,
+        #|  failure_stage TEXT,
+        #|  failure_command TEXT,
+        #|  failure_exit_code INTEGER,
+        #|  codex_log_path TEXT,
+        #|  validation_log_path TEXT,
+        #|  final_summary_path TEXT,
+        #|  preview_url TEXT,
+        #|  preview_port INTEGER,
+        #|  preview_healthy INTEGER NOT NULL DEFAULT 0,
+        #|  started_at TEXT NOT NULL,
+        #|  finished_at TEXT
+        #|);
+      ),
+      "create runs table",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match self.ensure_column("runs", "failure_stage", "TEXT") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match self.ensure_column("runs", "failure_command", "TEXT") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match self.ensure_column("runs", "failure_exit_code", "INTEGER") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match self.ensure_column("runs", "codex_log_path", "TEXT") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match self.ensure_column("runs", "validation_log_path", "TEXT") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match self.ensure_column("runs", "final_summary_path", "TEXT") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match self.ensure_column("runs", "worker_pid", "INTEGER") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE TABLE IF NOT EXISTS account_action_tokens (
+        #|  id TEXT PRIMARY KEY,
+        #|  user_id TEXT NOT NULL,
+        #|  purpose TEXT NOT NULL,
+        #|  token_hash TEXT NOT NULL UNIQUE,
+        #|  expires_at TEXT NOT NULL,
+        #|  consumed_at TEXT,
+        #|  created_at TEXT NOT NULL
+        #|);
+      ),
+      "create account_action_tokens table",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE INDEX IF NOT EXISTS account_action_tokens_user_purpose_idx
+        #|ON account_action_tokens(user_id, purpose);
+      ),
+      "create account action token index",
+    ) {
+    Ok(_) => Ok(())
+    Err(message) => Err(message)
+  }
+}
+
+///|
+fn Store::project_column_exists(
+  self : Store,
+  column_name : String,
+) -> Result[Bool, String] {
+  let stmt = match self.db.prepare("PRAGMA table_info(projects);") {
+    Some(stmt) => stmt
+    None =>
+      return Err(
+        "Failed to inspect projects table: " + bytes_to_string(self.db.errmsg()),
+      )
+  }
   let mut exists = false
   while stmt.step() {
     if bytes_to_string(stmt.column_text(1)) == column_name {
@@ -648,7 +839,7 @@ fn Store::project_column_exists(self : Store, column_name : String) -> Bool {
     }
   }
   stmt.finalize()
-  exists
+  Ok(exists)
 }
 
 ///|
@@ -656,14 +847,20 @@ fn Store::ensure_project_column(
   self : Store,
   column_name : String,
   definition : String,
-) -> Unit {
-  if self.project_column_exists(column_name) {
-    return
+) -> Result[Unit, String] {
+  match self.project_column_exists(column_name) {
+    Ok(true) => Ok(())
+    Ok(false) =>
+      self.exec_or_error(
+        "ALTER TABLE projects ADD COLUMN " +
+        column_name +
+        " " +
+        definition +
+        ";",
+        "add column projects.\{column_name}",
+      )
+    Err(message) => Err(message)
   }
-  self.db.exec(
-    "ALTER TABLE projects ADD COLUMN " + column_name + " " + definition + ";",
-  )
-  |> ignore
 }
 
 ///|
@@ -675,6 +872,69 @@ fn Store::count_projects(self : Store) -> Int {
   }
   stmt.finalize()
   count
+}
+
+///|
+fn Store::save_workspace_snapshot(
+  self : Store,
+  project_id : String,
+  archive : Bytes,
+) -> Result[Unit, String] {
+  let stmt = self.db
+    .prepare(
+      (
+        #|INSERT INTO project_workspace_snapshots (
+        #|  project_id,
+        #|  archive,
+        #|  updated_at
+        #|) VALUES (?, ?, ?)
+        #|ON CONFLICT(project_id) DO UPDATE SET
+        #|  archive = excluded.archive,
+        #|  updated_at = excluded.updated_at;
+      ),
+    )
+    .unwrap()
+  stmt.bind_all([
+    string_to_sql_text(project_id),
+    bytes_to_sql_blob(archive),
+    string_to_sql_text(now_string()),
+  ])
+  |> ignore
+  let ok = stmt.execute()
+  stmt.finalize()
+  if ok {
+    Ok(())
+  } else {
+    Err(
+      "Saving the workspace snapshot to the database failed: " +
+      bytes_to_string(self.db.errmsg()),
+    )
+  }
+}
+
+///|
+fn Store::get_workspace_snapshot(self : Store, project_id : String) -> Bytes? {
+  let stmt = self.db
+    .prepare(
+      (
+        #|SELECT archive
+        #|FROM project_workspace_snapshots
+        #|WHERE project_id = ?;
+      ),
+    )
+    .unwrap()
+  stmt.bind(1, string_to_sql_text(project_id)) |> ignore
+  let result = if stmt.step() {
+    match stmt.column(0) {
+      @sqlite.SqlValue::Blob(content) => Some(content)
+      @sqlite.SqlValue::Text(content) => Some(content)
+      _ => None
+    }
+  } else {
+    None
+  }
+  stmt.finalize()
+  result
 }
 
 ///|
@@ -1006,6 +1266,18 @@ fn Store::delete_project(
   delete_runs_stmt.bind(1, string_to_sql_text(project_id)) |> ignore
   delete_runs_stmt.execute() |> ignore
   delete_runs_stmt.finalize()
+
+  let delete_snapshot_stmt = self.db
+    .prepare(
+      (
+        #|DELETE FROM project_workspace_snapshots
+        #|WHERE project_id = ?;
+      ),
+    )
+    .unwrap()
+  delete_snapshot_stmt.bind(1, string_to_sql_text(project_id)) |> ignore
+  delete_snapshot_stmt.execute() |> ignore
+  delete_snapshot_stmt.finalize()
 
   let delete_project_stmt = self.db
     .prepare(
@@ -1620,7 +1892,7 @@ fn PreviewManager::copy_preview_assets(
   project : @sdk.ProjectDetail,
   manifest : TemplateManifest,
 ) -> Result[String, String] {
-  let workspace_path = project.workspace_path
+  let workspace_path = project_workspace(self.root, project.id)
   let preview_dir = preview_dist_dir(workspace_path)
   safe_remove_tree(preview_dir)
   ensure_dir(preview_dir)
@@ -1702,7 +1974,7 @@ fn PreviewManager::rebuild_and_restart(
     Ok(manifest) => manifest
     Err(message) => return Err(message)
   }
-  let workspace_path = project.workspace_path
+  let workspace_path = project_workspace(self.root, project.id)
   let build_code = shell_status(
     "cd '\{workspace_path}' && moon build \{self.build_profile.cli_flag()}>/dev/null 2>&1",
   )
@@ -1776,36 +2048,41 @@ fn AgentGateway::new(root : String) -> AgentGateway {
 }
 
 ///|
-fn AppContext::new(root : String) -> AppContext {
-  AppContext::new_with_recovery(root, true)
+fn AppContext::try_new(root : String) -> Result[AppContext, String] {
+  AppContext::try_new_with_recovery(root, true)
 }
 
 ///|
-fn AppContext::new_for_worker(root : String) -> AppContext {
-  AppContext::new_with_recovery(root, false)
+fn AppContext::try_new_for_worker(root : String) -> Result[AppContext, String] {
+  AppContext::try_new_with_recovery(root, false)
 }
 
 ///|
-fn AppContext::new_with_recovery(
+fn AppContext::try_new_with_recovery(
   root : String,
   recover_interrupted : Bool,
-) -> AppContext {
+) -> Result[AppContext, String] {
   let build_profile = build_profile_from_env()
   let data_dir = root + "/data/control-plane"
   ensure_dir(root + "/data")
   ensure_dir(data_dir)
+  clean_legacy_project_workspaces(root)
   let db_path = data_dir + "/state-v2.sqlite"
+  let store = match Store::try_new(db_path) {
+    Ok(store) => store
+    Err(message) => return Err(message)
+  }
   let ctx = {
     root,
     build_profile,
-    store: Store::new(db_path),
+    store,
     previews: PreviewManager::new(root, build_profile),
     agent_gateway: AgentGateway::new(root),
   }
   if recover_interrupted {
     ctx.store.recover_interrupted_runs()
   }
-  ctx
+  Ok(ctx)
 }
 
 ///|

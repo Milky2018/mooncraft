@@ -5,7 +5,8 @@ This module is the local backend for the current MoonBit Cloud prototype.
 Responsibilities:
 
 - persist projects, messages, and runs in SQLite
-- materialize template-backed MoonBit workspaces under `data/projects/<id>/workspace`
+- persist workspace source snapshots in SQLite
+- materialize template-backed MoonBit workspaces under `data/runtime/projects/<id>/workspace` as disposable execution scratch
 - serve the app-develop HTTP API
 - serve the main workspace page and platform bundle
 - serve file-backed control-plane HTML/CSS assets from `services/control-plane/assets`
@@ -16,6 +17,14 @@ Responsibilities:
 Official templates live under `templates/<id>`. Each template has a `template.json` manifest plus a runnable `workspace/` directory. Project rows persist `template_id` and `template_version` so preview rebuilds can use the originating template contract.
 
 The current `AgentGateway` uses Docker-backed Codex CLI runs. Each project keeps one persistent `codex_thread_id`, and each new chat message starts a detached worker process through `moonbitlang/async/process` that resumes that session, validates the workspace with `moon fmt`, `moon check`, and `moon test`, then refreshes the preview. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
+
+Workspace directories are no longer durable state. The control plane saves the latest source archive in SQLite after template materialization and after Codex edits. Each run hydrates that database snapshot into an isolated runtime workspace before starting Codex, then restores the local preview cache from the saved snapshot.
+
+The legacy `data/projects` workspace root is cleaned at startup. It is not used as a restore fallback, because generated files must come from the database snapshot or be treated as unavailable.
+
+SQLite is a required dependency for the control plane. If the database cannot be opened or schema initialization fails, the service exits during startup. The health endpoint also checks database availability and returns unavailable when the probe fails.
+
+For real Docker-backed runs, validation first runs `moon update` inside the generated workspace. The Codex runtime image also runs `moon update` at image build time so the MoonBit registry index exists before Codex starts editing. Without this registry preflight, generated template workspaces can fail before compilation with unresolved dependencies such as `moonbit-community/rabbita`, `oboard/mocket`, or `moonbitlang/x`.
 
 ## Control Plane Assets
 
@@ -89,6 +98,7 @@ Direct template smoke validates the template workspace in isolation:
 
 - run `just check-templates` from the repository root to copy each template workspace into a temporary sandbox and run `moon check` plus `moon build`
 - run `just check-template <template_id>` to validate one template the same way
+- run `just check-templates-codex` when template dependencies or the Codex runtime image change, so the same workspaces are checked inside Docker with `moon update`, `moon check`, and `moon build`
 - stage a temporary preview directory from `public/` plus the template's declared build artifacts
 - launch the preview runner directly
   - static templates: `services/control-plane -- run-static-preview <port> <preview-dist-dir>`

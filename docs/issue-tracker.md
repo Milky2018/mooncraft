@@ -1,6 +1,6 @@
 # MoonBit Cloud Issue Tracker
 
-Last updated: 2026-04-23
+Last updated: 2026-04-24
 
 ## Status Legend
 
@@ -16,8 +16,8 @@ Last updated: 2026-04-23
 | EPIC-002 | SDK | Freeze the eventual app runtime contract for request/response handlers and tenant context. | TODO | `packages/sdk` currently holds platform DTOs, not the user app handler contract yet. |
 | EPIC-003 | Runtime | Extract preview execution into a dedicated runner boundary. | IN_PROGRESS | Preview rebuild and restart are real, but they still live inside `services/control-plane`. |
 | EPIC-004 | UI | Build the chat-first app-develop page with projects, chat, and live preview. | DONE | Implemented in `apps/web` and served by `services/control-plane`. |
-| EPIC-005 | Persistence | Persist users, sessions, projects, messages, runs, and preview metadata in a dev-friendly store. | DONE | Implemented with SQLite plus generated workspaces on disk. |
-| EPIC-006 | Agent | Replace the local `AgentGateway` adapter with real Codex-driven editing. | IN_PROGRESS | Docker-backed Codex CLI runs and persistent `codex_thread_id` sessions are wired in; workspace persistence and executor hardening still need follow-up. |
+| EPIC-005 | Persistence | Persist users, sessions, projects, messages, runs, preview metadata, and workspace snapshots in a dev-friendly store. | DONE | Implemented with SQLite; generated workspaces are runtime scratch. |
+| EPIC-006 | Agent | Replace the local `AgentGateway` adapter with real Codex-driven editing. | IN_PROGRESS | Docker-backed Codex CLI runs, database-backed workspace snapshots, and persistent `codex_thread_id` sessions are wired in; executor hardening still needs follow-up. |
 | EPIC-007 | Templates | Build the first durable multi-tenant todo template and its recipe-backed validation flow. | TODO | Recipe docs exist; runnable template does not. |
 | EPIC-008 | Auth | Add multi-user platform auth, user-owned projects, and public preview tokens. | DONE | Email/password and cookie sessions are verified locally; GitHub OAuth is implemented but still needs live credential verification. |
 

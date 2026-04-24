@@ -22,7 +22,10 @@ The repo is one MoonBit workspace with three modules:
 
 Each user project is created under:
 
-`data/projects/<project-id>/workspace`
+`data/runtime/projects/<project-id>/workspace`
+
+That directory is runtime scratch, not durable storage. The control plane keeps the authoritative workspace source snapshot in SQLite and hydrates it into scratch paths for Codex runs and preview rebuilds.
+The old `data/projects` location is not a fallback source; startup removes that legacy scratch root instead of migrating or restoring from it.
 
 Each generated project uses a simple full-stack MoonBit shape:
 
@@ -51,8 +54,9 @@ SQLite stores:
 - `projects`
 - `messages`
 - `runs`
+- `project_workspace_snapshots`
 
-The database is the metadata layer. Source code remains on disk in generated project workspaces.
+The database is the durable state layer. Generated project source code is stored as a workspace snapshot archive in SQLite; filesystem workspaces under `data/runtime/` are disposable caches and execution directories. If the control plane cannot open or initialize SQLite, startup fails. After startup, the health endpoint returns unavailable if a basic database probe fails.
 
 Important persisted fields include:
 
@@ -62,7 +66,7 @@ Important persisted fields include:
 - project owner id
 - preview public id
 - display name
-- workspace path
+- workspace path for compatibility only; runtime code derives scratch paths from project id
 - template id and version
 - current status
 - current run id

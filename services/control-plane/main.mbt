@@ -392,7 +392,10 @@ fn main {
     return
   }
   let port = control_plane_port()
-  let ctx = AppContext::new(root)
+  let ctx = match AppContext::try_new(root) {
+    Ok(ctx) => ctx
+    Err(message) => abort("MoonBit Cloud cannot start: " + message)
+  }
   let stale_runs = ctx.store.fail_stale_running_runs_on_startup()
   if stale_runs > 0 {
     println(
@@ -413,7 +416,17 @@ fn main {
   })
   app.get("/app", _ => ctx.serve_platform_bundle())
   app.get("/assets/**", event => ctx.serve_platform_asset(event))
-  app.get(@sdk.health_path(), _ => json_ok(@sdk.HealthResponse::{ ok: true }))
+  app.get(@sdk.health_path(), _ => {
+    if ctx.store.is_available() {
+      json_ok(@sdk.HealthResponse::{ ok: true })
+    } else {
+      api_error_response(
+        ServiceUnavailable,
+        @sdk.ServiceUnavailable,
+        "The database is not available.",
+      )
+    }
+  })
   app.get(@sdk.session_path(), event => {
     json_ok(session_status_response(ctx, event))
   })
@@ -716,7 +729,7 @@ fn main {
         }
         if template_preview_kind(manifest) == "static" {
           return static_preview_response(
-            preview_dist_dir(project.workspace_path),
+            preview_dist_dir(project_workspace(ctx.root, project.id)),
             target_path,
           )
         }
