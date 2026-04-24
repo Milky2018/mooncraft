@@ -18,14 +18,14 @@
     "kind": "backend",
     "public_dir": "frontend/public",
     "health_path": "/api/health",
-    "frontend_module": "moonbitcloud/generated-app/frontend",
-    "backend_module": "moonbitcloud/generated-app/backend",
+    "frontend_module": "moonbitcloud/web-app-todolist/frontend",
+    "backend_module": "moonbitcloud/web-app-todolist/backend",
     "frontend_package": "frontend",
     "backend_package": "backend"
   },
   "validation": {
     "build_workspace": "moon build",
-    "run_backend": "_build/native/debug/build/moonbitcloud/generated-app/backend/backend.exe {port} {public_dir}"
+    "run_backend": "_build/native/debug/build/moonbitcloud/web-app-todolist/backend/backend.exe {port} {public_dir}"
   },
   "editable_files": [
     "frontend",

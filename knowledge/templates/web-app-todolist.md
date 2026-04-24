@@ -15,7 +15,7 @@ entrypoints:
 validation:
   - moon check
   - moon build
-  - _build/native/debug/build/moonbitcloud/generated-app/backend/backend.exe <port> <public_dir>
+  - _build/native/debug/build/moonbitcloud/web-app-todolist/backend/backend.exe <port> <public_dir>
   - run control-plane smoke with template_id web-app-todolist
 status: draft
 ---

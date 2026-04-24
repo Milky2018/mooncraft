@@ -1,15 +1,15 @@
 {
-  "name": "moonbitcloud/generated-app/backend",
+  "name": "moonbitcloud/web-app-todolist/backend",
   "version": "0.1.0",
   "preferred-target": "native",
   "deps": {
-    "moonbitcloud/generated-app/shared": "0.1.0",
+    "moonbitcloud/web-app-todolist/shared": "0.1.0",
     "oboard/mocket": "0.6.13",
     "moonbitlang/x": "0.4.14"
   },
   "readme": "README.md",
   "repository": "",
   "license": "Apache-2.0",
-  "keywords": ["moonbit", "generated-app", "backend"],
-  "description": "Backend for the generated MoonBit Cloud app."
+  "keywords": ["moonbit", "web-app-todolist", "backend"],
+  "description": "Backend for the Web App Todo List template."
 }
