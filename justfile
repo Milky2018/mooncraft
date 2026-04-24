@@ -82,18 +82,36 @@ check-templates:
 check-template template:
   ./scripts/check_templates.sh "{{template}}"
 
-# Serve the app at http://localhost:8080
-serve profile='debug':
-  @echo "MoonBit Cloud: http://localhost:8080"
-  @if [ "{{profile}}" = release ]; then MOONBITCLOUD_BUILD_PROFILE=release moon run --manifest-path moon.work --target native --release services/control-plane; else MOONBITCLOUD_BUILD_PROFILE=debug moon run --manifest-path moon.work --target native services/control-plane; fi
+# Serve the app. Examples: `just serve`, `just serve 8107`, `just serve release`, `just serve 8107 release`
+serve target='8080' profile='debug':
+  #!/usr/bin/env bash
+  set -euo pipefail
+  target="{{target}}"
+  profile="{{profile}}"
+  if [[ "$target" == "debug" || "$target" == "release" ]]; then
+    profile="$target"
+    port="${MOONBITCLOUD_PORT:-8080}"
+  else
+    port="$target"
+  fi
+  base_url="http://localhost:$port"
+  public_base_url="${MOONBITCLOUD_PUBLIC_BASE_URL:-$base_url}"
+  echo "MoonBit Cloud: $base_url"
+  if [[ "$profile" == "release" ]]; then
+    MOONBITCLOUD_PORT="$port" MOONBITCLOUD_PUBLIC_BASE_URL="$public_base_url" MOONBITCLOUD_BUILD_PROFILE=release \
+      moon run --manifest-path moon.work --target native --release services/control-plane
+  else
+    MOONBITCLOUD_PORT="$port" MOONBITCLOUD_PUBLIC_BASE_URL="$public_base_url" MOONBITCLOUD_BUILD_PROFILE=debug \
+      moon run --manifest-path moon.work --target native services/control-plane
+  fi
 
 # Open the app in your browser
-open:
-  open http://localhost:8080
+open port='8080':
+  open http://localhost:{{port}}
 
 # Alias for `serve`
-run profile='debug':
-  @just serve {{profile}}
+run target='8080' profile='debug':
+  @just serve {{target}} {{profile}}
 
 # Build, check templates, and run the smoke test
 test: build check-templates smoke
