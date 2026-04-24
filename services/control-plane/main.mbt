@@ -67,6 +67,11 @@ fn asset_response_bytes(
 }
 
 ///|
+fn platform_logo_asset_path(root : String) -> String {
+  root + "/apps/web/assets/logo.svg"
+}
+
+///|
 fn unauthorized_response() -> @mocket.HttpResponse {
   api_error_response(Unauthorized, @sdk.Unauthorized, "Sign in to continue.")
 }
@@ -314,7 +319,7 @@ fn workspace_page_html() -> String {
     #|    <meta charset="utf-8" />
     #|    <meta name="viewport" content="width=device-width, initial-scale=1" />
     #|    <title>MoonBit Cloud</title>
-    #|    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2305080c'/%3E%3Cpath d='M14 18h14v28H14zm22 0h14v28H36z' fill='%2338efb7'/%3E%3C/svg%3E" />
+    #|    <link rel="icon" type="image/svg+xml" href="/assets/logo.svg" />
     #|    <style>
     #|      :root {
     #|        color-scheme: dark;
@@ -386,6 +391,25 @@ fn AppContext::serve_platform_bundle(self : AppContext) -> @mocket.HttpResponse 
 }
 
 ///|
+fn AppContext::serve_platform_logo(self : AppContext) -> @mocket.HttpResponse {
+  asset_response_bytes(
+    "image/svg+xml; charset=utf-8",
+    safe_read_bytes_or(platform_logo_asset_path(self.root), b""),
+  )
+}
+
+///|
+fn AppContext::serve_platform_asset(
+  self : AppContext,
+  event : @mocket.MocketEvent,
+) -> @mocket.HttpResponse {
+  match event.params.get("_") {
+    Some(value) if value.to_string() == "logo.svg" => self.serve_platform_logo()
+    _ => text_response(NotFound, "Not found")
+  }
+}
+
+///|
 fn control_plane_port() -> Int {
   match @env.get_env_var("MOONBITCLOUD_PORT") {
     Some(value) => @string.parse_int(value) catch { _ => 8080 }
@@ -414,6 +438,7 @@ fn main {
 
   app.get("/", _ => html_response(workspace_page_html()))
   app.get("/app", _ => ctx.serve_platform_bundle())
+  app.get("/assets/**", event => ctx.serve_platform_asset(event))
   app.get(@sdk.health_path(), _ => json_ok(@sdk.HealthResponse::{ ok: true }))
   app.get(@sdk.session_path(), event => {
     json_ok(session_status_response(ctx, event))

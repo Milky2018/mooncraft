@@ -39,6 +39,7 @@ trap cleanup EXIT
 MOONBITCLOUD_PORT="$port" \
 MOONBITCLOUD_PUBLIC_BASE_URL="$base_url" \
 MOONBITCLOUD_BUILD_PROFILE=debug \
+MOONBITCLOUD_CODEX_FAKE_MODE=smoke \
 MOONBITCLOUD_CODEX_DOCKER_IMAGE= \
 moon run --manifest-path moon.work services/control-plane --target native \
   >"$log_file" 2>&1 &
@@ -102,7 +103,7 @@ async (page) => {
   await page.getByLabel("Password").fill(password)
   await page.getByLabel("Display Name").fill("Playwright Operator")
   await page.getByRole("button", { name: "Create Account" }).click()
-  await page.getByText("Signed in").waitFor()
+  await page.getByRole("button", { name: /Playwright Operator/ }).waitFor()
   await page.getByText("Verification pending").waitFor()
   await page.getByRole("button", { name: "Resend Verification" }).click()
   await page.getByText("Verification link has been queued.").waitFor()
@@ -120,13 +121,16 @@ run_playwright_phase "verify email page" <<EOF
 async (page) => {
   await page.getByText("Email address verified.").waitFor()
   await page.getByRole("link", { name: "Back to app" }).click()
-  await page.getByText("Signed in").waitFor({ timeout: 5000 }).catch(async () => {
+  await page.getByRole("button", { name: /Playwright Operator/ }).waitFor({ timeout: 5000 }).catch(async () => {
     await page.getByRole("button", { name: "Log In" }).first().click()
     await page.getByLabel("Email").fill("$email")
     await page.getByLabel("Password").fill("$password")
     await page.getByRole("button", { name: "Log In" }).last().click()
-    await page.getByText("Signed in").waitFor()
+    await page.getByRole("button", { name: /Playwright Operator/ }).waitFor()
   })
+  if (await page.getByText("Verified").count() === 0) {
+    await page.getByRole("button", { name: "Account" }).click()
+  }
   await page.getByText("Verified").waitFor()
   const verified = await page.evaluate(async () => {
     const response = await fetch("/api/session")
@@ -146,10 +150,20 @@ async (page) => {
   const email = "$email"
   const password = "$password"
   const changedPassword = "$changed_password"
+  const openAccountMenu = async () => {
+    if (await page.getByRole("button", { name: "Log Out" }).count() === 0) {
+      await page.getByRole("button", { name: /Playwright Operator/ }).click()
+    }
+  }
+  if (await page.getByRole("button", { name: "Change Password" }).count() === 0) {
+    await page.getByRole("button", { name: /Playwright Operator/ }).click()
+  }
+  await page.getByRole("button", { name: "Change Password" }).click()
   await page.getByPlaceholder("Current password").fill(password)
   await page.getByPlaceholder("New password").fill(changedPassword)
-  await page.getByRole("button", { name: "Change Password" }).click()
+  await page.getByRole("button", { name: "Save Password" }).click()
   await page.getByText("Password changed.").waitFor()
+  await openAccountMenu()
   await page.getByRole("button", { name: "Log Out" }).click()
   await page.getByLabel("Email").waitFor()
   await page.getByLabel("Email").fill(email)
@@ -158,7 +172,8 @@ async (page) => {
   await page.getByText("The email or password is incorrect.").waitFor()
   await page.getByLabel("Password").fill(changedPassword)
   await page.getByRole("button", { name: "Log In" }).last().click()
-  await page.getByText("Signed in").waitFor()
+  await page.getByRole("button", { name: /Playwright Operator/ }).waitFor()
+  await openAccountMenu()
   await page.getByRole("button", { name: "Log Out" }).click()
   await page.getByLabel("Email").waitFor()
   await page.getByRole("button", { name: "Forgot password?" }).click()
@@ -181,6 +196,35 @@ async (page) => {
   const baseUrl = "$base_url"
   const email = "$email"
   const password = "$reset_password"
+  const openAccountMenu = async () => {
+    if (await page.getByRole("button", { name: /^Theme: / }).count() === 0) {
+      await page.getByRole("button", { name: /Playwright Operator/ }).click()
+    }
+    await page.getByRole("button", { name: /^Theme: / }).waitFor()
+  }
+  const cycleThemeUntil = async (target) => {
+    const expected = \`Theme: \${target}\`
+    const expectedStored = target.toLowerCase()
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      await openAccountMenu()
+      const themeButton = page.getByRole("button", { name: /^Theme: / })
+      const label = ((await themeButton.textContent()) || "").trim()
+      if (label === expected) {
+        await page.waitForFunction(
+          ([key, value]) => window.localStorage.getItem(key) === value,
+          ["moonbitcloud-theme", expectedStored],
+        )
+        return
+      }
+      await themeButton.click()
+      await page.waitForTimeout(150)
+    }
+    await openAccountMenu()
+    const finalLabel = ((await page.getByRole("button", { name: /^Theme: / }).textContent()) || "").trim()
+    if (finalLabel !== expected) {
+      throw new Error(\`Expected \${expected}, got \${finalLabel}\`)
+    }
+  }
   await page.getByPlaceholder("New password").fill(password)
   await page.getByRole("button", { name: "Update Password" }).click()
   await page.getByText("Password updated. Sign in with the new password.").waitFor()
@@ -190,13 +234,18 @@ async (page) => {
   await page.getByLabel("Email").fill(email)
   await page.getByLabel("Password").fill(password)
   await page.getByRole("button", { name: "Log In" }).last().click()
-  await page.getByText("Signed in").waitFor()
-  if (await page.getByText("Theme: Light").count() === 0) {
-    await page.getByRole("button", { name: "Light Mode" }).click()
+  await page.getByRole("button", { name: /Playwright Operator/ }).waitFor()
+  await openAccountMenu()
+  if (await page.getByText("Syncs with preview theme").count() > 0) {
+    throw new Error("Appearance helper copy should not be visible")
   }
-  await page.getByText("Theme: Light").waitFor()
+  await cycleThemeUntil("Light")
+  await page.getByRole("button", { name: "Theme: Light" }).waitFor()
   await page.reload({ waitUntil: "domcontentloaded" })
-  await page.getByText("Theme: Light").waitFor()
+  await openAccountMenu()
+  await page.getByRole("button", { name: "Theme: Light" }).waitFor()
+  await cycleThemeUntil("System")
+  await cycleThemeUntil("Dark")
   await page.getByRole("button", { name: "+ New Project" }).click()
   await page.getByPlaceholder("Describe the change you want.").fill(
     "Build a deterministic Playwright smoke app.",
@@ -223,8 +272,8 @@ async (page) => {
     if (state && state !== "Running") break
     await page.waitForTimeout(1000)
   }
-  if (state !== "Failed") {
-    throw new Error(\`Expected fast worker failure in smoke mode, got \${state}\`)
+  if (state !== "Succeeded") {
+    throw new Error(\`Expected deterministic worker success in smoke mode, got \${state}\`)
   }
   const healthy = await page.evaluate(async () => {
     const response = await fetch("/api/health")
@@ -235,12 +284,13 @@ async (page) => {
   }
   await page.getByRole("button", { name: "Delete" }).click()
   await page.getByText("Create a project to begin.").waitFor()
+  await openAccountMenu()
   await page.getByRole("button", { name: "Log Out" }).click()
   await page.getByLabel("Email").waitFor()
   await page.getByLabel("Email").fill(email)
   await page.getByLabel("Password").fill(password)
   await page.getByRole("button", { name: "Log In" }).last().click()
-  await page.getByText("Signed in").waitFor()
+  await page.getByRole("button", { name: /Playwright Operator/ }).waitFor()
   return {
     email,
     emailVerifiedInBrowser: true,

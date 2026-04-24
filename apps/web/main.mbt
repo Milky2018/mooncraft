@@ -7,8 +7,9 @@ enum AuthMode {
 
 ///|
 enum ThemeMode {
-  Dark
   Light
+  System
+  Dark
 } derive(Eq)
 
 ///|
@@ -16,6 +17,7 @@ struct Model {
   boot_requested : Bool
   session_ready : Bool
   theme_mode : ThemeMode
+  resolved_theme_mode : ThemeMode
   current_user : @sdk.UserSummary?
   github_enabled : Bool
   auth_mode : AuthMode
@@ -29,6 +31,8 @@ struct Model {
   account_new_password : String
   account_pending : Bool
   account_notice : String?
+  account_panel_open : Bool
+  password_panel_open : Bool
   projects : Array[@sdk.ProjectSummary]
   selected_project_id : String?
   project_detail : @sdk.ProjectDetail?
@@ -44,7 +48,7 @@ struct Model {
 ///|
 enum Msg {
   Bootstrap
-  ThemeModeLoaded(ThemeMode)
+  ThemeModeLoaded(ThemeMode, ThemeMode)
   ToggleTheme
   SessionLoaded(Result[@sdk.SessionResponse, @sdk.ApiError])
   AuthModeSelected(AuthMode)
@@ -56,6 +60,8 @@ enum Msg {
   RequestPasswordResetCompleted(Result[@sdk.AuthActionResponse, @sdk.ApiError])
   Logout
   LoggedOut(Result[Unit, @sdk.ApiError])
+  ToggleAccountPanel
+  TogglePasswordPanel
   AccountCurrentPasswordChanged(String)
   AccountNewPasswordChanged(String)
   ChangePassword
@@ -85,29 +91,43 @@ priv suberror BootstrapSubscription {
 ///|
 fn ThemeMode::storage_value(self : ThemeMode) -> String {
   match self {
-    Dark => "dark"
     Light => "light"
+    System => "system"
+    Dark => "dark"
+  }
+}
+
+///|
+fn ThemeMode::next(self : ThemeMode) -> ThemeMode {
+  match self {
+    Light => System
+    System => Dark
+    Dark => Light
   }
 }
 
 ///|
 fn ThemeMode::label(self : ThemeMode) -> String {
   match self {
-    Dark => "Dark"
     Light => "Light"
-  }
-}
-
-///|
-fn ThemeMode::toggle(self : ThemeMode) -> ThemeMode {
-  match self {
-    Dark => Light
-    Light => Dark
+    System => "System"
+    Dark => "Dark"
   }
 }
 
 ///|
 fn theme_mode_from_string(value : String) -> ThemeMode {
+  if value == "light" {
+    Light
+  } else if value == "system" {
+    System
+  } else {
+    Dark
+  }
+}
+
+///|
+fn resolved_theme_mode_from_string(value : String) -> ThemeMode {
   if value == "light" {
     Light
   } else {
@@ -116,11 +136,24 @@ fn theme_mode_from_string(value : String) -> ThemeMode {
 }
 
 ///|
+fn resolved_theme_fallback(
+  theme_mode : ThemeMode,
+  fallback : ThemeMode,
+) -> ThemeMode {
+  match theme_mode {
+    Light => Light
+    Dark => Dark
+    System => fallback
+  }
+}
+
+///|
 fn initial_model() -> Model {
   {
     boot_requested: false,
     session_ready: false,
-    theme_mode: Dark,
+    theme_mode: System,
+    resolved_theme_mode: Dark,
     current_user: None,
     github_enabled: false,
     auth_mode: Signup,
@@ -134,6 +167,8 @@ fn initial_model() -> Model {
     account_new_password: "",
     account_pending: false,
     account_notice: None,
+    account_panel_open: false,
+    password_panel_open: false,
     projects: [],
     selected_project_id: None,
     project_detail: None,
@@ -171,16 +206,35 @@ fn subscriptions(dispatch : @rabbita.Dispatch[Msg], model : Model) -> @sub.Sub {
 ///|
 fn load_theme_cmd(dispatch : @rabbita.Dispatch[Msg]) -> @rabbita.Cmd {
   @cmd.custom_cmd(fn(scheduler) {
-    js_load_theme_mode(succeed=mode => {
-      scheduler.add(dispatch(ThemeModeLoaded(theme_mode_from_string(mode))))
+    js_load_theme_mode(succeed=(mode, resolved_mode) => {
+      scheduler.add(
+        dispatch(
+          ThemeModeLoaded(
+            theme_mode_from_string(mode),
+            resolved_theme_mode_from_string(resolved_mode),
+          ),
+        ),
+      )
     })
   })
 }
 
 ///|
-fn persist_theme_cmd(theme_mode : ThemeMode) -> @rabbita.Cmd {
-  @cmd.custom_cmd(fn(_scheduler) {
-    js_persist_theme_mode(theme_mode.storage_value())
+fn persist_theme_cmd(
+  dispatch : @rabbita.Dispatch[Msg],
+  theme_mode : ThemeMode,
+) -> @rabbita.Cmd {
+  @cmd.custom_cmd(fn(scheduler) {
+    js_persist_theme_mode(theme_mode.storage_value(), succeed=resolved_mode => {
+      scheduler.add(
+        dispatch(
+          ThemeModeLoaded(
+            theme_mode,
+            resolved_theme_mode_from_string(resolved_mode),
+          ),
+        ),
+      )
+    })
   })
 }
 
@@ -493,6 +547,8 @@ fn auth_recovery(
       account_new_password: "",
       account_pending: false,
       account_notice: None,
+      account_panel_open: false,
+      password_panel_open: false,
       auth_notice: Some(message),
     },
   )
@@ -510,10 +566,21 @@ fn update(
         @rabbita.batch([load_theme_cmd(dispatch), load_session_cmd(dispatch)]),
         { ..model, boot_requested: true, notice: None },
       )
-    ThemeModeLoaded(theme_mode) => (@rabbita.none, { ..model, theme_mode, })
+    ThemeModeLoaded(theme_mode, resolved_theme_mode) =>
+      (@rabbita.none, { ..model, theme_mode, resolved_theme_mode })
     ToggleTheme => {
-      let theme_mode = model.theme_mode.toggle()
-      (persist_theme_cmd(theme_mode), { ..model, theme_mode, })
+      let theme_mode = model.theme_mode.next()
+      (
+        persist_theme_cmd(dispatch, theme_mode),
+        {
+          ..model,
+          theme_mode,
+          resolved_theme_mode: resolved_theme_fallback(
+            theme_mode,
+            model.resolved_theme_mode,
+          ),
+        },
+      )
     }
     SessionLoaded(Ok(session)) => {
       let next_model = apply_session(model, session)
@@ -569,6 +636,12 @@ fn update(
           } else {
             model.account_notice
           },
+          account_panel_open: if model.auth_mode is Signup {
+            true
+          } else {
+            model.account_panel_open
+          },
+          password_panel_open: false,
         },
       )
     AuthCompleted(Err(error)) =>
@@ -615,6 +688,8 @@ fn update(
           account_new_password: "",
           account_pending: false,
           account_notice: None,
+          account_panel_open: false,
+          password_panel_open: false,
           auth_notice: None,
         },
       )
@@ -627,6 +702,24 @@ fn update(
           auth_notice: Some(error_notice("Sign-out failed.", error)),
           notice: Some(error_notice("Sign-out failed.", error)),
         },
+      )
+    ToggleAccountPanel =>
+      (
+        @rabbita.none,
+        {
+          ..model,
+          account_panel_open: !model.account_panel_open,
+          password_panel_open: if model.account_panel_open {
+            false
+          } else {
+            model.password_panel_open
+          },
+        },
+      )
+    TogglePasswordPanel =>
+      (
+        @rabbita.none,
+        { ..model, password_panel_open: !model.password_panel_open },
       )
     AccountCurrentPasswordChanged(value) =>
       (@rabbita.none, { ..model, account_current_password: value })
@@ -650,6 +743,7 @@ fn update(
           account_new_password: "",
           account_pending: false,
           account_notice: Some(response.message),
+          password_panel_open: false,
         },
       )
     PasswordChanged(Err(error)) =>
@@ -957,6 +1051,7 @@ fn mono_style() -> Array[String] {
 ///|
 fn theme_variables(theme_mode : ThemeMode) -> Array[String] {
   match theme_mode {
+    System => theme_variables(Dark)
     Dark =>
       [
         "--page-bg: #101113", "--page-bg-alt: #111214", "--sidebar-bg: #17181a",
@@ -1159,6 +1254,37 @@ fn status_badge(state : @sdk.RunState) -> @rabbita.Html {
 }
 
 ///|
+fn logo_asset_url() -> String {
+  "/assets/logo.svg"
+}
+
+///|
+fn brand_logo(size : Int) -> @rabbita.Html {
+  let px = size.to_string() + "px"
+  @html.div(
+    style=[
+      "width: " + px,
+      "height: " + px,
+      "display: grid",
+      "place-items: center",
+      "border-radius: 6px",
+      "background: #05080c",
+      "border: 1px solid var(--border-soft)",
+      "overflow: hidden",
+      "flex-shrink: 0",
+    ],
+    @html.img(
+      src=logo_asset_url(),
+      alt="MoonBit Cloud logo",
+      loading="eager",
+      decoding="async",
+      style=["width: 100%", "height: 100%", "object-fit: contain"],
+      "",
+    ),
+  )
+}
+
+///|
 fn user_name(model : Model) -> String {
   match model.current_user {
     Some(user) => user.display_name
@@ -1192,12 +1318,11 @@ fn theme_toggle_button(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
 ) -> @rabbita.Html {
-  let label = if model.theme_mode is Dark { "Light Mode" } else { "Dark Mode" }
   @html.button(
     type_="button",
     on_click=dispatch(ToggleTheme),
     style=secondary_button_style(true),
-    label,
+    "Theme: " + model.theme_mode.label(),
   )
 }
 
@@ -1213,10 +1338,15 @@ fn render_app_header(
         "gap: 12px",
       ],
     [
-      @html.div(
-        style=["font-size: 22px", "font-weight: 780", "letter-spacing: -0.02em"],
-        "MoonBit Cloud",
-      ),
+      @html.div(style=["display: flex", "align-items: center", "gap: 10px"], [
+        brand_logo(38),
+        @html.div(
+          style=[
+            "font-size: 22px", "font-weight: 780", "letter-spacing: -0.02em",
+          ],
+          "MoonBit Cloud",
+        ),
+      ]),
       theme_toggle_button(dispatch, model),
     ],
   )
@@ -1931,7 +2061,10 @@ fn render_preview_panel(model : Model) -> @rabbita.Html {
               style=["height: 100%"],
               @html.iframe(
                 title="Live Preview",
-                src=preview_url_with_theme(target.url, model.theme_mode),
+                src=preview_url_with_theme(
+                  target.url,
+                  model.resolved_theme_mode,
+                ),
                 loading="eager",
                 style=[
                   "height: 100%", "width: 100%", "border: none", "background: var(--preview-bg)",
@@ -2065,7 +2198,7 @@ fn sidebar_project_item(
 }
 
 ///|
-fn sidebar_password_input(
+fn account_password_input(
   value : String,
   placeholder : String,
   on_input : (String) -> Msg,
@@ -2085,7 +2218,7 @@ fn sidebar_password_input(
 }
 
 ///|
-fn render_account_security(
+fn render_account_panel(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
 ) -> @rabbita.Html {
@@ -2098,22 +2231,54 @@ fn render_account_security(
       }
       let resend_enabled = !user.email_verified && !model.account_pending
       @html.div(
-        style=[
-          "padding-top: 8px", "border-top: 1px solid var(--border-soft)", "display: flex",
-          "flex-direction: column", "gap: 8px",
-        ],
+        style=panel_style() +
+          [
+            "position: absolute", "right: 0", "top: calc(100% + 8px)", "width: min(360px, calc(100vw - 24px))",
+            "padding: 12px", "display: flex", "flex-direction: column", "gap: 10px",
+            "z-index: 10",
+          ],
         [
-          @html.div(style=section_label_style(), "Account Security"),
           @html.div(
             style=[
-              "display: flex", "justify-content: space-between", "gap: 8px", "font-size: 12px",
-              "color: var(--text-3)",
+              "display: flex", "align-items: center", "justify-content: space-between",
+              "gap: 10px",
             ],
             [
-              @html.span("Email"),
-              @html.span(style=mono_style(), verification_text),
+              @html.div(
+                style=[
+                  "display: flex", "flex-direction: column", "gap: 3px", "min-width: 0",
+                ],
+                [
+                  @html.div(style=section_label_style(), "Account"),
+                  @html.div(
+                    style=[
+                      "font-size: 14px", "font-weight: 760", "color: var(--text-1)",
+                      "white-space: nowrap", "overflow: hidden", "text-overflow: ellipsis",
+                    ],
+                    user.display_name,
+                  ),
+                  @html.div(
+                    style=mono_style() +
+                      [
+                        "font-size: 11px", "color: var(--text-3)", "white-space: nowrap",
+                        "overflow: hidden", "text-overflow: ellipsis",
+                      ],
+                    user.email,
+                  ),
+                ],
+              ),
+              @html.div(
+                style=mono_style() +
+                  [
+                    "font-size: 11px", "color: var(--text-2)", "padding: 5px 8px",
+                    "border: 1px solid var(--border-soft)", "border-radius: 999px",
+                    "background: var(--surface-2)", "white-space: nowrap",
+                  ],
+                verification_text,
+              ),
             ],
           ),
+          render_notice_card(model.account_notice, "var(--warning-soft)"),
           if user.email_verified {
             @html.nothing
           } else {
@@ -2122,7 +2287,7 @@ fn render_account_security(
               disabled=!resend_enabled,
               on_click=dispatch(ResendEmailVerification),
               style=secondary_button_style(resend_enabled) +
-                ["width: 100%", "padding: 8px 10px", "font-size: 12px"],
+                ["padding: 9px 10px", "font-size: 12px"],
               if model.account_pending {
                 "Queueing..."
               } else {
@@ -2130,34 +2295,172 @@ fn render_account_security(
               },
             )
           },
-          render_notice_card(model.account_notice, "var(--warning-soft)"),
-          sidebar_password_input(
-            model.account_current_password,
-            "Current password",
-            fn(value) { AccountCurrentPasswordChanged(value) },
-            dispatch,
-          ),
-          sidebar_password_input(
-            model.account_new_password,
-            "New password",
-            fn(value) { AccountNewPasswordChanged(value) },
-            dispatch,
+          @html.div(
+            style=[
+              "display: flex", "align-items: center", "justify-content: space-between",
+              "gap: 10px", "padding-top: 8px", "border-top: 1px solid var(--border-soft)",
+            ],
+            [
+              @html.div(
+                style=["display: flex", "flex-direction: column", "gap: 3px"],
+                [@html.div(style=section_label_style(), "Appearance")],
+              ),
+              theme_toggle_button(dispatch, model),
+            ],
           ),
           @html.button(
             type_="button",
-            disabled=!can_change_password(model),
-            on_click=dispatch(ChangePassword),
-            style=secondary_button_style(can_change_password(model)) +
-              ["width: 100%", "padding: 8px 10px", "font-size: 12px"],
-            if model.account_pending {
-              "Updating..."
+            on_click=dispatch(TogglePasswordPanel),
+            style=secondary_button_style(true) +
+              ["justify-content: space-between"],
+            if model.password_panel_open {
+              "Hide Password Form"
             } else {
               "Change Password"
+            },
+          ),
+          if model.password_panel_open {
+            @html.div(
+              style=[
+                "display: flex", "flex-direction: column", "gap: 8px", "padding: 10px",
+                "border: 1px solid var(--border-soft)", "border-radius: 6px", "background: var(--surface-2)",
+              ],
+              [
+                account_password_input(
+                  model.account_current_password,
+                  "Current password",
+                  fn(value) { AccountCurrentPasswordChanged(value) },
+                  dispatch,
+                ),
+                account_password_input(
+                  model.account_new_password,
+                  "New password",
+                  fn(value) { AccountNewPasswordChanged(value) },
+                  dispatch,
+                ),
+                @html.button(
+                  type_="button",
+                  disabled=!can_change_password(model),
+                  on_click=dispatch(ChangePassword),
+                  style=primary_button_style(can_change_password(model)) +
+                    ["padding: 9px 10px", "font-size: 12px"],
+                  if model.account_pending {
+                    "Updating..."
+                  } else {
+                    "Save Password"
+                  },
+                ),
+              ],
+            )
+          } else {
+            @html.nothing
+          },
+          @html.button(
+            type_="button",
+            disabled=model.logout_pending,
+            on_click=dispatch(Logout),
+            style=button_style(
+                "var(--surface-2)",
+                "var(--text-2)",
+                !model.logout_pending,
+              ) +
+              ["width: 100%", "justify-content: flex-start"],
+            if model.logout_pending {
+              "Logging out..."
+            } else {
+              "Log Out"
             },
           ),
         ],
       )
     }
+    None => @html.nothing
+  }
+}
+
+///|
+fn render_account_toolbar(
+  dispatch : @rabbita.Dispatch[Msg],
+  model : Model,
+) -> @rabbita.Html {
+  match model.current_user {
+    Some(user) =>
+      @html.div(
+        style=panel_style() +
+          [
+            "position: relative", "padding: 10px 12px", "display: flex", "align-items: center",
+            "justify-content: space-between", "gap: 10px", "flex-wrap: wrap",
+          ],
+        [
+          @html.div(
+            style=["display: flex", "flex-direction: column", "gap: 2px"],
+            [
+              @html.div(style=section_label_style(), "Workspace"),
+              @html.div(
+                style=[
+                  "font-size: 15px", "font-weight: 760", "color: var(--text-1)",
+                ],
+                workspace_name(model),
+              ),
+            ],
+          ),
+          @html.div(
+            style=[
+              "display: flex", "align-items: center", "justify-content: flex-end",
+              "gap: 8px", "flex-wrap: wrap", "position: relative",
+            ],
+            [
+              @html.button(
+                type_="button",
+                on_click=dispatch(ToggleAccountPanel),
+                style=secondary_button_style(true) +
+                  [
+                    "padding: 7px 9px", "justify-content: flex-start", "min-width: 184px",
+                  ],
+                [
+                  avatar_chip("U"),
+                  @html.div(
+                    style=[
+                      "display: flex", "flex-direction: column", "gap: 1px", "min-width: 0",
+                      "align-items: flex-start",
+                    ],
+                    [
+                      @html.div(
+                        style=[
+                          "font-size: 13px", "font-weight: 760", "color: var(--text-1)",
+                          "white-space: nowrap", "overflow: hidden", "text-overflow: ellipsis",
+                          "max-width: 110px",
+                        ],
+                        user.display_name,
+                      ),
+                      @html.div(
+                        style=mono_style() +
+                          ["font-size: 10px", "color: var(--text-3)"],
+                        "Account",
+                      ),
+                    ],
+                  ),
+                  @html.div(
+                    style=[
+                      "margin-left: auto", "font-size: 12px", "color: var(--text-3)",
+                    ],
+                    if model.account_panel_open {
+                      "x"
+                    } else {
+                      "v"
+                    },
+                  ),
+                ],
+              ),
+              if model.account_panel_open {
+                render_account_panel(dispatch, model)
+              } else {
+                @html.nothing
+              },
+            ],
+          ),
+        ],
+      )
     None => @html.nothing
   }
 }
@@ -2178,7 +2481,7 @@ fn render_project_sidebar(
     ],
     [
       @html.div(style=["display: flex", "align-items: center", "gap: 10px"], [
-        avatar_chip("M"),
+        brand_logo(38),
         @html.div(
           style=[
             "min-width: 0", "display: flex", "flex-direction: column", "gap: 2px",
@@ -2223,7 +2526,7 @@ fn render_project_sidebar(
       @html.div(
         style=[
           "display: flex", "flex-direction: column", "gap: 8px", "min-height: 0",
-          "overflow-y: auto",
+          "overflow-y: auto", "flex: 1",
         ],
         if project_items.length() == 0 {
           [
@@ -2238,58 +2541,6 @@ fn render_project_sidebar(
         } else {
           project_items
         },
-      ),
-      @html.div(style=["flex: 1"], ""),
-      @html.div(
-        style=[
-          "display: flex", "flex-direction: column", "gap: 10px", "color: var(--text-3)",
-          "font-size: 14px",
-        ],
-        [
-          @html.div(
-            style=[
-              "padding-top: 8px", "border-top: 1px solid var(--border-soft)", "display: flex",
-              "flex-direction: column", "gap: 8px",
-            ],
-            [
-              @html.div(
-                style=["color: var(--text-1)", "font-weight: 700"],
-                user_name(model),
-              ),
-              @html.div(style=mono_style() + ["font-size: 11px"], "Signed in"),
-              @html.div(
-                style=[
-                  "display: flex", "align-items: center", "justify-content: space-between",
-                  "gap: 8px",
-                ],
-                [
-                  @html.div(
-                    style=mono_style() + ["font-size: 11px"],
-                    "Theme: " + model.theme_mode.label(),
-                  ),
-                  theme_toggle_button(dispatch, model),
-                ],
-              ),
-              render_account_security(dispatch, model),
-            ],
-          ),
-          @html.button(
-            type_="button",
-            disabled=model.logout_pending,
-            on_click=dispatch(Logout),
-            style=button_style(
-                "var(--surface-2)",
-                "var(--text-2)",
-                !model.logout_pending,
-              ) +
-              ["width: 100%", "justify-content: flex-start"],
-            if model.logout_pending {
-              "Logging out..."
-            } else {
-              "Log Out"
-            },
-          ),
-        ],
       ),
     ],
   )
@@ -2308,10 +2559,21 @@ fn render_workspace_shell(
       render_project_sidebar(dispatch, model),
       @html.div(
         style=[
-          "flex: 1", "min-width: 0", "padding: 10px", "display: flex", "gap: 10px",
-          "align-items: stretch", "box-sizing: border-box",
+          "flex: 1", "min-width: 0", "padding: 10px", "display: flex", "flex-direction: column",
+          "gap: 10px", "box-sizing: border-box",
         ],
-        [render_workspace_panel(dispatch, model), render_preview_panel(model)],
+        [
+          render_account_toolbar(dispatch, model),
+          @html.div(
+            style=[
+              "flex: 1", "min-width: 0", "display: flex", "gap: 10px", "align-items: stretch",
+            ],
+            [
+              render_workspace_panel(dispatch, model),
+              render_preview_panel(model),
+            ],
+          ),
+        ],
       ),
     ],
   )
@@ -2321,7 +2583,7 @@ fn render_workspace_shell(
 fn view(dispatch : @rabbita.Dispatch[Msg], model : Model) -> @rabbita.Html {
   if model.session_ready && model.current_user is Some(_) {
     @html.div(
-      style=app_root_style(model.theme_mode),
+      style=app_root_style(model.resolved_theme_mode),
       render_workspace_shell(dispatch, model),
     )
   } else {
@@ -2331,7 +2593,7 @@ fn view(dispatch : @rabbita.Dispatch[Msg], model : Model) -> @rabbita.Html {
       render_auth_screen(dispatch, model)
     }
     @html.div(
-      style=app_root_style(model.theme_mode),
+      style=app_root_style(model.resolved_theme_mode),
       @html.div(style=app_stack_style(), [
         render_app_header(dispatch, model),
         body,
@@ -2341,37 +2603,61 @@ fn view(dispatch : @rabbita.Dispatch[Msg], model : Model) -> @rabbita.Html {
 }
 
 ///|
-extern "js" fn js_load_theme_mode(succeed~ : (String) -> Unit) =
+extern "js" fn js_load_theme_mode(succeed~ : (String, String) -> Unit) =
   #| (succeed) => {
-  #|   let mode = "dark";
-  #|   try {
-  #|     const stored = window.localStorage.getItem("moonbitcloud-theme");
-  #|     if (stored === "dark" || stored === "light") {
-  #|       mode = stored;
-  #|     } else if (
+  #|   const resolveTheme = (mode) => {
+  #|     if (mode === "light" || mode === "dark") return mode;
+  #|     if (
   #|       window.matchMedia &&
   #|       window.matchMedia("(prefers-color-scheme: light)").matches
   #|     ) {
-  #|       mode = "light";
+  #|       return "light";
+  #|     }
+  #|     return "dark";
+  #|   };
+  #|   let mode = "system";
+  #|   try {
+  #|     const stored = window.localStorage.getItem("moonbitcloud-theme");
+  #|     if (stored === "dark" || stored === "light" || stored === "system") {
+  #|       mode = stored;
   #|     }
   #|   } catch (_) {}
+  #|   const resolved = resolveTheme(mode);
   #|   try {
   #|     document.documentElement.dataset.theme = mode;
-  #|     document.documentElement.style.colorScheme = mode;
+  #|     document.documentElement.dataset.resolvedTheme = resolved;
+  #|     document.documentElement.style.colorScheme = resolved;
   #|   } catch (_) {}
-  #|   succeed(mode);
+  #|   succeed(mode, resolved);
   #| }
 
 ///|
-extern "js" fn js_persist_theme_mode(value : String) =
-  #| (value) => {
+extern "js" fn js_persist_theme_mode(
+  value : String,
+  succeed~ : (String) -> Unit,
+) =
+  #| (value, succeed) => {
+  #|   const resolveTheme = (mode) => {
+  #|     if (mode === "light" || mode === "dark") return mode;
+  #|     if (
+  #|       window.matchMedia &&
+  #|       window.matchMedia("(prefers-color-scheme: light)").matches
+  #|     ) {
+  #|       return "light";
+  #|     }
+  #|     return "dark";
+  #|   };
+  #|   const mode = value === "light" || value === "dark" || value === "system" ? value : "system";
+  #|   const resolved = resolveTheme(mode);
   #|   try {
-  #|     window.localStorage.setItem("moonbitcloud-theme", value);
+  #|     window.localStorage.setItem("moonbitcloud-theme", mode);
   #|   } catch (_) {}
   #|   try {
-  #|     document.documentElement.dataset.theme = value;
-  #|     document.documentElement.style.colorScheme = value;
+  #|     document.documentElement.dataset.theme = mode;
+  #|     document.documentElement.dataset.resolvedTheme = resolved;
+  #|     document.documentElement.style.colorScheme = resolved;
   #|   } catch (_) {}
+  #|   succeed(resolved);
   #| }
 
 ///|
