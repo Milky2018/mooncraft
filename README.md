@@ -85,6 +85,7 @@ Then open `http://localhost:8080`.
 Notes:
 
 - the image includes the MoonBit toolchain because the control plane still rebuilds generated previews at runtime
+- the image copies the full repo into `/app`, including `services/control-plane/assets`, which the control plane reads at runtime for file-backed HTML/CSS shells
 - set `MOONBITCLOUD_BUILD_PROFILE=release` if you want the control plane to stage and run release artifacts inside the container
 - Codex-backed editing also needs a separate Docker image that contains both `codex` and the MoonBit toolchain, exposed through:
   - `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
@@ -114,6 +115,8 @@ just serve release
 ```
 
 `just serve release` sets `MOONBITCLOUD_BUILD_PROFILE=release`, so the control plane stages the platform bundle and generated preview bundles from the release build output directories.
+
+Control-plane HTML/CSS shells are runtime files under `services/control-plane/assets`. They are available in the documented local workflow because `just serve` and `moon run --manifest-path moon.work --target native services/control-plane` run from the repository root. `moon build` does not embed those assets into the native executable, so standalone runs must preserve that directory next to the runtime working directory.
 
 ## Next Major Steps
 

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MoonBit Cloud GitHub Sign-In</title>
+    <link rel="icon" href="/control-plane-assets/favicon.svg" />
+    <link rel="stylesheet" href="/control-plane-assets/auth/github-callback/style.css" />
+  </head>
+  <body>
+    <div class="card">
+      <h1>Finishing GitHub sign-in</h1>
+      <p>MoonBit Cloud is verifying your GitHub account and preparing your workspace.</p>
+      <p id="status"></p>
+    </div>
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
+      const state = params.get("state");
+      const error = params.get("error");
+      const status = document.getElementById("status");
+      if (error) {
+        status.textContent = "GitHub returned an error: " + error;
+      } else if (!code || !state) {
+        status.textContent = "The GitHub callback is missing the required parameters.";
+      } else {
+        fetch("/api/auth/github/callback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ code, state })
+        }).then(async (response) => {
+          if (!response.ok) {
+            throw new Error((await response.text()) || "GitHub sign-in failed.");
+          }
+          window.location.replace("/");
+        }).catch((err) => {
+          status.textContent = err.message || "GitHub sign-in failed.";
+        });
+      }
+    </script>
+  </body>
+</html>

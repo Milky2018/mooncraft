@@ -531,98 +531,11 @@ fn AppContext::materialize_project_template(
 }
 
 ///|
-fn generated_preview_index_html() -> String {
-  (
-    #|<!doctype html>
-    #|<html lang="en">
-    #|  <head>
-    #|    <meta charset="utf-8" />
-    #|    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    #|    <title>MoonBit Cloud Preview</title>
-    #|    <script>
-    #|      (() => {
-    #|        const theme = new URLSearchParams(window.location.search).get("theme") === "light" ? "light" : "dark";
-    #|        document.documentElement.dataset.theme = theme;
-    #|        document.documentElement.style.colorScheme = theme;
-    #|      })();
-    #|    </script>
-    #|    <link rel="stylesheet" href="styles.css" />
-    #|  </head>
-    #|  <body>
-    #|    <div id="app"></div>
-    #|    <script type="module" src="app.js"></script>
-    #|  </body>
-    #|</html>
-  )
+fn preview_fallback_index_html(root : String) -> String {
+  control_plane_asset_string(root, "preview-fallback/index.html", "")
 }
 
 ///|
-fn generated_preview_styles() -> String {
-  (
-    #|:root {
-    #|  color-scheme: dark;
-    #|  font-family: "IBM Plex Sans", "Helvetica Neue", sans-serif;
-    #|  --preview-bg: #101113;
-    #|  --preview-card: #17181b;
-    #|  --preview-border: rgba(255, 255, 255, 0.09);
-    #|  --preview-text: #f4f4f5;
-    #|  --preview-muted: #8c8e95;
-    #|  --preview-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
-    #|  background: var(--preview-bg);
-    #|  color: var(--preview-text);
-    #|}
-    #|
-    #|:root[data-theme="light"] {
-    #|  color-scheme: light;
-    #|  --preview-bg: #f7f9fc;
-    #|  --preview-card: #ffffff;
-    #|  --preview-border: rgba(25, 35, 48, 0.14);
-    #|  --preview-text: #121821;
-    #|  --preview-muted: #707b8a;
-    #|  --preview-shadow: 0 10px 24px rgba(24, 36, 52, 0.10);
-    #|}
-    #|
-    #|* {
-    #|  box-sizing: border-box;
-    #|}
-    #|
-    #|body {
-    #|  margin: 0;
-    #|  min-height: 100vh;
-    #|  background: var(--preview-bg);
-    #|}
-    #|
-    #|.preview-shell {
-    #|  min-height: 100vh;
-    #|  display: grid;
-    #|  place-items: center;
-    #|  padding: 32px;
-    #|}
-    #|
-    #|.preview-card {
-    #|  width: min(560px, 100%);
-    #|  padding: 28px;
-    #|  border-radius: 8px;
-    #|  background: var(--preview-card);
-    #|  border: 1px solid var(--preview-border);
-    #|  box-shadow: var(--preview-shadow);
-    #|}
-    #|
-    #|.preview-title {
-    #|  margin: 0 0 12px;
-    #|  font-size: 38px;
-    #|  line-height: 1.05;
-    #|}
-    #|
-    #|.preview-copy {
-    #|  margin: 0;
-    #|  font-size: 16px;
-    #|  line-height: 1.6;
-    #|}
-    #|
-    #|.preview-copy.muted {
-    #|  margin-top: 14px;
-    #|  color: var(--preview-muted);
-    #|}
-  )
+fn preview_fallback_styles(root : String) -> String {
+  control_plane_asset_string(root, "preview-fallback/styles.css", "")
 }

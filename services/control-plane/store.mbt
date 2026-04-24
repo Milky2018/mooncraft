@@ -1541,10 +1541,10 @@ fn PreviewManager::copy_preview_assets(
   let index_target = preview_dir + "/index.html"
   let style_target = preview_dir + "/styles.css"
   if !@fs.path_exists(index_target) {
-    safe_write_string(index_target, generated_preview_index_html())
+    safe_write_string(index_target, preview_fallback_index_html(self.root))
   }
   if !@fs.path_exists(style_target) {
-    safe_write_string(style_target, generated_preview_styles())
+    safe_write_string(style_target, preview_fallback_styles(self.root))
   }
 
   let build_artifacts = template_preview_build_artifacts(manifest)

@@ -306,47 +306,8 @@ fn run_static_preview_mode(port : Int, static_dir : String) -> Unit {
 }
 
 ///|
-fn workspace_page_html() -> String {
-  (
-    #|<!doctype html>
-    #|<html lang="en">
-    #|  <head>
-    #|    <meta charset="utf-8" />
-    #|    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    #|    <title>MoonBit Cloud</title>
-    #|    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2305080c'/%3E%3Cpath d='M14 18h14v28H14zm22 0h14v28H36z' fill='%2338efb7'/%3E%3C/svg%3E" />
-    #|    <style>
-    #|      :root {
-    #|        color-scheme: dark;
-    #|        font-family: "IBM Plex Sans", "Helvetica Neue", sans-serif;
-    #|        background:
-    #|          radial-gradient(circle at top left, rgba(24, 255, 176, 0.12), transparent 28%),
-    #|          radial-gradient(circle at top right, rgba(45, 125, 255, 0.14), transparent 24%),
-    #|          linear-gradient(180deg, #091119, #05080c);
-    #|        color: #eff7ff;
-    #|      }
-    #|
-    #|      * {
-    #|        box-sizing: border-box;
-    #|      }
-    #|
-    #|      body {
-    #|        margin: 0;
-    #|        min-height: 100vh;
-    #|        background: #05080c;
-    #|      }
-    #|
-    #|      #app {
-    #|        min-height: 100vh;
-    #|      }
-    #|    </style>
-    #|  </head>
-    #|  <body>
-    #|    <div id="app"></div>
-    #|    <script type="module" src="/app"></script>
-    #|  </body>
-    #|</html>
-  )
+fn workspace_page_html(root : String) -> String {
+  control_plane_asset_string(root, "platform/index.html", "")
 }
 
 ///|
@@ -412,7 +373,14 @@ fn main {
 
   let app = @mocket.new()
 
-  app.get("/", _ => html_response(workspace_page_html()))
+  app.get("/", _ => html_response(workspace_page_html(ctx.root)))
+  app.get("/control-plane-assets/**", event => {
+    let remainder = event.params
+      .get("_")
+      .map(fn(value) { value.to_string() })
+      .unwrap_or("")
+    control_plane_asset_response(ctx.root, remainder)
+  })
   app.get("/app", _ => ctx.serve_platform_bundle())
   app.get(@sdk.health_path(), _ => json_ok(@sdk.HealthResponse::{ ok: true }))
   app.get(@sdk.session_path(), event => {
@@ -450,9 +418,11 @@ fn main {
     json_no_content()
   })
   app.get("/auth/email/verify", _ => {
-    html_response(email_verification_page_html())
+    html_response(email_verification_page_html(ctx.root))
   })
-  app.get("/auth/password/reset", _ => html_response(password_reset_page_html()))
+  app.get("/auth/password/reset", _ => {
+    html_response(password_reset_page_html(ctx.root))
+  })
   app.post(@sdk.request_password_reset_path(), event => {
     let request : @sdk.RequestPasswordResetRequest = match
       decode_json_body(event) {
@@ -507,7 +477,7 @@ fn main {
   })
   app.get("/auth/github/start", _ => github_authorization_response(ctx))
   app.get("/auth/github/callback", _ => {
-    html_response(github_callback_page_html())
+    html_response(github_callback_page_html(ctx.root))
   })
   app.post("/api/auth/github/callback", async fn(event) noraise {
     let payload : GitHubCallbackPayload = match decode_json_body(event) {

@@ -8,6 +8,7 @@ Responsibilities:
 - materialize template-backed MoonBit workspaces under `data/projects/<id>/workspace`
 - serve the app-develop HTTP API
 - serve the main workspace page and platform bundle
+- serve file-backed control-plane HTML/CSS assets from `services/control-plane/assets`
 - launch asynchronous Codex workers against generated workspaces
 - rebuild and restart local previews
 - store preview URLs and last-known run state
@@ -15,6 +16,18 @@ Responsibilities:
 Official templates live under `templates/<id>`. Each template has a `template.json` manifest plus a runnable `workspace/` directory. Project rows persist `template_id` and `template_version` so preview rebuilds can use the originating template contract.
 
 The current `AgentGateway` uses Docker-backed Codex CLI runs. Each project keeps one persistent `codex_thread_id`, and each new chat message spawns a background worker that resumes that session, validates the workspace with `moon fmt`, `moon check`, and `moon test`, then refreshes the preview.
+
+## Control Plane Assets
+
+Static control-plane shells live under `services/control-plane/assets` instead of MoonBit string literals. This includes:
+
+- `platform/index.html` and `platform/style.css` for the root app shell
+- `auth/**/index.html` and shared auth CSS for account action pages
+- `preview-fallback/index.html` and `preview-fallback/styles.css` for generated previews that do not provide their own shell
+
+These files are runtime assets. `moon build` checks and builds the MoonBit code, but it does not embed this directory into the executable. The supported local walkthrough runs from the repository root through `just serve` or `moon run --manifest-path moon.work --target native services/control-plane`, so the assets are available at `services/control-plane/assets`. The Docker walkthrough also includes them because the image uses `COPY . /app` before running the control plane from `/app`.
+
+If you run a compiled `control-plane.exe` from another directory, keep `services/control-plane/assets` available under that working directory or the file-backed HTML pages will not render.
 
 ## Account Emails
 
