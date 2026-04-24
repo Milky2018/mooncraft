@@ -4,7 +4,7 @@ set dotenv-load := true
 codex_repository := "docker.io/moonbitcloud/codex"
 codex_version := "codex-0.123.0-node24"
 codex_image := "docker.io/moonbitcloud/codex:codex-0.123.0-node24"
-codex_model := "gpt-5.3-codex"
+codex_model := "gpt-5.4"
 
 # Show available recipes
 default:

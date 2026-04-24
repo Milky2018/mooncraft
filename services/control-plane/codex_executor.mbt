@@ -24,7 +24,7 @@ struct CodexDockerConfig {
 let default_codex_docker_image = "docker.io/moonbitcloud/codex:codex-0.123.0-node24"
 
 ///|
-let default_codex_model = "gpt-5.3-codex"
+let default_codex_model = "gpt-5.4"
 
 ///|
 struct RunArtifacts {
@@ -1069,27 +1069,19 @@ fn AppContext::spawn_project_turn_worker(
   }
   let artifacts = RunArtifacts::new(self.root, project_id, run_id)
   let worker_log_path = artifacts.dir + "/worker.log"
-  let worker_pid_path = artifacts.dir + "/worker.pid"
-  safe_write_string(worker_pid_path, "")
-  let code = shell_status(
-    "(cd \{shell_quote(self.root)} && \{shell_quote(executable_path)} run-worker \{shell_quote(project_id)} \{shell_quote(run_id)} >> \{shell_quote(worker_log_path)} 2>&1 & echo $! > \{shell_quote(worker_pid_path)})",
+  let result : Ref[Result[Int, String]] = @ref.new(
+    Err("The background run worker was not started."),
   )
-  if code != 0 {
-    return Err(
-      "The background run worker could not be started. Shell returned \{code}.",
+  @async.run_async_main(async fn() {
+    result.val = spawn_worker_process(
+      self.root,
+      executable_path,
+      worker_log_path,
+      project_id,
+      run_id,
     )
-  }
-  let worker_pid = @string.parse_int(
-    safe_read_string_or(worker_pid_path, "").trim(),
-  ) catch {
-    _ => 0
-  }
-  if worker_pid <= 0 {
-    return Err(
-      "The background run worker could not be started. No worker PID was recorded.",
-    )
-  }
-  Ok(worker_pid)
+  })
+  result.val
 }
 
 ///|
@@ -1240,6 +1232,58 @@ async fn AppContext::run_project_turn(
       )
     }
   }
+}
+
+///|
+fn worker_process_args(project_id : String, run_id : String) -> Array[String] {
+  let args : Array[String] = []
+  args.push("run-worker")
+  args.push(project_id)
+  args.push(run_id)
+  args
+}
+
+///|
+async fn spawn_worker_process(
+  root : String,
+  executable_path : String,
+  log_path : String,
+  project_id : String,
+  run_id : String,
+) -> Result[Int, String] noraise {
+  let stdout = try
+    @process.redirect_to_file(log_path, create=0o644, truncate=true)
+  catch {
+    err =>
+      return Err("The background run worker log could not be opened: \{err}")
+  } noraise {
+    output => output
+  }
+  let stderr = try
+    @process.redirect_to_file(log_path, append=true, create=0o644)
+  catch {
+    err =>
+      return Err("The background run worker log could not be opened: \{err}")
+  } noraise {
+    output => output
+  }
+  let pid = try
+    @process.spawn_orphan(
+      executable_path,
+      worker_process_args(project_id, run_id),
+      stdout~,
+      stderr~,
+      cwd=root,
+    )
+  catch {
+    err =>
+      return Err(
+        "The background run worker could not be started: \{err}. Log: \{log_path}",
+      )
+  } noraise {
+    pid => pid
+  }
+  Ok(pid)
 }
 
 ///|

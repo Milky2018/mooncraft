@@ -9,13 +9,13 @@ Responsibilities:
 - serve the app-develop HTTP API
 - serve the main workspace page and platform bundle
 - serve file-backed control-plane HTML/CSS assets from `services/control-plane/assets`
-- launch asynchronous Codex workers against generated workspaces
+- launch durable asynchronous Codex workers against generated workspaces
 - rebuild and restart local previews
 - store preview URLs and last-known run state
 
 Official templates live under `templates/<id>`. Each template has a `template.json` manifest plus a runnable `workspace/` directory. Project rows persist `template_id` and `template_version` so preview rebuilds can use the originating template contract.
 
-The current `AgentGateway` uses Docker-backed Codex CLI runs. Each project keeps one persistent `codex_thread_id`, and each new chat message spawns a background worker that resumes that session, validates the workspace with `moon fmt`, `moon check`, and `moon test`, then refreshes the preview.
+The current `AgentGateway` uses Docker-backed Codex CLI runs. Each project keeps one persistent `codex_thread_id`, and each new chat message starts a detached worker process through `moonbitlang/async/process` that resumes that session, validates the workspace with `moon fmt`, `moon check`, and `moon test`, then refreshes the preview. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
 
 ## Control Plane Assets
 
@@ -114,13 +114,13 @@ Each template knowledge document should record:
 Required Codex runtime configuration:
 
 - `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
-- optional `MOONBITCLOUD_CODEX_MODEL` (defaults to `gpt-5.3-codex`)
+- optional `MOONBITCLOUD_CODEX_MODEL` (defaults to `gpt-5.4`)
 - optional `MOONBITCLOUD_CODEX_HOME_HOST` (defaults to `$HOME/.codex`)
 - optional `MOONBITCLOUD_CODEX_CONTAINER_HOME` (defaults to `/root`)
 
 The default runtime image is `docker.io/moonbitcloud/codex:codex-0.123.0-node24`. Override it through `.env` or `MOONBITCLOUD_CODEX_DOCKER_IMAGE` when testing local images, PR images, rollbacks, or digest-pinned production deployments.
 
-The default Codex model is `gpt-5.3-codex`. Override it through `.env` or `MOONBITCLOUD_CODEX_MODEL` if your account needs a different accessible model.
+The default Codex model is `gpt-5.4`. Override it through `.env` or `MOONBITCLOUD_CODEX_MODEL` if your account needs a different accessible model.
 
 Use `just codex-config` to inspect the effective runtime configuration. Build the runtime image locally with `just build-codex-image` (defaults to the official tag for `linux/amd64`).
 

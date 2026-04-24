@@ -57,7 +57,7 @@ Frontend-only templates can instead use a single MoonBit module with a root `moo
 - Static frontend previews run through `services/control-plane -- run-static-preview <port> <preview-dist-dir>` and can stage arbitrary assets, including wasm host files.
 - Preview URLs are public opaque paths like `/p/<preview_public_id>/` and stay same-origin through the control plane.
 - `packages/sdk` defines the shared request and response payloads used by the frontend and control plane.
-- `AgentGateway` now launches Docker-backed Codex CLI runs asynchronously and persists one `codex_thread_id` per project so later messages can resume the same Codex session.
+- `AgentGateway` runs Docker-backed Codex CLI work through a durable async worker process and persists one `codex_thread_id` per project so later messages can resume the same Codex session.
 
 ## Core Docs
 
@@ -89,11 +89,11 @@ Notes:
 - set `MOONBITCLOUD_BUILD_PROFILE=release` if you want the control plane to stage and run release artifacts inside the container
 - Codex-backed editing also needs a separate Docker image that contains both `codex` and the MoonBit toolchain, exposed through:
   - `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
-  - optional `MOONBITCLOUD_CODEX_MODEL` (defaults to `gpt-5.3-codex`)
+  - optional `MOONBITCLOUD_CODEX_MODEL` (defaults to `gpt-5.4`)
   - optional `MOONBITCLOUD_CODEX_HOME_HOST` (defaults to `$HOME/.codex`)
   - optional `MOONBITCLOUD_CODEX_CONTAINER_HOME` (defaults to `/root`)
 - the default Codex runtime image is `docker.io/moonbitcloud/codex:codex-0.123.0-node24`; override it through `.env` or `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
-- the default Codex model is `gpt-5.3-codex`; override it through `.env` or `MOONBITCLOUD_CODEX_MODEL` if your account needs a different accessible model
+- the default Codex model is `gpt-5.4`; override it through `.env` or `MOONBITCLOUD_CODEX_MODEL` if your account needs a different accessible model
 - inspect the effective Codex runtime config with `just codex-config`
 - build the Codex runtime image locally with `just build-codex-image` (defaults to the official tag for `linux/amd64`)
 - publish the multi-arch Codex runtime image with `just docker-codex-publish` after `docker login` (defaults to `docker.io/moonbitcloud/codex:codex-0.123.0-node24` and `docker.io/moonbitcloud/codex:latest` for `linux/amd64,linux/arm64`)
