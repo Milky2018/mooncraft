@@ -90,7 +90,12 @@ Notes:
   - `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
   - optional `MOONBITCLOUD_CODEX_HOME_HOST` (defaults to `$HOME/.codex`)
   - optional `MOONBITCLOUD_CODEX_CONTAINER_HOME` (defaults to `/root`)
-- build the local Codex runtime image with `just build-codex-image` (defaults to `linux/amd64`), then set `MOONBITCLOUD_CODEX_DOCKER_IMAGE=moonbitcloud-codex:local`
+- the default Codex runtime image is `docker.io/moonbitcloud/codex:codex-0.123.0-node24`; override it through `.env` or `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
+- inspect the effective Codex runtime config with `just codex-config`
+- build the Codex runtime image locally with `just build-codex-image` (defaults to the official tag for `linux/amd64`)
+- publish the multi-arch Codex runtime image with `just docker-codex-publish` after `docker login` (defaults to `docker.io/moonbitcloud/codex:codex-0.123.0-node24` and `docker.io/moonbitcloud/codex:latest` for `linux/amd64,linux/arm64`)
+- publish to another Docker Hub namespace with `just docker-codex-publish docker.io/<namespace>/codex`
+- for shared environments, prefer `MOONBITCLOUD_CODEX_DOCKER_IMAGE=docker.io/moonbitcloud/codex:codex-0.123.0-node24` over `latest`
 - run `just codex-smoke` to verify the real Docker-backed Codex CLI path by building a Todo List App end to end
 - GitHub OAuth is optional and uses:
   - `MOONBITCLOUD_GITHUB_CLIENT_ID`

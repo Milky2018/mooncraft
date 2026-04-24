@@ -20,6 +20,9 @@ struct CodexDockerConfig {
 }
 
 ///|
+let default_codex_docker_image = "docker.io/moonbitcloud/codex:codex-0.123.0-node24"
+
+///|
 struct RunArtifacts {
   dir : String
   last_message_path : String
@@ -76,11 +79,8 @@ fn codex_container_artifacts_dir() -> String {
 ///|
 fn CodexDockerConfig::load() -> Result[CodexDockerConfig, String] {
   let image = match @env.get_env_var("MOONBITCLOUD_CODEX_DOCKER_IMAGE") {
-    Some(value) if value.trim() != "" => value
-    _ =>
-      return Err(
-        "Set MOONBITCLOUD_CODEX_DOCKER_IMAGE to a Docker image that provides codex and the MoonBit toolchain.",
-      )
+    Some(value) if value.trim() != "" => value.trim().to_string()
+    _ => default_codex_docker_image
   }
   let host_codex_home = match @env.get_env_var("MOONBITCLOUD_CODEX_HOME_HOST") {
     Some(value) if value.trim() != "" => value

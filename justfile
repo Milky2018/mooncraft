@@ -1,4 +1,9 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
+set dotenv-load := true
+
+codex_repository := "docker.io/moonbitcloud/codex"
+codex_version := "codex-0.123.0-node24"
+codex_image := "docker.io/moonbitcloud/codex:codex-0.123.0-node24"
 
 # Show available recipes
 default:
@@ -25,8 +30,42 @@ build-control-plane profile='debug':
   @just build {{profile}}
 
 # Build the Docker image used by the Codex executor
-build-codex-image tag='moonbitcloud-codex:local' platform='linux/amd64':
+build-codex-image tag=codex_image platform='linux/amd64':
   docker build --platform {{platform}} -f docker/codex/Dockerfile -t {{tag}} .
+
+# Publish the Codex executor image to Docker Hub for amd64 and arm64
+docker-codex-publish repository=codex_repository version=codex_version platforms='linux/amd64,linux/arm64':
+  #!/usr/bin/env bash
+  set -euo pipefail
+  repository="{{repository}}"
+  version="{{version}}"
+  platforms="{{platforms}}"
+  builder="${MOONBITCLOUD_CODEX_BUILDX_BUILDER:-moonbitcloud-codex-builder}"
+  if ! docker buildx inspect "$builder" >/dev/null 2>&1; then
+    docker buildx create --name "$builder" --driver docker-container --bootstrap >/dev/null
+  else
+    docker buildx inspect "$builder" --bootstrap >/dev/null
+  fi
+  docker buildx build \
+    --builder "$builder" \
+    --platform "$platforms" \
+    -f docker/codex/Dockerfile \
+    -t "$repository:$version" \
+    -t "$repository:latest" \
+    --push \
+    .
+  docker buildx imagetools inspect "$repository:$version"
+
+# Show the effective Codex runtime configuration
+codex-config:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  image="${MOONBITCLOUD_CODEX_DOCKER_IMAGE:-{{codex_image}}}"
+  codex_home="${MOONBITCLOUD_CODEX_HOME_HOST:-${HOME:-}/.codex}"
+  container_home="${MOONBITCLOUD_CODEX_CONTAINER_HOME:-/root}"
+  echo "MOONBITCLOUD_CODEX_DOCKER_IMAGE=$image"
+  echo "MOONBITCLOUD_CODEX_HOME_HOST=$codex_home"
+  echo "MOONBITCLOUD_CODEX_CONTAINER_HOME=$container_home"
 
 # Build the whole workspace
 build profile='debug': fmt
@@ -248,10 +287,9 @@ smoke-running:
 codex-smoke:
   #!/usr/bin/env bash
   set -euo pipefail
-  if [[ -z "${MOONBITCLOUD_CODEX_DOCKER_IMAGE:-}" ]]; then
-    echo "Set MOONBITCLOUD_CODEX_DOCKER_IMAGE to a Docker image that contains codex and the MoonBit toolchain." >&2
-    exit 1
-  fi
+  codex_image="${MOONBITCLOUD_CODEX_DOCKER_IMAGE:-{{codex_image}}}"
+  export MOONBITCLOUD_CODEX_DOCKER_IMAGE="$codex_image"
+  echo "Using Codex Docker image: $codex_image"
   if ! command -v docker >/dev/null 2>&1; then
     echo "docker is required for the real Codex smoke test." >&2
     exit 1
