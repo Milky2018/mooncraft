@@ -166,7 +166,7 @@ test "startup recovery makes stale running runs retryable" {
   safe_remove_tree(db_path)
   safe_remove_tree(db_path + "-shm")
   safe_remove_tree(db_path + "-wal")
-  let store = Store::new(db_path)
+  let store = Store::try_new(db_path).unwrap()
   let project_id = next_id("project")
   ignore(
     store.create_project(
@@ -183,7 +183,7 @@ test "startup recovery makes stale running runs retryable" {
 
   inspect(store.fail_stale_running_runs_on_startup(), content="1")
   let recovered_run = store.get_run(project_id, stale_run.run_id).unwrap()
-  inspect(recovered_run.state is @sdk.Failed, content="true")
+  inspect(recovered_run.state == @sdk.Failed, content="true")
   inspect(
     recovered_run.summary,
     content="Some(\"The previous worker was interrupted before it could finish. Send another message to retry this project.\")",
@@ -193,7 +193,7 @@ test "startup recovery makes stale running runs retryable" {
     content="Some(\"Worker recovery\")",
   )
   let project = store.get_project_detail(project_id).unwrap()
-  inspect(project.status is @sdk.Failed, content="true")
+  inspect(project.status == @sdk.Failed, content="true")
   inspect(project.current_run_id, content="None")
   let retry_run = store.start_run(project_id, "Retry the app")
   inspect(
