@@ -48,6 +48,42 @@ test "codex commands pin the configured model" {
 }
 
 ///|
+test "codex display events hide protocol noise" {
+  inspect(
+    codex_display_event("Reading additional input from stdin..."),
+    content="None",
+  )
+  inspect(
+    codex_display_event(
+      "2026-04-27T07:31:22Z ERROR codex_core_skills::manager: failed to install system skills",
+    ),
+    content="None",
+  )
+  inspect(
+    codex_display_event(
+      "{\"type\":\"thread.started\",\"thread_id\":\"local-thread\"}",
+    ),
+    content="Some((\"status\", \"Started Codex session.\"))",
+  )
+  inspect(
+    codex_display_event("{\"type\":\"turn.started\"}"),
+    content="Some((\"status\", \"Planning the change.\"))",
+  )
+  inspect(
+    codex_display_event(
+      "{\"type\":\"item.started\",\"item\":{\"type\":\"command_execution\",\"command\":\"/bin/bash -lc 'moon check'\",\"status\":\"in_progress\"}}",
+    ),
+    content="Some((\"status\", \"Checking the workspace.\"))",
+  )
+  inspect(
+    codex_display_event(
+      "{\"type\":\"item.completed\",\"item\":{\"type\":\"file_change\",\"status\":\"completed\"}}",
+    ),
+    content="Some((\"status\", \"Updated project files.\"))",
+  )
+}
+
+///|
 test "recovery prompt includes original and latest requests" {
   let prompt = recovery_prompt("Build a todo app", "Add labels and due dates")
   assert_true(prompt.contains("Original project requirement"))
@@ -179,7 +215,7 @@ test "run events append and list after sequence" {
     project_id,
     run.run_id,
     "status",
-    "Starting Codex CLI.",
+    "Starting Codex session.",
   )
   store.append_run_event(
     project_id,

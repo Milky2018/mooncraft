@@ -259,6 +259,74 @@ fn resume_session_missing(output : String) -> Bool {
 }
 
 ///|
+fn codex_command_progress_message(line : String) -> String? {
+  if line.contains("moon fmt") {
+    Some("Formatting the workspace.")
+  } else if line.contains("moon check") {
+    Some("Checking the workspace.")
+  } else if line.contains("moon test") {
+    Some("Running tests.")
+  } else if line.contains("moon update") {
+    Some("Refreshing MoonBit registry metadata.")
+  } else {
+    None
+  }
+}
+
+///|
+fn codex_display_event(line : String) -> (String, String)? {
+  let trimmed = line.trim().to_string()
+  if trimmed == "" || !trimmed.has_prefix("{") {
+    return None
+  }
+  if trimmed.contains("\"type\":\"thread.started\"") {
+    Some(("status", "Started Codex session."))
+  } else if trimmed.contains("\"type\":\"turn.started\"") {
+    Some(("status", "Planning the change."))
+  } else if trimmed.contains("\"type\":\"turn.completed\"") {
+    Some(("status", "Codex finished the update."))
+  } else if trimmed.contains("\"type\":\"turn.failed\"") {
+    Some(("status", "Codex reported a failure."))
+  } else if trimmed.contains("\"type\":\"agent_message\"") {
+    match extract_json_string_field(trimmed, "text") {
+      Some(text) if text.trim() != "" => Some(("progress", text))
+      _ => None
+    }
+  } else if trimmed.contains("\"type\":\"file_change\"") {
+    if trimmed.contains("\"status\":\"completed\"") {
+      Some(("status", "Updated project files."))
+    } else {
+      Some(("status", "Editing project files."))
+    }
+  } else if trimmed.contains("\"type\":\"command_execution\"") {
+    if trimmed.contains("\"status\":\"failed\"") {
+      Some(("status", "A workspace command failed; Codex is handling it."))
+    } else {
+      match codex_command_progress_message(trimmed) {
+        Some(message) => Some(("status", message))
+        None => None
+      }
+    }
+  } else {
+    None
+  }
+}
+
+///|
+fn append_codex_display_event(
+  store : Store,
+  project_id : String,
+  run_id : String,
+  line : String,
+) -> Unit {
+  match codex_display_event(line) {
+    Some((kind, content)) =>
+      store.append_run_event(project_id, run_id, kind, content)
+    None => ignore(())
+  }
+}
+
+///|
 fn append_command_log(
   path : String,
   label : String,
@@ -565,7 +633,9 @@ async fn stream_docker_output(
   let (reader, writer) = pipe
   let chunks : Array[String] = []
   let exit_code_ref : Ref[Int] = @ref.new(-1)
-  store.append_run_event(project_id, run_id, "status", "Starting Codex CLI.")
+  store.append_run_event(
+    project_id, run_id, "status", "Starting Codex session.",
+  )
   let group_result = try
     @async.with_task_group(async fn(group) {
       let task = group.spawn(
@@ -587,7 +657,7 @@ async fn stream_docker_output(
             let text = line.to_string()
             chunks.push(text)
             chunks.push("\n")
-            store.append_run_event(project_id, run_id, "codex", text)
+            append_codex_display_event(store, project_id, run_id, text)
           }
           None => reading = false
         }
@@ -633,7 +703,7 @@ async fn collect_codex_command_output(
     for raw_line in result.1.replace_all(old="\r\n", new="\n").split("\n") {
       let line = raw_line.to_string()
       if line != "" {
-        store.append_run_event(project.id, run_id, "codex", line)
+        append_codex_display_event(store, project.id, run_id, line)
       }
     }
     Ok(result)
