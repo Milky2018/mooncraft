@@ -252,6 +252,7 @@ fn update(
           run_status: None,
           run_events: [],
           last_run_event_seq: 0,
+          run_spinner_tick: 0,
         }
       } else {
         { ..model, projects, selected_project_id }
@@ -280,6 +281,7 @@ fn update(
           messages: [],
           run_events: [],
           last_run_event_seq: 0,
+          run_spinner_tick: 0,
           delete_project_confirming: None,
           notice: None,
         },
@@ -382,6 +384,7 @@ fn update(
           run_status: None,
           run_events: [],
           last_run_event_seq: 0,
+          run_spinner_tick: 0,
           delete_project_confirming: None,
         },
       )
@@ -412,6 +415,7 @@ fn update(
           run_status: None,
           run_events: [],
           last_run_event_seq: 0,
+          run_spinner_tick: 0,
           draft: "",
           delete_project_confirming: None,
           delete_project_pending: None,
@@ -455,6 +459,7 @@ fn update(
               messages: append_local_user_message(model, project_id, content),
               run_events: [],
               last_run_event_seq: 0,
+              run_spinner_tick: 0,
             },
           )
         }
@@ -479,6 +484,7 @@ fn update(
               sending_message: false,
               run_events: [],
               last_run_event_seq: 0,
+              run_spinner_tick: 0,
             },
           )
         _ =>
@@ -555,7 +561,12 @@ fn update(
       }
       (
         @rabbita.none,
-        { ..model, run_events: events, last_run_event_seq: last_seq },
+        {
+          ..model,
+          run_events: events,
+          last_run_event_seq: last_seq,
+          run_spinner_tick: model.run_spinner_tick + 1,
+        },
       )
     }
     RunEventsLoaded(Err(error)) =>

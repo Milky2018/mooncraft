@@ -40,6 +40,7 @@ struct Model {
   run_status : @sdk.RunStatusResponse?
   run_events : Array[@sdk.RunEvent]
   last_run_event_seq : Int
+  run_spinner_tick : Int
   draft : String
   create_project_pending : Bool
   delete_project_confirming : String?
@@ -182,6 +183,7 @@ fn initial_model() -> Model {
     run_status: None,
     run_events: [],
     last_run_event_seq: 0,
+    run_spinner_tick: 0,
     draft: "",
     create_project_pending: false,
     delete_project_confirming: None,

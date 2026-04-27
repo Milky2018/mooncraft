@@ -120,6 +120,7 @@ fn clear_workspace(model : Model) -> Model {
     run_status: None,
     run_events: [],
     last_run_event_seq: 0,
+    run_spinner_tick: 0,
     draft: "",
     create_project_pending: false,
     delete_project_confirming: None,

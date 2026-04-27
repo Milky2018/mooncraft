@@ -48,18 +48,20 @@ fn render_message(message : @sdk.ChatMessage) -> @rabbita.Html {
 }
 
 ///|
-fn run_events_text(events : Array[@sdk.RunEvent]) -> String {
-  let lines : Array[String] = []
+fn latest_run_event_text(events : Array[@sdk.RunEvent]) -> String {
+  let mut text = "Starting worker..."
   for event in events {
     if event.content != "" {
-      lines.push("[" + event.kind + "] " + event.content)
+      text = event.content
     }
   }
-  if lines.length() == 0 {
-    "Starting worker..."
-  } else {
-    lines.join("\n")
-  }
+  text
+}
+
+///|
+fn run_spinner_frame(tick : Int) -> String {
+  let frames = ["🕛", "🕐", "🕑", "🕒", "🕓", "🕔", "🕕", "🕖"]
+  frames[tick % frames.length()]
 }
 
 ///|
@@ -86,14 +88,28 @@ fn render_run_events(model : Model) -> @rabbita.Html {
           "MoonBit Cloud is working",
         ),
         @html.div(
-          style=mono_style() +
-            [
-              "max-height: 260px", "overflow-y: auto", "padding: 12px", "border-radius: 8px",
-              "background: var(--surface-3)", "border: 1px solid var(--border-soft)",
-              "font-size: 12px", "line-height: 1.55", "white-space: pre-wrap", "overflow-wrap: anywhere",
-              "color: var(--text-2)",
-            ],
-          run_events_text(model.run_events),
+          style=[
+            "display: flex", "align-items: center", "gap: 10px", "padding: 12px",
+            "border-radius: 8px", "background: var(--surface-3)", "border: 1px solid var(--border-soft)",
+            "color: var(--text-2)",
+          ],
+          [
+            @html.div(
+              style=[
+                "font-size: 18px", "line-height: 1", "width: 24px", "text-align: center",
+                "flex-shrink: 0",
+              ],
+              run_spinner_frame(model.run_spinner_tick),
+            ),
+            @html.div(
+              style=mono_style() +
+                [
+                  "font-size: 13px", "line-height: 1.55", "white-space: pre-wrap",
+                  "overflow-wrap: anywhere",
+                ],
+              latest_run_event_text(model.run_events),
+            ),
+          ],
         ),
       ],
     ),
