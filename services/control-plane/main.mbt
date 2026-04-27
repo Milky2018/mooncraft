@@ -712,6 +712,29 @@ fn main {
       None => api_error_response(NotFound, @sdk.NotFound, "Run not found.")
     }
   })
+  app.get(@sdk.list_run_events_route().path_pattern, event => {
+    let user = match require_session_user(ctx, event) {
+      Ok(user) => user
+      Err(response) => return response
+    }
+    let project_id = match path_param(event, "id") {
+      Ok(value) => value
+      Err(response) => return response
+    }
+    let run_id = match path_param(event, "run_id") {
+      Ok(value) => value
+      Err(response) => return response
+    }
+    let after_seq = match path_param(event, "after_seq") {
+      Ok(value) => @string.parse_int(value) catch { _ => 0 }
+      Err(_) => 0
+    }
+    match
+      ctx.store.list_run_events_for_user(user.id, project_id, run_id, after_seq) {
+      Some(items) => json_ok(@sdk.ListRunEventsResponse::{ items, })
+      None => api_error_response(NotFound, @sdk.NotFound, "Run not found.")
+    }
+  })
   app.all(@sdk.preview_route_pattern(), async fn(event) noraise {
     let preview_public_id = match path_param(event, "preview_public_id") {
       Ok(value) => value

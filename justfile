@@ -2,9 +2,9 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 set dotenv-load := true
 
 codex_repository := "docker.io/moonbitcloud/codex"
-codex_version := "codex-0.123.0-node24"
-codex_image := "docker.io/moonbitcloud/codex:codex-0.123.0-node24"
-codex_model := "gpt-5.4"
+codex_version := "codex-0.125.0-node24"
+codex_image := "docker.io/moonbitcloud/codex:codex-0.125.0-node24"
+codex_model := "gpt-5.5"
 
 # Show available recipes
 default:
@@ -33,6 +33,10 @@ build-control-plane profile='debug':
 # Build the Docker image used by the Codex executor
 build-codex-image tag=codex_image platform='linux/amd64':
   docker build --platform {{platform}} -f docker/codex/Dockerfile -t {{tag}} .
+
+# Build the Docker image used by the MoonBit Cloud app runtime
+build-moonbitcloud-image tag='moonbitcloud:local' platform='linux/amd64':
+  docker build --platform {{platform}} -f docker/moonbitcloud/Dockerfile -t {{tag}} .
 
 # Publish the Codex executor image to Docker Hub for amd64 and arm64
 docker-codex-publish repository=codex_repository version=codex_version platforms='linux/amd64,linux/arm64':

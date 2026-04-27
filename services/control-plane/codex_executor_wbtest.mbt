@@ -36,15 +36,67 @@ test "resume session missing detection matches codex cli error" {
 
 ///|
 test "codex commands pin the configured model" {
-  let exec_command = codex_exec_command("gpt-5.4", "Build a todo app")
+  let exec_command = codex_exec_command("gpt-5.5", "Build a todo app")
   inspect(exec_command[2], content="--model")
-  inspect(exec_command[3], content="gpt-5.4")
+  inspect(exec_command[3], content="gpt-5.5")
   let resume_command = codex_resume_command(
-    "gpt-5.4", "local-thread", "Add labels",
+    "gpt-5.5", "local-thread", "Add labels",
   )
   assert_true(codex_command_is_resume(resume_command))
   inspect(resume_command[3], content="--model")
-  inspect(resume_command[4], content="gpt-5.4")
+  inspect(resume_command[4], content="gpt-5.5")
+}
+
+///|
+test "docker validation uses initialized image registry in one shell" {
+  inspect(
+    validation_shell_script(include_update=false),
+    content=(
+      #|set -e
+      #|echo '== moon fmt =='
+      #|moon fmt
+      #|echo '== moon check =='
+      #|moon check
+      #|echo '== moon test =='
+      #|moon test
+    ),
+  )
+}
+
+///|
+test "codex display events hide protocol noise" {
+  inspect(
+    codex_display_event("Reading additional input from stdin..."),
+    content="None",
+  )
+  inspect(
+    codex_display_event(
+      "2026-04-27T07:31:22Z ERROR codex_core_skills::manager: failed to install system skills",
+    ),
+    content="None",
+  )
+  inspect(
+    codex_display_event(
+      "{\"type\":\"thread.started\",\"thread_id\":\"local-thread\"}",
+    ),
+    content="Some((\"status\", \"Started Codex session.\"))",
+  )
+  inspect(
+    codex_display_event("{\"type\":\"turn.started\"}"),
+    content="Some((\"status\", \"Planning the change.\"))",
+  )
+  inspect(
+    codex_display_event(
+      "{\"type\":\"item.started\",\"item\":{\"type\":\"command_execution\",\"command\":\"/bin/bash -lc 'moon check'\",\"status\":\"in_progress\"}}",
+    ),
+    content="Some((\"status\", \"Checking the workspace.\"))",
+  )
+  inspect(
+    codex_display_event(
+      "{\"type\":\"item.completed\",\"item\":{\"type\":\"file_change\",\"status\":\"completed\"}}",
+    ),
+    content="Some((\"status\", \"Updated project files.\"))",
+  )
 }
 
 ///|
@@ -158,15 +210,49 @@ async test "start_run persists the initial project prompt once" {
 }
 
 ///|
+async test "run events append and list after sequence" {
+  let root = @env.current_dir().unwrap_or(".")
+  let (store, db_path) = new_test_store(root, "run-events")
+  let project_id = next_id("project")
+  ignore(
+    store.create_project(
+      project_id,
+      "user-1",
+      "preview-" + project_id,
+      Some("Events Test"),
+      project_workspace(root, project_id),
+      default_template_id(),
+      default_template_version(),
+    ),
+  )
+  let run = store.start_run(project_id, "Build a todo app").unwrap()
+
+  store.append_run_event(
+    project_id,
+    run.run_id,
+    "status",
+    "Starting Codex session.",
+  )
+  store.append_run_event(
+    project_id,
+    run.run_id,
+    "codex",
+    "{\"type\":\"turn.started\"}",
+  )
+  let first_page = store.list_run_events(project_id, run.run_id, 0)
+  inspect(first_page.length(), content="2")
+  inspect(first_page[0].seq, content="1")
+  inspect(first_page[1].kind, content="codex")
+  let second_page = store.list_run_events(project_id, run.run_id, 1)
+  inspect(second_page.length(), content="1")
+  inspect(second_page[0].content, content="{\"type\":\"turn.started\"}")
+  cleanup_test_db(db_path)
+}
+
+///|
 async test "startup recovery makes stale running runs retryable" {
   let root = @env.current_dir().unwrap_or(".")
-  let db_dir = root + "/data/control-plane-test-dbs"
-  ensure_dir(db_dir)
-  let db_path = db_dir + "/" + next_id("stale-running-run") + ".sqlite"
-  safe_remove_tree(db_path)
-  safe_remove_tree(db_path + "-shm")
-  safe_remove_tree(db_path + "-wal")
-  let store = Store::try_new_async(db_path).unwrap()
+  let (store, db_path) = new_test_store(root, "stale-running-run")
   let project_id = next_id("project")
   ignore(
     store.create_project(
@@ -203,10 +289,7 @@ async test "startup recovery makes stale running runs retryable" {
     },
     content="true",
   )
-
-  safe_remove_tree(db_path)
-  safe_remove_tree(db_path + "-shm")
-  safe_remove_tree(db_path + "-wal")
+  cleanup_test_db(db_path)
 }
 
 ///|

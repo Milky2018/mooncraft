@@ -29,6 +29,8 @@ pub fn list_messages_route() -> RouteSpec
 
 pub fn list_projects_route() -> RouteSpec
 
+pub fn list_run_events_route() -> RouteSpec
+
 pub fn login_path() -> String
 
 pub fn login_route() -> RouteSpec
@@ -60,6 +62,8 @@ pub fn resend_email_verification_route() -> RouteSpec
 pub fn reset_password_path() -> String
 
 pub fn reset_password_route() -> RouteSpec
+
+pub fn run_events_path(String, String, Int) -> String
 
 pub fn run_path(String, String) -> String
 
@@ -167,6 +171,10 @@ pub(all) struct ListProjectsResponse {
   items : Array[ProjectSummary]
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
+pub(all) struct ListRunEventsResponse {
+  items : Array[RunEvent]
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
 pub(all) struct LoginRequest {
   email : String
   password : String
@@ -219,6 +227,13 @@ pub(all) struct RouteSpec {
   path_pattern : String
   success_status : SuccessStatus
 } derive(@debug.Debug)
+
+pub(all) struct RunEvent {
+  seq : Int
+  kind : String
+  content : String
+  created_at : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct RunFailureDebug {
   stage : String

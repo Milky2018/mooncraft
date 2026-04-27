@@ -73,11 +73,11 @@ Frontend-only templates can instead use a single MoonBit module with a root `moo
 You can run the current single-instance control plane in Docker:
 
 ```bash
-docker build -t moonbitcloud .
+just build-moonbitcloud-image
 docker run --rm \
   -p 8080:8080 \
   -v moonbitcloud-data:/app/data \
-  moonbitcloud
+  moonbitcloud:local
 ```
 
 Then open `http://localhost:8080`.
@@ -91,17 +91,17 @@ Notes:
 - set `MOONBITCLOUD_BUILD_PROFILE=release` if you want the control plane to stage and run release artifacts inside the container
 - Codex-backed editing also needs a separate Docker image that contains both `codex` and the MoonBit toolchain, exposed through:
   - `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
-  - optional `MOONBITCLOUD_CODEX_MODEL` (defaults to `gpt-5.4`)
+  - optional `MOONBITCLOUD_CODEX_MODEL` (defaults to `gpt-5.5`)
   - optional `MOONBITCLOUD_CODEX_HOME_HOST` (defaults to `$HOME/.codex`)
   - optional `MOONBITCLOUD_CODEX_CONTAINER_HOME` (defaults to `/root`)
-- the default Codex runtime image is `docker.io/moonbitcloud/codex:codex-0.123.0-node24`; override it through `.env` or `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
-- the default Codex model is `gpt-5.4`; override it through `.env` or `MOONBITCLOUD_CODEX_MODEL` if your account needs a different accessible model
+- the default Codex runtime image is `docker.io/moonbitcloud/codex:codex-0.125.0-node24`; override it through `.env` or `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
+- the default Codex model is `gpt-5.5`; override it through `.env` or `MOONBITCLOUD_CODEX_MODEL` if your account needs a different accessible model
 - inspect the effective Codex runtime config with `just codex-config`
 - build the Codex runtime image locally with `just build-codex-image` (defaults to the official tag for `linux/amd64`)
-- the Codex runtime image must have an initialized MoonBit registry; the bundled Dockerfile runs `moon update`, and the control plane also runs `moon update` before Docker-backed validation
-- publish the multi-arch Codex runtime image with `just docker-codex-publish` after `docker login` (defaults to `docker.io/moonbitcloud/codex:codex-0.123.0-node24` and `docker.io/moonbitcloud/codex:latest` for `linux/amd64,linux/arm64`)
+- the Codex runtime image must have an initialized MoonBit registry; the bundled Dockerfile runs `moon update` at image build time so Docker-backed validation can run without mutating the registry at runtime
+- publish the multi-arch Codex runtime image with `just docker-codex-publish` after `docker login` (defaults to `docker.io/moonbitcloud/codex:codex-0.125.0-node24` and `docker.io/moonbitcloud/codex:latest` for `linux/amd64,linux/arm64`)
 - publish to another Docker Hub namespace with `just docker-codex-publish docker.io/<namespace>/codex`
-- for shared environments, prefer `MOONBITCLOUD_CODEX_DOCKER_IMAGE=docker.io/moonbitcloud/codex:codex-0.123.0-node24` over `latest`
+- for shared environments, prefer `MOONBITCLOUD_CODEX_DOCKER_IMAGE=docker.io/moonbitcloud/codex:codex-0.125.0-node24` over `latest`
 - run `just codex-smoke` to verify the real Docker-backed Codex CLI path by building a Todo List App end to end
 - GitHub OAuth is optional and uses:
   - `MOONBITCLOUD_GITHUB_CLIENT_ID`
@@ -143,7 +143,7 @@ just serve 8107 release
 
 `just check-templates` validates every official template in a temporary sandbox by running target-less `moon check` and `moon build`. Use `just check-template <template_id>` for one template.
 
-`just check-templates-codex` runs the same template workspaces inside the Codex runtime image with `moon update`, `moon check`, and `moon build`. Use it after changing the Codex image, template dependencies, or validation flow.
+`just check-templates-codex` runs the same template workspaces inside the Codex runtime image with `moon check` and `moon build`. Use it after changing the Codex image, template dependencies, or validation flow.
 
 Control-plane HTML/CSS shells are runtime files under `services/control-plane/assets`. They are available in the documented local workflow because `just serve` and `moon run --manifest-path moon.work --target native services/control-plane` run from the repository root. `moon build` does not embed those assets into the native executable, so standalone runs must preserve that directory next to the runtime working directory.
 

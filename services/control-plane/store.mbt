@@ -1190,6 +1190,36 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
   match
     self.exec_or_error(
       (
+        #|CREATE TABLE IF NOT EXISTS run_events (
+        #|  id TEXT PRIMARY KEY,
+        #|  project_id TEXT NOT NULL,
+        #|  run_id TEXT NOT NULL,
+        #|  seq INTEGER NOT NULL,
+        #|  kind TEXT NOT NULL,
+        #|  content TEXT NOT NULL,
+        #|  created_at TEXT NOT NULL,
+        #|  UNIQUE(project_id, run_id, seq)
+        #|);
+      ),
+      "create run_events table",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE INDEX IF NOT EXISTS run_events_project_run_seq_idx
+        #|ON run_events(project_id, run_id, seq);
+      ),
+      "create run events index",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
         #|CREATE TABLE IF NOT EXISTS account_action_tokens (
         #|  id TEXT PRIMARY KEY,
         #|  user_id TEXT NOT NULL,
@@ -1447,6 +1477,85 @@ async fn Store::get_run(
 }
 
 ///|
+async fn Store::append_run_event(
+  self : Store,
+  project_id : String,
+  run_id : String,
+  kind : String,
+  content : String,
+) -> Unit noraise {
+  if content == "" {
+    return
+  }
+  let seq = match
+    self.query_one(
+      (
+        #|SELECT COALESCE(MAX(seq), 0) + 1 AS next_seq
+        #|FROM run_events
+        #|WHERE project_id = ? AND run_id = ?;
+      ),
+      params=[@db.String(project_id), @db.String(run_id)],
+    ) {
+    Some(row) => row_int(row, "next_seq")
+    None => 1
+  }
+  ignore(
+    self.exec_or_error(
+      (
+        #|INSERT INTO run_events (
+        #|  id,
+        #|  project_id,
+        #|  run_id,
+        #|  seq,
+        #|  kind,
+        #|  content,
+        #|  created_at
+        #|) VALUES (?, ?, ?, ?, ?, ?, ?);
+      ),
+      "append run event",
+      params=[
+        @db.String(next_id("event")),
+        @db.String(project_id),
+        @db.String(run_id),
+        @db.Int(seq),
+        @db.String(kind),
+        @db.String(content),
+        @db.String(now_string()),
+      ],
+    ),
+  )
+}
+
+///|
+async fn Store::list_run_events(
+  self : Store,
+  project_id : String,
+  run_id : String,
+  after_seq : Int,
+) -> Array[@sdk.RunEvent] noraise {
+  let rows = self.query_rows(
+    (
+      #|SELECT seq, kind, content, created_at
+      #|FROM run_events
+      #|WHERE project_id = ? AND run_id = ? AND seq > ?
+      #|ORDER BY seq ASC
+      #|LIMIT 200;
+    ),
+    params=[@db.String(project_id), @db.String(run_id), @db.Int(after_seq)],
+  )
+  let items : Array[@sdk.RunEvent] = []
+  for row in rows {
+    items.push(@sdk.RunEvent::{
+      seq: row_int(row, "seq"),
+      kind: row_text(row, "kind"),
+      content: row_text(row, "content"),
+      created_at: row_text(row, "created_at"),
+    })
+  }
+  items
+}
+
+///|
 async fn Store::list_running_runs(self : Store) -> Array[RunningRun] noraise {
   let rows = self.query_rows(
     (
@@ -1585,6 +1694,13 @@ async fn Store::delete_project(
     self.exec_or_error(
       "DELETE FROM messages WHERE project_id = ?;",
       "delete project messages",
+      params=[@db.String(project_id)],
+    ),
+  )
+  ignore(
+    self.exec_or_error(
+      "DELETE FROM run_events WHERE project_id = ?;",
+      "delete project run events",
       params=[@db.String(project_id)],
     ),
   )
