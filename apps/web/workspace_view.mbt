@@ -364,50 +364,6 @@ fn render_workspace_panel(
 }
 
 ///|
-fn render_preview_empty(model : Model) -> @rabbita.Html {
-  let project_error = model.project_detail.bind(fn(project) {
-    project.last_error
-  })
-  let helper_copy = match model.project_detail {
-    None => "Select a project to see its preview."
-    Some(_) =>
-      if active_run(model) is Some(_) {
-        "The preview will appear when the run finishes."
-      } else {
-        "No preview yet. Send a request to build the app."
-      }
-  }
-  @html.div(
-    style=[
-      "height: 100%", "padding: 14px", "display: flex", "flex-direction: column",
-      "gap: 10px",
-    ],
-    [
-      @html.div(
-        style=inset_panel_style() +
-          [
-            "padding: 14px", "display: flex", "flex-direction: column", "gap: 8px",
-            "min-height: 220px", "justify-content: center",
-          ],
-        [
-          @html.div(
-            style=["font-size: 24px", "line-height: 1.12", "font-weight: 760"],
-            "Preview",
-          ),
-          @html.div(
-            style=[
-              "font-size: 15px", "line-height: 1.6", "color: var(--text-2)",
-            ],
-            helper_copy,
-          ),
-        ],
-      ),
-      render_notice_card(project_error, "var(--danger-soft)"),
-    ],
-  )
-}
-
-///|
 fn preview_url_with_theme(url : String, theme_mode : ThemeMode) -> String {
   let separator = if url.contains("?") { "&" } else { "?" }
   url + separator + "theme=" + theme_mode.storage_value()
@@ -416,45 +372,42 @@ fn preview_url_with_theme(url : String, theme_mode : ThemeMode) -> String {
 ///|
 fn render_preview_panel(model : Model) -> @rabbita.Html {
   let preview = model.project_detail.bind(fn(project) { project.preview })
-  let status = match preview {
-    Some(target) => if target.healthy { @sdk.Succeeded } else { @sdk.Failed }
-    None => if active_run(model) is Some(_) { @sdk.Running } else { @sdk.Idle }
-  }
-  @html.div(
-    style=panel_style() +
-      [
-        "flex: 1 1 420px", "min-width: 320px", "display: flex", "flex-direction: column",
-        "min-height: 0", "overflow: hidden",
-      ],
-    [
+  match preview {
+    Some(target) => {
+      let status = if target.healthy { @sdk.Succeeded } else { @sdk.Failed }
       @html.div(
-        style=[
-          "padding: 16px 18px", "border-bottom: 1px solid var(--border-soft)", "display: flex",
-          "justify-content: space-between", "align-items: flex-start", "gap: 12px",
-          "flex-wrap: wrap",
-        ],
+        style=panel_style() +
+          [
+            "flex: 1 1 420px", "min-width: 320px", "display: flex", "flex-direction: column",
+            "min-height: 0", "overflow: hidden",
+          ],
         [
           @html.div(
-            style=["display: flex", "flex-direction: column", "gap: 6px"],
+            style=[
+              "padding: 16px 18px", "border-bottom: 1px solid var(--border-soft)",
+              "display: flex", "justify-content: space-between", "align-items: flex-start",
+              "gap: 12px", "flex-wrap: wrap",
+            ],
             [
               @html.div(
-                style=[
-                  "font-size: 38px", "line-height: 1.02", "font-weight: 780",
+                style=["display: flex", "flex-direction: column", "gap: 6px"],
+                [
+                  @html.div(
+                    style=[
+                      "font-size: 38px", "line-height: 1.02", "font-weight: 780",
+                    ],
+                    "Preview",
+                  ),
                 ],
-                "Preview",
               ),
+              status_badge(status),
             ],
           ),
-          status_badge(status),
-        ],
-      ),
-      @html.div(
-        style=[
-          "flex: 1", "min-height: 0", "background: linear-gradient(180deg, var(--surface-2), var(--surface-3))",
-          "overflow: hidden",
-        ],
-        match preview {
-          Some(target) =>
+          @html.div(
+            style=[
+              "flex: 1", "min-height: 0", "background: linear-gradient(180deg, var(--surface-2), var(--surface-3))",
+              "overflow: hidden",
+            ],
             @html.div(
               style=["height: 100%"],
               @html.iframe(
@@ -468,10 +421,11 @@ fn render_preview_panel(model : Model) -> @rabbita.Html {
                   "height: 100%", "width: 100%", "border: none", "background: var(--preview-bg)",
                 ],
               ),
-            )
-          None => render_preview_empty(model)
-        },
-      ),
-    ],
-  )
+            ),
+          ),
+        ],
+      )
+    }
+    None => @html.nothing
+  }
 }
