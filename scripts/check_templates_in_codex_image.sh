@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-image="${MOONBITCLOUD_TEMPLATE_CHECK_DOCKER_IMAGE:-docker.io/moonbitcloud/codex:codex-0.123.0-node24}"
+image="${MOONBITCLOUD_TEMPLATE_CHECK_DOCKER_IMAGE:-docker.io/moonbitcloud/codex:codex-0.125.0-node24}"
 tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/moonbitcloud-template-docker-check.XXXXXX")"
 
 cleanup() {
@@ -82,7 +82,7 @@ for template_id in "${template_ids[@]}"; do
     -v "$sandbox_workspace:/workspace" \
     -w /workspace \
     "$image" \
-    sh -lc 'moon update && moon check && moon build'
+    sh -lc 'moon check && moon build'
 done
 
-echo "All template workspaces passed Docker-backed moon update, moon check, and moon build."
+echo "All template workspaces passed Docker-backed moon check and moon build."

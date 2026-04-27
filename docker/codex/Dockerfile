@@ -2,7 +2,7 @@ FROM node:24-bookworm
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG MOONBIT_VERSION=latest
-ARG CODEX_CLI_VERSION=0.123.0
+ARG CODEX_CLI_VERSION=0.125.0
 
 ENV MOON_HOME=/opt/moon
 ENV PATH=/opt/moon/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

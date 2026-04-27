@@ -24,7 +24,7 @@ The legacy `data/projects` workspace root is cleaned at startup. It is not used 
 
 SQLite is a required dependency for the control plane. If the database cannot be opened or schema initialization fails, the service exits during startup. The health endpoint also checks database availability and returns unavailable when the probe fails.
 
-For real Docker-backed runs, validation first runs `moon update` inside the generated workspace. The Codex runtime image also runs `moon update` at image build time so the MoonBit registry index exists before Codex starts editing. Without this registry preflight, generated template workspaces can fail before compilation with unresolved dependencies such as `moonbit-community/rabbita`, `oboard/mocket`, or `moonbitlang/x`.
+For real Docker-backed runs, validation relies on the MoonBit registry initialized in the Codex runtime image at image build time. Runtime validation should not run `moon update` because MoonBit may fail while rotating its symbols directory across Docker mount boundaries. Without the image-time registry preflight, generated template workspaces can fail before compilation with unresolved dependencies such as `moonbit-community/rabbita`, `oboard/mocket`, or `moonbitlang/x`.
 
 ## Control Plane Assets
 
@@ -98,7 +98,7 @@ Direct template smoke validates the template workspace in isolation:
 
 - run `just check-templates` from the repository root to copy each template workspace into a temporary sandbox and run `moon check` plus `moon build`
 - run `just check-template <template_id>` to validate one template the same way
-- run `just check-templates-codex` when template dependencies or the Codex runtime image change, so the same workspaces are checked inside Docker with `moon update`, `moon check`, and `moon build`
+- run `just check-templates-codex` when template dependencies or the Codex runtime image change, so the same workspaces are checked inside Docker with `moon check` and `moon build`
 - stage a temporary preview directory from `public/` plus the template's declared build artifacts
 - launch the preview runner directly
   - static templates: `services/control-plane -- run-static-preview <port> <preview-dist-dir>`
@@ -128,13 +128,13 @@ Required Codex runtime configuration:
 - optional `MOONBITCLOUD_CODEX_HOME_HOST` (defaults to `$HOME/.codex`)
 - optional `MOONBITCLOUD_CODEX_CONTAINER_HOME` (defaults to `/root`)
 
-The default runtime image is `docker.io/moonbitcloud/codex:codex-0.123.0-node24`. Override it through `.env` or `MOONBITCLOUD_CODEX_DOCKER_IMAGE` when testing local images, PR images, rollbacks, or digest-pinned production deployments.
+The default runtime image is `docker.io/moonbitcloud/codex:codex-0.125.0-node24`. Override it through `.env` or `MOONBITCLOUD_CODEX_DOCKER_IMAGE` when testing local images, PR images, rollbacks, or digest-pinned production deployments.
 
 The default Codex model is `gpt-5.5`. Override it through `.env` or `MOONBITCLOUD_CODEX_MODEL` if your account needs a different accessible model.
 
 Use `just codex-config` to inspect the effective runtime configuration. Build the runtime image locally with `just build-codex-image` (defaults to the official tag for `linux/amd64`).
 
-Publish the shared multi-arch runtime image with `just docker-codex-publish` after `docker login`. By default it pushes `docker.io/moonbitcloud/codex:codex-0.123.0-node24` and `docker.io/moonbitcloud/codex:latest` for `linux/amd64,linux/arm64`. Shared environments should set `MOONBITCLOUD_CODEX_DOCKER_IMAGE=docker.io/moonbitcloud/codex:codex-0.123.0-node24` instead of relying on `latest`.
+Publish the shared multi-arch runtime image with `just docker-codex-publish` after `docker login`. By default it pushes `docker.io/moonbitcloud/codex:codex-0.125.0-node24` and `docker.io/moonbitcloud/codex:latest` for `linux/amd64,linux/arm64`. Shared environments should set `MOONBITCLOUD_CODEX_DOCKER_IMAGE=docker.io/moonbitcloud/codex:codex-0.125.0-node24` instead of relying on `latest`.
 
 To publish under another Docker Hub namespace, pass the repository explicitly: `just docker-codex-publish docker.io/<namespace>/codex`.
 

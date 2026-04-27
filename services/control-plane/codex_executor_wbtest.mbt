@@ -48,13 +48,11 @@ test "codex commands pin the configured model" {
 }
 
 ///|
-test "docker validation runs moon update and checks in one shell" {
+test "docker validation uses initialized image registry in one shell" {
   inspect(
-    validation_shell_script(include_update=true),
+    validation_shell_script(include_update=false),
     content=(
       #|set -e
-      #|echo '== moon update =='
-      #|moon update
       #|echo '== moon fmt =='
       #|moon fmt
       #|echo '== moon check =='

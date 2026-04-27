@@ -2,8 +2,8 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 set dotenv-load := true
 
 codex_repository := "docker.io/moonbitcloud/codex"
-codex_version := "codex-0.123.0-node24"
-codex_image := "docker.io/moonbitcloud/codex:codex-0.123.0-node24"
+codex_version := "codex-0.125.0-node24"
+codex_image := "docker.io/moonbitcloud/codex:codex-0.125.0-node24"
 codex_model := "gpt-5.5"
 
 # Show available recipes

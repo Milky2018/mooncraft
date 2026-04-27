@@ -21,7 +21,7 @@ struct CodexDockerConfig {
 }
 
 ///|
-let default_codex_docker_image = "docker.io/moonbitcloud/codex:codex-0.123.0-node24"
+let default_codex_docker_image = "docker.io/moonbitcloud/codex:codex-0.125.0-node24"
 
 ///|
 let default_codex_model = "gpt-5.5"
@@ -1128,7 +1128,7 @@ async fn run_docker_validation_sequence(
   artifacts : RunArtifacts,
   thread_id : String,
 ) -> Result[Unit, AgentTurnFailure] noraise {
-  let command = ["sh", "-lc", validation_shell_script(include_update=true)]
+  let command = ["sh", "-lc", validation_shell_script(include_update=false)]
   let result = match config {
     Some(config) =>
       match
