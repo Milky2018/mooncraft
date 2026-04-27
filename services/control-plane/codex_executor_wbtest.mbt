@@ -36,15 +36,33 @@ test "resume session missing detection matches codex cli error" {
 
 ///|
 test "codex commands pin the configured model" {
-  let exec_command = codex_exec_command("gpt-5.4", "Build a todo app")
+  let exec_command = codex_exec_command("gpt-5.5", "Build a todo app")
   inspect(exec_command[2], content="--model")
-  inspect(exec_command[3], content="gpt-5.4")
+  inspect(exec_command[3], content="gpt-5.5")
   let resume_command = codex_resume_command(
-    "gpt-5.4", "local-thread", "Add labels",
+    "gpt-5.5", "local-thread", "Add labels",
   )
   assert_true(codex_command_is_resume(resume_command))
   inspect(resume_command[3], content="--model")
-  inspect(resume_command[4], content="gpt-5.4")
+  inspect(resume_command[4], content="gpt-5.5")
+}
+
+///|
+test "docker validation runs moon update and checks in one shell" {
+  inspect(
+    validation_shell_script(include_update=true),
+    content=(
+      #|set -e
+      #|echo '== moon update =='
+      #|moon update
+      #|echo '== moon fmt =='
+      #|moon fmt
+      #|echo '== moon check =='
+      #|moon check
+      #|echo '== moon test =='
+      #|moon test
+    ),
+  )
 }
 
 ///|

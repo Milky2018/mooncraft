@@ -24,7 +24,7 @@ struct CodexDockerConfig {
 let default_codex_docker_image = "docker.io/moonbitcloud/codex:codex-0.123.0-node24"
 
 ///|
-let default_codex_model = "gpt-5.4"
+let default_codex_model = "gpt-5.5"
 
 ///|
 struct RunArtifacts {
@@ -1105,6 +1105,173 @@ async fn run_validation_command(
 }
 
 ///|
+fn validation_shell_script(include_update~ : Bool) -> String {
+  let commands = if include_update {
+    ["moon update", "moon fmt", "moon check", "moon test"]
+  } else {
+    ["moon fmt", "moon check", "moon test"]
+  }
+  let lines : Array[String] = []
+  lines.push("set -e")
+  for command in commands {
+    lines.push("echo '== " + command + " =='")
+    lines.push(command)
+  }
+  lines.join("\n")
+}
+
+///|
+async fn run_docker_validation_sequence(
+  root : String,
+  config : CodexDockerConfig?,
+  workspace_path : String,
+  artifacts : RunArtifacts,
+  thread_id : String,
+) -> Result[Unit, AgentTurnFailure] noraise {
+  let command = ["sh", "-lc", validation_shell_script(include_update=true)]
+  let result = match config {
+    Some(config) =>
+      match
+        collect_docker_output(root, config, workspace_path, artifacts, command) {
+        Ok(result) => result
+        Err(message) =>
+          return Err(
+            codex_failure_with_debug(
+              "I updated the workspace, but validation could not be started.",
+              message,
+              Some(thread_id),
+              Some(
+                failure_debug(
+                  "MoonBit validation",
+                  Some(command),
+                  None,
+                  Some(artifacts),
+                ),
+              ),
+            ),
+          )
+      }
+    None =>
+      return Err(
+        codex_failure_with_debug(
+          "I updated the workspace, but validation could not be started.",
+          "The Docker-backed validator is not configured.",
+          Some(thread_id),
+          Some(
+            failure_debug(
+              "MoonBit validation",
+              Some(command),
+              None,
+              Some(artifacts),
+            ),
+          ),
+        ),
+      )
+  }
+  let (exit_code, output) = result
+  append_command_log(
+    artifacts.validation_log_path,
+    "MoonBit validation",
+    command,
+    exit_code,
+    output,
+  )
+  if exit_code != 0 {
+    return Err(
+      codex_failure_with_debug(
+        "I updated the workspace, but validation failed before the preview could be refreshed.",
+        stage_failure_message(
+          "MoonBit validation",
+          exit_code,
+          artifacts.validation_log_path,
+          output,
+        ),
+        Some(thread_id),
+        Some(
+          failure_debug(
+            "MoonBit validation",
+            Some(command),
+            Some(exit_code),
+            Some(artifacts),
+          ),
+        ),
+      ),
+    )
+  }
+  Ok(())
+}
+
+///|
+async fn run_local_validation_sequence(
+  root : String,
+  config : CodexDockerConfig?,
+  workspace_path : String,
+  artifacts : RunArtifacts,
+  thread_id : String,
+) -> Result[Unit, AgentTurnFailure] noraise {
+  let _ = config
+  match
+    run_validation_command(
+      root,
+      None,
+      workspace_path,
+      artifacts,
+      "moon fmt",
+      ["moon", "fmt"],
+      thread_id,
+    ) {
+    Ok(_) => ignore(())
+    Err(failure) => return Err(failure)
+  }
+  match
+    run_validation_command(
+      root,
+      None,
+      workspace_path,
+      artifacts,
+      "moon check",
+      ["moon", "check"],
+      thread_id,
+    ) {
+    Ok(_) => ignore(())
+    Err(failure) => return Err(failure)
+  }
+  match
+    run_validation_command(
+      root,
+      None,
+      workspace_path,
+      artifacts,
+      "moon test",
+      ["moon", "test"],
+      thread_id,
+    ) {
+    Ok(_) => ignore(())
+    Err(failure) => return Err(failure)
+  }
+  Ok(())
+}
+
+///|
+async fn run_validation_sequence(
+  root : String,
+  config : CodexDockerConfig?,
+  workspace_path : String,
+  artifacts : RunArtifacts,
+  thread_id : String,
+) -> Result[Unit, AgentTurnFailure] noraise {
+  if smoke_codex_enabled() {
+    run_local_validation_sequence(
+      root, config, workspace_path, artifacts, thread_id,
+    )
+  } else {
+    run_docker_validation_sequence(
+      root, config, workspace_path, artifacts, thread_id,
+    )
+  }
+}
+
+///|
 async fn AgentGateway::run_turn(
   self : AgentGateway,
   store : Store,
@@ -1161,64 +1328,12 @@ async fn AgentGateway::run_turn(
     }
   }
   safe_write_string(artifacts.validation_log_path, "")
-  if !smoke_codex_enabled() {
-    match
-      run_validation_command(
-        self.root,
-        config,
-        workspace_path,
-        artifacts,
-        "moon update",
-        ["moon", "update"],
-        codex_result.thread_id,
-      ) {
-      Ok(_) => ignore(())
-      Err(failure) => {
-        ignore(persist_validated_workspace())
-        return Err(failure)
-      }
-    }
-  }
   match
-    run_validation_command(
+    run_validation_sequence(
       self.root,
       config,
       workspace_path,
       artifacts,
-      "moon fmt",
-      ["moon", "fmt"],
-      codex_result.thread_id,
-    ) {
-    Ok(_) => ignore(())
-    Err(failure) => {
-      ignore(persist_validated_workspace())
-      return Err(failure)
-    }
-  }
-  match
-    run_validation_command(
-      self.root,
-      config,
-      workspace_path,
-      artifacts,
-      "moon check",
-      ["moon", "check"],
-      codex_result.thread_id,
-    ) {
-    Ok(_) => ignore(())
-    Err(failure) => {
-      ignore(persist_validated_workspace())
-      return Err(failure)
-    }
-  }
-  match
-    run_validation_command(
-      self.root,
-      config,
-      workspace_path,
-      artifacts,
-      "moon test",
-      ["moon", "test"],
       codex_result.thread_id,
     ) {
     Ok(_) => ignore(())
