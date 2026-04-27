@@ -111,6 +111,18 @@ fn load_run_cmd(
 }
 
 ///|
+fn load_run_events_cmd(
+  dispatch : @rabbita.Dispatch[Msg],
+  project_id : String,
+  run_id : String,
+  after_seq : Int,
+) -> @rabbita.Cmd {
+  get_json(@sdk.run_events_path(project_id, run_id, after_seq), fn(result) {
+    dispatch(RunEventsLoaded(result))
+  })
+}
+
+///|
 fn submit_auth_cmd(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,

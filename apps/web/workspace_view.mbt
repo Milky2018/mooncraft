@@ -48,6 +48,59 @@ fn render_message(message : @sdk.ChatMessage) -> @rabbita.Html {
 }
 
 ///|
+fn run_events_text(events : Array[@sdk.RunEvent]) -> String {
+  let lines : Array[String] = []
+  for event in events {
+    if event.content != "" {
+      lines.push("[" + event.kind + "] " + event.content)
+    }
+  }
+  if lines.length() == 0 {
+    "Starting worker..."
+  } else {
+    lines.join("\n")
+  }
+}
+
+///|
+fn render_run_events(model : Model) -> @rabbita.Html {
+  if active_run(model) is None {
+    return @html.nothing
+  }
+  @html.div(
+    style=["display: flex", "justify-content: flex-start"],
+    @html.div(
+      style=[
+        "max-width: min(760px, 92%)", "padding: 14px 16px", "border-radius: 6px",
+        "background: var(--surface-2)", "color: var(--text-1)", "border: 1px solid var(--border-soft)",
+        "box-shadow: 0 8px 18px rgba(0, 0, 0, 0.14)", "display: flex", "flex-direction: column",
+        "gap: 10px",
+      ],
+      [
+        @html.div(
+          style=mono_style() +
+            [
+              "font-size: 11px", "letter-spacing: 0.08em", "text-transform: uppercase",
+              "opacity: 0.86", "font-weight: 700",
+            ],
+          "MoonBit Cloud is working",
+        ),
+        @html.div(
+          style=mono_style() +
+            [
+              "max-height: 260px", "overflow-y: auto", "padding: 12px", "border-radius: 8px",
+              "background: var(--surface-3)", "border: 1px solid var(--border-soft)",
+              "font-size: 12px", "line-height: 1.55", "white-space: pre-wrap", "overflow-wrap: anywhere",
+              "color: var(--text-2)",
+            ],
+          run_events_text(model.run_events),
+        ),
+      ],
+    ),
+  )
+}
+
+///|
 fn render_run_banner(model : Model) -> @rabbita.Html {
   match active_run(model) {
     Some(run) =>
@@ -271,7 +324,11 @@ fn render_workspace_panel(
   let messages = if model.messages.length() == 0 {
     [render_workspace_empty(dispatch, model)]
   } else {
-    model.messages.map(render_message)
+    let rendered = model.messages.map(render_message)
+    if active_run(model) is Some(_) {
+      rendered.push(render_run_events(model))
+    }
+    rendered
   }
   @html.div(
     style=panel_style() +

@@ -250,6 +250,8 @@ fn update(
           project_detail: None,
           messages: [],
           run_status: None,
+          run_events: [],
+          last_run_event_seq: 0,
         }
       } else {
         { ..model, projects, selected_project_id }
@@ -276,6 +278,8 @@ fn update(
           selected_project_id: Some(project_id),
           project_detail: None,
           messages: [],
+          run_events: [],
+          last_run_event_seq: 0,
           delete_project_confirming: None,
           notice: None,
         },
@@ -283,7 +287,10 @@ fn update(
     ProjectLoaded(Ok(project)) => {
       let cmd = match project.current_run_id {
         Some(run_id) if project.status is @sdk.Running =>
-          @rabbita.delay(dispatch(PollRun(project.id, run_id)), 1000)
+          @rabbita.batch([
+            @rabbita.delay(dispatch(PollRun(project.id, run_id)), 1000),
+            dispatch(PollRunEvents(project.id, run_id)),
+          ])
         _ => @rabbita.none
       }
       (cmd, { ..model, project_detail: Some(project), notice: None })
@@ -373,6 +380,8 @@ fn update(
           project_detail: Some(project),
           messages: [],
           run_status: None,
+          run_events: [],
+          last_run_event_seq: 0,
           delete_project_confirming: None,
         },
       )
@@ -401,6 +410,8 @@ fn update(
           project_detail: None,
           messages: [],
           run_status: None,
+          run_events: [],
+          last_run_event_seq: 0,
           draft: "",
           delete_project_confirming: None,
           delete_project_pending: None,
@@ -442,6 +453,8 @@ fn update(
               sending_message: true,
               notice: None,
               messages: append_local_user_message(model, project_id, content),
+              run_events: [],
+              last_run_event_seq: 0,
             },
           )
         }
@@ -451,11 +464,22 @@ fn update(
       match response.poll_after_ms {
         Some(delay_ms) if response.run.state is @sdk.Running =>
           (
-            @rabbita.delay(
-              dispatch(PollRun(response.run.project_id, response.run.run_id)),
-              delay_ms,
-            ),
-            { ..model, run_status: Some(response.run), sending_message: false },
+            @rabbita.batch([
+              @rabbita.delay(
+                dispatch(PollRun(response.run.project_id, response.run.run_id)),
+                delay_ms,
+              ),
+              dispatch(
+                PollRunEvents(response.run.project_id, response.run.run_id),
+              ),
+            ]),
+            {
+              ..model,
+              run_status: Some(response.run),
+              sending_message: false,
+              run_events: [],
+              last_run_event_seq: 0,
+            },
           )
         _ =>
           (
@@ -489,17 +513,56 @@ fn update(
     RunLoaded(project_id, run_id, Ok(run)) =>
       if run.state is @sdk.Running {
         (
-          @rabbita.delay(dispatch(PollRun(project_id, run_id)), 1000),
+          @rabbita.batch([
+            @rabbita.delay(dispatch(PollRun(project_id, run_id)), 1000),
+            @rabbita.delay(dispatch(PollRunEvents(project_id, run_id)), 1000),
+          ]),
           { ..model, run_status: Some(run) },
         )
       } else {
         (
           @rabbita.batch([
+            load_run_events_cmd(
+              dispatch,
+              project_id,
+              run_id,
+              model.last_run_event_seq,
+            ),
             load_projects_cmd(dispatch),
             load_project_cmd(dispatch, project_id),
           ]),
           { ..model, run_status: Some(run), notice: None },
         )
+      }
+    PollRunEvents(project_id, run_id) =>
+      (
+        load_run_events_cmd(
+          dispatch,
+          project_id,
+          run_id,
+          model.last_run_event_seq,
+        ),
+        model,
+      )
+    RunEventsLoaded(Ok(response)) => {
+      let events = model.run_events.copy()
+      let mut last_seq = model.last_run_event_seq
+      for event in response.items {
+        events.push(event)
+        if event.seq > last_seq {
+          last_seq = event.seq
+        }
+      }
+      (
+        @rabbita.none,
+        { ..model, run_events: events, last_run_event_seq: last_seq },
+      )
+    }
+    RunEventsLoaded(Err(error)) =>
+      if is_unauthorized_error(error) {
+        auth_recovery(dispatch, model, "Your session expired. Sign in again.")
+      } else {
+        (@rabbita.none, model)
       }
     RunLoaded(_, _, Err(error)) =>
       if is_unauthorized_error(error) {

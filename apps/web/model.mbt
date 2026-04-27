@@ -38,6 +38,8 @@ struct Model {
   project_detail : @sdk.ProjectDetail?
   messages : Array[@sdk.ChatMessage]
   run_status : @sdk.RunStatusResponse?
+  run_events : Array[@sdk.RunEvent]
+  last_run_event_seq : Int
   draft : String
   create_project_pending : Bool
   delete_project_confirming : String?
@@ -83,6 +85,8 @@ enum Msg {
   RunCreated(Result[@sdk.CreateRunResponse, @sdk.ApiError])
   PollRun(String, String)
   RunLoaded(String, String, Result[@sdk.RunStatusResponse, @sdk.ApiError])
+  PollRunEvents(String, String)
+  RunEventsLoaded(Result[@sdk.ListRunEventsResponse, @sdk.ApiError])
 }
 
 ///|
@@ -176,6 +180,8 @@ fn initial_model() -> Model {
     project_detail: None,
     messages: [],
     run_status: None,
+    run_events: [],
+    last_run_event_seq: 0,
     draft: "",
     create_project_pending: false,
     delete_project_confirming: None,

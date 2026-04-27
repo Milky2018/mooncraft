@@ -717,6 +717,23 @@ fn Store::list_messages_for_user(
 }
 
 ///|
+fn Store::list_run_events_for_user(
+  self : Store,
+  user_id : String,
+  project_id : String,
+  run_id : String,
+  after_seq : Int,
+) -> Array[@sdk.RunEvent]? {
+  if !self.project_owned_by_user(project_id, user_id) {
+    return None
+  }
+  if self.get_run(project_id, run_id) is None {
+    return None
+  }
+  Some(self.list_run_events(project_id, run_id, after_seq))
+}
+
+///|
 fn Store::get_run_for_user(
   self : Store,
   user_id : String,

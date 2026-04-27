@@ -100,6 +100,14 @@ pub(all) struct RunStatusResponse {
 } derive(Debug, ToJson, FromJson)
 
 ///|
+pub(all) struct RunEvent {
+  seq : Int
+  kind : String
+  content : String
+  created_at : String
+} derive(Debug, ToJson, FromJson)
+
+///|
 pub(all) struct CreateProjectRequest {
   display_name : String?
   template_id : String?
@@ -118,6 +126,11 @@ pub(all) struct ListProjectsResponse {
 ///|
 pub(all) struct ListMessagesResponse {
   items : Array[ChatMessage]
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct ListRunEventsResponse {
+  items : Array[RunEvent]
 } derive(Debug, ToJson, FromJson)
 
 ///|

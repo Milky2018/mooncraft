@@ -792,6 +792,36 @@ fn Store::init_schema(self : Store) -> Result[Unit, String] {
   match
     self.exec_or_error(
       (
+        #|CREATE TABLE IF NOT EXISTS run_events (
+        #|  id TEXT PRIMARY KEY,
+        #|  project_id TEXT NOT NULL,
+        #|  run_id TEXT NOT NULL,
+        #|  seq INTEGER NOT NULL,
+        #|  kind TEXT NOT NULL,
+        #|  content TEXT NOT NULL,
+        #|  created_at TEXT NOT NULL,
+        #|  UNIQUE(project_id, run_id, seq)
+        #|);
+      ),
+      "create run_events table",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE INDEX IF NOT EXISTS run_events_project_run_seq_idx
+        #|ON run_events(project_id, run_id, seq);
+      ),
+      "create run events index",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
         #|CREATE TABLE IF NOT EXISTS account_action_tokens (
         #|  id TEXT PRIMARY KEY,
         #|  user_id TEXT NOT NULL,
@@ -1034,6 +1064,97 @@ fn Store::list_messages(
 }
 
 ///|
+fn Store::append_run_event(
+  self : Store,
+  project_id : String,
+  run_id : String,
+  kind : String,
+  content : String,
+) -> Unit {
+  if content == "" {
+    return
+  }
+  let seq_stmt = self.db
+    .prepare(
+      (
+        #|SELECT COALESCE(MAX(seq), 0) + 1
+        #|FROM run_events
+        #|WHERE project_id = ? AND run_id = ?;
+      ),
+    )
+    .unwrap()
+  seq_stmt.bind_all([string_to_sql_text(project_id), string_to_sql_text(run_id)])
+  |> ignore
+  let seq = if seq_stmt.step() { seq_stmt.column_int(0) } else { 1 }
+  seq_stmt.finalize()
+
+  let stmt = self.db
+    .prepare(
+      (
+        #|INSERT INTO run_events (
+        #|  id,
+        #|  project_id,
+        #|  run_id,
+        #|  seq,
+        #|  kind,
+        #|  content,
+        #|  created_at
+        #|) VALUES (?, ?, ?, ?, ?, ?, ?);
+      ),
+    )
+    .unwrap()
+  stmt.bind_all([
+    string_to_sql_text(next_id("event")),
+    string_to_sql_text(project_id),
+    string_to_sql_text(run_id),
+    @sqlite.SqlValue::Int(seq),
+    string_to_sql_text(kind),
+    string_to_sql_text(content),
+    string_to_sql_text(now_string()),
+  ])
+  |> ignore
+  stmt.execute() |> ignore
+  stmt.finalize()
+}
+
+///|
+fn Store::list_run_events(
+  self : Store,
+  project_id : String,
+  run_id : String,
+  after_seq : Int,
+) -> Array[@sdk.RunEvent] {
+  let stmt = self.db
+    .prepare(
+      (
+        #|SELECT seq, kind, content, created_at
+        #|FROM run_events
+        #|WHERE project_id = ? AND run_id = ? AND seq > ?
+        #|ORDER BY seq ASC
+        #|LIMIT 200;
+      ),
+    )
+    .unwrap()
+  stmt.bind_all([
+    string_to_sql_text(project_id),
+    string_to_sql_text(run_id),
+    @sqlite.SqlValue::Int(after_seq),
+  ])
+  |> ignore
+  let items : Array[@sdk.RunEvent] = []
+  while stmt.step() {
+    items.push(@sdk.RunEvent::{
+      seq: stmt.column_int(0),
+      kind: bytes_to_string(stmt.column_text(1)),
+      content: bytes_to_string(stmt.column_text(2)),
+      created_at: bytes_to_string(stmt.column_text(3)),
+    })
+  }
+  stmt.finalize()
+  items
+}
+
+///|
 fn Store::get_run(
   self : Store,
   project_id : String,
@@ -1254,6 +1375,18 @@ fn Store::delete_project(
   delete_messages_stmt.bind(1, string_to_sql_text(project_id)) |> ignore
   delete_messages_stmt.execute() |> ignore
   delete_messages_stmt.finalize()
+
+  let delete_events_stmt = self.db
+    .prepare(
+      (
+        #|DELETE FROM run_events
+        #|WHERE project_id = ?;
+      ),
+    )
+    .unwrap()
+  delete_events_stmt.bind(1, string_to_sql_text(project_id)) |> ignore
+  delete_events_stmt.execute() |> ignore
+  delete_events_stmt.finalize()
 
   let delete_runs_stmt = self.db
     .prepare(

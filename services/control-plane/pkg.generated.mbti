@@ -48,6 +48,8 @@ type TemplateEntrypoints derive(@debug.Debug, @json.FromJson)
 
 type TemplateManifest derive(@debug.Debug, @json.FromJson)
 
+type TemplatePreviewArtifact derive(@debug.Debug, @json.FromJson)
+
 type TemplatePreviewConfig derive(@debug.Debug, @json.FromJson)
 
 type TemplateValidationConfig derive(@debug.Debug, @json.FromJson)

@@ -73,11 +73,11 @@ Frontend-only templates can instead use a single MoonBit module with a root `moo
 You can run the current single-instance control plane in Docker:
 
 ```bash
-docker build -t moonbitcloud .
+just build-moonbitcloud-image
 docker run --rm \
   -p 8080:8080 \
   -v moonbitcloud-data:/app/data \
-  moonbitcloud
+  moonbitcloud:local
 ```
 
 Then open `http://localhost:8080`.

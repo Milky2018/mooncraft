@@ -543,7 +543,74 @@ async fn collect_docker_output(
 }
 
 ///|
+async fn stream_docker_output(
+  store : Store,
+  root : String,
+  project_id : String,
+  run_id : String,
+  config : CodexDockerConfig,
+  workspace_path : String,
+  artifacts : RunArtifacts,
+  container_command : Array[String],
+) -> Result[(Int, String), String] noraise {
+  let docker_args = docker_command_args(
+    config, workspace_path, artifacts, container_command,
+  )
+  let pipe = @process.read_from_process() catch {
+    err =>
+      return Err(
+        "The Docker-backed Codex output pipe could not be opened: \{err}",
+      )
+  }
+  let (reader, writer) = pipe
+  let chunks : Array[String] = []
+  let exit_code_ref : Ref[Int] = @ref.new(-1)
+  store.append_run_event(project_id, run_id, "status", "Starting Codex CLI.")
+  let group_result = try
+    @async.with_task_group(async fn(group) {
+      let task = group.spawn(
+        async fn() {
+          @process.run(
+            "docker",
+            docker_args,
+            stdout=writer,
+            stderr=writer,
+            cwd=root,
+          )
+        },
+        allow_failure=true,
+      )
+      let mut reading = true
+      while reading {
+        match reader.read_until("\n") {
+          Some(line) => {
+            let text = line.to_string()
+            chunks.push(text)
+            chunks.push("\n")
+            store.append_run_event(project_id, run_id, "codex", text)
+          }
+          None => reading = false
+        }
+      }
+      exit_code_ref.val = task.wait()
+      ()
+    })
+  catch {
+    err =>
+      return Err(
+        "The Docker-backed Codex command failed while streaming output: \{err}",
+      )
+  } noraise {
+    value => value
+  }
+  ignore(group_result)
+  Ok((exit_code_ref.val, chunks.join("")))
+}
+
+///|
 async fn collect_codex_command_output(
+  store : Store,
+  run_id : String,
   root : String,
   config : CodexDockerConfig?,
   project : @sdk.ProjectDetail,
@@ -552,13 +619,37 @@ async fn collect_codex_command_output(
   command : Array[String],
 ) -> Result[(Int, String, String?), String] noraise {
   if smoke_codex_enabled() {
-    collect_fake_codex_output(root, project, workspace_path, command)
+    let result = match
+      collect_fake_codex_output(root, project, workspace_path, command) {
+      Ok(result) => result
+      Err(message) => return Err(message)
+    }
+    store.append_run_event(
+      project.id,
+      run_id,
+      "status",
+      "Running fake Codex executor.",
+    )
+    for raw_line in result.1.replace_all(old="\r\n", new="\n").split("\n") {
+      let line = raw_line.to_string()
+      if line != "" {
+        store.append_run_event(project.id, run_id, "codex", line)
+      }
+    }
+    Ok(result)
   } else {
     match config {
       Some(config) => {
         let result = match
-          collect_docker_output(
-            root, config, workspace_path, artifacts, command,
+          stream_docker_output(
+            store,
+            root,
+            project.id,
+            run_id,
+            config,
+            workspace_path,
+            artifacts,
+            command,
           ) {
           Ok(result) => result
           Err(message) => return Err(message)
@@ -662,7 +753,7 @@ async fn run_codex_turn(
   let mut active_command = command
   let codex_result = match
     collect_codex_command_output(
-      root, config, project, workspace_path, artifacts, command,
+      store, run_id, root, config, project, workspace_path, artifacts, command,
     ) {
     Ok(result) => result
     Err(message) =>
@@ -733,7 +824,7 @@ async fn run_codex_turn(
     )
     let recovery_result = match
       collect_codex_command_output(
-        root, config, project, workspace_path, artifacts, recovery_command,
+        store, run_id, root, config, project, workspace_path, artifacts, recovery_command,
       ) {
       Ok(result) => result
       Err(message) =>

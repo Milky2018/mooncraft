@@ -168,6 +168,20 @@ pub fn run_path(project_id : String, run_id : String) -> String {
 }
 
 ///|
+pub fn list_run_events_route() -> RouteSpec {
+  route(GET, "/api/projects/:id/runs/:run_id/events/:after_seq", Ok)
+}
+
+///|
+pub fn run_events_path(
+  project_id : String,
+  run_id : String,
+  after_seq : Int,
+) -> String {
+  "/api/projects/\{project_id}/runs/\{run_id}/events/\{after_seq}"
+}
+
+///|
 pub fn preview_route_pattern() -> String {
   "/p/:preview_public_id/**"
 }

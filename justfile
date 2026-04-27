@@ -34,6 +34,10 @@ build-control-plane profile='debug':
 build-codex-image tag=codex_image platform='linux/amd64':
   docker build --platform {{platform}} -f docker/codex/Dockerfile -t {{tag}} .
 
+# Build the Docker image used by the MoonBit Cloud app runtime
+build-moonbitcloud-image tag='moonbitcloud:local' platform='linux/amd64':
+  docker build --platform {{platform}} -f docker/moonbitcloud/Dockerfile -t {{tag}} .
+
 # Publish the Codex executor image to Docker Hub for amd64 and arm64
 docker-codex-publish repository=codex_repository version=codex_version platforms='linux/amd64,linux/arm64':
   #!/usr/bin/env bash
