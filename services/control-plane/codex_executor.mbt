@@ -983,7 +983,7 @@ async fn AgentGateway::run_turn(
     Err(failure) => return Err(failure)
   }
   let artifacts = codex_result.artifacts
-  let persist_validated_workspace = fn() {
+  let persist_validated_workspace = async fn() noraise {
     match snapshot_workspace(store, self.root, project.id, workspace_path) {
       Ok(_) => Ok(())
       Err(message) =>
@@ -1074,7 +1074,7 @@ async fn AgentGateway::run_turn(
 }
 
 ///|
-fn AppContext::spawn_project_turn_worker(
+async fn AppContext::spawn_project_turn_worker(
   self : AppContext,
   project_id : String,
   run_id : String,
@@ -1090,19 +1090,13 @@ fn AppContext::spawn_project_turn_worker(
   }
   let artifacts = RunArtifacts::new(self.root, project_id, run_id)
   let worker_log_path = artifacts.dir + "/worker.log"
-  let result : Ref[Result[Int, String]] = @ref.new(
-    Err("The background run worker was not started."),
+  spawn_worker_process(
+    self.root,
+    executable_path,
+    worker_log_path,
+    project_id,
+    run_id,
   )
-  @async.run_async_main(async fn() {
-    result.val = spawn_worker_process(
-      self.root,
-      executable_path,
-      worker_log_path,
-      project_id,
-      run_id,
-    )
-  })
-  result.val
 }
 
 ///|
@@ -1321,7 +1315,7 @@ async fn run_worker_mode(
   project_id : String,
   run_id : String,
 ) -> Unit {
-  let ctx = match AppContext::try_new_for_worker(root) {
+  let ctx = match AppContext::try_new_for_worker_async(root) {
     Ok(ctx) => ctx
     Err(message) => abort("MoonBit Cloud worker cannot start: " + message)
   }

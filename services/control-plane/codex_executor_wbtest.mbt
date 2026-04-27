@@ -64,12 +64,12 @@ fn cleanup_test_db(db_path : String) -> Unit {
 }
 
 ///|
-fn new_test_store(root : String, prefix : String) -> (Store, String) {
+async fn new_test_store(root : String, prefix : String) -> (Store, String) {
   let db_dir = root + "/data/control-plane-test-dbs"
   ensure_dir(db_dir)
   let db_path = db_dir + "/" + next_id(prefix) + ".sqlite"
   cleanup_test_db(db_path)
-  (Store::try_new(db_path).unwrap(), db_path)
+  (Store::try_new_async(db_path).unwrap(), db_path)
 }
 
 ///|
@@ -119,7 +119,7 @@ test "app context cleans legacy project workspaces at startup" {
 }
 
 ///|
-test "start_run persists the initial project prompt once" {
+async test "start_run persists the initial project prompt once" {
   let root = @env.current_dir().unwrap_or(".")
   let (store, db_path) = new_test_store(root, "initial-project-prompt")
   let project_id = next_id("project")
@@ -158,7 +158,7 @@ test "start_run persists the initial project prompt once" {
 }
 
 ///|
-test "startup recovery makes stale running runs retryable" {
+async test "startup recovery makes stale running runs retryable" {
   let root = @env.current_dir().unwrap_or(".")
   let db_dir = root + "/data/control-plane-test-dbs"
   ensure_dir(db_dir)
@@ -166,7 +166,7 @@ test "startup recovery makes stale running runs retryable" {
   safe_remove_tree(db_path)
   safe_remove_tree(db_path + "-shm")
   safe_remove_tree(db_path + "-wal")
-  let store = Store::try_new(db_path).unwrap()
+  let store = Store::try_new_async(db_path).unwrap()
   let project_id = next_id("project")
   ignore(
     store.create_project(
@@ -210,7 +210,7 @@ test "startup recovery makes stale running runs retryable" {
 }
 
 ///|
-test "workspace snapshot round-trips project files and excludes build outputs" {
+async test "workspace snapshot round-trips project files and excludes build outputs" {
   let root = @env.current_dir().unwrap_or(".")
   let (store, db_path) = new_test_store(root, "snapshot-roundtrip-db")
   let project_id = next_id("snapshot-roundtrip")
@@ -239,7 +239,7 @@ test "workspace snapshot round-trips project files and excludes build outputs" {
 }
 
 ///|
-test "restore without a database snapshot fails without legacy fallback" {
+async test "restore without a database snapshot fails without legacy fallback" {
   let root = @env.current_dir().unwrap_or(".")
   let (store, db_path) = new_test_store(root, "snapshot-migration-db")
   let project_id = next_id("snapshot-migration")
@@ -268,7 +268,7 @@ test "restore without a database snapshot fails without legacy fallback" {
 }
 
 ///|
-test "hydrate run workspace restores the saved snapshot into an isolated path" {
+async test "hydrate run workspace restores the saved snapshot into an isolated path" {
   let root = @env.current_dir().unwrap_or(".")
   let (store, db_path) = new_test_store(root, "snapshot-hydrate-db")
   let project_id = next_id("snapshot-hydrate")
@@ -300,7 +300,7 @@ test "hydrate run workspace restores the saved snapshot into an isolated path" {
 }
 
 ///|
-test "hydrate without a database snapshot fails without legacy fallback" {
+async test "hydrate without a database snapshot fails without legacy fallback" {
   let root = @env.current_dir().unwrap_or(".")
   let (store, db_path) = new_test_store(root, "snapshot-hydrate-legacy-db")
   let project_id = next_id("snapshot-hydrate-legacy")
@@ -331,7 +331,7 @@ test "hydrate without a database snapshot fails without legacy fallback" {
 }
 
 ///|
-test "hydrate requires a database snapshot" {
+async test "hydrate requires a database snapshot" {
   let root = @env.current_dir().unwrap_or(".")
   let (store, db_path) = new_test_store(root, "snapshot-hydrate-migration-db")
   let project_id = next_id("snapshot-hydrate-migration")

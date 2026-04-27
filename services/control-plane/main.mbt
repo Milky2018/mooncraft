@@ -396,7 +396,11 @@ fn main {
     Ok(ctx) => ctx
     Err(message) => abort("MoonBit Cloud cannot start: " + message)
   }
-  let stale_runs = ctx.store.fail_stale_running_runs_on_startup()
+  let stale_runs_ref : Ref[Int] = @ref.new(0)
+  @async.run_async_main(async fn() {
+    stale_runs_ref.val = ctx.store.fail_stale_running_runs_on_startup()
+  })
+  let stale_runs = stale_runs_ref.val
   if stale_runs > 0 {
     println(
       "Recovered \{stale_runs} stale running run(s); marked them failed so they can be retried.",
@@ -416,7 +420,7 @@ fn main {
   })
   app.get("/app", _ => ctx.serve_platform_bundle())
   app.get("/assets/**", event => ctx.serve_platform_asset(event))
-  app.get(@sdk.health_path(), _ => {
+  app.get(@sdk.health_path(), async fn(_) noraise {
     if ctx.store.is_available() {
       json_ok(@sdk.HealthResponse::{ ok: true })
     } else {
@@ -427,10 +431,10 @@ fn main {
       )
     }
   })
-  app.get(@sdk.session_path(), event => {
+  app.get(@sdk.session_path(), async fn(event) noraise {
     json_ok(session_status_response(ctx, event))
   })
-  app.post(@sdk.signup_path(), event => {
+  app.post(@sdk.signup_path(), async fn(event) noraise {
     let request : @sdk.SignupRequest = match decode_json_body(event) {
       Ok(request) => request
       Err(response) => return response
@@ -441,7 +445,7 @@ fn main {
         api_error_response(UnprocessableEntity, @sdk.ValidationFailed, message)
     }
   })
-  app.post(@sdk.login_path(), event => {
+  app.post(@sdk.login_path(), async fn(event) noraise {
     let request : @sdk.LoginRequest = match decode_json_body(event) {
       Ok(request) => request
       Err(response) => return response
@@ -452,7 +456,7 @@ fn main {
         api_error_response(Unauthorized, @sdk.InvalidCredentials, message)
     }
   })
-  app.post(@sdk.logout_path(), event => {
+  app.post(@sdk.logout_path(), async fn(event) noraise {
     match event.req.get_cookie(session_cookie_name) {
       Some(cookie) if cookie.value != "" =>
         ctx.store.delete_session(session_token_hash(cookie.value))
@@ -467,7 +471,7 @@ fn main {
   app.get("/auth/password/reset", _ => {
     html_response(password_reset_page_html(ctx.root))
   })
-  app.post(@sdk.request_password_reset_path(), event => {
+  app.post(@sdk.request_password_reset_path(), async fn(event) noraise {
     let request : @sdk.RequestPasswordResetRequest = match
       decode_json_body(event) {
       Ok(request) => request
@@ -475,7 +479,7 @@ fn main {
     }
     json_ok(request_password_reset(ctx, request))
   })
-  app.post(@sdk.reset_password_path(), event => {
+  app.post(@sdk.reset_password_path(), async fn(event) noraise {
     let request : @sdk.ResetPasswordRequest = match decode_json_body(event) {
       Ok(request) => request
       Err(response) => return response
@@ -486,7 +490,7 @@ fn main {
         api_error_response(UnprocessableEntity, @sdk.ValidationFailed, message)
     }
   })
-  app.post(@sdk.change_password_path(), event => {
+  app.post(@sdk.change_password_path(), async fn(event) noraise {
     let user = match require_session_user(ctx, event) {
       Ok(user) => user
       Err(response) => return response
@@ -501,14 +505,14 @@ fn main {
         api_error_response(UnprocessableEntity, @sdk.ValidationFailed, message)
     }
   })
-  app.post(@sdk.resend_email_verification_path(), event => {
+  app.post(@sdk.resend_email_verification_path(), async fn(event) noraise {
     let user = match require_session_user(ctx, event) {
       Ok(user) => user
       Err(response) => return response
     }
     json_ok(resend_email_verification(ctx, user))
   })
-  app.post(@sdk.verify_email_path(), event => {
+  app.post(@sdk.verify_email_path(), async fn(event) noraise {
     let request : @sdk.VerifyEmailRequest = match decode_json_body(event) {
       Ok(request) => request
       Err(response) => return response
@@ -519,7 +523,9 @@ fn main {
         api_error_response(UnprocessableEntity, @sdk.ValidationFailed, message)
     }
   })
-  app.get("/auth/github/start", _ => github_authorization_response(ctx))
+  app.get("/auth/github/start", async fn(_) noraise {
+    github_authorization_response(ctx)
+  })
   app.get("/auth/github/callback", _ => {
     html_response(github_callback_page_html(ctx.root))
   })
@@ -535,7 +541,7 @@ fn main {
     }
   })
 
-  app.get(@sdk.projects_path(), event => {
+  app.get(@sdk.projects_path(), async fn(event) noraise {
     let user = match require_session_user(ctx, event) {
       Ok(user) => user
       Err(response) => return response
@@ -544,7 +550,7 @@ fn main {
       items: ctx.store.list_projects_for_user(user.id),
     })
   })
-  app.post(@sdk.projects_path(), event => {
+  app.post(@sdk.projects_path(), async fn(event) noraise {
     let user = match require_session_user(ctx, event) {
       Ok(user) => user
       Err(response) => return response
@@ -589,7 +595,7 @@ fn main {
       }
     }
   })
-  app.delete(@sdk.delete_project_route().path_pattern, event => {
+  app.delete(@sdk.delete_project_route().path_pattern, async fn(event) noraise {
     let user = match require_session_user(ctx, event) {
       Ok(user) => user
       Err(response) => return response
@@ -611,7 +617,7 @@ fn main {
         }
     }
   })
-  app.get(@sdk.project_route().path_pattern, event => {
+  app.get(@sdk.project_route().path_pattern, async fn(event) noraise {
     let user = match require_session_user(ctx, event) {
       Ok(user) => user
       Err(response) => return response
@@ -625,7 +631,7 @@ fn main {
       None => api_error_response(NotFound, @sdk.NotFound, "Project not found.")
     }
   })
-  app.get(@sdk.list_messages_route().path_pattern, event => {
+  app.get(@sdk.list_messages_route().path_pattern, async fn(event) noraise {
     let user = match require_session_user(ctx, event) {
       Ok(user) => user
       Err(response) => return response
@@ -639,7 +645,7 @@ fn main {
       None => api_error_response(NotFound, @sdk.NotFound, "Project not found.")
     }
   })
-  app.post(@sdk.create_run_route().path_pattern, fn(event) noraise {
+  app.post(@sdk.create_run_route().path_pattern, async fn(event) noraise {
     let user = match require_session_user(ctx, event) {
       Ok(user) => user
       Err(response) => return response
@@ -688,7 +694,7 @@ fn main {
       }
     }
   })
-  app.get(@sdk.get_run_route().path_pattern, event => {
+  app.get(@sdk.get_run_route().path_pattern, async fn(event) noraise {
     let user = match require_session_user(ctx, event) {
       Ok(user) => user
       Err(response) => return response
@@ -772,5 +778,5 @@ fn main {
   })
 
   println("MoonBit Cloud running at http://localhost:\{port}")
-  app.serve(port~)
+  @async.run_async_main(() => serve_mocket_async(app, port))
 }

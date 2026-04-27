@@ -9,7 +9,20 @@ enum BuildProfile {
 
 ///|
 struct Store {
-  db : @sqlite.Database
+  engine : StoreEngine
+  backend : StoreBackend
+}
+
+///|
+priv enum StoreBackend {
+  SQLite
+  Postgres
+}
+
+///|
+priv enum StoreEngine {
+  SQLiteEngine(@morm_sqlite.SQLiteEngine)
+  PostgresEngine(@pg.Config)
 }
 
 ///|
@@ -133,20 +146,18 @@ fn safe_read_bytes_or(path : String, fallback : Bytes) -> Bytes {
 }
 
 ///|
-fn string_to_sql_text(text : String) -> @sqlite.SqlValue {
-  @sqlite.SqlValue::Text(@utf8.encode(text))
-}
-
-///|
-fn bytes_to_sql_blob(content : Bytes) -> @sqlite.SqlValue {
-  @sqlite.SqlValue::Blob(content)
-}
-
-///|
-fn nullable_int_value(value : Int?) -> @sqlite.SqlValue {
+fn nullable_int_param(value : Int?) -> @db.Param {
   match value {
-    Some(number) => @sqlite.SqlValue::Int(number)
-    None => @sqlite.SqlValue::Null
+    Some(number) => @db.Int(number)
+    None => @db.Null
+  }
+}
+
+///|
+fn nullable_text_param(value : String?) -> @db.Param {
+  match value {
+    Some(text) => @db.String(text)
+    None => @db.Null
   }
 }
 
@@ -175,6 +186,91 @@ fn int_to_none_if_negative(value : Int) -> Int? {
   } else {
     Some(value)
   }
+}
+
+///|
+fn param_to_string(value : @db.Param) -> String {
+  match value {
+    @db.Null => ""
+    @db.Bool(v) => if v { "1" } else { "0" }
+    @db.Byte(v) => v.to_int().to_string()
+    @db.Int(v) => v.to_string()
+    @db.Int16(v) => v.to_string()
+    @db.UInt16(v) => v.to_string()
+    @db.UInt(v) => v.to_string()
+    @db.UInt64(v) => v.to_string()
+    @db.Int64(v) => v.to_string()
+    @db.BigInt(v) => v.to_string()
+    @db.Float(v) => v.to_string()
+    @db.Double(v) => v.to_string()
+    @db.Decimal(v) => v
+    @db.Date(v, _) => v.to_string()
+    @db.Time(v, _) => v.to_string()
+    @db.DateTime(v, _) => v.to_string()
+    @db.Timestamp(v, _) => v.to_string()
+    @db.Uuid(v) => v
+    @db.Json(v) => v.stringify()
+    @db.String(v) => v
+    @db.Bytes(v) => bytes_to_string(v)
+  }
+}
+
+///|
+fn param_to_int(value : @db.Param) -> Int {
+  match value {
+    @db.Bool(v) => if v { 1 } else { 0 }
+    @db.Byte(v) => v.to_int()
+    @db.Int(v) => v
+    @db.Int16(v) => v.to_int()
+    @db.UInt16(v) => v.to_int()
+    @db.UInt(v) => v.reinterpret_as_int()
+    @db.UInt64(v) => v.to_int()
+    @db.Int64(v) => v.to_int()
+    @db.Float(v) => v.to_int()
+    @db.Double(v) => v.to_int()
+    @db.String(v) => @string.parse_int(v) catch { _ => 0 }
+    _ => 0
+  }
+}
+
+///|
+fn param_to_bool(value : @db.Param) -> Bool {
+  match value {
+    @db.Bool(v) => v
+    @db.Int(v) => v != 0
+    @db.Int64(v) => v != 0L
+    @db.String(v) => v == "1" || v.to_lower() == "true"
+    _ => false
+  }
+}
+
+///|
+fn param_to_bytes(value : @db.Param) -> Bytes? {
+  match value {
+    @db.Bytes(v) => Some(v)
+    @db.String(v) => Some(@utf8.encode(v))
+    _ => None
+  }
+}
+
+///|
+fn row_get(row : Map[String, @db.Param], key : String) -> @db.Param {
+  row.get(key).unwrap_or(@db.Null)
+}
+
+///|
+fn row_text(row : Map[String, @db.Param], key : String) -> String {
+  param_to_string(row_get(row, key))
+}
+
+///|
+fn row_int(row : Map[String, @db.Param], key : String) -> Int {
+  param_to_int(row_get(row, key))
+}
+
+///|
+fn row_bool(row : Map[String, @db.Param], key : String) -> Bool {
+  param_to_bool(row_get(row, key))
 }
 
 ///|
@@ -408,36 +504,340 @@ fn interrupted_worker_error() -> String {
 }
 
 ///|
-fn Store::column_exists(
-  self : Store,
-  table_name : String,
-  column_name : String,
-) -> Result[Bool, String] {
-  let stmt = match self.db.prepare("PRAGMA table_info(\{table_name});") {
-    Some(stmt) => stmt
+fn parse_database_url(url : String) -> Result[@pg.Config, String] {
+  let raw = match url.strip_prefix("postgres://") {
+    Some(rest) => rest.to_string()
     None =>
-      return Err(
-        "Failed to inspect table '\{table_name}': " +
-        bytes_to_string(self.db.errmsg()),
-      )
+      match url.strip_prefix("postgresql://") {
+        Some(rest) => rest.to_string()
+        None => return Err("PostgreSQL URL must start with postgres://")
+      }
   }
-  let mut exists = false
-  while stmt.step() {
-    if bytes_to_string(stmt.column_text(1)) == column_name {
-      exists = true
+  let main = raw.split("?").to_array()[0].to_string()
+  let mut auth_host = main
+  let mut database = "postgres"
+  if main.find("/") is Some(index) {
+    auth_host = main[:index].to_string()
+    database = main[index + 1:].to_string()
+  }
+  let mut user = "postgres"
+  let mut password : String? = None
+  let mut host_port = auth_host
+  if auth_host.find("@") is Some(index) {
+    let auth = auth_host[:index].to_string()
+    host_port = auth_host[index + 1:].to_string()
+    if auth.find(":") is Some(colon) {
+      user = auth[:colon].to_string()
+      password = Some(auth[colon + 1:].to_string())
+    } else if auth != "" {
+      user = auth
     }
   }
-  stmt.finalize()
-  Ok(exists)
+  let mut host = host_port
+  let mut port = 5432
+  if host_port.find(":") is Some(index) {
+    host = host_port[:index].to_string()
+    port = @string.parse_int(host_port[index + 1:].to_string()) catch {
+      _ => 5432
+    }
+  }
+  if host == "" {
+    host = "127.0.0.1"
+  }
+  let config = match password {
+    Some(password) =>
+      @pg.Config::new(
+        host,
+        user~,
+        database~,
+        password~,
+        port~,
+        ssl_mode=@pg.SslMode::disable(),
+        application_name="moonbitcloud",
+      )
+    None =>
+      @pg.Config::new(
+        host,
+        user~,
+        database~,
+        port~,
+        ssl_mode=@pg.SslMode::disable(),
+        application_name="moonbitcloud",
+      )
+  }
+  Ok(config)
 }
 
 ///|
-fn Store::ensure_column(
+fn postgres_quote(value : String) -> String {
+  "'" + value.replace_all(old="'", new="''") + "'"
+}
+
+///|
+fn postgres_param_sql(param : @db.Param) -> String {
+  match param {
+    @db.Null => "NULL"
+    @db.Bool(value) => if value { "TRUE" } else { "FALSE" }
+    @db.Byte(value) => value.to_int().to_string()
+    @db.Int(value) => value.to_string()
+    @db.Int16(value) => value.to_int().to_string()
+    @db.UInt16(value) => value.to_int().to_string()
+    @db.UInt(value) => value.to_string()
+    @db.UInt64(value) => value.to_string()
+    @db.Int64(value) => value.to_string()
+    @db.BigInt(value) => value.to_string()
+    @db.Float(value) => value.to_string()
+    @db.Double(value) => value.to_string()
+    @db.Decimal(value) => value
+    @db.Date(value, _) => postgres_quote(value.to_string())
+    @db.Time(value, _) => postgres_quote(value.to_string())
+    @db.DateTime(value, _) => postgres_quote(value.to_string())
+    @db.Timestamp(value, _) => postgres_quote(value.to_string())
+    @db.Uuid(value) => postgres_quote(value)
+    @db.Json(value) => postgres_quote(value.stringify())
+    @db.String(value) => postgres_quote(value)
+    @db.Bytes(value) => "decode('\{@crypto.bytes_to_hex_string(value)}', 'hex')"
+  }
+}
+
+///|
+fn inline_postgres_sql(sql : String, params : FixedArray[@db.Param]) -> String {
+  let mut out = sql
+  let mut index = params.length() - 1
+  while index >= 0 {
+    out = out.replace(
+      old="$" + (index + 1).to_string(),
+      new=postgres_param_sql(params[index]),
+    )
+    index = index - 1
+  }
+  out
+}
+
+///|
+fn hex_nibble(byte : Byte) -> Int? {
+  if byte >= b'0' && byte <= b'9' {
+    Some(byte.to_int() - b'0'.to_int())
+  } else if byte >= b'a' && byte <= b'f' {
+    Some(byte.to_int() - b'a'.to_int() + 10)
+  } else if byte >= b'A' && byte <= b'F' {
+    Some(byte.to_int() - b'A'.to_int() + 10)
+  } else {
+    None
+  }
+}
+
+///|
+fn postgres_text_param(value : String?) -> @db.Param {
+  match value {
+    None => @db.Null
+    Some(text) =>
+      if text.has_prefix("\\x") {
+        let encoded = @utf8.encode(text[2:].to_string())
+        let bytes : Array[Byte] = []
+        let mut index = 0
+        while index + 1 < encoded.length() {
+          match (hex_nibble(encoded[index]), hex_nibble(encoded[index + 1])) {
+            (Some(high), Some(low)) => bytes.push(((high << 4) | low).to_byte())
+            _ => return @db.String(text)
+          }
+          index = index + 2
+        }
+        @db.Bytes(Bytes::from_array(bytes))
+      } else {
+        @db.String(text)
+      }
+  }
+}
+
+///|
+fn Store::sql(self : Store, sql : String) -> String {
+  match self.backend {
+    SQLite => sql
+    Postgres => {
+      let out = @buffer.new()
+      let mut index = 1
+      for c in sql {
+        if c == '?' {
+          out.write_string("$")
+          out.write_string(index.to_string())
+          index = index + 1
+        } else {
+          out.write_char(c)
+        }
+      }
+      out.to_string()
+    }
+  }
+}
+
+///|
+async fn Store::exec_raw(
+  self : Store,
+  sql : String,
+  params : FixedArray[@db.Param],
+) -> @db.QueryResult noraise {
+  let rendered = self.sql(sql)
+  match self.engine {
+    SQLiteEngine(engine) =>
+      try engine.exec_raw(rendered, params) catch {
+        _ =>
+          return @db.QueryResult::{
+            ok: false,
+            rows_affected: 0,
+            rows: [],
+            error: Some("database execution raised an error"),
+          }
+      } noraise {
+        result => result
+      }
+    PostgresEngine(config) => exec_postgres_raw(config, rendered, params)
+  }
+}
+
+///|
+async fn exec_postgres_raw(
+  config : @pg.Config,
+  sql : String,
+  params : FixedArray[@db.Param],
+) -> @db.QueryResult noraise {
+  try
+    @async.with_task_group(group => {
+      let (client, connection) = @pg.connect(config)
+      group.spawn_bg(() => connection.run())
+      let stream = client.simple_query(inline_postgres_sql(sql, params))
+      let messages = stream.collect()
+      client.close()
+      let rows : Array[Map[String, @db.Param]] = []
+      let mut rows_affected = 0
+      for message in messages {
+        match message {
+          @pg.SimpleQueryMessage::Row(row) => {
+            let item : Map[String, @db.Param] = {}
+            let columns = row.columns()
+            for index, column in columns {
+              item[column] = postgres_text_param(row.get(index))
+            }
+            rows.push(item)
+          }
+          @pg.SimpleQueryMessage::CommandComplete(tag) => {
+            let parts = tag.split(" ").to_array()
+            if parts.length() > 1 {
+              rows_affected = @string.parse_int(
+                parts[parts.length() - 1].to_string(),
+              ) catch {
+                _ => rows_affected
+              }
+            }
+          }
+          _ => ignore(())
+        }
+      }
+      @db.QueryResult::{
+        ok: true,
+        rows_affected,
+        rows: FixedArray::from_array(rows),
+        error: None,
+      }
+    })
+  catch {
+    error =>
+      return @db.QueryResult::{
+        ok: false,
+        rows_affected: 0,
+        rows: [],
+        error: Some(error.to_string()),
+      }
+  } noraise {
+    result => result
+  }
+}
+
+///|
+async fn Store::exec_or_error(
+  self : Store,
+  sql : String,
+  label : String,
+  params? : FixedArray[@db.Param] = [],
+) -> Result[Unit, String] noraise {
+  let result = self.exec_raw(sql, params)
+  if result.ok {
+    Ok(())
+  } else {
+    Err(
+      "Database operation failed while trying to \{label}: " +
+      result.error.unwrap_or("unknown database error"),
+    )
+  }
+}
+
+///|
+async fn Store::query_rows(
+  self : Store,
+  sql : String,
+  params? : FixedArray[@db.Param] = [],
+) -> FixedArray[Map[String, @db.Param]] noraise {
+  let result = self.exec_raw(sql, params)
+  if result.ok {
+    result.rows
+  } else {
+    []
+  }
+}
+
+///|
+async fn Store::query_one(
+  self : Store,
+  sql : String,
+  params? : FixedArray[@db.Param] = [],
+) -> Map[String, @db.Param]? noraise {
+  let rows = self.query_rows(sql, params~)
+  if rows.length() > 0 {
+    Some(rows[0])
+  } else {
+    None
+  }
+}
+
+///|
+async fn Store::column_exists(
+  self : Store,
+  table_name : String,
+  column_name : String,
+) -> Result[Bool, String] noraise {
+  match self.backend {
+    SQLite => {
+      let rows = self.query_rows("PRAGMA table_info(\{table_name});")
+      for row in rows {
+        if row_text(row, "name") == column_name {
+          return Ok(true)
+        }
+      }
+      Ok(false)
+    }
+    Postgres => {
+      let row = self.query_one(
+        (
+          #|SELECT 1 AS found
+          #|FROM information_schema.columns
+          #|WHERE table_name = ?
+          #|  AND column_name = ?
+          #|LIMIT 1;
+        ),
+        params=[@db.String(table_name), @db.String(column_name)],
+      )
+      Ok(row is Some(_))
+    }
+  }
+}
+
+///|
+async fn Store::ensure_column(
   self : Store,
   table_name : String,
   column_name : String,
   column_sql : String,
-) -> Result[Unit, String] {
+) -> Result[Unit, String] noraise {
   match self.column_exists(table_name, column_name) {
     Ok(true) => Ok(())
     Ok(false) =>
@@ -450,75 +850,54 @@ fn Store::ensure_column(
 }
 
 ///|
-fn Store::exec_or_error(
+async fn Store::backfill_initial_project_prompts(
   self : Store,
-  sql : String,
-  label : String,
-) -> Result[Unit, String] {
-  if self.db.exec(sql) {
-    Ok(())
-  } else {
-    Err(
-      "Database initialization failed while trying to \{label}: " +
-      bytes_to_string(self.db.errmsg()),
-    )
-  }
-}
-
-///|
-fn Store::backfill_initial_project_prompts(
-  self : Store,
-) -> Result[Unit, String] {
+) -> Result[Unit, String] noraise {
   let role = chat_role_to_db(User)
-  let stmt = match
-    self.db.prepare(
-      (
-        #|UPDATE projects
-        #|SET initial_project_prompt = (
-        #|  SELECT content
-        #|  FROM messages
-        #|  WHERE messages.project_id = projects.id
-        #|    AND messages.role = ?
-        #|  ORDER BY messages.created_at ASC
-        #|  LIMIT 1
-        #|)
-        #|WHERE (initial_project_prompt IS NULL OR initial_project_prompt = '')
-        #|  AND EXISTS (
-        #|    SELECT 1
-        #|    FROM messages
-        #|    WHERE messages.project_id = projects.id
-        #|      AND messages.role = ?
-        #|  );
-      ),
-    ) {
-    Some(stmt) => stmt
-    None =>
-      return Err(
-        "Failed to prepare initial project prompt backfill: " +
-        bytes_to_string(self.db.errmsg()),
-      )
-  }
-  stmt.bind_all([string_to_sql_text(role), string_to_sql_text(role)]) |> ignore
-  let ok = stmt.execute()
-  stmt.finalize()
-  if ok {
-    Ok(())
-  } else {
-    Err(
-      "Failed to backfill initial project prompts: " +
-      bytes_to_string(self.db.errmsg()),
-    )
-  }
+  self.exec_or_error(
+    (
+      #|UPDATE projects
+      #|SET initial_project_prompt = (
+      #|  SELECT content
+      #|  FROM messages
+      #|  WHERE messages.project_id = projects.id
+      #|    AND messages.role = ?
+      #|  ORDER BY messages.created_at ASC
+      #|  LIMIT 1
+      #|)
+      #|WHERE (initial_project_prompt IS NULL OR initial_project_prompt = '')
+      #|  AND EXISTS (
+      #|    SELECT 1
+      #|    FROM messages
+      #|    WHERE messages.project_id = projects.id
+      #|      AND messages.role = ?
+      #|  );
+    ),
+    "backfill initial project prompts",
+    params=[@db.String(role), @db.String(role)],
+  )
 }
 
 ///|
-fn Store::try_new(db_path : String) -> Result[Store, String] {
-  let db = match @sqlite.Database::open(db_path) {
-    Some(db) => db
-    None => return Err("Failed to open SQLite database at \{db_path}.")
+async fn Store::try_new_async(
+  db_path : String,
+) -> Result[Store, String] noraise {
+  let store = match @env.get_env_var("MOONBITCLOUD_DATABASE_URL") {
+    Some(url) if url.trim() != "" => {
+      let config = match parse_database_url(url.trim().to_string()) {
+        Ok(config) => config
+        Err(message) => return Err(message)
+      }
+      Store::{ engine: PostgresEngine(config), backend: Postgres }
+    }
+    _ => {
+      if (@fs.is_dir(db_path) catch { _ => false }) {
+        return Err("SQLite database path points to a directory: \{db_path}")
+      }
+      let engine = @morm_sqlite.SQLiteEngine::open(db_path)
+      Store::{ engine: SQLiteEngine(engine), backend: SQLite }
+    }
   }
-  ignore(db.busy_timeout(5000))
-  let store = Store::{ db, }
   match store.init_schema() {
     Ok(_) => Ok(store)
     Err(message) => Err(message)
@@ -526,29 +905,44 @@ fn Store::try_new(db_path : String) -> Result[Store, String] {
 }
 
 ///|
-fn Store::is_available(self : Store) -> Bool {
-  match self.db.prepare("SELECT 1;") {
-    Some(stmt) => {
-      let ok = stmt.step()
-      stmt.finalize()
-      ok
-    }
-    None => false
+fn Store::try_new(db_path : String) -> Result[Store, String] {
+  let result : Ref[Result[Store, String]] = @ref.new(
+    Err("The database was not initialized."),
+  )
+  @async.run_async_main(async fn() {
+    result.val = Store::try_new_async(db_path)
+  })
+  result.val
+}
+
+///|
+async fn Store::is_available(self : Store) -> Bool noraise {
+  let result = self.exec_raw("SELECT 1 AS ok;", [])
+  result.ok
+}
+
+///|
+fn Store::blob_type(self : Store) -> String {
+  match self.backend {
+    SQLite => "BLOB"
+    Postgres => "BYTEA"
   }
 }
 
 ///|
-fn Store::init_schema(self : Store) -> Result[Unit, String] {
-  match self.exec_or_error("PRAGMA journal_mode=WAL;", "enable WAL mode") {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
-  }
-  match
-    self.exec_or_error(
-      "PRAGMA synchronous=NORMAL;", "configure SQLite sync mode",
-    ) {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
+async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
+  if self.backend is SQLite {
+    match self.exec_or_error("PRAGMA journal_mode=WAL;", "enable WAL mode") {
+      Ok(_) => ignore(())
+      Err(message) => return Err(message)
+    }
+    match
+      self.exec_or_error(
+        "PRAGMA synchronous=NORMAL;", "configure SQLite sync mode",
+      ) {
+      Ok(_) => ignore(())
+      Err(message) => return Err(message)
+    }
   }
   match
     self.exec_or_error(
@@ -674,7 +1068,11 @@ fn Store::init_schema(self : Store) -> Result[Unit, String] {
       (
         #|CREATE TABLE IF NOT EXISTS project_workspace_snapshots (
         #|  project_id TEXT PRIMARY KEY,
-        #|  archive BLOB NOT NULL,
+        #|  archive 
+      ) +
+      self.blob_type() +
+      (
+        #| NOT NULL,
         #|  updated_at TEXT NOT NULL
         #|);
       ),
@@ -821,129 +1219,140 @@ fn Store::init_schema(self : Store) -> Result[Unit, String] {
 }
 
 ///|
-fn Store::project_column_exists(
-  self : Store,
-  column_name : String,
-) -> Result[Bool, String] {
-  let stmt = match self.db.prepare("PRAGMA table_info(projects);") {
-    Some(stmt) => stmt
-    None =>
-      return Err(
-        "Failed to inspect projects table: " + bytes_to_string(self.db.errmsg()),
-      )
-  }
-  let mut exists = false
-  while stmt.step() {
-    if bytes_to_string(stmt.column_text(1)) == column_name {
-      exists = true
-    }
-  }
-  stmt.finalize()
-  Ok(exists)
-}
-
-///|
-fn Store::ensure_project_column(
+async fn Store::ensure_project_column(
   self : Store,
   column_name : String,
   definition : String,
-) -> Result[Unit, String] {
-  match self.project_column_exists(column_name) {
-    Ok(true) => Ok(())
-    Ok(false) =>
-      self.exec_or_error(
-        "ALTER TABLE projects ADD COLUMN " +
-        column_name +
-        " " +
-        definition +
-        ";",
-        "add column projects.\{column_name}",
-      )
-    Err(message) => Err(message)
+) -> Result[Unit, String] noraise {
+  self.ensure_column("projects", column_name, definition)
+}
+
+///|
+async fn Store::count_projects(self : Store) -> Int noraise {
+  match self.query_one("SELECT COUNT(*) AS count FROM projects;") {
+    Some(row) => row_int(row, "count")
+    None => 0
   }
 }
 
 ///|
-fn Store::count_projects(self : Store) -> Int {
-  let stmt = self.db.prepare("SELECT COUNT(*) FROM projects").unwrap()
-  let mut count = 0
-  if stmt.step() {
-    count = stmt.column_int(0)
+fn project_detail_from_row(row : Map[String, @db.Param]) -> @sdk.ProjectDetail {
+  let preview = preview_from_columns(
+    row_text(row, "preview_public_id"),
+    row_text(row, "preview_url"),
+    row_int(row, "preview_port"),
+    row_int(row, "preview_healthy"),
+  )
+  @sdk.ProjectDetail::{
+    id: row_text(row, "id"),
+    preview_public_id: row_text(row, "preview_public_id"),
+    display_name: row_text(row, "display_name"),
+    workspace_path: row_text(row, "workspace_path"),
+    template_id: row_text(row, "template_id"),
+    template_version: row_text(row, "template_version"),
+    codex_thread_id: empty_to_none(row_text(row, "codex_thread_id")),
+    status: run_state_from_db(row_text(row, "status")),
+    preview,
+    current_run_id: empty_to_none(row_text(row, "current_run_id")),
+    last_error: empty_to_none(row_text(row, "last_error")),
+    created_at: row_text(row, "created_at"),
+    updated_at: row_text(row, "updated_at"),
   }
-  stmt.finalize()
-  count
 }
 
 ///|
-fn Store::save_workspace_snapshot(
+fn chat_message_from_row(row : Map[String, @db.Param]) -> @sdk.ChatMessage {
+  @sdk.ChatMessage::{
+    id: row_text(row, "id"),
+    project_id: row_text(row, "project_id"),
+    run_id: empty_to_none(row_text(row, "run_id")),
+    role: chat_role_from_db(row_text(row, "role")),
+    content: row_text(row, "content"),
+    created_at: row_text(row, "created_at"),
+  }
+}
+
+///|
+fn run_status_from_row(row : Map[String, @db.Param]) -> @sdk.RunStatusResponse {
+  let preview = preview_from_columns(
+    row_text(row, "preview_public_id"),
+    row_text(row, "preview_url"),
+    row_int(row, "preview_port"),
+    row_int(row, "preview_healthy"),
+  )
+  let failure_debug = run_failure_debug_from_columns(
+    row_text(row, "failure_stage"),
+    row_text(row, "failure_command"),
+    row_int(row, "failure_exit_code"),
+    row_text(row, "codex_log_path"),
+    row_text(row, "validation_log_path"),
+    row_text(row, "final_summary_path"),
+  )
+  @sdk.RunStatusResponse::{
+    run_id: row_text(row, "id"),
+    project_id: row_text(row, "project_id"),
+    state: run_state_from_db(row_text(row, "state")),
+    summary: empty_to_none(row_text(row, "summary")),
+    error_message: empty_to_none(row_text(row, "error_message")),
+    failure_debug,
+    preview,
+    started_at: row_text(row, "started_at"),
+    finished_at: empty_to_none(row_text(row, "finished_at")),
+  }
+}
+
+///|
+async fn Store::save_workspace_snapshot(
   self : Store,
   project_id : String,
   archive : Bytes,
-) -> Result[Unit, String] {
-  let stmt = self.db
-    .prepare(
-      (
-        #|INSERT INTO project_workspace_snapshots (
-        #|  project_id,
-        #|  archive,
-        #|  updated_at
-        #|) VALUES (?, ?, ?)
-        #|ON CONFLICT(project_id) DO UPDATE SET
-        #|  archive = excluded.archive,
-        #|  updated_at = excluded.updated_at;
-      ),
-    )
-    .unwrap()
-  stmt.bind_all([
-    string_to_sql_text(project_id),
-    bytes_to_sql_blob(archive),
-    string_to_sql_text(now_string()),
-  ])
-  |> ignore
-  let ok = stmt.execute()
-  stmt.finalize()
-  if ok {
-    Ok(())
-  } else {
-    Err(
-      "Saving the workspace snapshot to the database failed: " +
-      bytes_to_string(self.db.errmsg()),
-    )
-  }
+) -> Result[Unit, String] noraise {
+  self.exec_or_error(
+    (
+      #|INSERT INTO project_workspace_snapshots (
+      #|  project_id,
+      #|  archive,
+      #|  updated_at
+      #|) VALUES (?, ?, ?)
+      #|ON CONFLICT(project_id) DO UPDATE SET
+      #|  archive = excluded.archive,
+      #|  updated_at = excluded.updated_at;
+    ),
+    "save workspace snapshot",
+    params=[
+      @db.String(project_id),
+      @db.Bytes(archive),
+      @db.String(now_string()),
+    ],
+  )
 }
 
 ///|
-fn Store::get_workspace_snapshot(self : Store, project_id : String) -> Bytes? {
-  let stmt = self.db
-    .prepare(
+async fn Store::get_workspace_snapshot(
+  self : Store,
+  project_id : String,
+) -> Bytes? noraise {
+  match
+    self.query_one(
       (
         #|SELECT archive
         #|FROM project_workspace_snapshots
         #|WHERE project_id = ?;
       ),
-    )
-    .unwrap()
-  stmt.bind(1, string_to_sql_text(project_id)) |> ignore
-  let result = if stmt.step() {
-    match stmt.column(0) {
-      @sqlite.SqlValue::Blob(content) => Some(content)
-      @sqlite.SqlValue::Text(content) => Some(content)
-      _ => None
-    }
-  } else {
-    None
+      params=[@db.String(project_id)],
+    ) {
+    Some(row) => param_to_bytes(row_get(row, "archive"))
+    None => None
   }
-  stmt.finalize()
-  result
 }
 
 ///|
-fn Store::get_project_detail(
+async fn Store::get_project_detail(
   self : Store,
   project_id : String,
-) -> @sdk.ProjectDetail? {
-  let stmt = self.db
-    .prepare(
+) -> @sdk.ProjectDetail? noraise {
+  match
+    self.query_one(
       (
         #|SELECT
         #|  id,
@@ -952,190 +1361,124 @@ fn Store::get_project_detail(
         #|  workspace_path,
         #|  template_id,
         #|  template_version,
-        #|  COALESCE(codex_thread_id, ''),
+        #|  COALESCE(codex_thread_id, '') AS codex_thread_id,
         #|  status,
-        #|  COALESCE(preview_url, ''),
-        #|  COALESCE(preview_port, 0),
+        #|  COALESCE(preview_url, '') AS preview_url,
+        #|  COALESCE(preview_port, 0) AS preview_port,
         #|  preview_healthy,
-        #|  COALESCE(last_error, ''),
-        #|  COALESCE(current_run_id, ''),
+        #|  COALESCE(last_error, '') AS last_error,
+        #|  COALESCE(current_run_id, '') AS current_run_id,
         #|  created_at,
         #|  updated_at
         #|FROM projects
         #|WHERE id = ?;
       ),
-    )
-    .unwrap()
-  stmt.bind(1, string_to_sql_text(project_id)) |> ignore
-  let result = if stmt.step() {
-    let preview = preview_from_columns(
-      bytes_to_string(stmt.column_text(1)),
-      bytes_to_string(stmt.column_text(8)),
-      stmt.column_int(9),
-      stmt.column_int(10),
-    )
-    Some(@sdk.ProjectDetail::{
-      id: bytes_to_string(stmt.column_text(0)),
-      preview_public_id: bytes_to_string(stmt.column_text(1)),
-      display_name: bytes_to_string(stmt.column_text(2)),
-      workspace_path: bytes_to_string(stmt.column_text(3)),
-      template_id: bytes_to_string(stmt.column_text(4)),
-      template_version: bytes_to_string(stmt.column_text(5)),
-      codex_thread_id: empty_to_none(bytes_to_string(stmt.column_text(6))),
-      status: run_state_from_db(bytes_to_string(stmt.column_text(7))),
-      preview,
-      current_run_id: empty_to_none(bytes_to_string(stmt.column_text(12))),
-      last_error: empty_to_none(bytes_to_string(stmt.column_text(11))),
-      created_at: bytes_to_string(stmt.column_text(13)),
-      updated_at: bytes_to_string(stmt.column_text(14)),
-    })
-  } else {
-    None
+      params=[@db.String(project_id)],
+    ) {
+    Some(row) => Some(project_detail_from_row(row))
+    None => None
   }
-  stmt.finalize()
-  result
 }
 
 ///|
-fn Store::list_messages(
+async fn Store::list_messages(
   self : Store,
   project_id : String,
-) -> Array[@sdk.ChatMessage] {
-  let stmt = self.db
-    .prepare(
-      (
-        #|SELECT
-        #|  id,
-        #|  project_id,
-        #|  COALESCE(run_id, ''),
-        #|  role,
-        #|  content,
-        #|  created_at
-        #|FROM messages
-        #|WHERE project_id = ?
-        #|ORDER BY created_at ASC;
-      ),
-    )
-    .unwrap()
-  stmt.bind(1, string_to_sql_text(project_id)) |> ignore
+) -> Array[@sdk.ChatMessage] noraise {
+  let rows = self.query_rows(
+    (
+      #|SELECT
+      #|  id,
+      #|  project_id,
+      #|  COALESCE(run_id, '') AS run_id,
+      #|  role,
+      #|  content,
+      #|  created_at
+      #|FROM messages
+      #|WHERE project_id = ?
+      #|ORDER BY created_at ASC;
+    ),
+    params=[@db.String(project_id)],
+  )
   let items : Array[@sdk.ChatMessage] = []
-  while stmt.step() {
-    items.push(@sdk.ChatMessage::{
-      id: bytes_to_string(stmt.column_text(0)),
-      project_id: bytes_to_string(stmt.column_text(1)),
-      run_id: empty_to_none(bytes_to_string(stmt.column_text(2))),
-      role: chat_role_from_db(bytes_to_string(stmt.column_text(3))),
-      content: bytes_to_string(stmt.column_text(4)),
-      created_at: bytes_to_string(stmt.column_text(5)),
-    })
+  for row in rows {
+    items.push(chat_message_from_row(row))
   }
-  stmt.finalize()
   items
 }
 
 ///|
-fn Store::get_run(
+async fn Store::get_run(
   self : Store,
   project_id : String,
   run_id : String,
-) -> @sdk.RunStatusResponse? {
+) -> @sdk.RunStatusResponse? noraise {
   self.recover_interrupted_runs()
-  let stmt = self.db
-    .prepare(
+  match
+    self.query_one(
       (
         #|SELECT
         #|  r.id,
         #|  r.project_id,
         #|  r.state,
-        #|  COALESCE(r.summary, ''),
-        #|  COALESCE(r.error_message, ''),
-        #|  COALESCE(r.failure_stage, ''),
-        #|  COALESCE(r.failure_command, ''),
-        #|  COALESCE(r.failure_exit_code, -1),
-        #|  COALESCE(r.codex_log_path, ''),
-        #|  COALESCE(r.validation_log_path, ''),
-        #|  COALESCE(r.final_summary_path, ''),
-        #|  COALESCE(r.preview_url, ''),
-        #|  COALESCE(r.preview_port, 0),
+        #|  COALESCE(r.summary, '') AS summary,
+        #|  COALESCE(r.error_message, '') AS error_message,
+        #|  COALESCE(r.failure_stage, '') AS failure_stage,
+        #|  COALESCE(r.failure_command, '') AS failure_command,
+        #|  COALESCE(r.failure_exit_code, -1) AS failure_exit_code,
+        #|  COALESCE(r.codex_log_path, '') AS codex_log_path,
+        #|  COALESCE(r.validation_log_path, '') AS validation_log_path,
+        #|  COALESCE(r.final_summary_path, '') AS final_summary_path,
+        #|  COALESCE(r.preview_url, '') AS preview_url,
+        #|  COALESCE(r.preview_port, 0) AS preview_port,
         #|  r.preview_healthy,
         #|  r.started_at,
-        #|  COALESCE(r.finished_at, ''),
+        #|  COALESCE(r.finished_at, '') AS finished_at,
         #|  p.preview_public_id
         #|FROM runs r
         #|JOIN projects p ON p.id = r.project_id
         #|WHERE r.id = ? AND r.project_id = ?;
       ),
-    )
-    .unwrap()
-  stmt.bind_all([string_to_sql_text(run_id), string_to_sql_text(project_id)])
-  |> ignore
-  let result = if stmt.step() {
-    let preview = preview_from_columns(
-      bytes_to_string(stmt.column_text(16)),
-      bytes_to_string(stmt.column_text(11)),
-      stmt.column_int(12),
-      stmt.column_int(13),
-    )
-    let failure_debug = run_failure_debug_from_columns(
-      bytes_to_string(stmt.column_text(5)),
-      bytes_to_string(stmt.column_text(6)),
-      stmt.column_int(7),
-      bytes_to_string(stmt.column_text(8)),
-      bytes_to_string(stmt.column_text(9)),
-      bytes_to_string(stmt.column_text(10)),
-    )
-    Some(@sdk.RunStatusResponse::{
-      run_id: bytes_to_string(stmt.column_text(0)),
-      project_id: bytes_to_string(stmt.column_text(1)),
-      state: run_state_from_db(bytes_to_string(stmt.column_text(2))),
-      summary: empty_to_none(bytes_to_string(stmt.column_text(3))),
-      error_message: empty_to_none(bytes_to_string(stmt.column_text(4))),
-      failure_debug,
-      preview,
-      started_at: bytes_to_string(stmt.column_text(14)),
-      finished_at: empty_to_none(bytes_to_string(stmt.column_text(15))),
-    })
-  } else {
-    None
+      params=[@db.String(run_id), @db.String(project_id)],
+    ) {
+    Some(row) => Some(run_status_from_row(row))
+    None => None
   }
-  stmt.finalize()
-  result
 }
 
 ///|
-fn Store::list_running_runs(self : Store) -> Array[RunningRun] {
-  let stmt = self.db
-    .prepare(
-      (
-        #|SELECT
-        #|  r.project_id,
-        #|  r.id,
-        #|  COALESCE(p.codex_thread_id, '')
-        #|FROM runs r
-        #|JOIN projects p ON p.id = r.project_id
-        #|WHERE r.state = ?
-        #|ORDER BY r.started_at ASC;
-      ),
-    )
-    .unwrap()
-  stmt.bind(1, string_to_sql_text(run_state_to_db(Running))) |> ignore
+async fn Store::list_running_runs(self : Store) -> Array[RunningRun] noraise {
+  let rows = self.query_rows(
+    (
+      #|SELECT
+      #|  r.project_id,
+      #|  r.id AS run_id,
+      #|  COALESCE(p.codex_thread_id, '') AS thread_id
+      #|FROM runs r
+      #|JOIN projects p ON p.id = r.project_id
+      #|WHERE r.state = ?
+      #|ORDER BY r.started_at ASC;
+    ),
+    params=[@db.String(run_state_to_db(Running))],
+  )
   let runs : Array[RunningRun] = []
-  while stmt.step() {
+  for row in rows {
     runs.push({
-      project_id: bytes_to_string(stmt.column_text(0)),
-      run_id: bytes_to_string(stmt.column_text(1)),
-      thread_id: empty_to_none(bytes_to_string(stmt.column_text(2))),
+      project_id: row_text(row, "project_id"),
+      run_id: row_text(row, "run_id"),
+      thread_id: empty_to_none(row_text(row, "thread_id")),
     })
   }
-  stmt.finalize()
   runs
 }
 
 ///|
-fn Store::fail_orphaned_running_projects_on_startup(self : Store) -> Unit {
+async fn Store::fail_orphaned_running_projects_on_startup(
+  self : Store,
+) -> Unit noraise {
   let now = now_string()
-  let stmt = self.db
-    .prepare(
+  ignore(
+    self.exec_or_error(
       (
         #|UPDATE projects
         #|SET
@@ -1145,21 +1488,19 @@ fn Store::fail_orphaned_running_projects_on_startup(self : Store) -> Unit {
         #|  updated_at = ?
         #|WHERE status = ?;
       ),
-    )
-    .unwrap()
-  stmt.bind_all([
-    string_to_sql_text(run_state_to_db(Failed)),
-    string_to_sql_text(interrupted_worker_summary()),
-    string_to_sql_text(now),
-    string_to_sql_text(run_state_to_db(Running)),
-  ])
-  |> ignore
-  stmt.execute() |> ignore
-  stmt.finalize()
+      "fail orphaned running projects",
+      params=[
+        @db.String(run_state_to_db(Failed)),
+        @db.String(interrupted_worker_summary()),
+        @db.String(now),
+        @db.String(run_state_to_db(Running)),
+      ],
+    ),
+  )
 }
 
 ///|
-fn Store::fail_stale_running_runs_on_startup(self : Store) -> Int {
+async fn Store::fail_stale_running_runs_on_startup(self : Store) -> Int noraise {
   let runs = self.list_running_runs()
   for run in runs {
     self.finish_run_failure_with_debug(
@@ -1183,7 +1524,7 @@ fn Store::fail_stale_running_runs_on_startup(self : Store) -> Int {
 }
 
 ///|
-fn Store::create_project(
+async fn Store::create_project(
   self : Store,
   project_id : String,
   owner_user_id : String,
@@ -1192,14 +1533,14 @@ fn Store::create_project(
   workspace_path : String,
   template_id : String,
   template_version : String,
-) -> @sdk.ProjectDetail {
+) -> @sdk.ProjectDetail noraise {
   let now = now_string()
   let name = match display_name {
     Some(value) if value != "" => value
     _ => "Project \{self.count_projects() + 1}"
   }
-  let stmt = self.db
-    .prepare(
+  ignore(
+    self.exec_or_error(
       (
         #|INSERT INTO projects (
         #|  id,
@@ -1214,91 +1555,64 @@ fn Store::create_project(
         #|  updated_at
         #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
       ),
-    )
-    .unwrap()
-  stmt.bind_all([
-    string_to_sql_text(project_id),
-    string_to_sql_text(owner_user_id),
-    string_to_sql_text(preview_public_id),
-    string_to_sql_text(name),
-    string_to_sql_text(workspace_path),
-    string_to_sql_text(template_id),
-    string_to_sql_text(template_version),
-    string_to_sql_text(run_state_to_db(Idle)),
-    string_to_sql_text(now),
-    string_to_sql_text(now),
-  ])
-  |> ignore
-  stmt.execute() |> ignore
-  stmt.finalize()
+      "create project",
+      params=[
+        @db.String(project_id),
+        @db.String(owner_user_id),
+        @db.String(preview_public_id),
+        @db.String(name),
+        @db.String(workspace_path),
+        @db.String(template_id),
+        @db.String(template_version),
+        @db.String(run_state_to_db(Idle)),
+        @db.String(now),
+        @db.String(now),
+      ],
+    ),
+  )
   self.get_project_detail(project_id).unwrap()
 }
 
 ///|
-fn Store::delete_project(
+async fn Store::delete_project(
   self : Store,
   project_id : String,
-) -> Result[Unit, String] {
+) -> Result[Unit, String] noraise {
   if self.get_project_detail(project_id) is None {
     return Err("Project not found.")
   }
-
-  let delete_messages_stmt = self.db
-    .prepare(
-      (
-        #|DELETE FROM messages
-        #|WHERE project_id = ?;
-      ),
-    )
-    .unwrap()
-  delete_messages_stmt.bind(1, string_to_sql_text(project_id)) |> ignore
-  delete_messages_stmt.execute() |> ignore
-  delete_messages_stmt.finalize()
-
-  let delete_runs_stmt = self.db
-    .prepare(
-      (
-        #|DELETE FROM runs
-        #|WHERE project_id = ?;
-      ),
-    )
-    .unwrap()
-  delete_runs_stmt.bind(1, string_to_sql_text(project_id)) |> ignore
-  delete_runs_stmt.execute() |> ignore
-  delete_runs_stmt.finalize()
-
-  let delete_snapshot_stmt = self.db
-    .prepare(
-      (
-        #|DELETE FROM project_workspace_snapshots
-        #|WHERE project_id = ?;
-      ),
-    )
-    .unwrap()
-  delete_snapshot_stmt.bind(1, string_to_sql_text(project_id)) |> ignore
-  delete_snapshot_stmt.execute() |> ignore
-  delete_snapshot_stmt.finalize()
-
-  let delete_project_stmt = self.db
-    .prepare(
-      (
-        #|DELETE FROM projects
-        #|WHERE id = ?;
-      ),
-    )
-    .unwrap()
-  delete_project_stmt.bind(1, string_to_sql_text(project_id)) |> ignore
-  delete_project_stmt.execute() |> ignore
-  delete_project_stmt.finalize()
-  Ok(())
+  ignore(
+    self.exec_or_error(
+      "DELETE FROM messages WHERE project_id = ?;",
+      "delete project messages",
+      params=[@db.String(project_id)],
+    ),
+  )
+  ignore(
+    self.exec_or_error(
+      "DELETE FROM runs WHERE project_id = ?;",
+      "delete project runs",
+      params=[@db.String(project_id)],
+    ),
+  )
+  ignore(
+    self.exec_or_error(
+      "DELETE FROM project_workspace_snapshots WHERE project_id = ?;",
+      "delete project workspace snapshot",
+      params=[@db.String(project_id)],
+    ),
+  )
+  self.exec_or_error("DELETE FROM projects WHERE id = ?;", "delete project", params=[
+    @db.String(project_id),
+  ])
 }
 
 ///|
-fn Store::start_run(
+async fn Store::start_run(
   self : Store,
   project_id : String,
   content : String,
-) -> Result[@sdk.RunStatusResponse, String] {
+) -> Result[@sdk.RunStatusResponse, String] noraise {
   self.recover_interrupted_runs()
   let project = match self.get_project_detail(project_id) {
     Some(project) => project
@@ -1312,8 +1626,8 @@ fn Store::start_run(
   let run_id = next_id("run")
   let message_id = next_id("message")
   let now = now_string()
-  let message_stmt = self.db
-    .prepare(
+  ignore(
+    self.exec_or_error(
       (
         #|INSERT INTO messages (
         #|  id,
@@ -1324,22 +1638,19 @@ fn Store::start_run(
         #|  created_at
         #|) VALUES (?, ?, ?, ?, ?, ?);
       ),
-    )
-    .unwrap()
-  message_stmt.bind_all([
-    string_to_sql_text(message_id),
-    string_to_sql_text(project_id),
-    string_to_sql_text(run_id),
-    string_to_sql_text(chat_role_to_db(User)),
-    string_to_sql_text(content),
-    string_to_sql_text(now),
-  ])
-  |> ignore
-  message_stmt.execute() |> ignore
-  message_stmt.finalize()
-
-  let run_stmt = self.db
-    .prepare(
+      "create user message",
+      params=[
+        @db.String(message_id),
+        @db.String(project_id),
+        @db.String(run_id),
+        @db.String(chat_role_to_db(User)),
+        @db.String(content),
+        @db.String(now),
+      ],
+    ),
+  )
+  ignore(
+    self.exec_or_error(
       (
         #|INSERT INTO runs (
         #|  id,
@@ -1348,20 +1659,17 @@ fn Store::start_run(
         #|  started_at
         #|) VALUES (?, ?, ?, ?);
       ),
-    )
-    .unwrap()
-  run_stmt.bind_all([
-    string_to_sql_text(run_id),
-    string_to_sql_text(project_id),
-    string_to_sql_text(run_state_to_db(Running)),
-    string_to_sql_text(now),
-  ])
-  |> ignore
-  run_stmt.execute() |> ignore
-  run_stmt.finalize()
-
-  let project_stmt = self.db
-    .prepare(
+      "create run",
+      params=[
+        @db.String(run_id),
+        @db.String(project_id),
+        @db.String(run_state_to_db(Running)),
+        @db.String(now),
+      ],
+    ),
+  )
+  ignore(
+    self.exec_or_error(
       (
         #|UPDATE projects
         #|SET
@@ -1375,19 +1683,16 @@ fn Store::start_run(
         #|  updated_at = ?
         #|WHERE id = ?;
       ),
-    )
-    .unwrap()
-  project_stmt.bind_all([
-    string_to_sql_text(run_state_to_db(Running)),
-    string_to_sql_text(run_id),
-    string_to_sql_text(content),
-    string_to_sql_text(now),
-    string_to_sql_text(project_id),
-  ])
-  |> ignore
-  project_stmt.execute() |> ignore
-  project_stmt.finalize()
-
+      "mark project running",
+      params=[
+        @db.String(run_state_to_db(Running)),
+        @db.String(run_id),
+        @db.String(content),
+        @db.String(now),
+        @db.String(project_id),
+      ],
+    ),
+  )
   Ok(@sdk.RunStatusResponse::{
     run_id,
     project_id,
@@ -1402,60 +1707,44 @@ fn Store::start_run(
 }
 
 ///|
-fn Store::set_run_worker_pid(
+async fn Store::set_run_worker_pid(
   self : Store,
   project_id : String,
   run_id : String,
   worker_pid : Int,
-) -> Unit {
-  let stmt = self.db
-    .prepare(
-      (
-        #|UPDATE runs
-        #|SET worker_pid = ?
-        #|WHERE id = ? AND project_id = ?;
-      ),
-    )
-    .unwrap()
-  stmt.bind_all([
-    @sqlite.SqlValue::Int(worker_pid),
-    string_to_sql_text(run_id),
-    string_to_sql_text(project_id),
-  ])
-  |> ignore
-  stmt.execute() |> ignore
-  stmt.finalize()
+) -> Unit noraise {
+  ignore(
+    self.exec_or_error(
+      "UPDATE runs SET worker_pid = ? WHERE id = ? AND project_id = ?;",
+      "set run worker pid",
+      params=[@db.Int(worker_pid), @db.String(run_id), @db.String(project_id)],
+    ),
+  )
 }
 
 ///|
-fn Store::set_project_thread_id(
+async fn Store::set_project_thread_id(
   self : Store,
   project_id : String,
   thread_id : String,
-) -> Unit {
-  let stmt = self.db
-    .prepare(
-      (
-        #|UPDATE projects
-        #|SET codex_thread_id = ?
-        #|WHERE id = ?;
-      ),
-    )
-    .unwrap()
-  stmt.bind_all([string_to_sql_text(thread_id), string_to_sql_text(project_id)])
-  |> ignore
-  stmt.execute() |> ignore
-  stmt.finalize()
+) -> Unit noraise {
+  ignore(
+    self.exec_or_error(
+      "UPDATE projects SET codex_thread_id = ? WHERE id = ?;",
+      "set project thread id",
+      params=[@db.String(thread_id), @db.String(project_id)],
+    ),
+  )
 }
 
 ///|
-fn Store::get_run_prompt(
+async fn Store::get_run_prompt(
   self : Store,
   project_id : String,
   run_id : String,
-) -> String? {
-  let stmt = self.db
-    .prepare(
+) -> String? noraise {
+  match
+    self.query_one(
       (
         #|SELECT content
         #|FROM messages
@@ -1465,56 +1754,45 @@ fn Store::get_run_prompt(
         #|ORDER BY created_at DESC
         #|LIMIT 1;
       ),
-    )
-    .unwrap()
-  stmt.bind_all([
-    string_to_sql_text(project_id),
-    string_to_sql_text(run_id),
-    string_to_sql_text(chat_role_to_db(User)),
-  ])
-  |> ignore
-  let result = if stmt.step() {
-    Some(bytes_to_string(stmt.column_text(0)))
-  } else {
-    None
+      params=[
+        @db.String(project_id),
+        @db.String(run_id),
+        @db.String(chat_role_to_db(User)),
+      ],
+    ) {
+    Some(row) => Some(row_text(row, "content"))
+    None => None
   }
-  stmt.finalize()
-  result
 }
 
 ///|
-fn Store::get_initial_project_prompt(
+async fn Store::get_initial_project_prompt(
   self : Store,
   project_id : String,
-) -> String? {
-  let stmt = self.db
-    .prepare(
+) -> String? noraise {
+  match
+    self.query_one(
       (
-        #|SELECT COALESCE(initial_project_prompt, '')
+        #|SELECT COALESCE(initial_project_prompt, '') AS prompt
         #|FROM projects
         #|WHERE id = ?;
       ),
-    )
-    .unwrap()
-  stmt.bind(1, string_to_sql_text(project_id)) |> ignore
-  let result = if stmt.step() {
-    empty_to_none(bytes_to_string(stmt.column_text(0)))
-  } else {
-    None
+      params=[@db.String(project_id)],
+    ) {
+    Some(row) => empty_to_none(row_text(row, "prompt"))
+    None => None
   }
-  stmt.finalize()
-  result
 }
 
 ///|
-fn Store::finish_run_success(
+async fn Store::finish_run_success(
   self : Store,
   project_id : String,
   run_id : String,
   summary : String,
   thread_id : String?,
   preview : @sdk.PreviewTarget,
-) -> Unit {
+) -> Unit noraise {
   let now = now_string()
   match thread_id {
     Some(value) => self.set_project_thread_id(project_id, value)
@@ -1525,8 +1803,8 @@ fn Store::finish_run_success(
   } else {
     summary
   }
-  let message_stmt = self.db
-    .prepare(
+  ignore(
+    self.exec_or_error(
       (
         #|INSERT INTO messages (
         #|  id,
@@ -1537,22 +1815,19 @@ fn Store::finish_run_success(
         #|  created_at
         #|) VALUES (?, ?, ?, ?, ?, ?);
       ),
-    )
-    .unwrap()
-  message_stmt.bind_all([
-    string_to_sql_text(next_id("message")),
-    string_to_sql_text(project_id),
-    string_to_sql_text(run_id),
-    string_to_sql_text(chat_role_to_db(Assistant)),
-    string_to_sql_text(assistant_message),
-    string_to_sql_text(now),
-  ])
-  |> ignore
-  message_stmt.execute() |> ignore
-  message_stmt.finalize()
-
-  let run_stmt = self.db
-    .prepare(
+      "create assistant success message",
+      params=[
+        @db.String(next_id("message")),
+        @db.String(project_id),
+        @db.String(run_id),
+        @db.String(chat_role_to_db(Assistant)),
+        @db.String(assistant_message),
+        @db.String(now),
+      ],
+    ),
+  )
+  ignore(
+    self.exec_or_error(
       (
         #|UPDATE runs
         #|SET
@@ -1571,23 +1846,20 @@ fn Store::finish_run_success(
         #|  finished_at = ?
         #|WHERE id = ?;
       ),
-    )
-    .unwrap()
-  run_stmt.bind_all([
-    string_to_sql_text(run_state_to_db(Succeeded)),
-    string_to_sql_text(assistant_message),
-    string_to_sql_text(preview.url),
-    @sqlite.SqlValue::Int(preview.port),
-    @sqlite.SqlValue::Int(bool_to_int(preview.healthy)),
-    string_to_sql_text(now),
-    string_to_sql_text(run_id),
-  ])
-  |> ignore
-  run_stmt.execute() |> ignore
-  run_stmt.finalize()
-
-  let project_stmt = self.db
-    .prepare(
+      "finish run successfully",
+      params=[
+        @db.String(run_state_to_db(Succeeded)),
+        @db.String(assistant_message),
+        @db.String(preview.url),
+        @db.Int(preview.port),
+        @db.Int(bool_to_int(preview.healthy)),
+        @db.String(now),
+        @db.String(run_id),
+      ],
+    ),
+  )
+  ignore(
+    self.exec_or_error(
       (
         #|UPDATE projects
         #|SET
@@ -1603,33 +1875,31 @@ fn Store::finish_run_success(
         #|  updated_at = ?
         #|WHERE id = ?;
       ),
-    )
-    .unwrap()
-  project_stmt.bind_all([
-    string_to_sql_text(run_state_to_db(Succeeded)),
-    string_to_sql_text(preview.url),
-    @sqlite.SqlValue::Int(preview.port),
-    @sqlite.SqlValue::Int(bool_to_int(preview.healthy)),
-    string_to_sql_text(preview.url),
-    @sqlite.SqlValue::Int(preview.port),
-    @sqlite.SqlValue::Int(bool_to_int(preview.healthy)),
-    string_to_sql_text(now),
-    string_to_sql_text(project_id),
-  ])
-  |> ignore
-  project_stmt.execute() |> ignore
-  project_stmt.finalize()
+      "mark project succeeded",
+      params=[
+        @db.String(run_state_to_db(Succeeded)),
+        @db.String(preview.url),
+        @db.Int(preview.port),
+        @db.Int(bool_to_int(preview.healthy)),
+        @db.String(preview.url),
+        @db.Int(preview.port),
+        @db.Int(bool_to_int(preview.healthy)),
+        @db.String(now),
+        @db.String(project_id),
+      ],
+    ),
+  )
 }
 
 ///|
-fn Store::finish_run_failure(
+async fn Store::finish_run_failure(
   self : Store,
   project_id : String,
   run_id : String,
   assistant_message : String,
   error_message : String,
   thread_id : String?,
-) -> Unit {
+) -> Unit noraise {
   self.finish_run_failure_with_debug(
     project_id,
     run_id,
@@ -1641,7 +1911,7 @@ fn Store::finish_run_failure(
 }
 
 ///|
-fn Store::finish_run_failure_with_debug(
+async fn Store::finish_run_failure_with_debug(
   self : Store,
   project_id : String,
   run_id : String,
@@ -1649,7 +1919,7 @@ fn Store::finish_run_failure_with_debug(
   error_message : String,
   thread_id : String?,
   failure_debug : @sdk.RunFailureDebug?,
-) -> Unit {
+) -> Unit noraise {
   let now = now_string()
   match thread_id {
     Some(value) => self.set_project_thread_id(project_id, value)
@@ -1670,8 +1940,8 @@ fn Store::finish_run_failure_with_debug(
   let final_summary_path = failure_debug.bind(fn(debug) {
     debug.final_summary_path
   })
-  let message_stmt = self.db
-    .prepare(
+  ignore(
+    self.exec_or_error(
       (
         #|INSERT INTO messages (
         #|  id,
@@ -1682,22 +1952,19 @@ fn Store::finish_run_failure_with_debug(
         #|  created_at
         #|) VALUES (?, ?, ?, ?, ?, ?);
       ),
-    )
-    .unwrap()
-  message_stmt.bind_all([
-    string_to_sql_text(next_id("message")),
-    string_to_sql_text(project_id),
-    string_to_sql_text(run_id),
-    string_to_sql_text(chat_role_to_db(Assistant)),
-    string_to_sql_text(message_text),
-    string_to_sql_text(now),
-  ])
-  |> ignore
-  message_stmt.execute() |> ignore
-  message_stmt.finalize()
-
-  let run_stmt = self.db
-    .prepare(
+      "create assistant failure message",
+      params=[
+        @db.String(next_id("message")),
+        @db.String(project_id),
+        @db.String(run_id),
+        @db.String(chat_role_to_db(Assistant)),
+        @db.String(message_text),
+        @db.String(now),
+      ],
+    ),
+  )
+  ignore(
+    self.exec_or_error(
       (
         #|UPDATE runs
         #|SET
@@ -1713,27 +1980,24 @@ fn Store::finish_run_failure_with_debug(
         #|  finished_at = ?
         #|WHERE id = ?;
       ),
-    )
-    .unwrap()
-  run_stmt.bind_all([
-    string_to_sql_text(run_state_to_db(Failed)),
-    string_to_sql_text(message_text),
-    string_to_sql_text(error_message),
-    nullable_text_value(failure_stage),
-    nullable_text_value(failure_command),
-    nullable_int_value(failure_exit_code),
-    nullable_text_value(codex_log_path),
-    nullable_text_value(validation_log_path),
-    nullable_text_value(final_summary_path),
-    string_to_sql_text(now),
-    string_to_sql_text(run_id),
-  ])
-  |> ignore
-  run_stmt.execute() |> ignore
-  run_stmt.finalize()
-
-  let project_stmt = self.db
-    .prepare(
+      "finish run with failure",
+      params=[
+        @db.String(run_state_to_db(Failed)),
+        @db.String(message_text),
+        @db.String(error_message),
+        nullable_text_param(failure_stage),
+        nullable_text_param(failure_command),
+        nullable_int_param(failure_exit_code),
+        nullable_text_param(codex_log_path),
+        nullable_text_param(validation_log_path),
+        nullable_text_param(final_summary_path),
+        @db.String(now),
+        @db.String(run_id),
+      ],
+    ),
+  )
+  ignore(
+    self.exec_or_error(
       (
         #|UPDATE projects
         #|SET
@@ -1743,41 +2007,36 @@ fn Store::finish_run_failure_with_debug(
         #|  updated_at = ?
         #|WHERE id = ?;
       ),
-    )
-    .unwrap()
-  project_stmt.bind_all([
-    string_to_sql_text(run_state_to_db(Failed)),
-    string_to_sql_text(message_text),
-    string_to_sql_text(now),
-    string_to_sql_text(project_id),
-  ])
-  |> ignore
-  project_stmt.execute() |> ignore
-  project_stmt.finalize()
+      "mark project failed",
+      params=[
+        @db.String(run_state_to_db(Failed)),
+        @db.String(message_text),
+        @db.String(now),
+        @db.String(project_id),
+      ],
+    ),
+  )
 }
 
 ///|
-fn Store::recover_interrupted_runs(self : Store) -> Unit {
-  let stmt = self.db
-    .prepare(
-      (
-        #|SELECT id, project_id, COALESCE(worker_pid, 0)
-        #|FROM runs
-        #|WHERE state = ?;
-      ),
-    )
-    .unwrap()
-  stmt.bind(1, string_to_sql_text(run_state_to_db(Running))) |> ignore
+async fn Store::recover_interrupted_runs(self : Store) -> Unit noraise {
+  let rows = self.query_rows(
+    (
+      #|SELECT id, project_id, COALESCE(worker_pid, 0) AS worker_pid
+      #|FROM runs
+      #|WHERE state = ?;
+    ),
+    params=[@db.String(run_state_to_db(Running))],
+  )
   let interrupted : Array[(String, String)] = []
-  while stmt.step() {
-    let run_id = bytes_to_string(stmt.column_text(0))
-    let project_id = bytes_to_string(stmt.column_text(1))
-    let worker_pid = stmt.column_int(2)
+  for row in rows {
+    let run_id = row_text(row, "id")
+    let project_id = row_text(row, "project_id")
+    let worker_pid = row_int(row, "worker_pid")
     if worker_pid <= 0 || !process_alive(worker_pid) {
       interrupted.push((project_id, run_id))
     }
   }
-  stmt.finalize()
   for item in interrupted {
     let (project_id, run_id) = item
     self.finish_run_failure(
@@ -2053,8 +2312,26 @@ fn AppContext::try_new(root : String) -> Result[AppContext, String] {
 }
 
 ///|
-fn AppContext::try_new_for_worker(root : String) -> Result[AppContext, String] {
-  AppContext::try_new_with_recovery(root, false)
+async fn AppContext::try_new_for_worker_async(
+  root : String,
+) -> Result[AppContext, String] noraise {
+  let build_profile = build_profile_from_env()
+  let data_dir = root + "/data/control-plane"
+  ensure_dir(root + "/data")
+  ensure_dir(data_dir)
+  clean_legacy_project_workspaces(root)
+  let db_path = data_dir + "/state-v2.sqlite"
+  let store = match Store::try_new_async(db_path) {
+    Ok(store) => store
+    Err(message) => return Err(message)
+  }
+  Ok({
+    root,
+    build_profile,
+    store,
+    previews: PreviewManager::new(root, build_profile),
+    agent_gateway: AgentGateway::new(root),
+  })
 }
 
 ///|
@@ -2079,17 +2356,15 @@ fn AppContext::try_new_with_recovery(
     previews: PreviewManager::new(root, build_profile),
     agent_gateway: AgentGateway::new(root),
   }
-  if recover_interrupted {
-    ctx.store.recover_interrupted_runs()
-  }
+  ignore(recover_interrupted)
   Ok(ctx)
 }
 
 ///|
-fn AppContext::delete_project(
+async fn AppContext::delete_project(
   self : AppContext,
   project_id : String,
-) -> Result[Unit, String] {
+) -> Result[Unit, String] noraise {
   let project = match self.store.get_project_detail(project_id) {
     Some(project) => project
     None => return Err("Project not found.")

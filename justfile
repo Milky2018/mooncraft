@@ -280,8 +280,10 @@ smoke-running:
     exit 1
   fi
   wait_for_ok "$base_url${preview_url}api/health"
-  snapshot_count="$(sqlite3 data/control-plane/state-v2.sqlite "SELECT COUNT(*) FROM project_workspace_snapshots WHERE project_id = '$project_id';")"
-  [[ "$snapshot_count" == "1" ]]
+  if [[ -z "${MOONBITCLOUD_DATABASE_URL:-}" ]]; then
+    snapshot_count="$(sqlite3 data/control-plane/state-v2.sqlite "SELECT COUNT(*) FROM project_workspace_snapshots WHERE project_id = '$project_id';")"
+    [[ "$snapshot_count" == "1" ]]
+  fi
   runtime_project_dir="data/runtime/projects/$project_id"
   [[ -d "$runtime_project_dir/workspace" ]]
   rm -rf "$runtime_project_dir/workspace"
@@ -349,10 +351,12 @@ smoke-running:
     echo "Project still appears in the project list after deletion: $project_id" >&2
     exit 1
   fi
-  snapshot_count_after_delete="$(sqlite3 data/control-plane/state-v2.sqlite "SELECT COUNT(*) FROM project_workspace_snapshots WHERE project_id = '$project_id';")"
-  if [[ "$snapshot_count_after_delete" != "0" ]]; then
-    echo "Project workspace snapshot still exists after deletion: $project_id" >&2
-    exit 1
+  if [[ -z "${MOONBITCLOUD_DATABASE_URL:-}" ]]; then
+    snapshot_count_after_delete="$(sqlite3 data/control-plane/state-v2.sqlite "SELECT COUNT(*) FROM project_workspace_snapshots WHERE project_id = '$project_id';")"
+    if [[ "$snapshot_count_after_delete" != "0" ]]; then
+      echo "Project workspace snapshot still exists after deletion: $project_id" >&2
+      exit 1
+    fi
   fi
   if [[ -d "data/runtime/projects/$project_id" || -d "data/projects/$project_id" ]]; then
     echo "Project runtime scratch still exists after deletion: $project_id" >&2

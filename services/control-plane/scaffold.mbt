@@ -504,10 +504,10 @@ fn AppContext::load_project_template(
 }
 
 ///|
-fn AppContext::materialize_project_template(
+async fn AppContext::materialize_project_template(
   self : AppContext,
   project : @sdk.ProjectDetail,
-) -> Result[Unit, String] {
+) -> Result[Unit, String] noraise {
   let manifest = match self.load_project_template(project) {
     Ok(manifest) => manifest
     Err(message) => return Err(message)

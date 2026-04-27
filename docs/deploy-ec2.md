@@ -7,7 +7,7 @@ Do not treat the current repo state as production-ready. The correct next target
 The local product loop is real, but several parts are still intentionally local-only:
 
 - the agent layer is still a local adapter, not real Codex integration
-- persistence is single-instance SQLite on local disk
+- persistence now supports SQLite for dev/test and PostgreSQL for production, but the hosted topology is still single-instance
 - generated previews run as local child processes with light supervision
 
 ## Current Deployment Blockers
@@ -26,20 +26,21 @@ Required fix:
 - wire `AgentGateway` to the real Codex-backed execution path
 - preserve the one-thread-per-project model already assumed by the architecture
 
-### 2. Persistence is single-instance only
+### 2. Persistence is production-database backed, but not HA
 
-Today durable state lives in SQLite. Generated project directories under `data/runtime/` are scratch caches hydrated from database snapshots.
+Local durable state defaults to SQLite. Production should set `MOONBITCLOUD_DATABASE_URL` and use PostgreSQL. Generated project directories under `data/runtime/` are scratch caches hydrated from database snapshots.
 
 Why this matters:
 
 - one-node staging is fine
-- multi-instance or high-availability production is not
-- SQLite BLOB snapshots are simple for a single node but should move to a managed database or object store before multi-instance production
+- multi-instance or high-availability production is not yet designed
+- PostgreSQL keeps metadata and workspace snapshots off app-local disk, but workspace snapshots should move to object storage before multi-instance production
 
 Short-term decision:
 
-- for one EC2 instance, SQLite on EBS is acceptable
-- for anything beyond one node, move metadata and workspace snapshots off local SQLite
+- for local dev/test, SQLite is still the simplest path
+- for EC2 production, use PostgreSQL through `MOONBITCLOUD_DATABASE_URL`
+- for anything beyond one node, move workspace snapshots out of the app database
 
 ### 3. Preview processes need stronger supervision
 
@@ -71,7 +72,7 @@ This is enough for a first staged multi-user demo, but not enough for hardened p
 Use the simplest honest topology:
 
 - one EC2 instance for the app
-- one EBS volume for `data/`
+- one PostgreSQL database, colocated through Docker Compose for the first EC2 deployment or RDS when you want managed backups
 - one Application Load Balancer in front
 - one ACM certificate for HTTPS
 - one target group forwarding to the control plane on port `8080`
@@ -101,16 +102,17 @@ Why this is the right first hosted shape:
 ### Phase 2: Prepare the host
 
 1. Create an EC2 instance role that supports Systems Manager.
-2. Attach an EBS volume sized for SQLite plus runtime scratch and preview artifacts.
-3. Install the MoonBit toolchain and any system dependencies the control plane and generated projects need.
-4. Clone the repo and verify `just build` and `just test`.
+2. Install Docker and Docker Compose.
+3. Authenticate Docker to the private ECR repository.
+4. Copy `.env.example` to `.env`, set `MOONBITCLOUD_PUBLIC_BASE_URL`, `MOONBITCLOUD_POSTGRES_PASSWORD`, and `MOONBITCLOUD_IMAGE`.
+5. Run `docker compose pull` and `docker compose up -d`.
 
 ### Phase 3: Run the app as a service
 
-1. Start the control plane with `systemd`, not an interactive shell.
-2. Persist logs through `journald` and forward them to CloudWatch if you want centralized logs.
-3. Make the service restart automatically on failure.
-4. Keep `data/` on durable attached storage.
+1. Run `docker compose up -d` from the deployment directory.
+2. Keep the PostgreSQL Docker volume on durable storage or use RDS.
+3. Forward container logs to CloudWatch if you want centralized logs.
+4. Keep `data/` as runtime scratch; durable app state should be in PostgreSQL.
 
 ### Phase 4: Put HTTPS in front
 
@@ -124,7 +126,7 @@ Why this is the right first hosted shape:
 
 1. Schedule EBS snapshots.
 2. Add health checks and alarms.
-3. Document backup and restore for SQLite. Treat `data/runtime/` as rebuildable scratch.
+3. Document backup and restore for PostgreSQL. Treat `data/runtime/` as rebuildable scratch.
 4. Decide how you will rotate secrets and environment variables.
 
 ## What Counts As Good Enough For The First Public Demo
@@ -136,9 +138,9 @@ This should be enough for a public demo or staging environment:
 - private app port
 - cookie-session auth
 - reverse-proxied preview routes
-- SQLite on EBS
-- snapshot backups
-- `systemd` service management
+- PostgreSQL
+- database backups
+- Docker Compose service management
 
 This is still not the final production architecture, but it is a reasonable next step.
 

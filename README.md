@@ -30,7 +30,7 @@ moonbitcloud/
 ├── apps/
 │   └── web/                  # Rabbita frontend
 ├── services/
-│   └── control-plane/        # Mocket backend, SQLite, preview orchestration
+│   └── control-plane/        # Mocket backend, Morm persistence, preview orchestration
 ├── packages/
 │   └── sdk/                  # shared DTOs
 ├── docs/
@@ -52,7 +52,7 @@ Frontend-only templates can instead use a single MoonBit module with a root `moo
 ## Implementation Notes
 
 - `apps/web` renders the app-develop page with a left project rail, center chat workspace, and right preview panel.
-- `services/control-plane` persists `users`, `sessions`, `oauth_accounts`, `projects`, `messages`, `runs`, and workspace snapshots in SQLite.
+- `services/control-plane` persists `users`, `sessions`, `oauth_accounts`, `projects`, `messages`, `runs`, and workspace snapshots through Morm. It defaults to SQLite for dev/test and switches to PostgreSQL when `MOONBITCLOUD_DATABASE_URL` is set.
 - Each successful run rebuilds the generated project and restarts a local preview server on a stable port.
 - Static frontend previews run through `services/control-plane -- run-static-preview <port> <preview-dist-dir>` and can stage arbitrary assets, including wasm host files.
 - Preview URLs are public opaque paths like `/p/<preview_public_id>/` and stay same-origin through the control plane.
@@ -84,6 +84,8 @@ Then open `http://localhost:8080`.
 
 Notes:
 
+- local dev/test leaves `MOONBITCLOUD_DATABASE_URL` unset, so the control plane uses `data/control-plane/state-v2.sqlite`
+- production should set `MOONBITCLOUD_DATABASE_URL` to a PostgreSQL URL; the included `docker-compose.yml` wires this to a colocated `postgres` service
 - the image includes the MoonBit toolchain because the control plane still rebuilds generated previews at runtime
 - the image copies the full repo into `/app`, including `services/control-plane/assets`, which the control plane reads at runtime for file-backed HTML/CSS shells
 - set `MOONBITCLOUD_BUILD_PROFILE=release` if you want the control plane to stage and run release artifacts inside the container
@@ -105,6 +107,23 @@ Notes:
   - `MOONBITCLOUD_GITHUB_CLIENT_ID`
   - `MOONBITCLOUD_GITHUB_CLIENT_SECRET`
   - `MOONBITCLOUD_PUBLIC_BASE_URL`
+
+### Docker Compose
+
+For EC2-style deployment with PostgreSQL:
+
+```bash
+cp .env.example .env
+# edit .env: set MOONBITCLOUD_PUBLIC_BASE_URL, MOONBITCLOUD_POSTGRES_PASSWORD,
+# and optionally MOONBITCLOUD_IMAGE
+docker compose pull
+docker compose up -d
+```
+
+The compose file keeps the app stateless with durable data in Docker volumes:
+
+- `moonbitcloud-postgres` for PostgreSQL
+- `moonbitcloud-runtime` for runtime scratch files, staged bundles, and logs
 
 ## Build Profiles
 

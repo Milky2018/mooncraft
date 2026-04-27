@@ -154,10 +154,10 @@ fn default_display_name_from_email(email : String) -> String {
 }
 
 ///|
-fn session_user_from_event(
+async fn session_user_from_event(
   ctx : AppContext,
   event : @mocket.MocketEvent,
-) -> @sdk.UserSummary? {
+) -> @sdk.UserSummary? noraise {
   match event.req.get_cookie(session_cookie_name) {
     Some(cookie) if cookie.value != "" =>
       ctx.store.get_user_by_session_token_hash(session_token_hash(cookie.value))
@@ -166,10 +166,10 @@ fn session_user_from_event(
 }
 
 ///|
-fn require_session_user(
+async fn require_session_user(
   ctx : AppContext,
   event : @mocket.MocketEvent,
-) -> Result[@sdk.UserSummary, @mocket.HttpResponse] {
+) -> Result[@sdk.UserSummary, @mocket.HttpResponse] noraise {
   match session_user_from_event(ctx, event) {
     Some(user) => Ok(user)
     None => Err(unauthorized_response())
@@ -201,12 +201,12 @@ fn clear_session_cookie(response : @mocket.HttpResponse) -> Unit {
 }
 
 ///|
-fn authenticated_response(
+async fn authenticated_response(
   ctx : AppContext,
   event : @mocket.MocketEvent,
   user : @sdk.UserSummary,
   status? : @mocket.StatusCode = OK,
-) -> @mocket.HttpResponse {
+) -> @mocket.HttpResponse noraise {
   let token = new_session_token()
   ctx.store.create_session(
     user.id,
@@ -227,7 +227,10 @@ fn validate_password(password : String) -> Result[Unit, String] {
 }
 
 ///|
-fn queue_email_verification(ctx : AppContext, user : @sdk.UserSummary) -> Unit {
+async fn queue_email_verification(
+  ctx : AppContext,
+  user : @sdk.UserSummary,
+) -> Unit noraise {
   let token = new_account_action_token()
   ctx.store.save_account_action_token(
     user.id,
@@ -245,7 +248,10 @@ fn queue_email_verification(ctx : AppContext, user : @sdk.UserSummary) -> Unit {
 }
 
 ///|
-fn queue_password_reset(ctx : AppContext, user : @sdk.UserSummary) -> Unit {
+async fn queue_password_reset(
+  ctx : AppContext,
+  user : @sdk.UserSummary,
+) -> Unit noraise {
   let token = new_account_action_token()
   ctx.store.save_account_action_token(
     user.id,
@@ -263,10 +269,10 @@ fn queue_password_reset(ctx : AppContext, user : @sdk.UserSummary) -> Unit {
 }
 
 ///|
-fn request_password_reset(
+async fn request_password_reset(
   ctx : AppContext,
   request : @sdk.RequestPasswordResetRequest,
-) -> @sdk.AuthActionResponse {
+) -> @sdk.AuthActionResponse noraise {
   let email = normalized_email(request.email)
   match ctx.store.get_user_by_email(email) {
     Some(user) => queue_password_reset(ctx, user)
@@ -278,10 +284,10 @@ fn request_password_reset(
 }
 
 ///|
-fn reset_password(
+async fn reset_password(
   ctx : AppContext,
   request : @sdk.ResetPasswordRequest,
-) -> Result[@sdk.AuthActionResponse, String] {
+) -> Result[@sdk.AuthActionResponse, String] noraise {
   let token = request.token.trim().to_string()
   if token == "" {
     return Err("The reset link is missing its token.")
@@ -307,11 +313,11 @@ fn reset_password(
 }
 
 ///|
-fn change_password(
+async fn change_password(
   ctx : AppContext,
   user : @sdk.UserSummary,
   request : @sdk.ChangePasswordRequest,
-) -> Result[@sdk.AuthActionResponse, String] {
+) -> Result[@sdk.AuthActionResponse, String] noraise {
   match validate_password(request.new_password) {
     Err(message) => return Err(message)
     Ok(_) => ignore(())
@@ -335,10 +341,10 @@ fn change_password(
 }
 
 ///|
-fn resend_email_verification(
+async fn resend_email_verification(
   ctx : AppContext,
   user : @sdk.UserSummary,
-) -> @sdk.AuthActionResponse {
+) -> @sdk.AuthActionResponse noraise {
   if user.email_verified {
     @sdk.AuthActionResponse::{ message: "Email is already verified." }
   } else {
@@ -348,10 +354,10 @@ fn resend_email_verification(
 }
 
 ///|
-fn verify_email(
+async fn verify_email(
   ctx : AppContext,
   request : @sdk.VerifyEmailRequest,
-) -> Result[@sdk.AuthActionResponse, String] {
+) -> Result[@sdk.AuthActionResponse, String] noraise {
   let token = request.token.trim().to_string()
   if token == "" {
     return Err("The verification link is missing its token.")
@@ -369,10 +375,10 @@ fn verify_email(
 }
 
 ///|
-fn signup_user(
+async fn signup_user(
   ctx : AppContext,
   request : @sdk.SignupRequest,
-) -> Result[@sdk.UserSummary, String] {
+) -> Result[@sdk.UserSummary, String] noraise {
   let email = normalized_email(request.email)
   if email == "" || !email.contains("@") {
     return Err("Enter a valid email address.")
@@ -401,10 +407,10 @@ fn signup_user(
 }
 
 ///|
-fn login_user(
+async fn login_user(
   ctx : AppContext,
   request : @sdk.LoginRequest,
-) -> Result[@sdk.UserSummary, String] {
+) -> Result[@sdk.UserSummary, String] noraise {
   let email = normalized_email(request.email)
   match ctx.store.get_user_with_password_hash(email) {
     Some((user, Some(password_hash))) =>
@@ -418,7 +424,9 @@ fn login_user(
 }
 
 ///|
-fn github_authorization_response(ctx : AppContext) -> @mocket.HttpResponse {
+async fn github_authorization_response(
+  ctx : AppContext,
+) -> @mocket.HttpResponse noraise {
   match github_credentials() {
     Some((client_id, _)) => {
       let state = new_oauth_state()
@@ -633,10 +641,10 @@ async fn AppContext::complete_github_sign_in(
 }
 
 ///|
-fn session_status_response(
+async fn session_status_response(
   ctx : AppContext,
   event : @mocket.MocketEvent,
-) -> @sdk.SessionResponse {
+) -> @sdk.SessionResponse noraise {
   let user = session_user_from_event(ctx, event)
   @sdk.SessionResponse::{
     authenticated: user is Some(_),

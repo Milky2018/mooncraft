@@ -21,12 +21,12 @@ fn project_run_workspace_path(
 }
 
 ///|
-fn snapshot_workspace(
+async fn snapshot_workspace(
   store : Store,
   root : String,
   project_id : String,
   workspace_path : String,
-) -> Result[Unit, String] {
+) -> Result[Unit, String] noraise {
   if !@fs.path_exists(workspace_path) {
     return Err(
       "The workspace directory at \{workspace_path} was not found, so the latest project snapshot could not be saved.",
@@ -60,10 +60,10 @@ fn snapshot_workspace(
 }
 
 ///|
-fn load_workspace_snapshot_archive(
+async fn load_workspace_snapshot_archive(
   store : Store,
   project_id : String,
-) -> Result[Bytes, String] {
+) -> Result[Bytes, String] noraise {
   match store.get_workspace_snapshot(project_id) {
     Some(archive) => Ok(archive)
     None =>
@@ -74,12 +74,12 @@ fn load_workspace_snapshot_archive(
 }
 
 ///|
-fn restore_workspace_snapshot_to_path(
+async fn restore_workspace_snapshot_to_path(
   store : Store,
   root : String,
   project_id : String,
   target_path : String,
-) -> Result[Unit, String] {
+) -> Result[Unit, String] noraise {
   let archive = match load_workspace_snapshot_archive(store, project_id) {
     Ok(archive) => archive
     Err(message) => return Err(message)
@@ -107,22 +107,22 @@ fn restore_workspace_snapshot_to_path(
 }
 
 ///|
-fn restore_workspace_snapshot(
+async fn restore_workspace_snapshot(
   store : Store,
   root : String,
   project_id : String,
   workspace_path : String,
-) -> Result[Unit, String] {
+) -> Result[Unit, String] noraise {
   restore_workspace_snapshot_to_path(store, root, project_id, workspace_path)
 }
 
 ///|
-fn hydrate_run_workspace(
+async fn hydrate_run_workspace(
   store : Store,
   root : String,
   project_id : String,
   run_id : String,
-) -> Result[String, String] {
+) -> Result[String, String] noraise {
   let run_workspace_path = project_run_workspace_path(root, project_id, run_id)
   match
     restore_workspace_snapshot_to_path(
