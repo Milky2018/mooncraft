@@ -77,6 +77,36 @@ test "docker codex command fetches reference modules before codex starts" {
 }
 
 ///|
+test "reference module versions come from the single config file" {
+  let mocket_version = required_reference_module_version("oboard/mocket")
+  let x_version = required_reference_module_version("moonbitlang/x")
+  assert_true(mocket_version.length() > 0)
+  assert_true(x_version.length() > 0)
+  assert_true(
+    required_user_project_fetches().contains("oboard/mocket@" + mocket_version),
+  )
+  assert_true(
+    required_user_project_fetches().contains("moonbitlang/x@" + x_version),
+  )
+}
+
+///|
+test "mooncakes tls failures get a user friendly assistant message" {
+  let output =
+    #|Error: error sending request for url (https://download.mooncakes.io/user/oboard%2Fmocket%2Fpackage.zip)
+    #|
+    #|Caused by:
+    #|    0: client error (Connect)
+    #|    1: tls handshake eof
+  assert_true(moonbit_registry_fetch_failed(output))
+  assert_true(
+    dependency_fetch_failure_assistant_message(output, "fallback").contains(
+      "temporary network or package-registry issue",
+    ),
+  )
+}
+
+///|
 test "docker command receives user scoped AI settings" {
   let config : CodexDockerConfig = {
     image: "codex:test",

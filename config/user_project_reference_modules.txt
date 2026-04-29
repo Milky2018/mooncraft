@@ -1,7 +1,7 @@
 # MoonBit modules fetched into generated user-project workspaces before Codex
-# runs, validation, and preview rebuilds. One module path per non-comment line.
-moonbitlang/async
-moonbitlang/x
-oboard/mocket
-Milky2018/selene
-Milky2018/selene_webgpu
+# runs, validation, and preview rebuilds. One pinned module per non-comment line.
+moonbitlang/async@0.18.1
+moonbitlang/x@0.4.43
+oboard/mocket@0.7.1
+Milky2018/selene@0.33.2
+Milky2018/selene_webgpu@0.33.2

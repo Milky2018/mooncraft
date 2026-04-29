@@ -28,7 +28,7 @@ cd "$tmp_root"
 
 for module in "${required_modules[@]}"; do
   echo "==> Fetching required module: $module"
-  moon fetch "$module"
+  moon fetch --no-update "$module"
 done
 
 echo "Generated user-project dependency fetch check completed."

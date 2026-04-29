@@ -219,6 +219,31 @@ fn default_failure_assistant_message() -> String {
 }
 
 ///|
+fn moonbit_registry_fetch_failed(output : String) -> Bool {
+  let lower = output.to_lower()
+  (lower.contains("download.mooncakes.io") || lower.contains("mooncakes")) &&
+  (
+    lower.contains("tls handshake") ||
+    lower.contains("error sending request") ||
+    lower.contains("client error") ||
+    lower.contains("connection") ||
+    lower.contains("timeout")
+  )
+}
+
+///|
+fn dependency_fetch_failure_assistant_message(
+  output : String,
+  fallback : String,
+) -> String {
+  if moonbit_registry_fetch_failed(output) {
+    "I couldn't fetch MoonBit packages from Mooncakes, so the preview could not be validated or refreshed. This is usually a temporary network or package-registry issue. Please retry; if it keeps happening, the platform operator should refresh the Codex image cache and check Mooncakes connectivity."
+  } else {
+    fallback
+  }
+}
+
+///|
 fn trim_or_default(text : String, fallback : String) -> String {
   let normalized = text.trim(chars="\n\r ").to_string()
   if normalized == "" {
@@ -392,6 +417,9 @@ fn fake_codex_update_workspace(
   prompt : String,
 ) -> Result[String, String] {
   let normalized = trim_or_default(prompt, "MoonBit Cloud update")
+  let async_version = required_reference_module_version("moonbitlang/async")
+  let mocket_version = required_reference_module_version("oboard/mocket")
+  let x_version = required_reference_module_version("moonbitlang/x")
   let title = if normalized.length() > 48 {
     normalized.unsafe_substring(start=0, end=48)
   } else {
@@ -406,8 +434,17 @@ fn fake_codex_update_workspace(
       #|  "version": "0.1.0",
       #|  "preferred-target": "native",
       #|  "deps": {
-      #|    "oboard/mocket": "0.6.13",
-      #|    "moonbitlang/x": "0.4.14"
+    ) +
+    "    \"moonbitlang/async\": \"" +
+    async_version +
+    "\",\n" +
+    "    \"oboard/mocket\": \"" +
+    mocket_version +
+    "\",\n" +
+    "    \"moonbitlang/x\": \"" +
+    x_version +
+    "\"\n" +
+    (
       #|  },
       #|  "readme": "README.md",
       #|  "repository": "",
@@ -421,6 +458,7 @@ fn fake_codex_update_workspace(
     workspace_path + "/moon.pkg",
     (
       #|import {
+      #|  "moonbitlang/async",
       #|  "oboard/mocket",
       #|  "moonbitlang/core/env",
       #|  "moonbitlang/core/string",
@@ -437,7 +475,7 @@ fn fake_codex_update_workspace(
     workspace_path + "/main.mbt",
     (
       #|///|
-      #|fn main {
+      #|async fn main {
       #|  let args = @env.args()
       #|  let port = if args.length() > 1 {
       #|    @string.parse_int(args[1]) catch {
@@ -459,7 +497,7 @@ fn fake_codex_update_workspace(
       #|  let app = @mocket.new()
       #|  app.get("/api/health", _ => @mocket.HttpResponse::new(OK, headers={ "Content-Type": "application/json" }).body("{\"ok\":true}"))
       #|  app.get("/", _ => @mocket.HttpResponse::new(OK, headers={ "Content-Type": "text/html; charset=utf-8" }).body("<!doctype html><html><head><meta charset='utf-8'><title>" + title + "</title><style>body{font-family:sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;background:#f6fbf8;color:#10231b}.card{max-width:680px;padding:40px;border-radius:28px;background:white;box-shadow:0 30px 90px #d7e4dc}p{color:#52645b;line-height:1.6}</style></head><body><main class='card'><p>MoonBit Cloud smoke preview</p><h1>" + title + "</h1><p>" + subtitle + "</p></main></body></html>"))
-      #|  app.serve(port=port)
+      #|  app.listen("0.0.0.0:\{port}")
       #|}
     ),
   )
@@ -959,7 +997,10 @@ async fn run_codex_turn(
       None =>
         return Err(
           codex_failure_with_debug(
-            default_failure_assistant_message(),
+            dependency_fetch_failure_assistant_message(
+              output,
+              default_failure_assistant_message(),
+            ),
             stage_failure_message(
               "Codex session startup",
               exit_code,
@@ -1022,7 +1063,10 @@ async fn run_codex_turn(
       None =>
         return Err(
           codex_failure_with_debug(
-            default_failure_assistant_message(),
+            dependency_fetch_failure_assistant_message(
+              recovery_output,
+              default_failure_assistant_message(),
+            ),
             stage_failure_message(
               "Codex session recovery",
               recovery_exit_code,
@@ -1095,7 +1139,10 @@ async fn run_codex_turn(
   if exit_code != 0 {
     return Err(
       codex_failure_with_debug(
-        default_failure_assistant_message(),
+        dependency_fetch_failure_assistant_message(
+          output,
+          default_failure_assistant_message(),
+        ),
         stage_failure_message(
           "Codex execution",
           exit_code,
@@ -1181,7 +1228,9 @@ async fn run_validation_command(
   if exit_code != 0 {
     return Err(
       codex_failure_with_debug(
-        "I updated the workspace, but validation failed before the preview could be refreshed.",
+        dependency_fetch_failure_assistant_message(
+          output, "I updated the workspace, but validation failed before the preview could be refreshed.",
+        ),
         stage_failure_message(
           label,
           exit_code,
@@ -1279,7 +1328,9 @@ async fn run_docker_validation_sequence(
   if exit_code != 0 {
     return Err(
       codex_failure_with_debug(
-        "I updated the workspace, but validation failed before the preview could be refreshed.",
+        dependency_fetch_failure_assistant_message(
+          output, "I updated the workspace, but validation failed before the preview could be refreshed.",
+        ),
         stage_failure_message(
           "MoonBit validation",
           exit_code,
