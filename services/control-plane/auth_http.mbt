@@ -431,24 +431,20 @@ async fn github_authorization_response(
     Some((client_id, _)) => {
       let state = new_oauth_state()
       let verifier = new_pkce_verifier()
-      let challenge = @oauth2.PkceCodeChallenge::from_verifier_s256(
-        @oauth2.PkceCodeVerifier::new(verifier),
-      )
-      let request = @oauth2.AuthorizationRequest::new_with_pkce(
-        @oauth2.AuthUrl::new("https://github.com/login/oauth/authorize"),
-        @oauth2.ClientId::new(client_id),
-        @oauth2.RedirectUrl::new(github_callback_url()),
-        [@oauth2.Scope::new("read:user"), @oauth2.Scope::new("user:email")],
-        @oauth2.CsrfToken::new(state),
-        challenge,
-      )
       ctx.store.save_oauth_state(
         github_provider_name(),
         state,
         verifier,
         future_unix_millis_string(oauth_state_max_age_millis),
       )
-      redirect_response(request.build_authorization_url())
+      redirect_response(
+        github_authorization_url(
+          client_id,
+          github_callback_url(),
+          state,
+          verifier,
+        ),
+      )
     }
     None =>
       text_response(
@@ -553,14 +549,6 @@ async fn AppContext::complete_github_sign_in(
     Some(value) => value
     None => return Err("This GitHub sign-in link is invalid or has expired.")
   }
-  let token_request = @oauth2.TokenRequest::new_with_pkce(
-    @oauth2.TokenUrl::new("https://github.com/login/oauth/access_token"),
-    @oauth2.ClientId::new(client_id),
-    @oauth2.ClientSecret::new(client_secret),
-    payload.code,
-    @oauth2.RedirectUrl::new(github_callback_url()),
-    @oauth2.PkceCodeVerifier::new(pkce_verifier),
-  )
   let headers : Map[String, String] = {
     "Accept": "application/json",
     "Content-Type": "application/x-www-form-urlencoded",
@@ -569,7 +557,13 @@ async fn AppContext::complete_github_sign_in(
     @mocket.fetch(
       "https://github.com/login/oauth/access_token",
       POST,
-      body=token_request.build_request_body(),
+      body=github_token_request_body(
+        client_id,
+        client_secret,
+        payload.code,
+        github_callback_url(),
+        pkce_verifier,
+      ),
       headers~,
     )
   catch {
@@ -583,15 +577,14 @@ async fn AppContext::complete_github_sign_in(
   if token_response.status_code != OK {
     return Err("GitHub sign-in failed while exchanging the authorization code.")
   }
-  let token = match
-    @oauth2.parse_token_response(bytes_to_string(token_response.raw_body)) {
+  let access_token = match
+    github_access_token_from_response(bytes_to_string(token_response.raw_body)) {
     Ok(token) => token
-    Err(error) =>
+    Err(message) =>
       return Err(
-        "GitHub sign-in failed while parsing the access token response: \{error.message()}",
+        "GitHub sign-in failed while parsing the access token response: \{message}",
       )
   }
-  let access_token = token.access_token().to_string()
   let profile = match github_fetch_profile(access_token) {
     Ok(profile) => profile
     Err(message) => return Err(message)

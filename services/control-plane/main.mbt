@@ -307,7 +307,7 @@ fn run_static_preview_mode(port : Int, static_dir : String) -> Unit {
       .unwrap_or("")
     static_preview_response(static_dir, preview_target_path(remainder))
   })
-  app.serve(port~)
+  @async.run_async_main(() => app.listen("0.0.0.0:\{port}"))
 }
 
 ///|

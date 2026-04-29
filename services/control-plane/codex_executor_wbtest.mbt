@@ -107,6 +107,53 @@ test "mooncakes tls failures get a user friendly assistant message" {
 }
 
 ///|
+test "github oauth helpers build pkce authorization url" {
+  let verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+  let url = github_authorization_url(
+    "client-id", "http://localhost:3000/auth/github/callback", "state value", verifier,
+  )
+  assert_true(url.has_prefix("https://github.com/login/oauth/authorize?"))
+  assert_true(url.contains("response_type=code"))
+  assert_true(url.contains("client_id=client-id"))
+  assert_true(
+    url.contains(
+      "redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fauth%2Fgithub%2Fcallback",
+    ),
+  )
+  assert_true(url.contains("scope=read%3Auser%20user%3Aemail"))
+  assert_true(url.contains("state=state%20value"))
+  assert_true(
+    url.contains("code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"),
+  )
+  assert_true(url.contains("code_challenge_method=S256"))
+}
+
+///|
+test "github oauth helpers build token request and parse access token" {
+  let body = github_token_request_body(
+    "client-id", "client secret", "code value", "http://localhost:3000/auth/github/callback",
+    "verifier value",
+  )
+  assert_true(body.contains("grant_type=authorization_code"))
+  assert_true(body.contains("client_id=client-id"))
+  assert_true(body.contains("client_secret=client%20secret"))
+  assert_true(body.contains("code=code%20value"))
+  assert_true(
+    body.contains(
+      "redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fauth%2Fgithub%2Fcallback",
+    ),
+  )
+  assert_true(body.contains("code_verifier=verifier%20value"))
+  inspect(
+    github_access_token_from_response(
+      "{\"access_token\":\"token-123\",\"token_type\":\"bearer\"}",
+    ),
+    content="Ok(\"token-123\")",
+  )
+  assert_true(github_access_token_from_response("{}") is Err(_))
+}
+
+///|
 test "docker command receives user scoped AI settings" {
   let config : CodexDockerConfig = {
     image: "codex:test",

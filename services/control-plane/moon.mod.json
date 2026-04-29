@@ -3,10 +3,9 @@
   "version": "0.1.0",
   "deps": {
     "moonbitcloud/sdk": "0.1.0",
-    "oboard/mocket": "0.6.13",
-    "moonbitlang/async": "0.16.6",
-    "moonbitlang/x": "0.4.14",
-    "ryota0624/oauth2": "0.2.2",
+    "oboard/mocket": "0.7.1",
+    "moonbitlang/async": "0.17.0",
+    "moonbitlang/x": "0.4.41",
     "oboard/morm": "0.3.6",
     "moonbit-community/postgres": "0.0.1"
   },
