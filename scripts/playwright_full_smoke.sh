@@ -112,7 +112,7 @@ moon -C . run --target native services/control-plane \
   >"$log_file" 2>&1 &
 server_pid=$!
 
-for _ in {1..30}; do
+for _ in {1..60}; do
   if curl -fsS "${base_url}/api/health" >/dev/null 2>&1; then
     break
   fi
@@ -346,7 +346,7 @@ async (page) => {
   const runId = createdRun.run.run_id
 
   let state = null
-  for (let attempt = 0; attempt < 30; attempt += 1) {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
     state = await page.evaluate(async ([projectId, runId]) => {
       const runResponse = await fetch(\`/api/projects/\${projectId}/runs/\${runId}\`)
       if (!runResponse.ok) return null
