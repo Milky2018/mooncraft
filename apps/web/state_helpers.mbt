@@ -70,6 +70,18 @@ fn can_change_password(model : Model) -> Bool {
 }
 
 ///|
+fn can_save_ai_settings(model : Model) -> Bool {
+  let has_key = match model.current_user {
+    Some(user) => user.ai_api_key_configured || model.account_ai_api_key != ""
+    None => false
+  }
+  model.account_ai_provider != "" &&
+  model.account_ai_model.trim() != "" &&
+  has_key &&
+  !model.account_pending
+}
+
+///|
 fn append_local_user_message(
   model : Model,
   project_id : String,
@@ -145,6 +157,15 @@ fn apply_session(model : Model, session : @sdk.SessionResponse) -> Model {
     auth_pending: false,
     logout_pending: false,
     account_pending: false,
+    account_ai_provider: match session.user {
+      Some(user) => user.ai_provider
+      None => "openai"
+    },
+    account_ai_model: match session.user {
+      Some(user) => user.ai_model
+      None => "gpt-5.5"
+    },
+    account_ai_api_key: "",
     auth_notice: None,
   }
 }
@@ -164,6 +185,9 @@ fn auth_recovery(
       logout_pending: false,
       account_current_password: "",
       account_new_password: "",
+      account_ai_provider: "openai",
+      account_ai_model: "gpt-5.5",
+      account_ai_api_key: "",
       account_pending: false,
       account_notice: None,
       account_panel_open: false,

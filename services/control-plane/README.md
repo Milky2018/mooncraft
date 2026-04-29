@@ -26,18 +26,7 @@ SQLite is a required dependency for the control plane. If the database cannot be
 
 ## Dependency Fetches
 
-Before validation and preview builds, generated user projects run `moon fetch` for these required modules:
-
-- `moonbitlang/async`
-- `moonbitlang/x`
-- `oboard/mocket`
-
-The platform also attempts to fetch these optional modules:
-
-- `moonbit-community/isomorphic`
-- `moonbit-community/selene`
-
-The optional modules are currently non-blocking because `moon fetch` does not find published registry versions for them yet. When they are published, they will become available automatically without changing the runtime flow.
+Before validation and preview builds, generated user projects run `moon fetch` for the required modules listed in `config/user_project_reference_modules.txt`.
 
 For real Docker-backed runs, the Codex runtime image initializes the MoonBit registry at image build time and seeds Codex skills from `https://github.com/moonbitlang/skills` into the container-local Codex home before every command. Runtime validation avoids `moon update` by default because MoonBit may fail while rotating its symbols directory across Docker mount boundaries.
 
@@ -74,14 +63,12 @@ Use these repository-level checks:
 Required Codex runtime configuration:
 
 - `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
-- `OPENAI_API_KEY`
-- optional `MOONBITCLOUD_CODEX_MODEL` (defaults to `gpt-5.5`)
 - optional `MOONBITCLOUD_CODEX_CONTAINER_HOME` (defaults to `/root`)
 
-The default runtime image is `docker.io/moonbitcloud/codex:codex-0.125.0-node24`. Override it through `.env` or `MOONBITCLOUD_CODEX_DOCKER_IMAGE` when testing local images, PR images, rollbacks, or digest-pinned production deployments.
+The default runtime image is `docker.io/moonbitcloud/codex:codex-0.125.0-node24`. Override it through `MOONBITCLOUD_CODEX_DOCKER_IMAGE` when testing local images, PR images, rollbacks, or digest-pinned production deployments.
 
-The runtime intentionally does not mount a host Codex home. The Codex image seeds MoonBit skills into a container-local Codex home and runs `codex login --with-api-key` from the injected `OPENAI_API_KEY` when the container starts. Production should provide that key through the deployment secret environment, not through a developer machine.
+The runtime intentionally does not mount a host Codex home and the platform no longer reads a deployment-level OpenAI key. Each platform user configures OpenAI or OpenRouter, model, and API key in Account settings. The worker passes that user's key into the isolated Codex container only for the active run.
 
 Use `just codex-config` to inspect the effective runtime configuration. Build the runtime image locally with `just build-codex-image` and publish the shared multi-arch runtime image with `just docker-codex-publish` after `docker login`.
 
-Use `just codex-smoke` from the repository root only when you intentionally want to spend real Codex quota on an end-to-end Docker-backed build.
+Use `MOONBITCLOUD_CODEX_SMOKE_API_KEY=... just codex-smoke` from the repository root only when you intentionally want to spend real Codex quota on an end-to-end Docker-backed build. Optional smoke overrides are `MOONBITCLOUD_CODEX_SMOKE_PROVIDER` and `MOONBITCLOUD_CODEX_SMOKE_MODEL`.

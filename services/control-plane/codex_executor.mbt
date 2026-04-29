@@ -15,7 +15,9 @@ struct AgentTurnFailure {
 ///|
 struct CodexDockerConfig {
   image : String
+  provider : String
   model : String
+  api_key : String
   container_home : String
 }
 
@@ -80,26 +82,17 @@ fn codex_container_artifacts_dir() -> String {
 }
 
 ///|
-fn CodexDockerConfig::load() -> Result[CodexDockerConfig, String] {
+fn CodexDockerConfig::load(
+  settings : AiRuntimeSettings,
+) -> Result[CodexDockerConfig, String] {
   let image = match @env.get_env_var("MOONBITCLOUD_CODEX_DOCKER_IMAGE") {
     Some(value) if value.trim() != "" => value.trim().to_string()
     _ => default_codex_docker_image
   }
-  let model = match @env.get_env_var("MOONBITCLOUD_CODEX_MODEL") {
-    Some(value) if value.trim() != "" => value.trim().to_string()
-    _ => default_codex_model
-  }
-  match @env.get_env_var("OPENAI_API_KEY") {
-    Some(value) if value.trim() != "" => ignore(())
-    _ =>
-      return Err(
-        "OPENAI_API_KEY is required for Docker-backed Codex runs. Provide it through the deployment secret environment; MoonBit Cloud does not mount host Codex homes.",
-      )
-  }
   if @env.get_env_var("MOONBITCLOUD_CODEX_HOME_HOST") is Some(value) &&
     value.trim() != "" {
     return Err(
-      "MOONBITCLOUD_CODEX_HOME_HOST is no longer supported. Use OPENAI_API_KEY instead.",
+      "MOONBITCLOUD_CODEX_HOME_HOST is not supported. Configure AI keys in MoonBit Cloud account settings instead.",
     )
   }
   let container_home = match
@@ -107,7 +100,13 @@ fn CodexDockerConfig::load() -> Result[CodexDockerConfig, String] {
     Some(value) if value.trim() != "" => value
     _ => "/root"
   }
-  Ok({ image, model, container_home })
+  Ok({
+    image,
+    provider: settings.provider,
+    model: settings.model,
+    api_key: settings.api_key,
+    container_home,
+  })
 }
 
 ///|
@@ -122,7 +121,11 @@ fn bootstrap_prompt(user_message : String) -> String {
     #|- This workspace intentionally starts without an app scaffold. Do not assume `frontend/`, `backend/`, or `shared/` directories exist.
     #|- Use `moon new` to create the real MoonBit project, and choose the project structure that fits the user's app.
     #|- Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working. If `moon new` creates a child directory, add a root `moon.work` or otherwise make root-level commands valid.
-    #|- The runtime has already fetched reference MoonBit packages with `moon fetch`; inspect `.repos` or `.mooncakes` when useful for examples from moonbitlang/async, moonbitlang/x, oboard/mocket, moonbit-community/isomorphic, and moonbit-community/selene.
+    #|
+  ) +
+  reference_modules_prompt_rule() +
+  (
+    #|
     #|- Create or maintain `moonbitcloud-preview.sh` at the workspace root. It receives `<port> <build-profile>`, starts the generated app server, serves the user-facing app at `/`, and returns success from `/api/health`.
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
     #|- You may run shell commands as needed.
@@ -147,7 +150,11 @@ fn followup_prompt(user_message : String) -> String {
     #|- Use subagents only for concrete, bounded implementation tasks.
     #|- Do not assume a fixed project layout. Preserve the existing app structure unless a change is needed.
     #|- Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working.
-    #|- The runtime has already fetched reference MoonBit packages with `moon fetch`; inspect `.repos` or `.mooncakes` when useful for examples from moonbitlang/async, moonbitlang/x, oboard/mocket, moonbit-community/isomorphic, and moonbit-community/selene.
+    #|
+  ) +
+  reference_modules_prompt_rule() +
+  (
+    #|
     #|- Maintain `moonbitcloud-preview.sh` at the workspace root. It receives `<port> <build-profile>`, starts the generated app server, serves the user-facing app at `/`, and returns success from `/api/health`.
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
     #|- You may run shell commands as needed.
@@ -176,7 +183,11 @@ fn recovery_prompt(
     #|- The current workspace already contains the latest saved project state.
     #|- Do not assume a fixed project layout. Preserve the existing app structure unless a change is needed.
     #|- Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working.
-    #|- The runtime has already fetched reference MoonBit packages with `moon fetch`; inspect `.repos` or `.mooncakes` when useful for examples from moonbitlang/async, moonbitlang/x, oboard/mocket, moonbit-community/isomorphic, and moonbit-community/selene.
+    #|
+  ) +
+  reference_modules_prompt_rule() +
+  (
+    #|
     #|- Maintain `moonbitcloud-preview.sh` at the workspace root. It receives `<port> <build-profile>`, starts the generated app server, serves the user-facing app at `/`, and returns success from `/api/health`.
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
     #|- You may run shell commands as needed.
@@ -630,7 +641,11 @@ fn docker_command_args(
   args.push("-e")
   args.push("CODEX_HOME=" + config.container_codex_home())
   args.push("-e")
-  args.push("OPENAI_API_KEY")
+  args.push("MOONBITCLOUD_AI_PROVIDER=" + config.provider)
+  args.push("-e")
+  args.push("MOONBITCLOUD_AI_MODEL=" + config.model)
+  args.push("-e")
+  args.push("MOONBITCLOUD_AI_API_KEY=" + config.api_key)
   args.push("-v")
   args.push(workspace_path + ":" + codex_container_workspace_dir())
   args.push("-v")
@@ -1369,7 +1384,18 @@ async fn AgentGateway::run_turn(
   let config = if smoke_codex_enabled() {
     None
   } else {
-    match CodexDockerConfig::load() {
+    let settings = match store.get_ai_runtime_settings_for_project(project.id) {
+      Ok(settings) => settings
+      Err(message) =>
+        return Err(
+          codex_failure(
+            "Configure your AI provider and API key in Account before running Codex.",
+            message,
+            project.codex_thread_id,
+          ),
+        )
+    }
+    match CodexDockerConfig::load(settings) {
       Ok(config) => Some(config)
       Err(message) =>
         return Err(

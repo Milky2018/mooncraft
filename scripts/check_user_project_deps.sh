@@ -2,34 +2,33 @@
 set -euo pipefail
 
 tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/moonbitcloud-user-project-deps.XXXXXX")"
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+modules_file="$repo_root/config/user_project_reference_modules.txt"
 cleanup() {
   rm -rf "$tmp_root"
 }
 trap cleanup EXIT
 
-required_modules=(
-  moonbitlang/async
-  moonbitlang/x
-  oboard/mocket
-)
+if [[ ! -f "$modules_file" ]]; then
+  echo "Missing user-project reference modules file: $modules_file" >&2
+  exit 1
+fi
 
-optional_modules=(
-  moonbit-community/isomorphic
-  moonbit-community/selene
-)
+required_modules=()
+while IFS= read -r module; do
+  required_modules+=("$module")
+done < <(grep -vE '^[[:space:]]*(#|$)' "$modules_file")
+
+if [[ "${#required_modules[@]}" -eq 0 ]]; then
+  echo "No user-project reference modules configured in: $modules_file" >&2
+  exit 1
+fi
 
 cd "$tmp_root"
 
 for module in "${required_modules[@]}"; do
   echo "==> Fetching required module: $module"
   moon fetch "$module"
-done
-
-for module in "${optional_modules[@]}"; do
-  echo "==> Fetching optional module: $module"
-  if ! moon fetch "$module"; then
-    echo "Optional module is not available in the registry yet: $module" >&2
-  fi
 done
 
 echo "Generated user-project dependency fetch check completed."

@@ -29,6 +29,9 @@ struct Model {
   auth_notice : String?
   account_current_password : String
   account_new_password : String
+  account_ai_provider : String
+  account_ai_model : String
+  account_ai_api_key : String
   account_pending : Bool
   account_notice : String?
   account_panel_open : Bool
@@ -68,6 +71,11 @@ enum Msg {
   TogglePasswordPanel
   AccountCurrentPasswordChanged(String)
   AccountNewPasswordChanged(String)
+  AccountAiProviderChanged(String)
+  AccountAiModelChanged(String)
+  AccountAiApiKeyChanged(String)
+  SaveAiSettings
+  AiSettingsSaved(Result[@sdk.AiSettingsResponse, @sdk.ApiError])
   ChangePassword
   PasswordChanged(Result[@sdk.AuthActionResponse, @sdk.ApiError])
   ResendEmailVerification
@@ -172,6 +180,9 @@ fn initial_model() -> Model {
     auth_notice: None,
     account_current_password: "",
     account_new_password: "",
+    account_ai_provider: "openai",
+    account_ai_model: "gpt-5.5",
+    account_ai_api_key: "",
     account_pending: false,
     account_notice: None,
     account_panel_open: false,

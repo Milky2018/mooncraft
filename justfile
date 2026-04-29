@@ -1,10 +1,8 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
-set dotenv-load := true
 
 codex_repository := "docker.io/moonbitcloud/codex"
 codex_version := "codex-0.125.0-node24"
 codex_image := "docker.io/moonbitcloud/codex:codex-0.125.0-node24"
-codex_model := "gpt-5.5"
 
 # Show available recipes
 default:
@@ -68,16 +66,10 @@ codex-config:
   #!/usr/bin/env bash
   set -euo pipefail
   image="${MOONBITCLOUD_CODEX_DOCKER_IMAGE:-{{codex_image}}}"
-  model="${MOONBITCLOUD_CODEX_MODEL:-{{codex_model}}}"
   container_home="${MOONBITCLOUD_CODEX_CONTAINER_HOME:-/root}"
   echo "MOONBITCLOUD_CODEX_DOCKER_IMAGE=$image"
-  echo "MOONBITCLOUD_CODEX_MODEL=$model"
   echo "MOONBITCLOUD_CODEX_CONTAINER_HOME=$container_home"
-  if [[ -n "${OPENAI_API_KEY:-}" ]]; then
-    echo "OPENAI_API_KEY=set"
-  else
-    echo "OPENAI_API_KEY=missing"
-  fi
+  echo "AI provider/API key/model are configured per user in Account settings."
 
 # Build the whole workspace
 build profile='debug': fmt
@@ -162,6 +154,7 @@ smoke-running:
   set -euo pipefail
   port="${MOONBITCLOUD_SMOKE_PORT:-8080}"
   base_url="http://127.0.0.1:$port"
+  run_poll_limit="${MOONBITCLOUD_SMOKE_RUN_POLL_LIMIT:-180}"
   tmpdir="$(mktemp -d)"
   cleanup() {
     rm -rf "$tmpdir"
@@ -227,6 +220,13 @@ smoke-running:
     -d "{\"token\":\"$verify_token\"}" \
     | grep -q 'Email address verified'
   curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/session" | grep -q '"email_verified":true'
+  curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/account/ai-settings" | grep -q '"api_key_configured":false'
+  curl -fsS -c "$user1_cookie" -b "$user1_cookie" \
+    -X PUT "$base_url/api/account/ai-settings" \
+    -H 'Content-Type: application/json' \
+    -d '{"provider":"openrouter","model":"openai/gpt-5.5","api_key":"fake-smoke-key"}' \
+    | grep -q '"api_key_configured":true'
+  curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/session" | grep -q '"ai_provider":"openrouter"'
 
   curl -fsS -c "$user2_cookie" -b "$user2_cookie" \
     -X POST "$base_url/api/auth/signup" \
@@ -252,7 +252,7 @@ smoke-running:
     exit 1
   fi
   final_run=""
-  for _ in {1..60}; do
+  for _ in $(seq 1 "$run_poll_limit"); do
     final_run="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$project_id/runs/$run_id")"
     if printf '%s' "$final_run" | grep -q '"state":"Running"'; then
       sleep 1
@@ -261,7 +261,10 @@ smoke-running:
     break
   done
   preview_url="$(printf '%s' "$final_run" | sed -n 's/.*"url":"\([^"]*\)".*/\1/p')"
-  printf '%s' "$final_run" | grep -q '"state":"Succeeded"'
+  if ! printf '%s' "$final_run" | grep -q '"state":"Succeeded"'; then
+    echo "Expected first smoke run to succeed, got: $final_run" >&2
+    exit 1
+  fi
   printf '%s' "$final_run" | grep -q '"healthy":true'
   printf '%s' "$preview_url" | grep -q '^/p/'
   project_detail="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$project_id")"
@@ -296,7 +299,7 @@ smoke-running:
     exit 1
   fi
   final_run_2=""
-  for _ in {1..60}; do
+  for _ in $(seq 1 "$run_poll_limit"); do
     final_run_2="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$project_id/runs/$run_id_2")"
     if printf '%s' "$final_run_2" | grep -q '"state":"Running"'; then
       sleep 1
@@ -305,7 +308,10 @@ smoke-running:
     break
   done
   preview_url_2="$(printf '%s' "$final_run_2" | sed -n 's/.*"url":"\([^"]*\)".*/\1/p')"
-  printf '%s' "$final_run_2" | grep -q '"state":"Succeeded"'
+  if ! printf '%s' "$final_run_2" | grep -q '"state":"Succeeded"'; then
+    echo "Expected second smoke run to succeed, got: $final_run_2" >&2
+    exit 1
+  fi
   printf '%s' "$final_run_2" | grep -q '"healthy":true'
   project_detail_2="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$project_id")"
   second_thread_id="$(printf '%s' "$project_detail_2" | sed -n 's/.*"codex_thread_id":"\([^"]*\)".*/\1/p')"
@@ -390,16 +396,18 @@ codex-smoke:
   set -euo pipefail
   codex_image="${MOONBITCLOUD_CODEX_DOCKER_IMAGE:-{{codex_image}}}"
   export MOONBITCLOUD_CODEX_DOCKER_IMAGE="$codex_image"
-  codex_model="${MOONBITCLOUD_CODEX_MODEL:-{{codex_model}}}"
-  export MOONBITCLOUD_CODEX_MODEL="$codex_model"
+  codex_provider="${MOONBITCLOUD_CODEX_SMOKE_PROVIDER:-openai}"
+  codex_model="${MOONBITCLOUD_CODEX_SMOKE_MODEL:-gpt-5.5}"
+  codex_api_key="${MOONBITCLOUD_CODEX_SMOKE_API_KEY:-}"
   echo "Using Codex Docker image: $codex_image"
+  echo "Using Codex provider: $codex_provider"
   echo "Using Codex model: $codex_model"
   if ! command -v docker >/dev/null 2>&1; then
     echo "docker is required for the real Codex smoke test." >&2
     exit 1
   fi
-  if [[ -z "${OPENAI_API_KEY:-}" ]]; then
-    echo "OPENAI_API_KEY is required for the real Codex smoke test. Export it in your shell or load it from your secret manager; do not mount a host Codex home." >&2
+  if [[ -z "$codex_api_key" ]]; then
+    echo "MOONBITCLOUD_CODEX_SMOKE_API_KEY is required for the real Codex smoke test. The test stores it through the user AI settings API before starting a run." >&2
     exit 1
   fi
 
@@ -477,6 +485,12 @@ codex-smoke:
     -H 'Content-Type: application/json' \
     -d "{\"email\":\"$user_email\",\"password\":\"$password\",\"display_name\":\"Codex Smoke\"}" \
     | grep -q "\"email\":\"$user_email\"" || fail "Signup failed."
+  settings_payload="{\"provider\":\"$codex_provider\",\"model\":\"$codex_model\",\"api_key\":\"$codex_api_key\"}"
+  curl -fsS -c "$user_cookie" -b "$user_cookie" \
+    -X PUT "$base_url/api/account/ai-settings" \
+    -H 'Content-Type: application/json' \
+    --data-binary "$settings_payload" \
+    | grep -q '"api_key_configured":true' || fail "Saving user AI settings failed."
 
   create_response="$(curl -fsS -c "$user_cookie" -b "$user_cookie" -X POST "$base_url/api/projects" -H 'Content-Type: application/json' -d '{"display_name":"Codex Todo Smoke"}')"
   project_id="$(printf '%s' "$create_response" | sed -n 's/.*"project":{"id":"\([^"]*\)".*/\1/p')"

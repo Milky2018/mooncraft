@@ -181,6 +181,21 @@ fn change_password_cmd(
 }
 
 ///|
+fn save_ai_settings_cmd(
+  dispatch : @rabbita.Dispatch[Msg],
+  model : Model,
+) -> @rabbita.Cmd {
+  let payload : @sdk.UpdateAiSettingsRequest = @sdk.UpdateAiSettingsRequest::{
+    provider: model.account_ai_provider,
+    model: model.account_ai_model,
+    api_key: model.account_ai_api_key,
+  }
+  put_json(@sdk.ai_settings_path(), payload, fn(result) {
+    dispatch(AiSettingsSaved(result))
+  })
+}
+
+///|
 fn resend_email_verification_cmd(
   dispatch : @rabbita.Dispatch[Msg],
 ) -> @rabbita.Cmd {

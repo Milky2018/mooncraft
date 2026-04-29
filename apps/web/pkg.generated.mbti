@@ -18,6 +18,8 @@ pub fn[Resp : @json.FromJson] post_empty_json(String, @cmd.Dispatch[Result[Resp,
 
 pub fn[Req : ToJson, Resp : @json.FromJson] post_json(String, Req, @cmd.Dispatch[Result[Resp, @sdk.ApiError]]) -> @cmd.Cmd
 
+pub fn[Req : ToJson, Resp : @json.FromJson] put_json(String, Req, @cmd.Dispatch[Result[Resp, @sdk.ApiError]]) -> @cmd.Cmd
+
 // Errors
 
 // Types and methods

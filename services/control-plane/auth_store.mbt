@@ -1,11 +1,17 @@
 ///|
 fn user_summary_from_row(row : Map[String, @db.Param]) -> @sdk.UserSummary {
+  let provider = normalize_ai_provider(row_text(row, "ai_provider")).unwrap_or(
+    default_ai_provider(),
+  )
   @sdk.UserSummary::{
     id: row_text(row, "id"),
     email: row_text(row, "email"),
     email_verified: row_bool(row, "email_verified"),
     display_name: row_text(row, "display_name"),
     github_login: empty_to_none(row_text(row, "github_login")),
+    ai_provider: provider,
+    ai_model: normalized_ai_model(provider, row_text(row, "ai_model")),
+    ai_api_key_configured: row_text(row, "ai_api_key") != "",
     created_at: row_text(row, "created_at"),
   }
 }
@@ -18,7 +24,7 @@ async fn Store::get_user_by_id(
   match
     self.query_one(
       (
-        #|SELECT id, email, email_verified, display_name, COALESCE(github_login, '') AS github_login, created_at
+        #|SELECT id, email, email_verified, display_name, COALESCE(github_login, '') AS github_login, COALESCE(ai_provider, 'openai') AS ai_provider, COALESCE(ai_model, '') AS ai_model, COALESCE(ai_api_key, '') AS ai_api_key, created_at
         #|FROM users
         #|WHERE id = ?;
       ),
@@ -37,7 +43,7 @@ async fn Store::get_user_by_email(
   match
     self.query_one(
       (
-        #|SELECT id, email, email_verified, display_name, COALESCE(github_login, '') AS github_login, created_at
+        #|SELECT id, email, email_verified, display_name, COALESCE(github_login, '') AS github_login, COALESCE(ai_provider, 'openai') AS ai_provider, COALESCE(ai_model, '') AS ai_model, COALESCE(ai_api_key, '') AS ai_api_key, created_at
         #|FROM users
         #|WHERE email = ?;
       ),
@@ -56,7 +62,7 @@ async fn Store::get_user_with_password_hash(
   match
     self.query_one(
       (
-        #|SELECT id, email, email_verified, display_name, COALESCE(github_login, '') AS github_login, created_at, COALESCE(password_hash, '') AS password_hash
+        #|SELECT id, email, email_verified, display_name, COALESCE(github_login, '') AS github_login, COALESCE(ai_provider, 'openai') AS ai_provider, COALESCE(ai_model, '') AS ai_model, COALESCE(ai_api_key, '') AS ai_api_key, created_at, COALESCE(password_hash, '') AS password_hash
         #|FROM users
         #|WHERE email = ?;
       ),
@@ -309,7 +315,7 @@ async fn Store::find_user_by_oauth_account(
   match
     self.query_one(
       (
-        #|SELECT u.id, u.email, u.email_verified, u.display_name, COALESCE(u.github_login, '') AS github_login, u.created_at
+        #|SELECT u.id, u.email, u.email_verified, u.display_name, COALESCE(u.github_login, '') AS github_login, COALESCE(u.ai_provider, 'openai') AS ai_provider, COALESCE(u.ai_model, '') AS ai_model, COALESCE(u.ai_api_key, '') AS ai_api_key, u.created_at
         #|FROM oauth_accounts oa
         #|JOIN users u ON u.id = oa.user_id
         #|WHERE oa.provider = ? AND oa.provider_user_id = ?;
@@ -406,7 +412,7 @@ async fn Store::get_user_by_session_token_hash(
   match
     self.query_one(
       (
-        #|SELECT u.id, u.email, u.email_verified, u.display_name, COALESCE(u.github_login, '') AS github_login, u.created_at
+        #|SELECT u.id, u.email, u.email_verified, u.display_name, COALESCE(u.github_login, '') AS github_login, COALESCE(u.ai_provider, 'openai') AS ai_provider, COALESCE(u.ai_model, '') AS ai_model, COALESCE(u.ai_api_key, '') AS ai_api_key, u.created_at
         #|FROM sessions s
         #|JOIN users u ON u.id = s.user_id
         #|WHERE s.token_hash = ? AND s.expires_at > ?;

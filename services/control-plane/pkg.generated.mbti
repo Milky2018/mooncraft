@@ -17,6 +17,8 @@ type AgentTurnFailure
 
 type AgentTurnSuccess
 
+type AiRuntimeSettings
+
 type AppContext
 
 type BuildProfile

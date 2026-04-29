@@ -104,7 +104,7 @@ Why this is the right first hosted shape:
 1. Create an EC2 instance role that supports Systems Manager.
 2. Install Docker and Docker Compose.
 3. Authenticate Docker to the private ECR repository.
-4. Copy `.env.example` to `.env`, set `MOONBITCLOUD_PUBLIC_BASE_URL`, `MOONBITCLOUD_POSTGRES_PASSWORD`, and `MOONBITCLOUD_IMAGE`.
+4. Set deployment environment variables in your service manager or shell: `MOONBITCLOUD_PUBLIC_BASE_URL`, `MOONBITCLOUD_POSTGRES_PASSWORD`, and `MOONBITCLOUD_IMAGE`.
 5. Run `docker compose pull` and `docker compose up -d`.
 
 ### Phase 3: Run the app as a service

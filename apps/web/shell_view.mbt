@@ -144,6 +144,55 @@ fn account_password_input(
 }
 
 ///|
+fn account_text_input(
+  value : String,
+  placeholder : String,
+  on_input : (String) -> Msg,
+  dispatch : @rabbita.Dispatch[Msg],
+) -> @rabbita.Html {
+  @html.input(
+    input_type=@html.Text,
+    value~,
+    placeholder~,
+    on_input=fn(next) { dispatch(on_input(next)) },
+    style=input_style(false) +
+      [
+        "padding: 9px 10px", "font-size: 13px", "border-color: var(--border-soft)",
+      ],
+    "",
+  )
+}
+
+///|
+fn ai_provider_button(
+  dispatch : @rabbita.Dispatch[Msg],
+  model : Model,
+  provider : String,
+  label : String,
+) -> @rabbita.Html {
+  let selected = model.account_ai_provider == provider
+  @html.button(
+    type_="button",
+    on_click=dispatch(AccountAiProviderChanged(provider)),
+    style=button_style(
+        if selected {
+          "var(--accent)"
+        } else {
+          "var(--surface-2)"
+        },
+        if selected {
+          "#ffffff"
+        } else {
+          "var(--text-2)"
+        },
+        true,
+      ) +
+      ["padding: 8px 10px", "font-size: 12px", "flex: 1"],
+    label,
+  )
+}
+
+///|
 fn render_account_panel(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
@@ -232,6 +281,68 @@ fn render_account_panel(
                 [@html.div(style=section_label_style(), "Appearance")],
               ),
               theme_toggle_button(dispatch, model),
+            ],
+          ),
+          @html.div(
+            style=[
+              "display: flex", "flex-direction: column", "gap: 8px", "padding: 10px",
+              "border: 1px solid var(--border-soft)", "border-radius: 6px", "background: var(--surface-2)",
+            ],
+            [
+              @html.div(
+                style=[
+                  "display: flex", "align-items: center", "justify-content: space-between",
+                  "gap: 8px",
+                ],
+                [
+                  @html.div(style=section_label_style(), "AI Provider"),
+                  @html.div(
+                    style=mono_style() +
+                      ["font-size: 10px", "color: var(--text-3)"],
+                    if user.ai_api_key_configured {
+                      "Key saved"
+                    } else {
+                      "Key missing"
+                    },
+                  ),
+                ],
+              ),
+              @html.div(style=["display: flex", "gap: 8px"], [
+                ai_provider_button(dispatch, model, "openai", "OpenAI"),
+                ai_provider_button(dispatch, model, "openrouter", "OpenRouter"),
+              ]),
+              account_text_input(
+                model.account_ai_model,
+                if model.account_ai_provider == "openrouter" {
+                  "openai/gpt-5.5"
+                } else {
+                  "gpt-5.5"
+                },
+                fn(value) { AccountAiModelChanged(value) },
+                dispatch,
+              ),
+              account_password_input(
+                model.account_ai_api_key,
+                if user.ai_api_key_configured {
+                  "Leave blank to keep saved API key"
+                } else {
+                  "API key"
+                },
+                fn(value) { AccountAiApiKeyChanged(value) },
+                dispatch,
+              ),
+              @html.button(
+                type_="button",
+                disabled=!can_save_ai_settings(model),
+                on_click=dispatch(SaveAiSettings),
+                style=primary_button_style(can_save_ai_settings(model)) +
+                  ["padding: 9px 10px", "font-size: 12px"],
+                if model.account_pending {
+                  "Saving..."
+                } else {
+                  "Save AI Settings"
+                },
+              ),
             ],
           ),
           @html.button(

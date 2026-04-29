@@ -212,6 +212,15 @@ pub fn[Req : ToJson, Resp : FromJson] post_json(
 }
 
 ///|
+pub fn[Req : ToJson, Resp : FromJson] put_json(
+  url : String,
+  payload : Req,
+  msg : Dispatch[Result[Resp, @sdk.ApiError]],
+) -> Cmd {
+  { url, http_method: "PUT", body: Json(payload.to_json()) }.expect_json(msg)
+}
+
+///|
 pub fn post_empty(
   url : String,
   msg : Dispatch[Result[Unit, @sdk.ApiError]],

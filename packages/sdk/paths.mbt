@@ -108,6 +108,21 @@ pub fn verify_email_path() -> String {
 }
 
 ///|
+pub fn ai_settings_route() -> RouteSpec {
+  route(GET, "/api/account/ai-settings", Ok)
+}
+
+///|
+pub fn update_ai_settings_route() -> RouteSpec {
+  route(PUT, "/api/account/ai-settings", Ok)
+}
+
+///|
+pub fn ai_settings_path() -> String {
+  ai_settings_route().path_pattern
+}
+
+///|
 pub fn list_projects_route() -> RouteSpec {
   route(GET, "/api/projects", Ok)
 }

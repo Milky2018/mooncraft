@@ -49,30 +49,16 @@ test "codex commands pin the configured model" {
 
 ///|
 test "docker validation uses initialized image registry in one shell" {
-  inspect(
-    validation_shell_script(include_update=false),
-    content=(
-      #|set -e
-      #|echo '== moon fetch --no-update moonbitlang/async =='
-      #|moon fetch --no-update moonbitlang/async
-      #|echo '== moon fetch --no-update moonbitlang/x =='
-      #|moon fetch --no-update moonbitlang/x
-      #|echo '== moon fetch --no-update oboard/mocket =='
-      #|moon fetch --no-update oboard/mocket
-      #|echo '== moon fetch --no-update moonbit-community/isomorphic || echo optional-moon-fetch-failed:moonbit-community/isomorphic =='
-      #|moon fetch --no-update moonbit-community/isomorphic || echo optional-moon-fetch-failed:moonbit-community/isomorphic
-      #|echo '== moon fetch --no-update moonbit-community/selene || echo optional-moon-fetch-failed:moonbit-community/selene =='
-      #|moon fetch --no-update moonbit-community/selene || echo optional-moon-fetch-failed:moonbit-community/selene
-      #|echo '== moon fmt =='
-      #|moon fmt
-      #|echo '== moon check =='
-      #|moon check
-      #|echo '== moon build =='
-      #|moon build
-      #|echo '== moon test =='
-      #|moon test
-    ),
-  )
+  let script = validation_shell_script(include_update=false)
+  assert_true(script.has_prefix("set -e"))
+  assert_true(required_user_project_fetches().length() > 0)
+  for module_name in required_user_project_fetches() {
+    assert_true(script.contains("moon fetch --no-update " + module_name))
+  }
+  assert_true(script.contains("moon fmt"))
+  assert_true(script.contains("moon check"))
+  assert_true(script.contains("moon build"))
+  assert_true(script.contains("moon test"))
 }
 
 ///|
@@ -80,12 +66,38 @@ test "docker codex command fetches reference modules before codex starts" {
   let command = docker_codex_entry_command(["codex", "exec", "Build an app"])
   inspect(command[0], content="sh")
   inspect(command[1], content="-lc")
-  assert_true(command[2].contains("moon fetch --no-update moonbitlang/async"))
-  assert_true(command[2].contains("moon fetch --no-update oboard/mocket"))
+  assert_true(required_user_project_fetches().length() > 0)
+  for module_name in required_user_project_fetches() {
+    assert_true(command[2].contains("moon fetch --no-update " + module_name))
+  }
   assert_true(command[2].contains("exec \"$@\""))
   inspect(command[3], content="moonbitcloud-codex")
   inspect(command[4], content="codex")
   inspect(command[5], content="exec")
+}
+
+///|
+test "docker command receives user scoped AI settings" {
+  let config : CodexDockerConfig = {
+    image: "codex:test",
+    provider: "openrouter",
+    model: "openai/gpt-5.5",
+    api_key: "user-key",
+    container_home: "/root",
+  }
+  let artifacts : RunArtifacts = {
+    dir: "/tmp/artifacts",
+    last_message_path: "/tmp/artifacts/last_message.txt",
+    codex_log_path: "/tmp/artifacts/codex.log",
+    validation_log_path: "/tmp/artifacts/validation.log",
+  }
+  let args = docker_command_args(config, "/tmp/workspace", artifacts, [
+    "codex", "exec", "Build an app",
+  ])
+  assert_true(args.contains("MOONBITCLOUD_AI_PROVIDER=openrouter"))
+  assert_true(args.contains("MOONBITCLOUD_AI_MODEL=openai/gpt-5.5"))
+  assert_true(args.contains("MOONBITCLOUD_AI_API_KEY=user-key"))
+  assert_false(args.contains("OPENAI_API_KEY"))
 }
 
 ///|

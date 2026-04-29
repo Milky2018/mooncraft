@@ -523,6 +523,37 @@ fn main {
         api_error_response(UnprocessableEntity, @sdk.ValidationFailed, message)
     }
   })
+  app.get(@sdk.ai_settings_path(), async fn(event) noraise {
+    let user = match require_session_user(ctx, event) {
+      Ok(user) => user
+      Err(response) => return response
+    }
+    match ctx.store.get_ai_settings(user.id) {
+      Some(settings) => json_ok(settings)
+      None => api_error_response(NotFound, @sdk.NotFound, "User not found.")
+    }
+  })
+  app.put(@sdk.ai_settings_path(), async fn(event) noraise {
+    let user = match require_session_user(ctx, event) {
+      Ok(user) => user
+      Err(response) => return response
+    }
+    let request : @sdk.UpdateAiSettingsRequest = match decode_json_body(event) {
+      Ok(request) => request
+      Err(response) => return response
+    }
+    match
+      ctx.store.update_ai_settings(
+        user.id,
+        request.provider,
+        request.model,
+        request.api_key,
+      ) {
+      Ok(settings) => json_ok(settings)
+      Err(message) =>
+        api_error_response(UnprocessableEntity, @sdk.ValidationFailed, message)
+    }
+  })
   app.get("/auth/github/start", async fn(_) noraise {
     github_authorization_response(ctx)
   })

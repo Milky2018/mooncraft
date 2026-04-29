@@ -7,6 +7,10 @@ import {
 }
 
 // Values
+pub fn ai_settings_path() -> String
+
+pub fn ai_settings_route() -> RouteSpec
+
 pub fn change_password_path() -> String
 
 pub fn change_password_route() -> RouteSpec
@@ -75,6 +79,8 @@ pub fn signup_path() -> String
 
 pub fn signup_route() -> RouteSpec
 
+pub fn update_ai_settings_route() -> RouteSpec
+
 pub fn verify_email_path() -> String
 
 pub fn verify_email_route() -> RouteSpec
@@ -82,6 +88,12 @@ pub fn verify_email_route() -> RouteSpec
 // Errors
 
 // Types and methods
+pub(all) struct AiSettingsResponse {
+  provider : String
+  model : String
+  api_key_configured : Bool
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
 pub(all) struct ApiError {
   code : ApiErrorCode
   message : String
@@ -279,12 +291,21 @@ pub(all) enum SuccessStatus {
 } derive(Eq, @debug.Debug)
 pub fn SuccessStatus::code(Self) -> Int
 
+pub(all) struct UpdateAiSettingsRequest {
+  provider : String
+  model : String
+  api_key : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
 pub(all) struct UserSummary {
   id : String
   email : String
   email_verified : Bool
   display_name : String
   github_login : String?
+  ai_provider : String
+  ai_model : String
+  ai_api_key_configured : Bool
   created_at : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 

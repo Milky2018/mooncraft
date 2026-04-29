@@ -53,7 +53,7 @@ The platform no longer keeps official app templates or template manifests.
 - Preview URLs are public opaque paths like `/p/<preview_public_id>/` and stay same-origin through the control plane.
 - `packages/sdk` defines the shared request and response payloads used by the frontend and control plane.
 - `AgentGateway` runs Docker-backed Codex CLI work through a durable async worker process and persists one `codex_thread_id` per project so later messages can resume the same Codex session.
-- Before validation and preview builds, the control plane runs `moon fetch` for the approved user-project modules. `moonbit-community/isomorphic` and `moonbit-community/selene` are currently optional fetches because they are not published in the registry yet.
+- Before Codex runs, validation, and preview builds, the control plane runs `moon fetch` for the approved user-project modules listed in `config/user_project_reference_modules.txt`.
 
 ## Core Docs
 
@@ -87,13 +87,12 @@ Notes:
 - set `MOONBITCLOUD_BUILD_PROFILE=release` if you want the control plane to stage and run release artifacts inside the container
 - Codex-backed editing also needs a separate Docker image that contains both `codex` and the MoonBit toolchain, exposed through:
   - `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
-  - optional `MOONBITCLOUD_CODEX_MODEL` (defaults to `gpt-5.5`)
-  - required `OPENAI_API_KEY`
   - optional `MOONBITCLOUD_CODEX_CONTAINER_HOME` (defaults to `/root`)
-- the default Codex runtime image is `docker.io/moonbitcloud/codex:codex-0.125.0-node24`; override it through `.env` or `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
+- each platform user configures their own AI provider, model, and API key in Account settings; v1 supports OpenAI and OpenRouter
+- API keys are passed only into the isolated Codex container for that user's run; the platform no longer reads a deployment-level OpenAI key
+- the default Codex runtime image is `docker.io/moonbitcloud/codex:codex-0.125.0-node24`; override it through `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
 - the Codex runtime image seeds skills from `https://github.com/moonbitlang/skills` into the container-local Codex home before each run
-- MoonBit Cloud never mounts a host Codex home; every Codex run authenticates from `OPENAI_API_KEY` inside an isolated container
-- the default Codex model is `gpt-5.5`; override it through `.env` or `MOONBITCLOUD_CODEX_MODEL` if your account needs a different accessible model
+- MoonBit Cloud never mounts a host Codex home
 - inspect the effective Codex runtime config with `just codex-config`
 - build the Codex runtime image locally with `just build-codex-image` (defaults to the official tag for `linux/amd64`)
 - the Codex runtime image must have an initialized MoonBit registry; the bundled Dockerfile runs `moon update` at image build time so Docker-backed validation can run without mutating the registry at runtime
@@ -111,9 +110,9 @@ Notes:
 For EC2-style deployment with PostgreSQL:
 
 ```bash
-cp .env.example .env
-# edit .env: set MOONBITCLOUD_PUBLIC_BASE_URL, MOONBITCLOUD_POSTGRES_PASSWORD,
-# OPENAI_API_KEY, and optionally MOONBITCLOUD_IMAGE
+export MOONBITCLOUD_PUBLIC_BASE_URL=https://moonbitcloud.example.com
+export MOONBITCLOUD_POSTGRES_PASSWORD='replace-me'
+export MOONBITCLOUD_IMAGE='756584956649.dkr.ecr.us-west-2.amazonaws.com/mbt-cloud/moonbitcloud:latest'
 docker compose pull
 docker compose up -d
 ```

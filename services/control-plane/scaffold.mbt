@@ -14,13 +14,52 @@ fn preview_script_path(workspace_path : String) -> String {
 }
 
 ///|
-fn required_user_project_fetches() -> Array[String] {
-  ["moonbitlang/async", "moonbitlang/x", "oboard/mocket"]
+fn user_project_reference_modules_path() -> String {
+  @env.current_dir().unwrap_or(".") +
+  "/config/user_project_reference_modules.txt"
 }
 
 ///|
-fn optional_user_project_fetches() -> Array[String] {
-  ["moonbit-community/isomorphic", "moonbit-community/selene"]
+fn required_user_project_fetches() -> Array[String] {
+  let content = @fs.read_file_to_string(user_project_reference_modules_path()) catch {
+    err =>
+      abort(
+        "MoonBit Cloud cannot read user-project reference modules from " +
+        user_project_reference_modules_path() +
+        ": \{err}",
+      )
+  }
+  let modules : Array[String] = []
+  for raw_line in content.split("\n") {
+    let line = raw_line.trim().to_owned()
+    if line != "" && !line.has_prefix("#") {
+      modules.push(line)
+    }
+  }
+  if modules.length() == 0 {
+    abort(
+      "MoonBit Cloud requires at least one user-project reference module in " +
+      user_project_reference_modules_path(),
+    )
+  }
+  modules
+}
+
+///|
+fn reference_modules_sentence() -> String {
+  let modules = required_user_project_fetches()
+  if modules.length() == 0 {
+    "the configured reference modules"
+  } else {
+    modules.join(", ")
+  }
+}
+
+///|
+fn reference_modules_prompt_rule() -> String {
+  "- The runtime has already fetched reference MoonBit packages with `moon fetch`; inspect `.repos` or `.mooncakes` when useful for examples from " +
+  reference_modules_sentence() +
+  "."
 }
 
 ///|
@@ -28,14 +67,6 @@ fn user_project_fetch_commands() -> Array[String] {
   let commands : Array[String] = []
   for module_name in required_user_project_fetches() {
     commands.push("moon fetch --no-update " + module_name)
-  }
-  for module_name in optional_user_project_fetches() {
-    commands.push(
-      "moon fetch --no-update " +
-      module_name +
-      " || echo optional-moon-fetch-failed:" +
-      module_name,
-    )
   }
   commands
 }
@@ -48,7 +79,7 @@ fn fetch_user_project_dependencies(
     let status = shell_status(
       "cd " +
       shell_quote(workspace_path) +
-      " && moon fetch " +
+      " && moon fetch --no-update " +
       shell_quote(module_name) +
       " >/dev/null 2>&1",
     )
@@ -57,17 +88,6 @@ fn fetch_user_project_dependencies(
         "MoonBit dependency fetch failed for '\{module_name}', so the preview could not be rebuilt.",
       )
     }
-  }
-  for module_name in optional_user_project_fetches() {
-    ignore(
-      shell_status(
-        "cd " +
-        shell_quote(workspace_path) +
-        " && moon fetch " +
-        shell_quote(module_name) +
-        " >/dev/null 2>&1",
-      ),
-    )
   }
   Ok(())
 }

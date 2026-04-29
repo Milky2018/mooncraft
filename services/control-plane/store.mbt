@@ -950,6 +950,9 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
         #|  password_hash TEXT,
         #|  display_name TEXT NOT NULL,
         #|  github_login TEXT,
+        #|  ai_provider TEXT NOT NULL DEFAULT 'openai',
+        #|  ai_model TEXT NOT NULL DEFAULT 'gpt-5.5',
+        #|  ai_api_key TEXT,
         #|  created_at TEXT NOT NULL,
         #|  updated_at TEXT NOT NULL
         #|);
@@ -965,6 +968,20 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
     Err(message) => return Err(message)
   }
   match self.ensure_column("users", "email_verified_at", "TEXT") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.ensure_column("users", "ai_provider", "TEXT NOT NULL DEFAULT 'openai'") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.ensure_column("users", "ai_model", "TEXT NOT NULL DEFAULT 'gpt-5.5'") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match self.ensure_column("users", "ai_api_key", "TEXT") {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }

@@ -20,6 +20,9 @@ pub(all) struct UserSummary {
   email_verified : Bool
   display_name : String
   github_login : String?
+  ai_provider : String
+  ai_model : String
+  ai_api_key_configured : Bool
   created_at : String
 } derive(Debug, ToJson, FromJson)
 
@@ -182,6 +185,20 @@ pub(all) struct AuthResponse {
 ///|
 pub(all) struct AuthActionResponse {
   message : String
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct AiSettingsResponse {
+  provider : String
+  model : String
+  api_key_configured : Bool
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct UpdateAiSettingsRequest {
+  provider : String
+  model : String
+  api_key : String
 } derive(Debug, ToJson, FromJson)
 
 ///|

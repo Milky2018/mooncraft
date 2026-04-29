@@ -130,6 +130,9 @@ fn update(
           logout_pending: false,
           account_current_password: "",
           account_new_password: "",
+          account_ai_provider: "openai",
+          account_ai_model: "gpt-5.5",
+          account_ai_api_key: "",
           account_pending: false,
           account_notice: None,
           account_panel_open: false,
@@ -169,6 +172,61 @@ fn update(
       (@rabbita.none, { ..model, account_current_password: value })
     AccountNewPasswordChanged(value) =>
       (@rabbita.none, { ..model, account_new_password: value })
+    AccountAiProviderChanged(value) =>
+      (@rabbita.none, { ..model, account_ai_provider: value })
+    AccountAiModelChanged(value) =>
+      (@rabbita.none, { ..model, account_ai_model: value })
+    AccountAiApiKeyChanged(value) =>
+      (@rabbita.none, { ..model, account_ai_api_key: value })
+    SaveAiSettings =>
+      if !can_save_ai_settings(model) {
+        (@rabbita.none, model)
+      } else {
+        (
+          save_ai_settings_cmd(dispatch, model),
+          { ..model, account_pending: true, account_notice: None },
+        )
+      }
+    AiSettingsSaved(Ok(settings)) => {
+      let current_user = model.current_user.map(fn(user) {
+        @sdk.UserSummary::{
+          id: user.id,
+          email: user.email,
+          email_verified: user.email_verified,
+          display_name: user.display_name,
+          github_login: user.github_login,
+          ai_provider: settings.provider,
+          ai_model: settings.model,
+          ai_api_key_configured: settings.api_key_configured,
+          created_at: user.created_at,
+        }
+      })
+      (
+        @rabbita.none,
+        {
+          ..model,
+          current_user,
+          account_ai_provider: settings.provider,
+          account_ai_model: settings.model,
+          account_ai_api_key: "",
+          account_pending: false,
+          account_notice: Some("AI provider settings saved."),
+        },
+      )
+    }
+    AiSettingsSaved(Err(error)) =>
+      if is_unauthorized_error(error) {
+        auth_recovery(dispatch, model, "Your session expired. Sign in again.")
+      } else {
+        (
+          @rabbita.none,
+          {
+            ..model,
+            account_pending: false,
+            account_notice: Some(error.message),
+          },
+        )
+      }
     ChangePassword =>
       if !can_change_password(model) {
         (@rabbita.none, model)
@@ -185,6 +243,9 @@ fn update(
           ..model,
           account_current_password: "",
           account_new_password: "",
+          account_ai_provider: "openai",
+          account_ai_model: "gpt-5.5",
+          account_ai_api_key: "",
           account_pending: false,
           account_notice: Some(response.message),
           password_panel_open: false,

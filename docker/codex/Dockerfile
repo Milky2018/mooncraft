@@ -41,10 +41,31 @@ RUN printf '%s\n' \
   '    cp -R /opt/codex-skill-seed/skills/. "$codex_home/skills/"' \
   '  fi' \
   'fi' \
-  'if [ -n "${OPENAI_API_KEY:-}" ] && [ ! -f "$codex_home/auth.json" ]; then' \
+  'provider="${MOONBITCLOUD_AI_PROVIDER:-openai}"' \
+  'api_key="${MOONBITCLOUD_AI_API_KEY:-}"' \
+  'if [ -z "$api_key" ]; then' \
+  '  echo "MOONBITCLOUD_AI_API_KEY is required for Codex runs." >&2' \
+  '  exit 64' \
+  'fi' \
+  'export OPENAI_API_KEY="$api_key"' \
+  'if [ "$provider" = "openrouter" ]; then' \
+  '  cat > "$codex_home/config.toml" <<EOF' \
+  'model_provider = "openrouter"' \
+  '' \
+  '[model_providers.openrouter]' \
+  'name = "OpenRouter"' \
+  'base_url = "https://openrouter.ai/api/v1"' \
+  'env_key = "OPENAI_API_KEY"' \
+  'wire_api = "chat"' \
+  'EOF' \
+  'elif [ "$provider" != "openai" ]; then' \
+  '  echo "Unsupported MOONBITCLOUD_AI_PROVIDER: $provider" >&2' \
+  '  exit 64' \
+  'fi' \
+  'if [ "$provider" = "openai" ] && [ ! -f "$codex_home/auth.json" ]; then' \
   '  printf "%s" "$OPENAI_API_KEY" | codex login --with-api-key >/dev/null' \
   'fi' \
-  'unset OPENAI_API_KEY' \
+  'unset MOONBITCLOUD_AI_API_KEY' \
   'exec "$@"' \
   > /usr/local/bin/moonbitcloud-codex-entrypoint \
   && chmod +x /usr/local/bin/moonbitcloud-codex-entrypoint
