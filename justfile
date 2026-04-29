@@ -117,6 +117,10 @@ run target='8080' profile='debug':
 # Build, check generated project dependencies, and run the smoke test
 test: build check-user-project-deps smoke
 
+# Run the browser simple-project story and save screenshots under output/playwright/
+playwright-story:
+  ./scripts/playwright_simple_project_story.sh
+
 # Start a temporary control plane and run a smoke test
 smoke:
   #!/usr/bin/env bash

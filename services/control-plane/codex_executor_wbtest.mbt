@@ -25,6 +25,34 @@ test "extract thread id from codex json event" {
 }
 
 ///|
+test "fake codex extracts only the user request from wrapped prompts" {
+  let bootstrap = bootstrap_prompt("Build a todo app")
+  inspect(fake_codex_user_request(bootstrap), content="Build a todo app")
+  assert_false(fake_codex_user_request(bootstrap).contains("Working rules"))
+  let followup = followup_prompt("Add labels and due dates")
+  inspect(fake_codex_user_request(followup), content="Add labels and due dates")
+  let recovery = recovery_prompt("Build a todo app", "Add labels and due dates")
+  inspect(fake_codex_user_request(recovery), content="Add labels and due dates")
+}
+
+///|
+test "success summary copy is shared across run completion paths" {
+  inspect(
+    default_success_summary(),
+    content="The app is updated and the preview is ready.",
+  )
+  inspect(
+    successful_preview_assistant_message(),
+    content="The app is updated and the preview is ready.",
+  )
+}
+
+///|
+test "fake codex forced failure is disabled unless configured" {
+  inspect(fake_codex_forced_failure("Force fake failure"), content="None")
+}
+
+///|
 test "resume session missing detection matches codex cli error" {
   inspect(
     resume_session_missing(

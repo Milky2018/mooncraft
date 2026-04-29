@@ -1880,7 +1880,7 @@ async fn Store::finish_run_success(
     None => ignore(())
   }
   let assistant_message = if summary == "" {
-    "The app is updated and the preview is ready."
+    successful_preview_assistant_message()
   } else {
     summary
   }

@@ -210,7 +210,12 @@ fn recovery_prompt(
 
 ///|
 fn default_success_summary() -> String {
-  "I updated the workspace and the app passed validation."
+  successful_preview_assistant_message()
+}
+
+///|
+fn successful_preview_assistant_message() -> String {
+  "The app is updated and the preview is ready."
 }
 
 ///|
@@ -263,6 +268,50 @@ fn tail_text(text : String, limit : Int) -> String {
       start=normalized.length() - limit,
       end=normalized.length(),
     )
+  }
+}
+
+///|
+fn prompt_section_after(prompt : String, marker : String) -> String? {
+  match prompt.find(marker) {
+    Some(index) =>
+      Some(
+        prompt[index + marker.length():]
+        .to_string()
+        .trim(chars="\n\r ")
+        .to_string(),
+      )
+    None => None
+  }
+}
+
+///|
+fn fake_codex_user_request(prompt : String) -> String {
+  let markers = [
+    "Latest user request:\n\n", "Latest user request:\n", "User's requirement:\n\n",
+    "User's requirement:\n", "Original project requirement:\n\n", "Original project requirement:\n",
+  ]
+  for marker in markers {
+    match prompt_section_after(prompt, marker) {
+      Some(request) if request != "" => return request
+      _ => ()
+    }
+  }
+  prompt
+}
+
+///|
+fn fake_codex_forced_failure(prompt : String) -> String? {
+  match @env.get_env_var("MOONBITCLOUD_CODEX_FAKE_FAIL_CONTAINS") {
+    Some(value) if value.trim() != "" => {
+      let needle = value.trim().to_string()
+      if fake_codex_user_request(prompt).contains(needle) {
+        Some("Fake Codex forced failure for Playwright coverage.")
+      } else {
+        None
+      }
+    }
+    _ => None
   }
 }
 
@@ -416,7 +465,10 @@ fn fake_codex_update_workspace(
   workspace_path : String,
   prompt : String,
 ) -> Result[String, String] {
-  let normalized = trim_or_default(prompt, "MoonBit Cloud update")
+  let normalized = trim_or_default(
+    fake_codex_user_request(prompt),
+    "MoonBit Cloud update",
+  )
   let async_version = required_reference_module_version("moonbitlang/async")
   let mocket_version = required_reference_module_version("oboard/mocket")
   let x_version = required_reference_module_version("moonbitlang/x")
@@ -520,11 +572,7 @@ fn fake_codex_update_workspace(
     workspace_path + "/README.md",
     "# Smoke Mode\n\nLatest request: " + normalized + "\n",
   )
-  Ok(
-    "Smoke mode updated the workspace for: " +
-    normalized +
-    ". Validation completed.",
-  )
+  Ok(successful_preview_assistant_message())
 }
 
 ///|
@@ -577,6 +625,10 @@ fn collect_fake_codex_output(
   let is_resume = codex_command_is_resume(command)
   let prompt = command[command.length() - 1]
   ensure_dir(fake_codex_state_dir(root, project.id))
+  match fake_codex_forced_failure(prompt) {
+    Some(message) => return Ok((1, message, None))
+    None => ignore(())
+  }
   if is_resume {
     let thread_id = command[command.length() - 2]
     let reset_marker = fake_codex_resume_reset_marker(root, project.id)

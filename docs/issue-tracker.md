@@ -1,12 +1,13 @@
 # MoonBit Cloud Issue Tracker
 
-Last updated: 2026-04-24
+Last updated: 2026-04-29
 
 ## Status Legend
 
 - `TODO`: not started
-- `IN_PROGRESS`: partially implemented
-- `DONE`: implemented and verified locally
+- `IN_PROGRESS`: currently being fixed
+- `BLOCKED`: blocked by platform/public API limitations or external dependency constraints
+- `DONE`: fixed and verified locally
 
 ## Epics
 
@@ -42,6 +43,12 @@ Last updated: 2026-04-24
 | TASK-015 | Auth | Add signup, login, logout, cookie sessions, and owner-scoped project APIs. | DONE | Verified locally through `just smoke` and `just test`. |
 | TASK-016 | Auth | Add GitHub OAuth support for platform sign-in. | IN_PROGRESS | The flow is implemented, but only the unconfigured-path behavior has been verified locally. |
 | TASK-017 | Runtime | Replace predictable preview paths with opaque public preview tokens. | DONE | Preview URLs now use `/p/<preview_public_id>/`. |
+| TASK-018 | Playwright simple project story | Fake Codex smoke mode leaks the full internal agent prompt into the assistant summary and preview iframe instead of showing only the user's request. | DONE | Fixed by extracting the user request from wrapped Codex prompts before fake-mode preview generation; verified with `moon test services/control-plane` and `just playwright-story`. |
+| TASK-019 | Playwright simple project story | Frontend-visible success copy is inconsistent between fake-mode summaries and the cleaner backend/store success message. | DONE | Fake-mode and fallback completion paths now share `The app is updated and the preview is ready.`; verified with `moon test services/control-plane` and `just playwright-story`. |
+| TASK-020 | Playwright simple project story | The Playwright story is still a manual artifact run instead of an official `just` target that owns server startup, browser setup, screenshots, and cleanup. | DONE | Added `scripts/playwright_simple_project_story.sh` and `just playwright-story`; artifacts are saved under ignored `output/playwright/`. |
+| TASK-021 | Playwright simple project story | The browser story does not yet assert persistence after a full page refresh for project rail, chat history, and preview URL recovery. | DONE | The committed Playwright story reloads after two runs and asserts project rail, chat history, and preview URL persistence. |
+| TASK-022 | Playwright simple project story | There is no browser coverage for failed agent/build/fetch paths preserving the last successful preview with plain-English errors. | DONE | Added `MOONBITCLOUD_CODEX_FAKE_FAIL_CONTAINS` and extended `just playwright-story` to assert failed-run copy plus last-preview preservation. |
+| TASK-023 | Playwright simple project story | There is no browser-level real provider-backed Codex E2E; existing `codex-smoke` covers the HTTP API path only. | TODO | Add an opt-in runner gated by configured user API keys/provider so normal smoke tests do not spend credits. |
 
 ## Current Work Queue
 
@@ -49,3 +56,4 @@ Last updated: 2026-04-24
 - `TASK-014`: extract preview execution into a dedicated runner service
 - `TASK-016`: verify the GitHub OAuth happy path with real client credentials
 - `TASK-005`: update the todo recipe for the generated workspace flow
+- `TASK-023`: add opt-in real-agent E2E coverage
