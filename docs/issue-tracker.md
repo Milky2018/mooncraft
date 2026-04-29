@@ -48,7 +48,7 @@ Last updated: 2026-04-29
 | TASK-020 | Playwright simple project story | The Playwright story is still a manual artifact run instead of an official `just` target that owns server startup, browser setup, screenshots, and cleanup. | DONE | Added `scripts/playwright_simple_project_story.sh` and `just playwright-story`; artifacts are saved under ignored `output/playwright/`. |
 | TASK-021 | Playwright simple project story | The browser story does not yet assert persistence after a full page refresh for project rail, chat history, and preview URL recovery. | DONE | The committed Playwright story reloads after two runs and asserts project rail, chat history, and preview URL persistence. |
 | TASK-022 | Playwright simple project story | There is no browser coverage for failed agent/build/fetch paths preserving the last successful preview with plain-English errors. | DONE | Added `MOONBITCLOUD_CODEX_FAKE_FAIL_CONTAINS` and extended `just playwright-story` to assert failed-run copy plus last-preview preservation. |
-| TASK-023 | Playwright simple project story | There is no browser-level real provider-backed Codex E2E; existing `codex-smoke` covers the HTTP API path only. | TODO | Add an opt-in runner gated by configured user API keys/provider so normal smoke tests do not spend credits. |
+| TASK-023 | Playwright simple project story | There is no browser-level real provider-backed Codex E2E; existing `codex-smoke` covers the HTTP API path only. | IN_PROGRESS | Added `scripts/playwright_real_agent_story.sh` and `just playwright-real-agent-story`; still needs an explicit live-provider run with `MOONBITCLOUD_PLAYWRIGHT_REAL_AGENT_API_KEY` before marking done. |
 
 ## Current Work Queue
 
@@ -56,4 +56,4 @@ Last updated: 2026-04-29
 - `TASK-014`: extract preview execution into a dedicated runner service
 - `TASK-016`: verify the GitHub OAuth happy path with real client credentials
 - `TASK-005`: update the todo recipe for the generated workspace flow
-- `TASK-023`: add opt-in real-agent E2E coverage
+- `TASK-023`: run and verify the opt-in real-agent Playwright story with live provider credentials

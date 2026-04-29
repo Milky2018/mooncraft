@@ -121,6 +121,10 @@ test: build check-user-project-deps smoke
 playwright-story:
   ./scripts/playwright_simple_project_story.sh
 
+# Run an opt-in browser story against the real Docker-backed Codex executor
+playwright-real-agent-story:
+  ./scripts/playwright_real_agent_story.sh
+
 # Start a temporary control plane and run a smoke test
 smoke:
   #!/usr/bin/env bash
