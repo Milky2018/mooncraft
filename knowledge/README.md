@@ -7,10 +7,9 @@ Suggested subdirectories:
 - `concepts/`
 - `contracts/`
 - `recipes/`
-- `templates/`
 - `policies/`
 - `troubleshooting/`
 
 The main audience is the agent, not the end user.
 
-Only document features that are backed by working templates or verified behavior.
+Only document features that are backed by generated-project behavior, working examples, or verified runtime checks.

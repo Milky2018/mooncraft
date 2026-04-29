@@ -13,6 +13,8 @@ default:
 # Format all MoonBit code
 fmt:
   moon fmt --manifest-path moon.work
+  moon info --manifest-path moon.work --target native
+  moon info --manifest-path moon.work --target js
 
 # Generate public interface summaries when needed
 info:
@@ -67,32 +69,27 @@ codex-config:
   set -euo pipefail
   image="${MOONBITCLOUD_CODEX_DOCKER_IMAGE:-{{codex_image}}}"
   model="${MOONBITCLOUD_CODEX_MODEL:-{{codex_model}}}"
-  codex_home="${MOONBITCLOUD_CODEX_HOME_HOST:-${HOME:-}/.codex}"
   container_home="${MOONBITCLOUD_CODEX_CONTAINER_HOME:-/root}"
   echo "MOONBITCLOUD_CODEX_DOCKER_IMAGE=$image"
   echo "MOONBITCLOUD_CODEX_MODEL=$model"
-  echo "MOONBITCLOUD_CODEX_HOME_HOST=$codex_home"
   echo "MOONBITCLOUD_CODEX_CONTAINER_HOME=$container_home"
+  if [[ -n "${OPENAI_API_KEY:-}" ]]; then
+    echo "OPENAI_API_KEY=set"
+  else
+    echo "OPENAI_API_KEY=missing"
+  fi
 
 # Build the whole workspace
 build profile='debug': fmt
   @if [ "{{profile}}" = release ]; then moon build --manifest-path moon.work --release; else moon build --manifest-path moon.work; fi
 
-# Check all official templates in temporary sandbox workspaces
-check-templates:
-  ./scripts/check_templates.sh
+# Check the registry modules fetched for generated user projects
+check-user-project-deps:
+  ./scripts/check_user_project_deps.sh
 
-# Check one official template in a temporary sandbox workspace
-check-template template:
-  ./scripts/check_templates.sh "{{template}}"
-
-# Check all official templates inside the Codex runtime image
-check-templates-codex image=codex_image:
-  MOONBITCLOUD_TEMPLATE_CHECK_DOCKER_IMAGE="{{image}}" ./scripts/check_templates_in_codex_image.sh
-
-# Check one official template inside the Codex runtime image
-check-template-codex template image=codex_image:
-  MOONBITCLOUD_TEMPLATE_CHECK_DOCKER_IMAGE="{{image}}" ./scripts/check_templates_in_codex_image.sh "{{template}}"
+# Check generated user-project dependency fetches inside the Codex runtime image
+check-user-project-deps-codex image=codex_image:
+  MOONBITCLOUD_CODEX_DEPS_CHECK_DOCKER_IMAGE="{{image}}" ./scripts/check_user_project_deps_in_codex_image.sh
 
 # Serve the app. Examples: `just serve`, `just serve 8107`, `just serve release`, `just serve 8107 release`
 serve target='8080' profile='debug':
@@ -125,8 +122,8 @@ open port='8080':
 run target='8080' profile='debug':
   @just serve {{target}} {{profile}}
 
-# Build, check templates, and run the smoke test
-test: build check-templates smoke
+# Build, check generated project dependencies, and run the smoke test
+test: build check-user-project-deps smoke
 
 # Start a temporary control plane and run a smoke test
 smoke:
@@ -401,9 +398,8 @@ codex-smoke:
     echo "docker is required for the real Codex smoke test." >&2
     exit 1
   fi
-  codex_home="${MOONBITCLOUD_CODEX_HOME_HOST:-${HOME:-}/.codex}"
-  if [[ -z "$codex_home" || ! -d "$codex_home" ]]; then
-    echo "Codex auth directory not found at '$codex_home'. Log in locally first or set MOONBITCLOUD_CODEX_HOME_HOST." >&2
+  if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+    echo "OPENAI_API_KEY is required for the real Codex smoke test. Export it in your shell or load it from your secret manager; do not mount a host Codex home." >&2
     exit 1
   fi
 

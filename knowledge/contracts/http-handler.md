@@ -9,14 +9,14 @@ editable_files:
 entrypoints:
   - handle
 validation:
-  - compile the template app
+  - compile the generated app
   - execute one smoke request
 status: draft
 ---
 
 # When To Use
 
-Use this document when creating a new template, defining the SDK, or modifying the app entrypoint.
+Use this document when defining the SDK or modifying the app entrypoint.
 
 # Contract
 
@@ -58,7 +58,7 @@ pub fn handle(req : Request, ctx : Context) -> Response raise {
 During initial platform work, expected edit targets are:
 
 - SDK contract modules
-- template entrypoint files
+- generated app entrypoint files
 - runner adapters
 
 # Validation

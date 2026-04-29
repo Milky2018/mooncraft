@@ -53,6 +53,16 @@ test "docker validation uses initialized image registry in one shell" {
     validation_shell_script(include_update=false),
     content=(
       #|set -e
+      #|echo '== moon fetch --no-update moonbitlang/async =='
+      #|moon fetch --no-update moonbitlang/async
+      #|echo '== moon fetch --no-update moonbitlang/x =='
+      #|moon fetch --no-update moonbitlang/x
+      #|echo '== moon fetch --no-update oboard/mocket =='
+      #|moon fetch --no-update oboard/mocket
+      #|echo '== moon fetch --no-update moonbit-community/isomorphic || echo optional-moon-fetch-failed:moonbit-community/isomorphic =='
+      #|moon fetch --no-update moonbit-community/isomorphic || echo optional-moon-fetch-failed:moonbit-community/isomorphic
+      #|echo '== moon fetch --no-update moonbit-community/selene || echo optional-moon-fetch-failed:moonbit-community/selene =='
+      #|moon fetch --no-update moonbit-community/selene || echo optional-moon-fetch-failed:moonbit-community/selene
       #|echo '== moon fmt =='
       #|moon fmt
       #|echo '== moon check =='
@@ -182,8 +192,6 @@ async test "start_run persists the initial project prompt once" {
       "preview-" + project_id,
       Some("Prompt Test"),
       project_workspace(root, project_id),
-      default_template_id(),
-      default_template_version(),
     ),
   )
 
@@ -221,8 +229,6 @@ async test "run events append and list after sequence" {
       "preview-" + project_id,
       Some("Events Test"),
       project_workspace(root, project_id),
-      default_template_id(),
-      default_template_version(),
     ),
   )
   let run = store.start_run(project_id, "Build a todo app").unwrap()
@@ -261,8 +267,6 @@ async test "startup recovery makes stale running runs retryable" {
       "preview-" + project_id,
       Some("Recovery Test"),
       project_workspace(root, project_id),
-      default_template_id(),
-      default_template_version(),
     ),
   )
   let stale_run = store.start_run(project_id, "Build a todo app").unwrap()

@@ -37,10 +37,10 @@ This keeps the live preview tied to a real generated app instead of a fake demo 
 
 ## Current Runtime Flow
 
-1. `POST /api/projects` creates project metadata, resolves a template manifest, and materializes the generated workspace from `templates/<id>/workspace`.
+1. `POST /api/projects` creates project metadata and writes a minimal generated MoonBit workspace.
 2. `POST /api/projects/:id/runs` stores the user message, opens a run, and locks the project.
 3. `AgentGateway` updates the generated project.
-4. `PreviewManager` rebuilds the generated app, copies preview assets, and restarts the configured preview runner on a stable local port.
+4. `PreviewManager` fetches approved MoonBit modules, rebuilds the generated app, copies preview assets, and restarts the generated backend on a stable local port.
 5. The control plane marks the run as succeeded or failed and stores the latest preview target.
 6. `apps/web` polls run status and refreshes project state.
 
@@ -67,24 +67,23 @@ Important persisted fields include:
 - preview public id
 - display name
 - workspace path for compatibility only; runtime code derives scratch paths from project id
-- template id and version
 - current status
 - current run id
 - preview URL and port
 - last error
 - thread id placeholder
 
-## Template Boundary
+## Generated Workspace Boundary
 
-Official templates live under `templates/<id>` as runnable MoonBit workspaces plus a `template.json` manifest. The control plane owns template selection, validation, and materialization. It should not define app source code as inline strings.
+The control plane owns only the initial generated workspace contract:
 
-Each template manifest declares:
+- workspace root contains `moon.work`
+- modules are `frontend/`, `backend/`, and `shared/`
+- frontend public assets live under `frontend/public/`
+- the generated backend serves `/api/health`
+- source snapshots are persisted after creation and after successful Codex edits
 
-- id and version
-- preview kind, package, and health-check contract
-- required entrypoints
-- editable files
-- matching knowledge document
+There are no official app templates, no template ids, and no template picker in this slice. Reusable examples should live in documentation or external MoonBit projects, not as platform-owned scaffold variants.
 
 ## Web Surface
 
@@ -98,7 +97,7 @@ Default UX constraints:
 
 - code hidden
 - no deploy
-- no UI template picker yet
+- no UI template picker
 - plain-English errors only
 
 ## Agent Boundary
@@ -130,7 +129,7 @@ The current preview path is same-origin and exposed through:
 - stored `preview.url` values like `/p/<preview_public_id>/`
 - `ALL /p/:preview_public_id/*` reverse proxy handling in the control plane
 
-Backend templates run their generated native executable on a private local port. Static frontend templates use the control-plane `run-static-preview <port> <preview-dist-dir>` mode to serve staged files from `preview-dist/`, including assets such as `index.html`, `loader.js`, `app.js`, `styles.css`, `app.wasm.txt`, and health endpoints. In both cases, the browser only talks to the control plane.
+Generated projects run their native backend executable on a private local port. The control plane stages `frontend/public/` plus the compiled frontend JS artifact into `preview-dist/`, proxies browser traffic through `/p/<preview_public_id>/`, and health-checks `/api/health`.
 
 ## Why This Shape
 

@@ -2,7 +2,7 @@
 
 ## Role Of Documentation
 
-Documentation is a core runtime dependency for MoonBit Cloud. The end user interacts with the system through an agent, so the agent needs precise and reliable internal knowledge about how apps are structured, how templates work, and how platform invariants must be preserved.
+Documentation is a core runtime dependency for MoonBit Cloud. The end user interacts with the system through an agent, so the agent needs precise and reliable internal knowledge about how generated apps are structured and how platform invariants must be preserved.
 
 These docs are primarily for the agent. Human readability matters, but agent usability matters more.
 
@@ -10,7 +10,7 @@ These docs are primarily for the agent. Human readability matters, but agent usa
 
 The knowledge base should help the agent do four things well:
 
-- choose the right template
+- understand the generated workspace shape
 - edit the correct files
 - preserve platform invariants
 - validate the result before presenting it to the user
@@ -30,7 +30,7 @@ Write the first documents in this order:
 7. routing pattern
 8. logging and debugging pattern
 9. run and deploy workflow
-10. template selection policy
+10. approved MoonBit dependency policy
 11. common failure modes
 12. migration path for adding new platform libraries
 
@@ -41,7 +41,6 @@ knowledge/
 ├── concepts/          # product and architecture concepts
 ├── contracts/         # stable SDK and data contracts
 ├── recipes/           # task-oriented implementation guides
-├── templates/         # template metadata and usage rules
 ├── policies/          # invariants and do-not-break rules
 └── troubleshooting/   # common failures and debugging steps
 ```
@@ -53,7 +52,7 @@ Each knowledge document should use explicit frontmatter and predictable sections
 ```md
 ---
 title: Multi-Tenant Todo API
-summary: Build and extend the default todo template
+summary: Build a tenant-aware todo API in a generated project
 applies_to: [http-api, todo, durable-storage]
 editable_files:
   - app/main.mbt
@@ -61,7 +60,7 @@ editable_files:
 entrypoints:
   - handle
 validation:
-  - run template smoke test
+  - run project smoke test
   - verify tenant scoping
 ---
 
@@ -94,11 +93,11 @@ validation:
 
 The order of truth is:
 
-1. working template
+1. working generated app behavior
 2. tests or smoke checks
 3. knowledge document
 
-Never promote a pattern to official knowledge before it exists in a working template.
+Never promote a pattern to official knowledge before it exists in working generated-project behavior or a verified external example.
 
 ## Doc Categories
 
@@ -109,7 +108,7 @@ Explain the architecture and mental model:
 - chat-first product model
 - hidden-code UX model
 - platform auth and session model
-- template-first app generation
+- generated app workspace shape
 - tenant model
 
 ### Contracts
@@ -140,7 +139,7 @@ Teach the agent how to perform concrete tasks:
 Protect platform invariants:
 
 - tenant data must be scoped explicitly
-- template structure must remain recognizable
+- generated workspace structure must remain recognizable
 - deployable apps must keep required entrypoints
 
 ### Troubleshooting

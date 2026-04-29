@@ -511,8 +511,6 @@ fn project_summary_from_row(
   @sdk.ProjectSummary::{
     id: row_text(row, "id"),
     display_name: row_text(row, "display_name"),
-    template_id: row_text(row, "template_id"),
-    template_version: row_text(row, "template_version"),
     status: run_state_from_db(row_text(row, "status")),
     preview,
     current_run_id: empty_to_none(row_text(row, "current_run_id")),
@@ -531,8 +529,6 @@ async fn Store::list_projects_for_user(
       #|  id,
       #|  preview_public_id,
       #|  display_name,
-      #|  template_id,
-      #|  template_version,
       #|  status,
       #|  COALESCE(preview_url, '') AS preview_url,
       #|  COALESCE(preview_port, 0) AS preview_port,
@@ -590,8 +586,6 @@ async fn Store::create_project_for_user(
   project_id : String,
   display_name : String?,
   workspace_path : String,
-  template_id : String,
-  template_version : String,
 ) -> @sdk.ProjectDetail noraise {
   self.create_project(
     project_id,
@@ -599,8 +593,6 @@ async fn Store::create_project_for_user(
     new_preview_public_id(),
     display_name,
     workspace_path,
-    template_id,
-    template_version,
   )
 }
 

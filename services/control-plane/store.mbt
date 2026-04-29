@@ -1042,8 +1042,6 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
         #|  display_name TEXT NOT NULL,
         #|  workspace_path TEXT NOT NULL,
         #|  initial_project_prompt TEXT,
-        #|  template_id TEXT NOT NULL DEFAULT 'web-app-todolist',
-        #|  template_version TEXT NOT NULL DEFAULT '0.1.0',
         #|  codex_thread_id TEXT,
         #|  status TEXT NOT NULL,
         #|  preview_url TEXT,
@@ -1077,32 +1075,6 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
         #|);
       ),
       "create project_workspace_snapshots table",
-    ) {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
-  }
-  match
-    self.ensure_project_column(
-      "template_id",
-      "TEXT NOT NULL DEFAULT '" + default_template_id() + "'",
-    ) {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
-  }
-  match
-    self.ensure_project_column(
-      "template_version",
-      "TEXT NOT NULL DEFAULT '" + default_template_version() + "'",
-    ) {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
-  }
-  match
-    self.exec_or_error(
-      "UPDATE projects SET template_id = '" +
-      default_template_id() +
-      "' WHERE template_id = 'bootstrap-app';",
-      "backfill template ids",
     ) {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
@@ -1249,15 +1221,6 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
 }
 
 ///|
-async fn Store::ensure_project_column(
-  self : Store,
-  column_name : String,
-  definition : String,
-) -> Result[Unit, String] noraise {
-  self.ensure_column("projects", column_name, definition)
-}
-
-///|
 async fn Store::count_projects(self : Store) -> Int noraise {
   match self.query_one("SELECT COUNT(*) AS count FROM projects;") {
     Some(row) => row_int(row, "count")
@@ -1278,8 +1241,6 @@ fn project_detail_from_row(row : Map[String, @db.Param]) -> @sdk.ProjectDetail {
     preview_public_id: row_text(row, "preview_public_id"),
     display_name: row_text(row, "display_name"),
     workspace_path: row_text(row, "workspace_path"),
-    template_id: row_text(row, "template_id"),
-    template_version: row_text(row, "template_version"),
     codex_thread_id: empty_to_none(row_text(row, "codex_thread_id")),
     status: run_state_from_db(row_text(row, "status")),
     preview,
@@ -1389,8 +1350,6 @@ async fn Store::get_project_detail(
         #|  preview_public_id,
         #|  display_name,
         #|  workspace_path,
-        #|  template_id,
-        #|  template_version,
         #|  COALESCE(codex_thread_id, '') AS codex_thread_id,
         #|  status,
         #|  COALESCE(preview_url, '') AS preview_url,
@@ -1640,8 +1599,6 @@ async fn Store::create_project(
   preview_public_id : String,
   display_name : String?,
   workspace_path : String,
-  template_id : String,
-  template_version : String,
 ) -> @sdk.ProjectDetail noraise {
   let now = now_string()
   let name = match display_name {
@@ -1657,12 +1614,10 @@ async fn Store::create_project(
         #|  preview_public_id,
         #|  display_name,
         #|  workspace_path,
-        #|  template_id,
-        #|  template_version,
         #|  status,
         #|  created_at,
         #|  updated_at
-        #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
       ),
       "create project",
       params=[
@@ -1671,8 +1626,6 @@ async fn Store::create_project(
         @db.String(preview_public_id),
         @db.String(name),
         @db.String(workspace_path),
-        @db.String(template_id),
-        @db.String(template_version),
         @db.String(run_state_to_db(Idle)),
         @db.String(now),
         @db.String(now),
@@ -2265,17 +2218,13 @@ fn PreviewManager::wait_until_healthy(
 fn PreviewManager::copy_preview_assets(
   self : PreviewManager,
   project : @sdk.ProjectDetail,
-  manifest : TemplateManifest,
 ) -> Result[String, String] {
   let workspace_path = project_workspace(self.root, project.id)
   let preview_dir = preview_dist_dir(workspace_path)
   safe_remove_tree(preview_dir)
   ensure_dir(preview_dir)
 
-  let public_dir = workspace_relative_path(
-    workspace_path,
-    manifest.preview.public_dir,
-  )
+  let public_dir = workspace_relative_path(workspace_path, "frontend/public")
   let copy_status = shell_status(
     "cp -R " + shell_quote(public_dir + "/.") + " " + shell_quote(preview_dir),
   )
@@ -2291,51 +2240,21 @@ fn PreviewManager::copy_preview_assets(
     safe_write_string(style_target, preview_fallback_styles(self.root))
   }
 
-  let build_artifacts = template_preview_build_artifacts(manifest)
-  for artifact in build_artifacts {
-    let source_module = template_preview_artifact_source_module(
-      manifest, artifact,
-    )
-    let encoding = template_preview_artifact_encoding(artifact)
-    let source = template_build_output_path(
-      workspace_path,
-      self.build_profile,
-      source_module,
-      artifact.backend,
-    )
-    if !@fs.path_exists(source) {
-      return Err(
-        "The generated preview artifact '\{artifact.target_path}' was not found after build.",
-      )
-    }
-    let target = preview_dir + "/" + artifact.target_path
-    let target_directory = parent_dir(target)
-    if target_directory != "" {
-      ensure_dir(target_directory)
-    }
-    let copy_code = match encoding {
-      "base64" =>
-        shell_status(
-          "base64 < " + shell_quote(source) + " > " + shell_quote(target),
-        )
-      _ => shell_status("cp " + shell_quote(source) + " " + shell_quote(target))
-    }
-    if copy_code != 0 {
-      return Err(
-        "The generated preview artifact '\{artifact.target_path}' could not be staged.",
-      )
-    }
-    if encoding == "base64" {
-      if safe_read_string_or(target, "") == "" {
-        return Err(
-          "The generated preview artifact '\{artifact.target_path}' could not be copied.",
-        )
-      }
-    } else if safe_read_bytes_or(target, b"").length() == 0 {
-      return Err(
-        "The generated preview artifact '\{artifact.target_path}' could not be copied.",
-      )
-    }
+  let source = generated_build_output_path(
+    workspace_path,
+    self.build_profile,
+    generated_frontend_module(),
+    generated_frontend_backend(),
+  )
+  if !@fs.path_exists(source) {
+    return Err("The generated frontend artifact was not found after build.")
+  }
+  let target = preview_dir + "/app.js"
+  let copy_code = shell_status(
+    "cp " + shell_quote(source) + " " + shell_quote(target),
+  )
+  if copy_code != 0 || safe_read_bytes_or(target, b"").length() == 0 {
+    return Err("The generated frontend artifact could not be staged.")
   }
   Ok(preview_dir)
 }
@@ -2345,11 +2264,11 @@ fn PreviewManager::rebuild_and_restart(
   self : PreviewManager,
   project : @sdk.ProjectDetail,
 ) -> Result[@sdk.PreviewTarget, String] {
-  let manifest = match load_template_manifest(self.root, project.template_id) {
-    Ok(manifest) => manifest
+  let workspace_path = project_workspace(self.root, project.id)
+  match fetch_user_project_dependencies(workspace_path) {
+    Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
-  let workspace_path = project_workspace(self.root, project.id)
   let build_code = shell_status(
     "cd '\{workspace_path}' && moon build \{self.build_profile.cli_flag()}>/dev/null 2>&1",
   )
@@ -2358,7 +2277,7 @@ fn PreviewManager::rebuild_and_restart(
       "The updated app did not compile yet, so the preview could not be refreshed.",
     )
   }
-  let preview_dir = match self.copy_preview_assets(project, manifest) {
+  let preview_dir = match self.copy_preview_assets(project) {
     Ok(dir) => dir
     Err(message) => return Err(message)
   }
@@ -2368,43 +2287,18 @@ fn PreviewManager::rebuild_and_restart(
     preferred=preferred_port.unwrap_or(0),
   )
   self.stop_port(port)
-  let pid = match template_preview_kind(manifest) {
-    "static" =>
-      shell_status(
-        "cd " +
-        shell_quote(self.root) +
-        " && nohup moon run --manifest-path " +
-        shell_quote(self.root + "/moon.work") +
-        " --target native " +
-        self.build_profile.cli_flag() +
-        "services/control-plane -- run-static-preview \{port} " +
-        shell_quote(preview_dir) +
-        " >/tmp/moonbitcloud-preview-\{project.id}.log 2>&1 &",
-      )
-    _ => {
-      let backend_module = match manifest.preview.backend_module {
-        Some(module_name) => module_name
-        None =>
-          return Err(
-            "The template preview manifest is missing a backend module.",
-          )
-      }
-      let backend_executable = template_native_executable_path(
-        workspace_path,
-        self.build_profile,
-        backend_module,
-      )
-      if !@fs.path_exists(backend_executable) {
-        return Err(
-          "The generated backend executable was not found after build.",
-        )
-      }
-      shell_status(
-        "cd '\{workspace_path}' && nohup '\{backend_executable}' \{port} '\{preview_dir}' >/tmp/moonbitcloud-preview-\{project.id}.log 2>&1 &",
-      )
-    }
+  let backend_executable = generated_native_executable_path(
+    workspace_path,
+    self.build_profile,
+    generated_backend_module(),
+  )
+  if !@fs.path_exists(backend_executable) {
+    return Err("The generated backend executable was not found after build.")
   }
-  if !self.wait_until_healthy(port, template_preview_health_path(manifest), 12) {
+  let pid = shell_status(
+    "cd '\{workspace_path}' && nohup '\{backend_executable}' \{port} '\{preview_dir}' >/tmp/moonbitcloud-preview-\{project.id}.log 2>&1 &",
+  )
+  if !self.wait_until_healthy(port, generated_preview_health_path(), 12) {
     return Err(
       "The preview process started, but it did not become healthy in time.",
     )

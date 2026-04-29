@@ -559,23 +559,6 @@ fn main {
       Ok(request) => request
       Err(response) => return response
     }
-    let template = match ctx.resolve_template(request.template_id) {
-      Ok(template) => template
-      Err(message) =>
-        return if message.has_prefix("Unknown template") {
-          api_error_response(
-            UnprocessableEntity,
-            @sdk.ValidationFailed,
-            message,
-          )
-        } else {
-          api_error_response(
-            ServiceUnavailable,
-            @sdk.ServiceUnavailable,
-            message,
-          )
-        }
-    }
     let project_id = next_id("project")
     let workspace_path = project_workspace(ctx.root, project_id)
     let project = ctx.store.create_project_for_user(
@@ -583,10 +566,8 @@ fn main {
       project_id,
       request.display_name,
       workspace_path,
-      template.id,
-      template.version,
     )
-    match ctx.materialize_project_template(project) {
+    match ctx.materialize_project_workspace(project) {
       Ok(_) => json_created(@sdk.CreateProjectResponse::{ project, })
       Err(message) => {
         safe_remove_tree(project_root(ctx.root, project_id))
@@ -752,16 +733,6 @@ fn main {
     match project.preview {
       Some(preview) => {
         let target_path = preview_target_path(remainder)
-        let manifest = match ctx.load_project_template(project) {
-          Ok(manifest) => manifest
-          Err(message) => return text_response(ServiceUnavailable, message)
-        }
-        if template_preview_kind(manifest) == "static" {
-          return static_preview_response(
-            preview_dist_dir(project_workspace(ctx.root, project.id)),
-            target_path,
-          )
-        }
         let target_url = "http://127.0.0.1:\{preview.port}\{target_path}"
         let headers = proxy_request_headers(event)
         let upstream = try {

@@ -31,7 +31,7 @@ V1 tenant behavior:
 
 # Invariants
 
-- No multi-tenant template may store shared user data without tenant scoping.
+- No multi-tenant generated app may store shared user data without tenant scoping.
 - Tenant identity must be handled as application data, not hidden magic.
 - The lack of real auth does not justify mixing tenant data.
 
@@ -56,4 +56,3 @@ V1 tenant behavior:
 # Related Docs
 
 - [HTTP Handler Contract](./http-handler.md)
-- [Template Invariants](../policies/template-invariants.md)

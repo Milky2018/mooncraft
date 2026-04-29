@@ -7,7 +7,7 @@ Agents do not edit this. This file is maintainable by human developers.
 - [x] Run Codex against the hydrated temp workspace.
 - [x] Save the resulting workspace back after the run, whether success or failure.
 - [x] Keep codex_thread_id, but also persist the initial project brief explicitly so you can recover if the session ever becomes unusable.
-- [ ] Now it is hard coded template.
+- [x] Remove runtime template manifests and generate a minimal project workspace directly.
 - [x] Add a real durability smoke test: first run, delete the canonical workspace/, send a follow-up message, and verify the run hydrates from workspace.tar, validates, and refreshes preview.
 - [ ] Real codex docker e2e
   - [x] Add a real just codex-smoke that requires MOONBITCLOUD_CODEX_DOCKER_IMAGE and builds the Todo List App end-to-end with actual Codex CLI.
@@ -17,7 +17,7 @@ Agents do not edit this. This file is maintainable by human developers.
   - [ ] Add Docker resource boundaries: container name prefix, timeout, memory/CPU limits, and cleanup policy. We are intentionally using --dangerously-bypass-approvals-and-sandbox, so Docker must become the real boundary.
   - [ ] After that, consider the App Server path. Keep CLI for now, but define a CodexRuntime interface so switching from CLI to App Server later is adapter work, not another control-plane rewrite.
 - [ ] Message with commands:
-  - [ ] `:template-preview <template-name>`
+  - [ ] `:preview-status`
 - [ ] Password reset
   - [ ] Change password while signed in
   - [ ] Email verification for password-created accounts
@@ -26,5 +26,4 @@ Agents do not edit this. This file is maintainable by human developers.
   - [ ] Session management: “log out all devices” / revoke other sessions
   - [ ] Resend verification email
 - [ ] Use `codex-sdk` instead of CLI
-- [ ] Improve the template
-- [ ] 
+- [ ] Improve the generated workspace bootstrap

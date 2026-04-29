@@ -28,15 +28,15 @@ services:
       MOONBITCLOUD_PUBLIC_BASE_URL: ${MOONBITCLOUD_PUBLIC_BASE_URL:-http://localhost:8080}
       MOONBITCLOUD_BUILD_PROFILE: ${MOONBITCLOUD_BUILD_PROFILE:-release}
       MOONBITCLOUD_DATABASE_URL: ${MOONBITCLOUD_DATABASE_URL:-postgres://moonbitcloud:moonbitcloud@postgres:5432/moonbitcloud}
-      MOONBITCLOUD_CODEX_DOCKER_IMAGE: ${MOONBITCLOUD_CODEX_DOCKER_IMAGE:-docker.io/moonbitcloud/codex:codex-0.123.0-node24}
-      MOONBITCLOUD_CODEX_MODEL: ${MOONBITCLOUD_CODEX_MODEL:-gpt-5.4}
+      MOONBITCLOUD_CODEX_DOCKER_IMAGE: ${MOONBITCLOUD_CODEX_DOCKER_IMAGE:-docker.io/moonbitcloud/codex:codex-0.125.0-node24}
+      MOONBITCLOUD_CODEX_MODEL: ${MOONBITCLOUD_CODEX_MODEL:-gpt-5.5}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?OPENAI_API_KEY is required for Docker-backed Codex runs}
       MOONBITCLOUD_GITHUB_CLIENT_ID: ${MOONBITCLOUD_GITHUB_CLIENT_ID:-}
       MOONBITCLOUD_GITHUB_CLIENT_SECRET: ${MOONBITCLOUD_GITHUB_CLIENT_SECRET:-}
     ports:
       - "${MOONBITCLOUD_HTTP_PORT:-8080}:8080"
     volumes:
       - moonbitcloud-runtime:/app/data
-      - ${MOONBITCLOUD_CODEX_HOME_HOST:-${HOME}/.codex}:/root/.codex:ro
       - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:

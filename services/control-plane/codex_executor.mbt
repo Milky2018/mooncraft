@@ -16,7 +16,6 @@ struct AgentTurnFailure {
 struct CodexDockerConfig {
   image : String
   model : String
-  host_codex_home : String
   container_home : String
 }
 
@@ -90,20 +89,17 @@ fn CodexDockerConfig::load() -> Result[CodexDockerConfig, String] {
     Some(value) if value.trim() != "" => value.trim().to_string()
     _ => default_codex_model
   }
-  let host_codex_home = match @env.get_env_var("MOONBITCLOUD_CODEX_HOME_HOST") {
-    Some(value) if value.trim() != "" => value
+  match @env.get_env_var("OPENAI_API_KEY") {
+    Some(value) if value.trim() != "" => ignore(())
     _ =>
-      match @env.get_env_var("HOME") {
-        Some(home) if home.trim() != "" => home + "/.codex"
-        _ =>
-          return Err(
-            "The host Codex auth directory could not be determined. Set MOONBITCLOUD_CODEX_HOME_HOST.",
-          )
-      }
+      return Err(
+        "OPENAI_API_KEY is required for Docker-backed Codex runs. Provide it through the deployment secret environment; MoonBit Cloud does not mount host Codex homes.",
+      )
   }
-  if !@fs.path_exists(host_codex_home) {
+  if @env.get_env_var("MOONBITCLOUD_CODEX_HOME_HOST") is Some(value) &&
+    value.trim() != "" {
     return Err(
-      "The host Codex auth directory was not found at \{host_codex_home}. Log in locally first or set MOONBITCLOUD_CODEX_HOME_HOST.",
+      "MOONBITCLOUD_CODEX_HOME_HOST is no longer supported. Use OPENAI_API_KEY instead.",
     )
   }
   let container_home = match
@@ -111,7 +107,7 @@ fn CodexDockerConfig::load() -> Result[CodexDockerConfig, String] {
     Some(value) if value.trim() != "" => value
     _ => "/root"
   }
-  Ok({ image, model, host_codex_home, container_home })
+  Ok({ image, model, container_home })
 }
 
 ///|
@@ -266,6 +262,8 @@ fn codex_command_progress_message(line : String) -> String? {
     Some("Checking the workspace.")
   } else if line.contains("moon test") {
     Some("Running tests.")
+  } else if line.contains("moon fetch") {
+    Some("Fetching MoonBit project dependencies.")
   } else if line.contains("moon update") {
     Some("Refreshing MoonBit registry metadata.")
   } else {
@@ -571,8 +569,8 @@ fn docker_command_args(
   args.push("HOME=" + config.container_home)
   args.push("-e")
   args.push("CODEX_HOME=" + config.container_codex_home())
-  args.push("-v")
-  args.push(config.host_codex_home + ":" + config.container_codex_home())
+  args.push("-e")
+  args.push("OPENAI_API_KEY")
   args.push("-v")
   args.push(workspace_path + ":" + codex_container_workspace_dir())
   args.push("-v")
@@ -1106,11 +1104,16 @@ async fn run_validation_command(
 
 ///|
 fn validation_shell_script(include_update~ : Bool) -> String {
-  let commands = if include_update {
-    ["moon update", "moon fmt", "moon check", "moon test"]
-  } else {
-    ["moon fmt", "moon check", "moon test"]
+  let commands : Array[String] = []
+  if include_update {
+    commands.push("moon update")
   }
+  for command in user_project_fetch_commands() {
+    commands.push(command)
+  }
+  commands.push("moon fmt")
+  commands.push("moon check")
+  commands.push("moon test")
   let lines : Array[String] = []
   lines.push("set -e")
   for command in commands {

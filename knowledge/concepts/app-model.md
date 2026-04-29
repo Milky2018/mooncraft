@@ -17,7 +17,7 @@ Use this document when deciding how a MoonBit Cloud app should be structured or 
 
 # Model Summary
 
-MoonBit Cloud apps are generated and modified through agent interaction. The end user does not manage the source code directly. The app should therefore stay predictable, template-driven, and easy for the agent to reason about.
+MoonBit Cloud apps are generated and modified through agent interaction. The end user does not manage the source code directly. The app should therefore stay predictable and easy for the agent to reason about.
 
 The first platform model is:
 
@@ -34,7 +34,7 @@ The first platform model is:
 - The main user interface is chat, not a code editor.
 - Platform users own projects explicitly; project access must stay owner-scoped.
 - The app must remain runnable through the platform runner.
-- The app should preserve a recognizable template structure.
+- The app should preserve the generated `frontend/`, `backend/`, and `shared/` workspace shape unless a change is necessary.
 - Public previews must stay tied to opaque preview identifiers, not predictable project ids.
 - Tenant-aware apps must scope data explicitly.
 - Product-facing complexity should stay hidden from the end user.
@@ -47,7 +47,7 @@ Prefer a small set of predictable modules:
 - route handling
 - domain logic
 - persistence layer
-- template metadata
+- shared request/response types
 
 Avoid highly dynamic or ad hoc project shapes in v1.
 
@@ -55,10 +55,9 @@ Avoid highly dynamic or ad hoc project shapes in v1.
 
 - Confirm the app still exposes the expected handler entrypoint.
 - Confirm the runner can build and run the app.
-- Confirm the template remains understandable to the agent.
+- Confirm the generated workspace remains understandable to the agent.
 
 # Related Docs
 
 - [HTTP Handler](../contracts/http-handler.md)
 - [Tenant Model](../contracts/tenant-model.md)
-- [Template Invariants](../policies/template-invariants.md)

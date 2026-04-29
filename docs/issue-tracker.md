@@ -18,7 +18,7 @@ Last updated: 2026-04-24
 | EPIC-004 | UI | Build the chat-first app-develop page with projects, chat, and live preview. | DONE | Implemented in `apps/web` and served by `services/control-plane`. |
 | EPIC-005 | Persistence | Persist users, sessions, projects, messages, runs, preview metadata, and workspace snapshots in a dev-friendly store. | DONE | Implemented with SQLite; generated workspaces are runtime scratch. |
 | EPIC-006 | Agent | Replace the local `AgentGateway` adapter with real Codex-driven editing. | IN_PROGRESS | Docker-backed Codex CLI runs, database-backed workspace snapshots, and persistent `codex_thread_id` sessions are wired in; executor hardening still needs follow-up. |
-| EPIC-007 | Templates | Build the first durable multi-tenant todo template and its recipe-backed validation flow. | TODO | Recipe docs exist; runnable template does not. |
+| EPIC-007 | Generated Apps | Keep the generated workspace bootstrap small, validated, and dependency-ready. | IN_PROGRESS | Runtime templates were removed; dependency fetch validation now covers approved modules. |
 | EPIC-008 | Auth | Add multi-user platform auth, user-owned projects, and public preview tokens. | DONE | Email/password and cookie sessions are verified locally; GitHub OAuth is implemented but still needs live credential verification. |
 
 ## Tasks
@@ -29,13 +29,13 @@ Last updated: 2026-04-24
 | TASK-002 | Repo | Decide the initial workspace layout before writing application code. | DONE | The repo now uses `moon.work` with `apps/web`, `services/control-plane`, and `packages/sdk`. |
 | TASK-003 | Runtime | Verify the first executable generated MoonBit project path. | DONE | Local project creation, rebuild, preview restart, and health checks now work. |
 | TASK-004 | UI | Build the first app-develop page with project rail, chat workspace, and preview panel. | DONE | Verified locally through the control-plane HTTP flow. |
-| TASK-005 | Docs | Author the first working multi-tenant todo template and matching recipe. | TODO | The recipe exists; the runnable template still needs implementation. |
+| TASK-005 | Docs | Author the first working multi-tenant todo generated-app recipe. | TODO | The recipe exists; it should be updated against the generated workspace flow. |
 | TASK-006 | Docs | Write the formal PRD from clarified product decisions. | DONE | `docs/prd.md` is updated to the implemented slice. |
 | TASK-007 | Docs | Rework architecture docs around a chat-first, hidden-code product. | DONE | `docs/architecture.md` now reflects the real local architecture. |
 | TASK-008 | Docs | Define the knowledge-base contract for agents. | DONE | `docs/agent-docs.md` and `knowledge/` exist. |
-| TASK-009 | Docs | Define the first twenty templates and the initial template strategy. | DONE | `docs/templates-roadmap.md` exists. |
+| TASK-009 | Runtime | Remove the platform-owned template strategy from v1. | DONE | Runtime template manifests and template checks were removed. |
 | TASK-010 | Docs | Create the initial `knowledge/` source documents for app model, handler contract, and tenant model. | DONE | Starter docs exist under `knowledge/`. |
-| TASK-011 | Docs | Draft the canonical recipe for the multi-tenant todo API template. | DONE | `knowledge/recipes/build-a-todo-api.md` exists. |
+| TASK-011 | Docs | Draft the canonical recipe for a multi-tenant todo API generated app. | DONE | `knowledge/recipes/build-a-todo-api.md` exists. |
 | TASK-012 | Docs | Define the first website prototype for the app-develop page. | DONE | `docs/website-prototype.md` now matches the implemented page. |
 | TASK-013 | Agent | Integrate real Codex project editing behind `AgentGateway`. | IN_PROGRESS | Background worker mode, persistent Codex sessions, and validation-before-preview are implemented; Docker/runtime hardening remains. |
 | TASK-014 | Runtime | Move preview execution out of `services/control-plane` into a dedicated runner service. | TODO | Keep stable ports and health checks. |
@@ -48,4 +48,4 @@ Last updated: 2026-04-24
 - `TASK-013`: harden the Docker-backed Codex executor and persistent session flow
 - `TASK-014`: extract preview execution into a dedicated runner service
 - `TASK-016`: verify the GitHub OAuth happy path with real client credentials
-- `TASK-005`: build the first durable multi-tenant todo template
+- `TASK-005`: update the todo recipe for the generated workspace flow

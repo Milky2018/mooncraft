@@ -4,27 +4,42 @@ This module is the local backend for the current MoonBit Cloud prototype.
 
 Responsibilities:
 
-- persist projects, messages, and runs in SQLite
-- persist workspace source snapshots in SQLite
-- materialize template-backed MoonBit workspaces under `data/runtime/projects/<id>/workspace` as disposable execution scratch
+- persist users, sessions, projects, messages, runs, and workspace source snapshots
+- generate the initial MoonBit full-stack workspace under `data/runtime/projects/<id>/workspace`
 - serve the app-develop HTTP API
 - serve the main workspace page and platform bundle
 - serve file-backed control-plane HTML/CSS assets from `services/control-plane/assets`
 - launch durable asynchronous Codex workers against generated workspaces
+- fetch approved MoonBit registry modules before validation and preview builds
 - rebuild and restart local previews
 - store preview URLs and last-known run state
 
-Official templates live under `templates/<id>`. Each template has a `template.json` manifest plus a runnable `workspace/` directory. Project rows persist `template_id` and `template_version` so preview rebuilds can use the originating template contract.
+The platform no longer uses official app templates. Project rows do not carry template ids, and project creation writes a small generated workspace with `frontend/`, `backend/`, and `shared/` modules. The first user prompt decides what the app becomes.
 
-The current `AgentGateway` uses Docker-backed Codex CLI runs. Each project keeps one persistent `codex_thread_id`, and each new chat message starts a detached worker process through `moonbitlang/async/process` that resumes that session, validates the workspace with `moon fmt`, `moon check`, and `moon test`, then refreshes the preview. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
+The current `AgentGateway` uses Docker-backed Codex CLI runs. Each project keeps one persistent `codex_thread_id`, and each new chat message starts a detached worker process through `moonbitlang/async/process` that resumes that session, validates the workspace with dependency fetches plus `moon fmt`, `moon check`, and `moon test`, then refreshes the preview. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
 
-Workspace directories are no longer durable state. The control plane saves the latest source archive in SQLite after template materialization and after Codex edits. Each run hydrates that database snapshot into an isolated runtime workspace before starting Codex, then restores the local preview cache from the saved snapshot.
+Workspace directories are no longer durable state. The control plane saves the latest source archive in SQLite after initial workspace generation and after Codex edits. Each run hydrates that database snapshot into an isolated runtime workspace before starting Codex, then restores the local preview cache from the saved snapshot.
 
 The legacy `data/projects` workspace root is cleaned at startup. It is not used as a restore fallback, because generated files must come from the database snapshot or be treated as unavailable.
 
 SQLite is a required dependency for the control plane. If the database cannot be opened or schema initialization fails, the service exits during startup. The health endpoint also checks database availability and returns unavailable when the probe fails.
 
-For real Docker-backed runs, validation relies on the MoonBit registry initialized in the Codex runtime image at image build time. Runtime validation should not run `moon update` because MoonBit may fail while rotating its symbols directory across Docker mount boundaries. Without the image-time registry preflight, generated template workspaces can fail before compilation with unresolved dependencies such as `moonbit-community/rabbita`, `oboard/mocket`, or `moonbitlang/x`.
+## Dependency Fetches
+
+Before validation and preview builds, generated user projects run `moon fetch` for these required modules:
+
+- `moonbitlang/async`
+- `moonbitlang/x`
+- `oboard/mocket`
+
+The platform also attempts to fetch these optional modules:
+
+- `moonbit-community/isomorphic`
+- `moonbit-community/selene`
+
+The optional modules are currently non-blocking because `moon fetch` does not find published registry versions for them yet. When they are published, they will become available automatically without changing the runtime flow.
+
+For real Docker-backed runs, the Codex runtime image initializes the MoonBit registry at image build time and seeds Codex skills from `https://github.com/moonbitlang/skills` into the container-local Codex home before every command. Runtime validation avoids `moon update` by default because MoonBit may fail while rotating its symbols directory across Docker mount boundaries.
 
 ## Control Plane Assets
 
@@ -42,100 +57,31 @@ If you run a compiled `control-plane.exe` from another directory, keep `services
 
 Password reset and email verification links are queued to `data/control-plane/account-emails.log` in local development. Set `MOONBITCLOUD_PUBLIC_BASE_URL` when the control plane is served from a non-default origin so generated links point at the correct host.
 
-## Static Preview Mode
+## Preview Flow
 
-Frontend-only templates can declare `preview.kind: "static"` in `template.json`. The control plane still builds the generated MoonBit workspace, copies the full public preview tree into `preview-dist/`, stages declared build artifacts, and launches a lightweight static preview process.
+Generated previews are backend-backed. The control plane builds the generated workspace, stages `frontend/public/` plus the compiled frontend JS artifact into `preview-dist/`, starts the generated native backend executable on a private local port, and exposes it through `/p/<preview_public_id>/`.
 
-The static preview process is implemented by the control-plane executable:
+The generated backend must keep `/api/health` available so the preview manager can verify readiness.
 
-```bash
-moon run --manifest-path moon.work --target native services/control-plane -- \
-  run-static-preview <port> <preview-dist-dir>
-```
+## Validation
 
-It serves:
+Use these repository-level checks:
 
-- `/`: `index.html`
-- arbitrary staged files such as `loader.js`, `app.js`, `styles.css`, and `app.wasm.txt`
-- compatibility aliases `/app` -> `app.js` and `/styles` -> `styles.css`
-- `/__health` and `/api/health`: JSON health response
-
-To test the `frontend-dashboard` template directly:
-
-```bash
-cd templates/frontend-dashboard/workspace
-moon clean
-moon check
-moon build
-
-preview_dir="$(mktemp -d)"
-cp public/index.html "$preview_dir/index.html"
-cp public/styles.css "$preview_dir/styles.css"
-cp _build/js/debug/build/frontend-dashboard.js "$preview_dir/app.js"
-
-cd ../../..
-moon run --manifest-path moon.work --target native services/control-plane -- \
-  run-static-preview 19301 "$preview_dir"
-```
-
-Then open `http://127.0.0.1:19301/` or check it with:
-
-```bash
-curl -fsS http://127.0.0.1:19301/__health
-curl -fsS http://127.0.0.1:19301/app | wc -c
-```
-
-Template HTML must reference preview assets with relative URLs, such as `href="styles.css"` and `src="app.js"`. Absolute URLs like `/styles` and `/app` bypass `/p/<preview_public_id>/` and load control-plane assets when the page is opened through the product preview route.
-
-## Template Testing
-
-Every official template should pass two smoke levels:
-
-1. direct template smoke
-2. control-plane product smoke
-
-Direct template smoke validates the template workspace in isolation:
-
-- run `just check-templates` from the repository root to copy each template workspace into a temporary sandbox and run `moon check` plus `moon build`
-- run `just check-template <template_id>` to validate one template the same way
-- run `just check-templates-codex` when template dependencies or the Codex runtime image change, so the same workspaces are checked inside Docker with `moon check` and `moon build`
-- stage a temporary preview directory from `public/` plus the template's declared build artifacts
-- launch the preview runner directly
-  - static templates: `services/control-plane -- run-static-preview <port> <preview-dist-dir>`
-  - backend templates: run the built native preview executable
-- verify the health endpoint and main asset paths are non-empty
-
-Control-plane product smoke validates the real platform flow:
-
-- start a temporary control plane with `MOONBITCLOUD_CODEX_FAKE_MODE=smoke`
-- sign up or log in through the platform
-- create a project with the target `template_id`
-- create a run and wait for `Succeeded` plus a healthy preview
-- verify the public preview route `/p/<preview_public_id>/` and the template-specific asset paths
-
-The existing `just smoke` and `just smoke-running` cover the default project flow. Template-specific smokes should follow the same API path but set an explicit `template_id`.
-
-Each template knowledge document should record:
-
-- the direct preview staging command
-- the product smoke flow
-- the template-specific asset paths that must render through `/p/<preview_public_id>/`
+- `just check-user-project-deps` verifies required registry fetches locally and reports optional unpublished modules.
+- `just check-user-project-deps-codex` runs the same fetch check inside the Codex runtime image and verifies that the image seeds Codex skills.
+- `just smoke` covers the default project creation, fake Codex update, preview rebuild, deletion, and persistence flow.
 
 Required Codex runtime configuration:
 
 - `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
+- `OPENAI_API_KEY`
 - optional `MOONBITCLOUD_CODEX_MODEL` (defaults to `gpt-5.5`)
-- optional `MOONBITCLOUD_CODEX_HOME_HOST` (defaults to `$HOME/.codex`)
 - optional `MOONBITCLOUD_CODEX_CONTAINER_HOME` (defaults to `/root`)
 
 The default runtime image is `docker.io/moonbitcloud/codex:codex-0.125.0-node24`. Override it through `.env` or `MOONBITCLOUD_CODEX_DOCKER_IMAGE` when testing local images, PR images, rollbacks, or digest-pinned production deployments.
 
-The default Codex model is `gpt-5.5`. Override it through `.env` or `MOONBITCLOUD_CODEX_MODEL` if your account needs a different accessible model.
+The runtime intentionally does not mount a host Codex home. The Codex image seeds MoonBit skills into a container-local Codex home and runs `codex login --with-api-key` from the injected `OPENAI_API_KEY` when the container starts. Production should provide that key through the deployment secret environment, not through a developer machine.
 
-Use `just codex-config` to inspect the effective runtime configuration. Build the runtime image locally with `just build-codex-image` (defaults to the official tag for `linux/amd64`).
+Use `just codex-config` to inspect the effective runtime configuration. Build the runtime image locally with `just build-codex-image` and publish the shared multi-arch runtime image with `just docker-codex-publish` after `docker login`.
 
-Publish the shared multi-arch runtime image with `just docker-codex-publish` after `docker login`. By default it pushes `docker.io/moonbitcloud/codex:codex-0.125.0-node24` and `docker.io/moonbitcloud/codex:latest` for `linux/amd64,linux/arm64`. Shared environments should set `MOONBITCLOUD_CODEX_DOCKER_IMAGE=docker.io/moonbitcloud/codex:codex-0.125.0-node24` instead of relying on `latest`.
-
-To publish under another Docker Hub namespace, pass the repository explicitly: `just docker-codex-publish docker.io/<namespace>/codex`.
-
-Use `just codex-smoke` from the repository root to run an end-to-end Todo List App build through the real Docker-backed Codex CLI path.
+Use `just codex-smoke` from the repository root only when you intentionally want to spend real Codex quota on an end-to-end Docker-backed build.

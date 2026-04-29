@@ -16,7 +16,7 @@ It excludes:
 - landing page
 - deploy flow
 - settings
-- template browser
+- starter browser
 - code viewer
 
 ## Product Feel

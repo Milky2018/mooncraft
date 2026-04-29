@@ -41,7 +41,7 @@ Included:
 Not included:
 
 - deploy flow
-- template browser
+- starter browser
 - mobile UX
 - terminal access
 - code editor in the main flow

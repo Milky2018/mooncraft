@@ -1,6 +1,6 @@
 ---
 title: Build a Multi-Tenant Todo API
-summary: Build and extend the default todo API template with durable storage and explicit tenant scoping
+summary: Build a todo API in a generated project with durable storage and explicit tenant scoping
 applies_to:
   - http-api
   - todo
@@ -25,7 +25,7 @@ status: draft
 
 Use this recipe when the user asks for a collaborative or shared task-tracking backend, a simple CRUD API with durable storage, or a meaningful starter app that demonstrates tenant-aware behavior.
 
-This recipe is the canonical first business template for MoonBit Cloud because it exercises:
+This recipe is the canonical first business app pattern for MoonBit Cloud because it exercises:
 
 - HTTP routing
 - request and response handling
@@ -104,7 +104,7 @@ Implement these routes first:
 - `PATCH /todos/:id`
 - `DELETE /todos/:id`
 
-Keep the surface narrow until the template is stable.
+Keep the surface narrow until the app is stable.
 
 # Request And Response Shapes
 
@@ -162,7 +162,7 @@ Success response:
 
 Ordering:
 
-- newest-first or oldest-first are both acceptable, but choose one canonical ordering and document it in the template
+- newest-first or oldest-first are both acceptable, but choose one canonical ordering and document it in the generated app docs
 
 ## `PATCH /todos/:id`
 
@@ -242,7 +242,7 @@ Keep route parsing separate from persistence.
 
 # Allowed Extensions
 
-Once the base template is stable, these are acceptable extensions:
+Once the base app is stable, these are acceptable extensions:
 
 - tags
 - due dates
@@ -260,11 +260,11 @@ Add one extension at a time and preserve the base route contract.
 - renaming the `handle` entrypoint without updating the contract
 - coupling route handlers directly to raw storage logic
 - changing the project structure arbitrarily
-- adding unrelated platform experiments into this template
+- adding unrelated platform experiments into this generated app
 
 # Validation
 
-Minimum validation for this template:
+Minimum validation for this app:
 
 1. Create a todo under tenant A.
 2. List todos under tenant A and confirm the new item exists.
@@ -283,7 +283,7 @@ Minimum validation for this template:
 
 # Implementation Notes
 
-This recipe is intentionally specific. The platform should favor one canonical todo template over several variants so the agent can make reliable edits later.
+This recipe is intentionally specific. The platform should favor one canonical todo implementation pattern over several variants so the agent can make reliable edits later.
 
 This document is still `draft` until the corresponding runnable example and validation flow exist under `examples/`.
 
@@ -292,4 +292,3 @@ This document is still `draft` until the corresponding runnable example and vali
 - [App Model](../concepts/app-model.md)
 - [HTTP Handler Contract](../contracts/http-handler.md)
 - [Tenant Model](../contracts/tenant-model.md)
-- [Template Invariants](../policies/template-invariants.md)

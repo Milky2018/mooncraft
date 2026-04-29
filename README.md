@@ -38,7 +38,7 @@ moonbitcloud/
 └── data/                     # local SQLite state and disposable runtime scratch
 ```
 
-Generated user projects are materialized as disposable scratch workspaces under `data/runtime/projects/<project-id>/workspace/`. The authoritative project source snapshot is stored in SQLite, not in that directory. Full-stack templates use a MoonBit workspace shape:
+Generated user projects are materialized as disposable scratch workspaces under `data/runtime/projects/<project-id>/workspace/`. The authoritative project source snapshot is stored in SQLite, not in that directory. Every new project starts from a minimal generated MoonBit workspace shape:
 
 - `moon.work` at the workspace root
 - `frontend/`
@@ -47,17 +47,18 @@ Generated user projects are materialized as disposable scratch workspaces under 
 
 Each generated module owns its own `moon.mod.json`; generated workspace roots intentionally do not contain a root `moon.mod.json`.
 
-Frontend-only templates can instead use a single MoonBit module with a root `moon.mod.json` and no `moon.work`.
+The platform no longer keeps official app templates or template manifests. The first user prompt decides what the generated app becomes.
 
 ## Implementation Notes
 
 - `apps/web` renders the app-develop page with a left project rail, center chat workspace, and right preview panel.
 - `services/control-plane` persists `users`, `sessions`, `oauth_accounts`, `projects`, `messages`, `runs`, and workspace snapshots through Morm. It defaults to SQLite for dev/test and switches to PostgreSQL when `MOONBITCLOUD_DATABASE_URL` is set.
 - Each successful run rebuilds the generated project and restarts a local preview server on a stable port.
-- Static frontend previews run through `services/control-plane -- run-static-preview <port> <preview-dist-dir>` and can stage arbitrary assets, including wasm host files.
+- Generated previews run through the project's native Mocket backend and stage frontend assets into `preview-dist/`.
 - Preview URLs are public opaque paths like `/p/<preview_public_id>/` and stay same-origin through the control plane.
 - `packages/sdk` defines the shared request and response payloads used by the frontend and control plane.
 - `AgentGateway` runs Docker-backed Codex CLI work through a durable async worker process and persists one `codex_thread_id` per project so later messages can resume the same Codex session.
+- Before validation and preview builds, the control plane runs `moon fetch` for the approved user-project modules. `moonbit-community/isomorphic` and `moonbit-community/selene` are currently optional fetches because they are not published in the registry yet.
 
 ## Core Docs
 
@@ -92,9 +93,11 @@ Notes:
 - Codex-backed editing also needs a separate Docker image that contains both `codex` and the MoonBit toolchain, exposed through:
   - `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
   - optional `MOONBITCLOUD_CODEX_MODEL` (defaults to `gpt-5.5`)
-  - optional `MOONBITCLOUD_CODEX_HOME_HOST` (defaults to `$HOME/.codex`)
+  - required `OPENAI_API_KEY`
   - optional `MOONBITCLOUD_CODEX_CONTAINER_HOME` (defaults to `/root`)
 - the default Codex runtime image is `docker.io/moonbitcloud/codex:codex-0.125.0-node24`; override it through `.env` or `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
+- the Codex runtime image seeds skills from `https://github.com/moonbitlang/skills` into the container-local Codex home before each run
+- MoonBit Cloud never mounts a host Codex home; every Codex run authenticates from `OPENAI_API_KEY` inside an isolated container
 - the default Codex model is `gpt-5.5`; override it through `.env` or `MOONBITCLOUD_CODEX_MODEL` if your account needs a different accessible model
 - inspect the effective Codex runtime config with `just codex-config`
 - build the Codex runtime image locally with `just build-codex-image` (defaults to the official tag for `linux/amd64`)
@@ -115,7 +118,7 @@ For EC2-style deployment with PostgreSQL:
 ```bash
 cp .env.example .env
 # edit .env: set MOONBITCLOUD_PUBLIC_BASE_URL, MOONBITCLOUD_POSTGRES_PASSWORD,
-# and optionally MOONBITCLOUD_IMAGE
+# OPENAI_API_KEY, and optionally MOONBITCLOUD_IMAGE
 docker compose pull
 docker compose up -d
 ```
@@ -131,7 +134,7 @@ The local workflow supports both debug and release profiles:
 
 ```bash
 just build
-just check-templates
+just check-user-project-deps
 just build release
 just serve
 just serve 8107
@@ -141,9 +144,9 @@ just serve 8107 release
 
 `just serve <port>` sets `MOONBITCLOUD_PORT` and `MOONBITCLOUD_PUBLIC_BASE_URL` for that local origin. `just serve release` sets `MOONBITCLOUD_BUILD_PROFILE=release`, so the control plane stages the platform bundle and generated preview bundles from the release build output directories.
 
-`just check-templates` validates every official template in a temporary sandbox by running target-less `moon check` and `moon build`. Use `just check-template <template_id>` for one template.
+`just check-user-project-deps` verifies that required generated-project registry modules can be fetched and reports optional modules that are not published yet.
 
-`just check-templates-codex` runs the same template workspaces inside the Codex runtime image with `moon check` and `moon build`. Use it after changing the Codex image, template dependencies, or validation flow.
+`just check-user-project-deps-codex` runs the same fetch check inside the Codex runtime image and verifies that the image seeds Codex skills.
 
 Control-plane HTML/CSS shells are runtime files under `services/control-plane/assets`. They are available in the documented local workflow because `just serve` and `moon run --manifest-path moon.work --target native services/control-plane` run from the repository root. `moon build` does not embed those assets into the native executable, so standalone runs must preserve that directory next to the runtime working directory.
 
@@ -151,5 +154,5 @@ Control-plane HTML/CSS shells are runtime files under `services/control-plane/as
 
 1. harden the Docker-backed Codex executor and runtime cleanup policy
 2. extract preview execution into a dedicated runner boundary
-3. build the first durable multi-tenant todo template
-4. connect the knowledge base to real template validation
+3. replace source snapshots in SQLite with external object storage or filesystem-backed archives
+4. decide how unpublished MoonBit libraries should be mirrored for generated projects

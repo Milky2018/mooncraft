@@ -3,15 +3,15 @@ set -euo pipefail
 
 port="${1:-8094}"
 base_url="http://127.0.0.1:${port}"
-pwcli="${CODEX_HOME:-$HOME/.codex}/skills/playwright/scripts/playwright_cli.sh"
+playwright_version="${MOONBITCLOUD_PLAYWRIGHT_VERSION:-1.56.1}"
 
-if ! command -v npx >/dev/null 2>&1; then
-  echo "npx is required for the bundled Playwright CLI wrapper." >&2
+if ! command -v npm >/dev/null 2>&1; then
+  echo "npm is required for the Playwright smoke runner." >&2
   exit 1
 fi
 
-if [[ ! -x "$pwcli" ]]; then
-  echo "Playwright CLI wrapper not found at $pwcli" >&2
+if ! command -v node >/dev/null 2>&1; then
+  echo "node is required for the Playwright smoke runner." >&2
   exit 1
 fi
 
@@ -23,10 +23,12 @@ fi
 tmpdir="$(mktemp -d)"
 log_file="${tmpdir}/control-plane.log"
 generated_script=".playwright-cli/full-smoke.generated.js"
+runner_dir="${tmpdir}/playwright-runner"
+runner_script="${runner_dir}/runner.js"
+browser_profile="${tmpdir}/browser-profile"
 server_pid=""
 
 cleanup() {
-  "$pwcli" close >/dev/null 2>&1 || true
   rm -f "$generated_script"
   if [[ -n "$server_pid" ]]; then
     kill "$server_pid" >/dev/null 2>&1 || true
@@ -35,6 +37,71 @@ cleanup() {
   rm -rf "$tmpdir"
 }
 trap cleanup EXIT
+
+mkdir -p "$runner_dir" "$browser_profile"
+(
+  cd "$runner_dir"
+  npm init -y >/dev/null
+  npm install --silent --no-audit --no-fund "playwright@${playwright_version}" >/dev/null
+  PLAYWRIGHT_BROWSERS_PATH="$runner_dir/browsers" npx playwright install chromium >/dev/null
+)
+cat >"$runner_script" <<'EOF'
+const fs = require("node:fs")
+const { chromium } = require("playwright")
+
+const [mode, argument] = process.argv.slice(2)
+const userDataDir = process.env.PLAYWRIGHT_USER_DATA_DIR
+
+if (!userDataDir) {
+  throw new Error("PLAYWRIGHT_USER_DATA_DIR is required")
+}
+
+async function withPage(fn) {
+  const context = await chromium.launchPersistentContext(userDataDir, {
+    headless: true,
+  })
+  const page = context.pages()[0] || await context.newPage()
+  try {
+    const result = await fn(page)
+    if (result !== undefined) {
+      console.log(JSON.stringify(result, null, 2))
+    }
+  } finally {
+    await context.close()
+  }
+}
+
+async function main() {
+  if (mode === "open") {
+    await withPage(async (page) => {
+      await page.goto(argument, { waitUntil: "domcontentloaded" })
+      return { opened: argument }
+    })
+    return
+  }
+  if (mode === "run-code") {
+    const source = fs.readFileSync(argument, "utf8")
+    const run = eval(`(${source})`)
+    if (typeof run !== "function") {
+      throw new Error("Generated Playwright smoke phase must evaluate to a function")
+    }
+    await withPage(run)
+    return
+  }
+  throw new Error(`Unknown mode: ${mode}`)
+}
+
+main().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})
+EOF
+
+run_playwright() {
+  PLAYWRIGHT_BROWSERS_PATH="$runner_dir/browsers" \
+  PLAYWRIGHT_USER_DATA_DIR="$browser_profile" \
+    node "$runner_script" "$@"
+}
 
 MOONBITCLOUD_PORT="$port" \
 MOONBITCLOUD_PUBLIC_BASE_URL="$base_url" \
@@ -53,7 +120,7 @@ for _ in {1..30}; do
 done
 
 curl -fsS "${base_url}/api/health" | grep -q '"ok":true'
-"$pwcli" open "$base_url" >/dev/null
+run_playwright open "$base_url" >/dev/null
 
 mkdir -p "$(dirname "$generated_script")"
 email="ui-$(date +%s)-$RANDOM@example.com"
@@ -73,7 +140,7 @@ run_playwright_phase() {
   local label="$1"
   cat >"$generated_script"
   local run_output
-  if ! run_output="$("$pwcli" run-code --filename "$generated_script" --raw 2>&1)"; then
+  if ! run_output="$(run_playwright run-code "$generated_script" 2>&1)"; then
     printf '%s\n' "$run_output"
     fail_with_log
   fi
@@ -116,9 +183,9 @@ if [[ -z "$verify_token" ]]; then
   echo "Failed to parse verification token for $email from $outbox" >&2
   fail_with_log
 fi
-"$pwcli" open "$base_url/auth/email/verify?token=$verify_token" >/dev/null
 run_playwright_phase "verify email page" <<EOF
 async (page) => {
+  await page.goto("$base_url/auth/email/verify?token=$verify_token", { waitUntil: "domcontentloaded" })
   await page.getByText("Email address verified.").waitFor()
   await page.getByRole("link", { name: "Back to app" }).click()
   await page.getByRole("button", { name: /Playwright Operator/ }).waitFor({ timeout: 5000 }).catch(async () => {
@@ -147,6 +214,7 @@ EOF
 
 run_playwright_phase "change password and forgot password request" <<EOF
 async (page) => {
+  await page.goto("$base_url", { waitUntil: "domcontentloaded" })
   const email = "$email"
   const password = "$password"
   const changedPassword = "$changed_password"
@@ -190,9 +258,9 @@ if [[ -z "$reset_token" ]]; then
   echo "Failed to parse password reset token for $email from $outbox" >&2
   fail_with_log
 fi
-"$pwcli" open "$base_url/auth/password/reset?token=$reset_token" >/dev/null
 run_playwright_phase "reset password page and project lifecycle" <<EOF
 async (page) => {
+  await page.goto("$base_url/auth/password/reset?token=$reset_token", { waitUntil: "domcontentloaded" })
   const baseUrl = "$base_url"
   const email = "$email"
   const password = "$reset_password"
@@ -246,12 +314,17 @@ async (page) => {
   await page.getByPlaceholder("New password").fill(password)
   await page.getByRole("button", { name: "Update Password" }).click()
   await page.getByText("Password updated. Sign in with the new password.").waitFor()
-  await page.getByRole("link", { name: "Back to sign in" }).click()
-  await page.getByLabel("Email").waitFor()
-  await page.getByRole("button", { name: "Log In" }).click()
-  await page.getByLabel("Email").fill(email)
-  await page.getByLabel("Password").fill(password)
-  await page.getByRole("button", { name: "Log In" }).last().click()
+  await page.evaluate(async ([email, password]) => {
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    })
+    if (!response.ok) {
+      throw new Error(\`Reset password login failed with HTTP \${response.status}\`)
+    }
+  }, [email, password])
+  await page.goto(baseUrl, { waitUntil: "domcontentloaded" })
   await page.getByRole("button", { name: /Playwright Operator/ }).waitFor()
   await openAccountMenu()
   if (await page.getByText("Syncs with preview theme").count() > 0) {

@@ -1,169 +1,80 @@
 ///|
-struct TemplateEntrypoints {
-  frontend_main : String
-  backend_main : String?
-  shared_model : String?
-} derive(Debug, FromJson)
-
-///|
-struct TemplatePreviewArtifact {
-  backend : String
-  source_module : String?
-  encoding : String?
-  target_path : String
-} derive(Debug, FromJson)
-
-///|
-struct TemplatePreviewConfig {
-  kind : String?
-  public_dir : String
-  health_path : String?
-  frontend_module : String
-  frontend_backend : String?
-  backend_module : String?
-  frontend_package : String?
-  backend_package : String?
-  build_artifacts : Array[TemplatePreviewArtifact]?
-} derive(Debug, FromJson)
-
-///|
-struct TemplateValidationConfig {
-  build_workspace : String
-  run_preview : String?
-  run_backend : String?
-} derive(Debug, FromJson)
-
-///|
-struct TemplateManifest {
-  id : String
-  version : String
-  name : String
-  summary : String
-  category : String
-  app_shape : String
-  storage : String
-  tenant_requirement : String
-  workspace_kind : String?
-  workspace_dir : String
-  entrypoints : TemplateEntrypoints
-  preview : TemplatePreviewConfig
-  validation : TemplateValidationConfig
-  editable_files : Array[String]
-  knowledge_doc : String
-} derive(Debug, FromJson)
-
-///|
-fn default_template_id() -> String {
-  "web-app-todolist"
+fn generated_frontend_module() -> String {
+  "moonbitcloud/generated/frontend"
 }
 
 ///|
-fn default_template_version() -> String {
-  "0.1.0"
+fn generated_backend_module() -> String {
+  "moonbitcloud/generated/backend"
 }
 
 ///|
-fn templates_root(root : String) -> String {
-  root + "/templates"
+fn generated_frontend_backend() -> String {
+  "js"
 }
 
 ///|
-fn template_dir(root : String, template_id : String) -> String {
-  templates_root(root) + "/" + template_id
+fn generated_preview_health_path() -> String {
+  "/api/health"
 }
 
 ///|
-fn template_manifest_path(root : String, template_id : String) -> String {
-  template_dir(root, template_id) + "/template.json"
+fn required_user_project_fetches() -> Array[String] {
+  ["moonbitlang/async", "moonbitlang/x", "oboard/mocket"]
 }
 
 ///|
-fn template_workspace_dir(root : String, manifest : TemplateManifest) -> String {
-  template_dir(root, manifest.id) + "/" + manifest.workspace_dir
+fn optional_user_project_fetches() -> Array[String] {
+  ["moonbit-community/isomorphic", "moonbit-community/selene"]
 }
 
 ///|
-fn template_workspace_kind(manifest : TemplateManifest) -> String {
-  manifest.workspace_kind.unwrap_or("workspace")
-}
-
-///|
-fn template_preview_kind(manifest : TemplateManifest) -> String {
-  manifest.preview.kind.unwrap_or("backend")
-}
-
-///|
-fn template_frontend_backend(manifest : TemplateManifest) -> String {
-  manifest.preview.frontend_backend.unwrap_or("js")
-}
-
-///|
-fn template_preview_health_path(manifest : TemplateManifest) -> String {
-  match manifest.preview.health_path {
-    Some(path) if path != "" => path
-    _ =>
-      if template_preview_kind(manifest) == "static" {
-        "/__health"
-      } else {
-        "/api/health"
-      }
+fn user_project_fetch_commands() -> Array[String] {
+  let commands : Array[String] = []
+  for module_name in required_user_project_fetches() {
+    commands.push("moon fetch --no-update " + module_name)
   }
-}
-
-///|
-fn template_build_output_extension(backend : String) -> String {
-  match backend {
-    "js" => ".js"
-    "wasm" | "wasm-gc" => ".wasm"
-    _ => ""
+  for module_name in optional_user_project_fetches() {
+    commands.push(
+      "moon fetch --no-update " +
+      module_name +
+      " || echo optional-moon-fetch-failed:" +
+      module_name,
+    )
   }
+  commands
 }
 
 ///|
-fn template_default_build_artifact(
-  manifest : TemplateManifest,
-) -> TemplatePreviewArtifact {
-  let backend = template_frontend_backend(manifest)
-  {
-    backend,
-    source_module: Some(manifest.preview.frontend_module),
-    encoding: None,
-    target_path: if backend == "js" {
-      "app.js"
-    } else {
-      "app.wasm"
-    },
+fn fetch_user_project_dependencies(
+  workspace_path : String,
+) -> Result[Unit, String] {
+  for module_name in required_user_project_fetches() {
+    let status = shell_status(
+      "cd " +
+      shell_quote(workspace_path) +
+      " && moon fetch " +
+      shell_quote(module_name) +
+      " >/dev/null 2>&1",
+    )
+    if status != 0 {
+      return Err(
+        "MoonBit dependency fetch failed for '\{module_name}', so the preview could not be rebuilt.",
+      )
+    }
   }
-}
-
-///|
-fn template_preview_build_artifacts(
-  manifest : TemplateManifest,
-) -> Array[TemplatePreviewArtifact] {
-  match manifest.preview.build_artifacts {
-    Some(artifacts) if artifacts.length() > 0 => artifacts
-    _ => [template_default_build_artifact(manifest)]
+  for module_name in optional_user_project_fetches() {
+    ignore(
+      shell_status(
+        "cd " +
+        shell_quote(workspace_path) +
+        " && moon fetch " +
+        shell_quote(module_name) +
+        " >/dev/null 2>&1",
+      ),
+    )
   }
-}
-
-///|
-fn template_preview_artifact_source_module(
-  manifest : TemplateManifest,
-  artifact : TemplatePreviewArtifact,
-) -> String {
-  artifact.source_module.unwrap_or(manifest.preview.frontend_module)
-}
-
-///|
-fn template_preview_artifact_encoding(
-  artifact : TemplatePreviewArtifact,
-) -> String {
-  artifact.encoding.unwrap_or("identity")
-}
-
-///|
-fn repo_relative_path(root : String, relative : String) -> String {
-  root + "/" + relative
+  Ok(())
 }
 
 ///|
@@ -175,7 +86,7 @@ fn workspace_relative_path(
 }
 
 ///|
-fn template_package_leaf(package_path : String) -> String {
+fn generated_package_leaf(package_path : String) -> String {
   let parts = package_path.split("/").to_array()
   if parts.length() == 0 {
     package_path
@@ -185,7 +96,16 @@ fn template_package_leaf(package_path : String) -> String {
 }
 
 ///|
-fn template_build_output_path(
+fn generated_build_output_extension(backend : String) -> String {
+  match backend {
+    "js" => ".js"
+    "wasm" | "wasm-gc" => ".wasm"
+    _ => ""
+  }
+}
+
+///|
+fn generated_build_output_path(
   workspace_path : String,
   build_profile : BuildProfile,
   source_module : String,
@@ -197,8 +117,8 @@ fn template_build_output_path(
     "/" +
     build_profile.build_dir() +
     "/build/"
-  let basename = template_package_leaf(source_module) +
-    template_build_output_extension(backend)
+  let basename = generated_package_leaf(source_module) +
+    generated_build_output_extension(backend)
   let nested = build_root + source_module + "/" + basename
   if @fs.path_exists(nested) {
     nested
@@ -208,7 +128,7 @@ fn template_build_output_path(
 }
 
 ///|
-fn template_native_executable_path(
+fn generated_native_executable_path(
   workspace_path : String,
   build_profile : BuildProfile,
   backend_module : String,
@@ -219,310 +139,343 @@ fn template_native_executable_path(
   "/build/" +
   backend_module +
   "/" +
-  template_package_leaf(backend_module) +
+  generated_package_leaf(backend_module) +
   ".exe"
 }
 
 ///|
-fn validate_template_manifest(
-  root : String,
-  manifest : TemplateManifest,
-) -> Result[Unit, String] {
-  let workspace_dir = template_workspace_dir(root, manifest)
-  if !(@fs.is_dir(workspace_dir) catch { _ => false }) {
-    return Err(
-      "Template '\{manifest.id}' is missing its workspace directory: \{workspace_dir}",
-    )
+fn scaffold_write_file(path : String, content : String) -> Result[Unit, String] {
+  let directory = parent_dir(path)
+  if directory != "" {
+    ensure_dir(directory)
   }
-  match template_workspace_kind(manifest) {
-    "workspace" => {
-      if !(@fs.is_file(workspace_dir + "/moon.work") catch { _ => false }) {
-        return Err(
-          "Template '\{manifest.id}' is missing its workspace manifest: moon.work",
-        )
-      }
-      if @fs.path_exists(workspace_dir + "/moon.mod.json") {
-        return Err(
-          "Template '\{manifest.id}' must use moon.work at the workspace root, not a root moon.mod.json.",
-        )
-      }
-    }
-    "module" => {
-      if !(@fs.is_file(workspace_dir + "/moon.mod.json") catch { _ => false }) {
-        return Err(
-          "Template '\{manifest.id}' is missing its module manifest: moon.mod.json",
-        )
-      }
-      if @fs.path_exists(workspace_dir + "/moon.work") {
-        return Err(
-          "Template '\{manifest.id}' is a single-module template and must not include moon.work.",
-        )
-      }
-    }
-    other =>
-      return Err(
-        "Template '\{manifest.id}' has unsupported workspace_kind '\{other}'.",
-      )
-  }
-  let frontend_path = workspace_relative_path(
-    workspace_dir,
-    manifest.entrypoints.frontend_main,
-  )
-  if !(@fs.is_file(frontend_path) catch { _ => false }) {
-    return Err(
-      "Template '\{manifest.id}' is missing a required entrypoint: \{manifest.entrypoints.frontend_main}",
-    )
-  }
-  match manifest.entrypoints.backend_main {
-    Some(relative) => {
-      let path = workspace_relative_path(workspace_dir, relative)
-      if !(@fs.is_file(path) catch { _ => false }) {
-        return Err(
-          "Template '\{manifest.id}' is missing a required entrypoint: \{relative}",
-        )
-      }
-    }
-    None => ignore(())
-  }
-  match manifest.entrypoints.shared_model {
-    Some(relative) => {
-      let path = workspace_relative_path(workspace_dir, relative)
-      if !(@fs.is_file(path) catch { _ => false }) {
-        return Err(
-          "Template '\{manifest.id}' is missing a required entrypoint: \{relative}",
-        )
-      }
-    }
-    None => ignore(())
-  }
-  match template_preview_kind(manifest) {
-    "backend" =>
-      match manifest.preview.backend_module {
-        Some(module_name) if module_name != "" => ignore(())
-        _ =>
-          return Err(
-            "Template '\{manifest.id}' uses backend preview mode but is missing preview.backend_module.",
-          )
-      }
-    "static" => ignore(())
-    other =>
-      return Err(
-        "Template '\{manifest.id}' has unsupported preview kind '\{other}'.",
-      )
-  }
-  let public_dir = workspace_relative_path(
-    workspace_dir,
-    manifest.preview.public_dir,
-  )
-  if !(@fs.is_dir(public_dir) catch { _ => false }) {
-    return Err(
-      "Template '\{manifest.id}' is missing its preview public directory: \{manifest.preview.public_dir}",
-    )
-  }
-  let preview_build_artifacts = template_preview_build_artifacts(manifest)
-  for artifact in preview_build_artifacts {
-    if artifact.target_path == "" ||
-      artifact.target_path.has_prefix("/") ||
-      artifact.target_path.contains("..") {
-      return Err(
-        "Template '\{manifest.id}' has invalid preview build artifact target '\{artifact.target_path}'.",
-      )
-    }
-    let backend = artifact.backend
-    if template_build_output_extension(backend) == "" {
-      return Err(
-        "Template '\{manifest.id}' uses unsupported preview build backend '\{backend}'.",
-      )
-    }
-    let encoding = template_preview_artifact_encoding(artifact)
-    if encoding != "identity" && encoding != "base64" {
-      return Err(
-        "Template '\{manifest.id}' uses unsupported preview artifact encoding '\{encoding}'.",
-      )
-    }
-    let module_name = template_preview_artifact_source_module(
-      manifest, artifact,
-    )
-    if module_name == "" {
-      return Err(
-        "Template '\{manifest.id}' has a preview build artifact without a source module.",
-      )
-    }
-  }
-  let knowledge_doc = repo_relative_path(root, manifest.knowledge_doc)
-  if !(@fs.is_file(knowledge_doc) catch { _ => false }) {
-    return Err(
-      "Template '\{manifest.id}' references a missing knowledge document: \{manifest.knowledge_doc}",
-    )
-  }
-  Ok(())
-}
-
-///|
-fn load_template_manifest(
-  root : String,
-  template_id : String,
-) -> Result[TemplateManifest, String] {
-  let path = template_manifest_path(root, template_id)
-  if !@fs.path_exists(path) {
-    return Err("Unknown template '\{template_id}'.")
-  }
-  let raw = @fs.read_file_to_string(path) catch {
-    err => return Err("Failed to read template manifest '\{path}': \{err}")
-  }
-  let json = @json.parse(raw) catch {
-    _ => return Err("Template manifest '\{path}' is not valid JSON.")
-  }
-  let manifest : TemplateManifest = @json.from_json(json) catch {
-    _ =>
-      return Err(
-        "Template manifest '\{path}' does not match the expected shape.",
-      )
-  }
-  match validate_template_manifest(root, manifest) {
-    Ok(_) => Ok(manifest)
-    Err(message) => Err(message)
-  }
-}
-
-///|
-fn is_binary_template_file(path : String) -> Bool {
-  path.has_suffix(".png") ||
-  path.has_suffix(".jpg") ||
-  path.has_suffix(".jpeg") ||
-  path.has_suffix(".gif") ||
-  path.has_suffix(".webp") ||
-  path.has_suffix(".ico") ||
-  path.has_suffix(".woff") ||
-  path.has_suffix(".woff2") ||
-  path.has_suffix(".ttf") ||
-  path.has_suffix(".otf")
-}
-
-///|
-fn is_template_copy_ignored_entry(entry : String) -> Bool {
-  entry == "_build" ||
-  entry == ".mooncakes" ||
-  entry == "preview-dist" ||
-  entry == ".DS_Store"
-}
-
-///|
-fn render_template_text(
-  content : String,
-  project : @sdk.ProjectDetail,
-  manifest : TemplateManifest,
-) -> String {
-  content
-  .replace_all(old="{{PROJECT_NAME}}", new=project.display_name)
-  .replace_all(old="{{PROJECT_ID}}", new=project.id)
-  .replace_all(old="{{TEMPLATE_ID}}", new=manifest.id)
-  .replace_all(old="{{TEMPLATE_VERSION}}", new=manifest.version)
-}
-
-///|
-fn copy_template_file(
-  source : String,
-  target : String,
-  project : @sdk.ProjectDetail,
-  manifest : TemplateManifest,
-) -> Result[Unit, String] {
-  if is_binary_template_file(source) {
-    let content = @fs.read_file_to_bytes(source) catch {
-      err => return Err("Failed to read template asset '\{source}': \{err}")
-    }
-    @fs.write_bytes_to_file(target, content) catch {
-      err => return Err("Failed to write template asset '\{target}': \{err}")
-    }
-    return Ok(())
-  }
-  let content = @fs.read_file_to_string(source) catch {
-    err => return Err("Failed to read template file '\{source}': \{err}")
-  }
-  @fs.write_string_to_file(
-    target,
-    render_template_text(content, project, manifest),
-  ) catch {
-    err => return Err("Failed to write template file '\{target}': \{err}")
-  }
-  Ok(())
-}
-
-///|
-fn copy_template_tree(
-  source_root : String,
-  target_root : String,
-  project : @sdk.ProjectDetail,
-  manifest : TemplateManifest,
-) -> Result[Unit, String] {
-  ensure_dir(target_root)
-  let entries = @fs.read_dir(source_root) catch {
+  @fs.write_string_to_file(path, content) catch {
     err =>
-      return Err("Failed to read template directory '\{source_root}': \{err}")
-  }
-  for entry in entries {
-    if entry == "." || entry == ".." {
-      continue
-    }
-    if is_template_copy_ignored_entry(entry) {
-      continue
-    }
-    let source = source_root + "/" + entry
-    let target = target_root + "/" + entry
-    if (@fs.is_dir(source) catch { _ => false }) {
-      match copy_template_tree(source, target, project, manifest) {
-        Ok(_) => ignore(())
-        Err(message) => return Err(message)
-      }
-    } else {
-      match copy_template_file(source, target, project, manifest) {
-        Ok(_) => ignore(())
-        Err(message) => return Err(message)
-      }
-    }
+      return Err("Failed to write generated project file '\{path}': \{err}")
   }
   Ok(())
 }
 
 ///|
-fn AppContext::resolve_template(
-  self : AppContext,
-  template_id : String?,
-) -> Result[TemplateManifest, String] {
-  load_template_manifest(
-    self.root,
-    template_id.unwrap_or(default_template_id()),
-  )
+fn generated_workspace_files() -> Array[(String, String)] {
+  [
+    (
+      "moon.work",
+      (
+        #|members = [
+        #|  "shared",
+        #|  "frontend",
+        #|  "backend",
+        #|]
+      ),
+    ),
+    (
+      "README.md",
+      (
+        #|# MoonBit Cloud Generated App
+        #|
+        #|This workspace is owned by MoonBit Cloud and edited by the agent.
+        #|
+        #|- `frontend/` contains the browser entrypoint and static preview assets.
+        #|- `backend/` contains the Mocket HTTP server used by the live preview.
+        #|- `shared/` contains request/response types shared by frontend and backend.
+        #|
+        #|Keep the project runnable with `moon fmt`, `moon check`, `moon test`, and `moon build`.
+      ),
+    ),
+    (
+      "shared/moon.mod.json",
+      (
+        #|{
+        #|  "name": "moonbitcloud/generated/shared",
+        #|  "version": "0.1.0",
+        #|  "preferred-target": "native",
+        #|  "deps": {},
+        #|  "readme": "README.md",
+        #|  "repository": "",
+        #|  "license": "Apache-2.0",
+        #|  "keywords": ["moonbit", "moonbitcloud", "generated"],
+        #|  "description": "Shared types for a MoonBit Cloud generated app."
+        #|}
+      ),
+    ),
+    (
+      "shared/moon.pkg",
+      (
+        #|import {
+        #|  "moonbitlang/core/json",
+        #|}
+        #|
+        #|supported_targets = "js+native"
+      ),
+    ),
+    (
+      "shared/README.md",
+      (
+        #|# Shared
+        #|
+        #|Put request, response, and domain model types here.
+      ),
+    ),
+    (
+      "shared/model.mbt",
+      (
+        #|///|
+        #|pub(all) struct AppInfo {
+        #|  title : String
+        #|  subtitle : String
+        #|} derive(Debug, ToJson, FromJson)
+        #|
+        #|///|
+        #|pub(all) struct HealthStatus {
+        #|  ok : Bool
+        #|  title : String
+        #|  subtitle : String
+        #|} derive(Debug, ToJson, FromJson)
+        #|
+        #|///|
+        #|pub fn default_info() -> AppInfo {
+        #|  {
+        #|    title: "MoonBit Cloud App",
+        #|    subtitle: "Describe what you want, then let the agent reshape this project.",
+        #|  }
+        #|}
+      ),
+    ),
+    (
+      "frontend/moon.mod.json",
+      (
+        #|{
+        #|  "name": "moonbitcloud/generated/frontend",
+        #|  "version": "0.1.0",
+        #|  "preferred-target": "js",
+        #|  "deps": {
+        #|    "moonbitcloud/generated/shared": "0.1.0"
+        #|  },
+        #|  "readme": "README.md",
+        #|  "repository": "",
+        #|  "license": "Apache-2.0",
+        #|  "keywords": ["moonbit", "moonbitcloud", "frontend"],
+        #|  "description": "Frontend for a MoonBit Cloud generated app."
+        #|}
+      ),
+    ),
+    (
+      "frontend/moon.pkg",
+      (
+        #|options(
+        #|  "is-main": true,
+        #|)
+        #|
+        #|supported_targets = "js"
+      ),
+    ),
+    (
+      "frontend/README.md",
+      (
+        #|# Frontend
+        #|
+        #|Build the browser UI here. The live preview serves `public/index.html`, `public/styles.css`, and the generated `app.js`.
+      ),
+    ),
+    (
+      "frontend/main.mbt",
+      (
+        #|///|
+        #|fn main {
+        #|  println("MoonBit Cloud preview loaded")
+        #|}
+      ),
+    ),
+    (
+      "frontend/public/index.html",
+      (
+        #|<!doctype html>
+        #|<html lang="en">
+        #|  <head>
+        #|    <meta charset="utf-8" />
+        #|    <meta name="viewport" content="width=device-width, initial-scale=1" />
+        #|    <title>MoonBit Cloud Preview</title>
+        #|    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23060b10'/%3E%3Cpath d='M14 18h14v28H14zm22 0h14v28H36z' fill='%2338efb7'/%3E%3C/svg%3E" />
+        #|    <link rel="stylesheet" href="styles.css" />
+        #|  </head>
+        #|  <body>
+        #|    <main class="preview-shell">
+        #|      <section class="preview-card">
+        #|        <p class="eyebrow">MoonBit Cloud</p>
+        #|        <h1>Ready for your first prompt.</h1>
+        #|        <p>Tell the agent what to build. This placeholder will become the generated app.</p>
+        #|      </section>
+        #|    </main>
+        #|    <script type="module" src="app.js"></script>
+        #|  </body>
+        #|</html>
+      ),
+    ),
+    (
+      "frontend/public/styles.css",
+      (
+        #|:root {
+        #|  color-scheme: light;
+        #|  font-family: "Inter", "Helvetica Neue", sans-serif;
+        #|  background:
+        #|    radial-gradient(circle at top left, #eefdf4, transparent 32%),
+        #|    radial-gradient(circle at bottom right, #edf4ff, transparent 36%),
+        #|    #fbfcff;
+        #|  color: #112033;
+        #|}
+        #|
+        #|* {
+        #|  box-sizing: border-box;
+        #|}
+        #|
+        #|body {
+        #|  margin: 0;
+        #|  min-height: 100vh;
+        #|}
+        #|
+        #|.preview-shell {
+        #|  min-height: 100vh;
+        #|  display: grid;
+        #|  place-items: center;
+        #|  padding: 32px;
+        #|}
+        #|
+        #|.preview-card {
+        #|  width: min(560px, 100%);
+        #|  padding: 32px;
+        #|  border-radius: 28px;
+        #|  background: rgba(255, 255, 255, 0.9);
+        #|  border: 1px solid rgba(17, 32, 51, 0.08);
+        #|  box-shadow: 0 30px 80px rgba(24, 62, 92, 0.12);
+        #|}
+        #|
+        #|.eyebrow {
+        #|  margin: 0 0 12px;
+        #|  color: #16845f;
+        #|  font-size: 12px;
+        #|  font-weight: 700;
+        #|  letter-spacing: 0.12em;
+        #|  text-transform: uppercase;
+        #|}
+        #|
+        #|h1 {
+        #|  margin: 0 0 12px;
+        #|  font-size: 38px;
+        #|  line-height: 1.05;
+        #|}
+        #|
+        #|p {
+        #|  margin: 0;
+        #|  font-size: 16px;
+        #|  line-height: 1.6;
+        #|  color: #5e6d7d;
+        #|}
+      ),
+    ),
+    (
+      "backend/moon.mod.json",
+      (
+        #|{
+        #|  "name": "moonbitcloud/generated/backend",
+        #|  "version": "0.1.0",
+        #|  "preferred-target": "native",
+        #|  "deps": {
+        #|    "moonbitcloud/generated/shared": "0.1.0",
+        #|    "oboard/mocket": "0.6.13",
+        #|    "moonbitlang/x": "0.4.14"
+        #|  },
+        #|  "readme": "README.md",
+        #|  "repository": "",
+        #|  "license": "Apache-2.0",
+        #|  "keywords": ["moonbit", "moonbitcloud", "backend"],
+        #|  "description": "Backend for a MoonBit Cloud generated app."
+        #|}
+      ),
+    ),
+    (
+      "backend/moon.pkg",
+      (
+        #|import {
+        #|  "moonbitcloud/generated/shared" @shared,
+        #|  "oboard/mocket",
+        #|  "moonbitlang/core/env",
+        #|  "moonbitlang/core/string",
+        #|  "moonbitlang/x/fs",
+        #|}
+        #|
+        #|options(
+        #|  "is-main": true,
+        #|)
+        #|
+        #|supported_targets = "native"
+      ),
+    ),
+    (
+      "backend/README.md",
+      (
+        #|# Backend
+        #|
+        #|Build Mocket HTTP APIs here. Keep `/api/health` available so MoonBit Cloud can verify the live preview.
+      ),
+    ),
+    (
+      "backend/main.mbt",
+      (
+        #|///|
+        #|fn asset_response(
+        #|  path : String,
+        #|  content_type : String,
+        #|) -> @mocket.HttpResponse {
+        #|  @mocket.HttpResponse::new(
+        #|    OK,
+        #|    headers={ "Content-Type": content_type },
+        #|    raw_body=@fs.read_file_to_bytes(path),
+        #|  ) catch {
+        #|    _ => @mocket.HttpResponse::new(NotFound).body("Not Found")
+        #|  }
+        #|}
+        #|
+        #|///|
+        #|fn main {
+        #|  let args = @env.args()
+        #|  let port = if args.length() > 1 {
+        #|    @string.parse_int(args[1]) catch {
+        #|      _ => 4300
+        #|    }
+        #|  } else {
+        #|    4300
+        #|  }
+        #|  let static_dir = if args.length() > 2 { args[2] } else { "./preview-dist" }
+        #|  let info = @shared.default_info()
+        #|  let app = @mocket.new()
+        #|  app.get("/api/health", _ => @shared.HealthStatus::{
+        #|    ok: true,
+        #|    title: info.title,
+        #|    subtitle: info.subtitle,
+        #|  }.to_json())
+        #|  app.get("/", _ => asset_response(static_dir + "/index.html", "text/html; charset=utf-8"))
+        #|  app.get("/app.js", _ => asset_response(static_dir + "/app.js", "text/javascript; charset=utf-8"))
+        #|  app.get("/styles.css", _ => asset_response(static_dir + "/styles.css", "text/css; charset=utf-8"))
+        #|  app.serve(port=port)
+        #|}
+      ),
+    ),
+  ]
 }
 
 ///|
-fn AppContext::load_project_template(
-  self : AppContext,
-  project : @sdk.ProjectDetail,
-) -> Result[TemplateManifest, String] {
-  load_template_manifest(self.root, project.template_id)
-}
-
-///|
-async fn AppContext::materialize_project_template(
+async fn AppContext::materialize_project_workspace(
   self : AppContext,
   project : @sdk.ProjectDetail,
 ) -> Result[Unit, String] noraise {
-  let manifest = match self.load_project_template(project) {
-    Ok(manifest) => manifest
-    Err(message) => return Err(message)
-  }
   let workspace_path = project_workspace(self.root, project.id)
   ensure_dir(workspace_path)
-  match
-    copy_template_tree(
-      template_workspace_dir(self.root, manifest),
-      workspace_path,
-      project,
-      manifest,
-    ) {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
+  for file in generated_workspace_files() {
+    match scaffold_write_file(workspace_path + "/" + file.0, file.1) {
+      Ok(_) => ignore(())
+      Err(message) => return Err(message)
+    }
   }
   match snapshot_workspace(self.store, self.root, project.id, workspace_path) {
     Ok(_) => Ok(())
