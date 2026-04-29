@@ -391,11 +391,6 @@ fn project_workspace(root : String, project_id : String) -> String {
 }
 
 ///|
-fn preview_dist_dir(workspace_path : String) -> String {
-  workspace_path + "/preview-dist"
-}
-
-///|
 fn public_preview_url(preview_public_id : String) -> String {
   @sdk.preview_public_path(preview_public_id)
 }
@@ -2215,51 +2210,6 @@ fn PreviewManager::wait_until_healthy(
 }
 
 ///|
-fn PreviewManager::copy_preview_assets(
-  self : PreviewManager,
-  project : @sdk.ProjectDetail,
-) -> Result[String, String] {
-  let workspace_path = project_workspace(self.root, project.id)
-  let preview_dir = preview_dist_dir(workspace_path)
-  safe_remove_tree(preview_dir)
-  ensure_dir(preview_dir)
-
-  let public_dir = workspace_relative_path(workspace_path, "frontend/public")
-  let copy_status = shell_status(
-    "cp -R " + shell_quote(public_dir + "/.") + " " + shell_quote(preview_dir),
-  )
-  if copy_status != 0 {
-    return Err("The preview public assets could not be copied.")
-  }
-  let index_target = preview_dir + "/index.html"
-  let style_target = preview_dir + "/styles.css"
-  if !@fs.path_exists(index_target) {
-    safe_write_string(index_target, preview_fallback_index_html(self.root))
-  }
-  if !@fs.path_exists(style_target) {
-    safe_write_string(style_target, preview_fallback_styles(self.root))
-  }
-
-  let source = generated_build_output_path(
-    workspace_path,
-    self.build_profile,
-    generated_frontend_module(),
-    generated_frontend_backend(),
-  )
-  if !@fs.path_exists(source) {
-    return Err("The generated frontend artifact was not found after build.")
-  }
-  let target = preview_dir + "/app.js"
-  let copy_code = shell_status(
-    "cp " + shell_quote(source) + " " + shell_quote(target),
-  )
-  if copy_code != 0 || safe_read_bytes_or(target, b"").length() == 0 {
-    return Err("The generated frontend artifact could not be staged.")
-  }
-  Ok(preview_dir)
-}
-
-///|
 fn PreviewManager::rebuild_and_restart(
   self : PreviewManager,
   project : @sdk.ProjectDetail,
@@ -2277,9 +2227,11 @@ fn PreviewManager::rebuild_and_restart(
       "The updated app did not compile yet, so the preview could not be refreshed.",
     )
   }
-  let preview_dir = match self.copy_preview_assets(project) {
-    Ok(dir) => dir
-    Err(message) => return Err(message)
+  let script_path = preview_script_path(workspace_path)
+  if !@fs.path_exists(script_path) {
+    return Err(
+      "The app did not provide `moonbitcloud-preview.sh`, so MoonBit Cloud does not know how to start the live preview.",
+    )
   }
   let preferred_port = project.preview.map(fn(target) { target.port })
   let port = self.allocate_port(
@@ -2287,18 +2239,17 @@ fn PreviewManager::rebuild_and_restart(
     preferred=preferred_port.unwrap_or(0),
   )
   self.stop_port(port)
-  let backend_executable = generated_native_executable_path(
-    workspace_path,
-    self.build_profile,
-    generated_backend_module(),
-  )
-  if !@fs.path_exists(backend_executable) {
-    return Err("The generated backend executable was not found after build.")
-  }
   let pid = shell_status(
-    "cd '\{workspace_path}' && nohup '\{backend_executable}' \{port} '\{preview_dir}' >/tmp/moonbitcloud-preview-\{project.id}.log 2>&1 &",
+    "cd " +
+    shell_quote(workspace_path) +
+    " && chmod +x ./moonbitcloud-preview.sh && nohup ./moonbitcloud-preview.sh \{port} " +
+    shell_quote(self.build_profile.build_dir()) +
+    " >/tmp/moonbitcloud-preview-\{project.id}.log 2>&1 &",
   )
-  if !self.wait_until_healthy(port, generated_preview_health_path(), 12) {
+  if pid != 0 {
+    return Err("The preview process could not be started.")
+  }
+  if !self.wait_until_healthy(port, preview_health_path(), 12) {
     return Err(
       "The preview process started, but it did not become healthy in time.",
     )

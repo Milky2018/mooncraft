@@ -27,20 +27,16 @@ Each user project is created under:
 That directory is runtime scratch, not durable storage. The control plane keeps the authoritative workspace source snapshot in SQLite and hydrates it into scratch paths for Codex runs and preview rebuilds.
 The old `data/projects` location is not a fallback source; startup removes that legacy scratch root instead of migrating or restoring from it.
 
-Each generated project uses a simple full-stack MoonBit shape:
+Each generated project chooses its own MoonBit structure. The control plane does not create or require `frontend/`, `backend/`, or `shared/` directories; it only requires a root preview script and valid root-level MoonBit commands.
 
-- `frontend/`
-- `backend/`
-- `shared/`
-
-This keeps the live preview tied to a real generated app instead of a fake demo panel.
+This keeps the live preview tied to a real generated app instead of a fake demo panel without forcing every app into one scaffold.
 
 ## Current Runtime Flow
 
-1. `POST /api/projects` creates project metadata and writes a minimal generated MoonBit workspace.
+1. `POST /api/projects` creates project metadata and writes only MoonBit Cloud workspace metadata.
 2. `POST /api/projects/:id/runs` stores the user message, opens a run, and locks the project.
-3. `AgentGateway` updates the generated project.
-4. `PreviewManager` fetches approved MoonBit modules, rebuilds the generated app, copies preview assets, and restarts the generated backend on a stable local port.
+3. `AgentGateway` runs Codex in the project workspace. For the first app turn, Codex is instructed to create the real MoonBit project with `moon new`.
+4. `PreviewManager` fetches approved MoonBit modules, rebuilds the generated app, and starts the root preview script on a stable local port.
 5. The control plane marks the run as succeeded or failed and stores the latest preview target.
 6. `apps/web` polls run status and refreshes project state.
 
@@ -75,12 +71,13 @@ Important persisted fields include:
 
 ## Generated Workspace Boundary
 
-The control plane owns only the initial generated workspace contract:
+The control plane owns only the runtime boundary, not the app's source layout:
 
-- workspace root contains `moon.work`
-- modules are `frontend/`, `backend/`, and `shared/`
-- frontend public assets live under `frontend/public/`
-- the generated backend serves `/api/health`
+- new projects start without a platform-owned app scaffold
+- Codex creates the real MoonBit project with `moon new`
+- root-level `moon fmt`, `moon check`, `moon test`, and `moon build` must remain valid
+- `moonbitcloud-preview.sh` must exist at the workspace root
+- the preview script receives `<port> <build-profile>`, starts the app server, serves `/`, and returns success from `/api/health`
 - source snapshots are persisted after creation and after successful Codex edits
 
 There are no official app templates, no template ids, and no template picker in this slice. Reusable examples should live in documentation or external MoonBit projects, not as platform-owned scaffold variants.
@@ -129,7 +126,7 @@ The current preview path is same-origin and exposed through:
 - stored `preview.url` values like `/p/<preview_public_id>/`
 - `ALL /p/:preview_public_id/*` reverse proxy handling in the control plane
 
-Generated projects run their native backend executable on a private local port. The control plane stages `frontend/public/` plus the compiled frontend JS artifact into `preview-dist/`, proxies browser traffic through `/p/<preview_public_id>/`, and health-checks `/api/health`.
+Generated projects run their preview script on a private local port. The control plane builds the workspace, runs `./moonbitcloud-preview.sh <port> <build-profile>`, proxies browser traffic through `/p/<preview_public_id>/`, and health-checks `/api/health`.
 
 ## Why This Shape
 

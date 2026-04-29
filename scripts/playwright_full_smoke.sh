@@ -108,7 +108,7 @@ MOONBITCLOUD_PUBLIC_BASE_URL="$base_url" \
 MOONBITCLOUD_BUILD_PROFILE=debug \
 MOONBITCLOUD_CODEX_FAKE_MODE=smoke \
 MOONBITCLOUD_CODEX_DOCKER_IMAGE= \
-moon run --manifest-path moon.work services/control-plane --target native \
+moon -C . run --target native services/control-plane \
   >"$log_file" 2>&1 &
 server_pid=$!
 

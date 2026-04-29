@@ -39,7 +39,7 @@ async fn snapshot_workspace(
   let archive_code = shell_status(
     "cd " +
     shell_quote(workspace_path) +
-    " && tar --exclude='./_build' --exclude='./.mooncakes' --exclude='./preview-dist' -cf " +
+    " && tar --exclude='./_build' --exclude='./.mooncakes' --exclude='./.repos' --exclude='./preview-dist' -cf " +
     shell_quote(temp_path) +
     " . >/dev/null 2>&1",
   )

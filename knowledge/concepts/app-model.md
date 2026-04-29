@@ -34,7 +34,9 @@ The first platform model is:
 - The main user interface is chat, not a code editor.
 - Platform users own projects explicitly; project access must stay owner-scoped.
 - The app must remain runnable through the platform runner.
-- The app should preserve the generated `frontend/`, `backend/`, and `shared/` workspace shape unless a change is necessary.
+- The app should use the MoonBit project structure that fits the request; MoonBit Cloud must not assume every app has `frontend/`, `backend/`, and `shared/` directories.
+- The workspace root must keep `moon fmt`, `moon check`, `moon test`, and `moon build` valid.
+- The workspace root must provide `moonbitcloud-preview.sh` so MoonBit Cloud can start the live preview.
 - Public previews must stay tied to opaque preview identifiers, not predictable project ids.
 - Tenant-aware apps must scope data explicitly.
 - Product-facing complexity should stay hidden from the end user.

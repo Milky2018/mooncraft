@@ -119,9 +119,14 @@ fn bootstrap_prompt(user_message : String) -> String {
     #|- Default to MoonBit unless the user explicitly asks for another technology.
     #|- Complete the job in one turn without asking follow-up questions.
     #|- Use subagents only for concrete, bounded implementation tasks.
+    #|- This workspace intentionally starts without an app scaffold. Do not assume `frontend/`, `backend/`, or `shared/` directories exist.
+    #|- Use `moon new` to create the real MoonBit project, and choose the project structure that fits the user's app.
+    #|- Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working. If `moon new` creates a child directory, add a root `moon.work` or otherwise make root-level commands valid.
+    #|- The runtime has already fetched reference MoonBit packages with `moon fetch`; inspect `.repos` or `.mooncakes` when useful for examples from moonbitlang/async, moonbitlang/x, oboard/mocket, moonbit-community/isomorphic, and moonbit-community/selene.
+    #|- Create or maintain `moonbitcloud-preview.sh` at the workspace root. It receives `<port> <build-profile>`, starts the generated app server, serves the user-facing app at `/`, and returns success from `/api/health`.
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
     #|- You may run shell commands as needed.
-    #|- Before finishing, run `moon fmt`, `moon check`, and `moon test`.
+    #|- Before finishing, run `moon fmt`, `moon check`, `moon test`, and `moon build`.
     #|- Your final response must be brief: summarize what you built, mention validation status, and mention any blocking failure.
     #|
     #|User's requirement:
@@ -140,9 +145,13 @@ fn followup_prompt(user_message : String) -> String {
     #|- Default to MoonBit unless the user explicitly asks for another technology.
     #|- Complete the job in one turn without asking follow-up questions.
     #|- Use subagents only for concrete, bounded implementation tasks.
+    #|- Do not assume a fixed project layout. Preserve the existing app structure unless a change is needed.
+    #|- Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working.
+    #|- The runtime has already fetched reference MoonBit packages with `moon fetch`; inspect `.repos` or `.mooncakes` when useful for examples from moonbitlang/async, moonbitlang/x, oboard/mocket, moonbit-community/isomorphic, and moonbit-community/selene.
+    #|- Maintain `moonbitcloud-preview.sh` at the workspace root. It receives `<port> <build-profile>`, starts the generated app server, serves the user-facing app at `/`, and returns success from `/api/health`.
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
     #|- You may run shell commands as needed.
-    #|- Before finishing, run `moon fmt`, `moon check`, and `moon test`.
+    #|- Before finishing, run `moon fmt`, `moon check`, `moon test`, and `moon build`.
     #|- Your final response must be brief: summarize what you built, mention validation status, and mention any blocking failure.
     #|
     #|Latest user request:
@@ -165,9 +174,13 @@ fn recovery_prompt(
     #|- Complete the job in one turn without asking follow-up questions.
     #|- Use subagents only for concrete, bounded implementation tasks.
     #|- The current workspace already contains the latest saved project state.
+    #|- Do not assume a fixed project layout. Preserve the existing app structure unless a change is needed.
+    #|- Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working.
+    #|- The runtime has already fetched reference MoonBit packages with `moon fetch`; inspect `.repos` or `.mooncakes` when useful for examples from moonbitlang/async, moonbitlang/x, oboard/mocket, moonbit-community/isomorphic, and moonbit-community/selene.
+    #|- Maintain `moonbitcloud-preview.sh` at the workspace root. It receives `<port> <build-profile>`, starts the generated app server, serves the user-facing app at `/`, and returns success from `/api/health`.
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
     #|- You may run shell commands as needed.
-    #|- Before finishing, run `moon fmt`, `moon check`, and `moon test`.
+    #|- Before finishing, run `moon fmt`, `moon check`, `moon test`, and `moon build`.
     #|- Your final response must be brief: summarize what you built, mention validation status, and mention any blocking failure.
     #|
     #|Original project requirement:
@@ -374,39 +387,86 @@ fn fake_codex_update_workspace(
     normalized
   }
   let subtitle = "Smoke mode applied: " + normalized
-  let content = (
-      #|///|
-      #|pub(all) struct AppInfo {
-      #|  title : String
-      #|  subtitle : String
-      #|} derive(Debug, ToJson, FromJson)
+  safe_write_string(
+    workspace_path + "/moon.mod.json",
+    (
+      #|{
+      #|  "name": "moonbitcloud/generated-app",
+      #|  "version": "0.1.0",
+      #|  "preferred-target": "native",
+      #|  "deps": {
+      #|    "oboard/mocket": "0.6.13",
+      #|    "moonbitlang/x": "0.4.14"
+      #|  },
+      #|  "readme": "README.md",
+      #|  "repository": "",
+      #|  "license": "Apache-2.0",
+      #|  "keywords": ["moonbit", "moonbitcloud", "generated"],
+      #|  "description": "Smoke-mode generated MoonBit Cloud app."
+      #|}
+    ),
+  )
+  safe_write_string(
+    workspace_path + "/moon.pkg",
+    (
+      #|import {
+      #|  "oboard/mocket",
+      #|  "moonbitlang/core/env",
+      #|  "moonbitlang/core/string",
+      #|}
       #|
-      #|///|
-      #|pub(all) struct HealthStatus {
-      #|  ok : Bool
-      #|  title : String
-      #|  subtitle : String
-      #|} derive(Debug, ToJson, FromJson)
+      #|options(
+      #|  "is-main": true,
+      #|)
       #|
+      #|supported_targets = "native"
+    ),
+  )
+  safe_write_string(
+    workspace_path + "/main.mbt",
+    (
       #|///|
-      #|pub fn default_info() -> AppInfo {
-      #|  {
+      #|fn main {
+      #|  let args = @env.args()
+      #|  let port = if args.length() > 1 {
+      #|    @string.parse_int(args[1]) catch {
+      #|      _ => 4300
+      #|    }
+      #|  } else {
+      #|    4300
+      #|  }
+      #|  let title = 
     ) +
-    "    title: " +
     moonbit_string_literal(title) +
     (
-      #|,
+      #|
+      #|  let subtitle = 
     ) +
-    "    subtitle: " +
     moonbit_string_literal(subtitle) +
     (
-      #|,
-      #|  }
+      #|
+      #|  let app = @mocket.new()
+      #|  app.get("/api/health", _ => @mocket.HttpResponse::new(OK, headers={ "Content-Type": "application/json" }).body("{\"ok\":true}"))
+      #|  app.get("/", _ => @mocket.HttpResponse::new(OK, headers={ "Content-Type": "text/html; charset=utf-8" }).body("<!doctype html><html><head><meta charset='utf-8'><title>" + title + "</title><style>body{font-family:sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;background:#f6fbf8;color:#10231b}.card{max-width:680px;padding:40px;border-radius:28px;background:white;box-shadow:0 30px 90px #d7e4dc}p{color:#52645b;line-height:1.6}</style></head><body><main class='card'><p>MoonBit Cloud smoke preview</p><h1>" + title + "</h1><p>" + subtitle + "</p></main></body></html>"))
+      #|  app.serve(port=port)
       #|}
-    )
-  if @fs.path_exists(workspace_path + "/shared/model.mbt") {
-    safe_write_string(workspace_path + "/shared/model.mbt", content)
-  }
+    ),
+  )
+  safe_write_string(
+    workspace_path + "/" + preview_script_relative_path(),
+    (
+      #|#!/usr/bin/env bash
+      #|set -euo pipefail
+      #|port="${1:-4300}"
+      #|profile="${2:-debug}"
+      #|exe="$(find "_build/native/${profile}/build" -name '*.exe' -type f | head -n 1)"
+      #|if [ -z "${exe}" ]; then
+      #|  echo "No native MoonBit executable was found for profile ${profile}." >&2
+      #|  exit 1
+      #|fi
+      #|exec "${exe}" "${port}"
+    ),
+  )
   safe_write_string(
     workspace_path + "/README.md",
     "# Smoke Mode\n\nLatest request: " + normalized + "\n",
@@ -578,10 +638,31 @@ fn docker_command_args(
   args.push("-w")
   args.push(codex_container_workspace_dir())
   args.push(config.image)
-  for part in container_command {
+  for part in docker_codex_entry_command(container_command) {
     args.push(part)
   }
   args
+}
+
+///|
+fn docker_codex_entry_command(
+  container_command : Array[String],
+) -> Array[String] {
+  let script_lines : Array[String] = ["set -e"]
+  for command in user_project_fetch_commands() {
+    script_lines.push(command)
+  }
+  script_lines.push("exec \"$@\"")
+  let wrapped : Array[String] = [
+    "sh",
+    "-lc",
+    script_lines.join("\n"),
+    "moonbitcloud-codex",
+  ]
+  for part in container_command {
+    wrapped.push(part)
+  }
+  wrapped
 }
 
 ///|
@@ -1113,6 +1194,7 @@ fn validation_shell_script(include_update~ : Bool) -> String {
   }
   commands.push("moon fmt")
   commands.push("moon check")
+  commands.push("moon build")
   commands.push("moon test")
   let lines : Array[String] = []
   lines.push("set -e")

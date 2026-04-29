@@ -38,23 +38,18 @@ moonbitcloud/
 └── data/                     # local SQLite state and disposable runtime scratch
 ```
 
-Generated user projects are materialized as disposable scratch workspaces under `data/runtime/projects/<project-id>/workspace/`. The authoritative project source snapshot is stored in SQLite, not in that directory. Every new project starts from a minimal generated MoonBit workspace shape:
+Generated user projects are materialized as disposable scratch workspaces under `data/runtime/projects/<project-id>/workspace/`. The authoritative project source snapshot is stored in SQLite, not in that directory. Every new project starts without an app scaffold; it only contains MoonBit Cloud metadata so snapshots and agent instructions have a stable anchor.
 
-- `moon.work` at the workspace root
-- `frontend/`
-- `backend/`
-- `shared/`
+The first user prompt decides what the app becomes. Codex is instructed to use `moon new`, choose the MoonBit project shape that fits the request, keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working, and maintain a root `moonbitcloud-preview.sh` script for live preview startup.
 
-Each generated module owns its own `moon.mod.json`; generated workspace roots intentionally do not contain a root `moon.mod.json`.
-
-The platform no longer keeps official app templates or template manifests. The first user prompt decides what the generated app becomes.
+The platform no longer keeps official app templates or template manifests.
 
 ## Implementation Notes
 
 - `apps/web` renders the app-develop page with a left project rail, center chat workspace, and right preview panel.
 - `services/control-plane` persists `users`, `sessions`, `oauth_accounts`, `projects`, `messages`, `runs`, and workspace snapshots through Morm. It defaults to SQLite for dev/test and switches to PostgreSQL when `MOONBITCLOUD_DATABASE_URL` is set.
-- Each successful run rebuilds the generated project and restarts a local preview server on a stable port.
-- Generated previews run through the project's native Mocket backend and stage frontend assets into `preview-dist/`.
+- Each successful run fetches approved MoonBit reference packages, rebuilds the generated project, and restarts a local preview server on a stable port.
+- Generated previews run through the project's root `moonbitcloud-preview.sh` contract instead of a fixed platform-owned app layout.
 - Preview URLs are public opaque paths like `/p/<preview_public_id>/` and stay same-origin through the control plane.
 - `packages/sdk` defines the shared request and response payloads used by the frontend and control plane.
 - `AgentGateway` runs Docker-backed Codex CLI work through a durable async worker process and persists one `codex_thread_id` per project so later messages can resume the same Codex session.
@@ -148,7 +143,7 @@ just serve 8107 release
 
 `just check-user-project-deps-codex` runs the same fetch check inside the Codex runtime image and verifies that the image seeds Codex skills.
 
-Control-plane HTML/CSS shells are runtime files under `services/control-plane/assets`. They are available in the documented local workflow because `just serve` and `moon run --manifest-path moon.work --target native services/control-plane` run from the repository root. `moon build` does not embed those assets into the native executable, so standalone runs must preserve that directory next to the runtime working directory.
+Control-plane HTML/CSS shells are runtime files under `services/control-plane/assets`. They are available in the documented local workflow because `just serve` and `moon -C . run --target native services/control-plane` run from the repository root. `moon build` does not embed those assets into the native executable, so standalone runs must preserve that directory next to the runtime working directory.
 
 ## Next Major Steps
 

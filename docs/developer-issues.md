@@ -7,7 +7,7 @@ Agents do not edit this. This file is maintainable by human developers.
 - [x] Run Codex against the hydrated temp workspace.
 - [x] Save the resulting workspace back after the run, whether success or failure.
 - [x] Keep codex_thread_id, but also persist the initial project brief explicitly so you can recover if the session ever becomes unusable.
-- [x] Remove runtime template manifests and generate a minimal project workspace directly.
+- [x] Remove runtime template manifests and seed an empty project workspace instead of generating a fixed app scaffold.
 - [x] Add a real durability smoke test: first run, delete the canonical workspace/, send a follow-up message, and verify the run hydrates from workspace.tar, validates, and refreshes preview.
 - [ ] Real codex docker e2e
   - [x] Add a real just codex-smoke that requires MOONBITCLOUD_CODEX_DOCKER_IMAGE and builds the Todo List App end-to-end with actual Codex CLI.

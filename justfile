@@ -12,13 +12,13 @@ default:
 
 # Format all MoonBit code
 fmt:
-  moon fmt --manifest-path moon.work
-  moon info --manifest-path moon.work --target native
-  moon info --manifest-path moon.work --target js
+  moon -C . fmt
+  moon -C . info --target native
+  moon -C . info --target js
 
 # Generate public interface summaries when needed
 info:
-  moon info --manifest-path moon.work
+  moon -C . info
 
 # Compatibility alias for the workspace build
 build-sdk profile='debug':
@@ -81,7 +81,7 @@ codex-config:
 
 # Build the whole workspace
 build profile='debug': fmt
-  @if [ "{{profile}}" = release ]; then moon build --manifest-path moon.work --release; else moon build --manifest-path moon.work; fi
+  @if [ "{{profile}}" = release ]; then moon -C . build --release; else moon -C . build; fi
 
 # Check the registry modules fetched for generated user projects
 check-user-project-deps:
@@ -108,10 +108,10 @@ serve target='8080' profile='debug':
   echo "MoonBit Cloud: $base_url"
   if [[ "$profile" == "release" ]]; then
     MOONBITCLOUD_PORT="$port" MOONBITCLOUD_PUBLIC_BASE_URL="$public_base_url" MOONBITCLOUD_BUILD_PROFILE=release \
-      moon run --manifest-path moon.work --target native --release services/control-plane
+      moon -C . run --target native --release services/control-plane
   else
     MOONBITCLOUD_PORT="$port" MOONBITCLOUD_PUBLIC_BASE_URL="$public_base_url" MOONBITCLOUD_BUILD_PROFILE=debug \
-      moon run --manifest-path moon.work --target native services/control-plane
+      moon -C . run --target native services/control-plane
   fi
 
 # Open the app in your browser
@@ -137,7 +137,7 @@ smoke:
   fi
   tmpdir="$(mktemp -d)"
   log_file="$tmpdir/control-plane.log"
-  MOONBITCLOUD_CODEX_FAKE_MODE=smoke MOONBITCLOUD_PORT="$port" MOONBITCLOUD_PUBLIC_BASE_URL="$base_url" moon run --manifest-path moon.work --target native services/control-plane >"$log_file" 2>&1 &
+  MOONBITCLOUD_CODEX_FAKE_MODE=smoke MOONBITCLOUD_PORT="$port" MOONBITCLOUD_PUBLIC_BASE_URL="$base_url" moon -C . run --target native services/control-plane >"$log_file" 2>&1 &
   server_pid=$!
   cleanup() {
     kill "$server_pid" >/dev/null 2>&1 || true
@@ -146,7 +146,7 @@ smoke:
   }
   trap cleanup EXIT
 
-  for _ in {1..20}; do
+  for _ in {1..60}; do
     if curl -fsS "$base_url/api/health" >/dev/null 2>&1; then
       break
     fi
@@ -460,7 +460,7 @@ codex-smoke:
   }
   trap cleanup EXIT
 
-  MOONBITCLOUD_CODEX_FAKE_MODE= MOONBITCLOUD_PORT="$port" moon run --manifest-path moon.work services/control-plane --target native >"$log_file" 2>&1 &
+  MOONBITCLOUD_CODEX_FAKE_MODE= MOONBITCLOUD_PORT="$port" moon -C . run --target native services/control-plane >"$log_file" 2>&1 &
   server_pid=$!
   for _ in {1..60}; do
     if curl -fsS "$base_url/api/health" >/dev/null 2>&1; then

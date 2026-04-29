@@ -14,9 +14,9 @@ Responsibilities:
 - rebuild and restart local previews
 - store preview URLs and last-known run state
 
-The platform no longer uses official app templates. Project rows do not carry template ids, and project creation writes a small generated workspace with `frontend/`, `backend/`, and `shared/` modules. The first user prompt decides what the app becomes.
+The platform no longer uses official app templates. Project rows do not carry template ids, and project creation writes only MoonBit Cloud workspace metadata. The first user prompt decides what the app becomes; Codex is instructed to use `moon new` and choose the project shape.
 
-The current `AgentGateway` uses Docker-backed Codex CLI runs. Each project keeps one persistent `codex_thread_id`, and each new chat message starts a detached worker process through `moonbitlang/async/process` that resumes that session, validates the workspace with dependency fetches plus `moon fmt`, `moon check`, and `moon test`, then refreshes the preview. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
+The current `AgentGateway` uses Docker-backed Codex CLI runs. Each project keeps one persistent `codex_thread_id`, and each new chat message starts a detached worker process through `moonbitlang/async/process` that resumes that session, validates the workspace with dependency fetches plus `moon fmt`, `moon check`, `moon build`, and `moon test`, then refreshes the preview. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
 
 Workspace directories are no longer durable state. The control plane saves the latest source archive in SQLite after initial workspace generation and after Codex edits. Each run hydrates that database snapshot into an isolated runtime workspace before starting Codex, then restores the local preview cache from the saved snapshot.
 
@@ -49,7 +49,7 @@ Static control-plane shells live under `services/control-plane/assets` instead o
 - `auth/**/index.html` and shared auth CSS for account action pages
 - `preview-fallback/index.html` and `preview-fallback/styles.css` for generated previews that do not provide their own shell
 
-These files are runtime assets. `moon build` checks and builds the MoonBit code, but it does not embed this directory into the executable. The supported local walkthrough runs from the repository root through `just serve` or `moon run --manifest-path moon.work --target native services/control-plane`, so the assets are available at `services/control-plane/assets`. The Docker walkthrough also includes them because the image uses `COPY . /app` before running the control plane from `/app`.
+These files are runtime assets. `moon build` checks and builds the MoonBit code, but it does not embed this directory into the executable. The supported local walkthrough runs from the repository root through `just serve` or `moon -C . run --target native services/control-plane`, so the assets are available at `services/control-plane/assets`. The Docker walkthrough also includes them because the image uses `COPY . /app` before running the control plane from `/app`.
 
 If you run a compiled `control-plane.exe` from another directory, keep `services/control-plane/assets` available under that working directory or the file-backed HTML pages will not render.
 
@@ -59,9 +59,9 @@ Password reset and email verification links are queued to `data/control-plane/ac
 
 ## Preview Flow
 
-Generated previews are backend-backed. The control plane builds the generated workspace, stages `frontend/public/` plus the compiled frontend JS artifact into `preview-dist/`, starts the generated native backend executable on a private local port, and exposes it through `/p/<preview_public_id>/`.
+Generated previews are script-backed. The control plane builds the generated workspace, starts `./moonbitcloud-preview.sh <port> <build-profile>` on a private local port, and exposes it through `/p/<preview_public_id>/`.
 
-The generated backend must keep `/api/health` available so the preview manager can verify readiness.
+The preview script must keep `/api/health` available so the preview manager can verify readiness, and it must serve the user-facing app at `/`.
 
 ## Validation
 

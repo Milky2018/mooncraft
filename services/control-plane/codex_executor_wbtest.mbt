@@ -67,10 +67,25 @@ test "docker validation uses initialized image registry in one shell" {
       #|moon fmt
       #|echo '== moon check =='
       #|moon check
+      #|echo '== moon build =='
+      #|moon build
       #|echo '== moon test =='
       #|moon test
     ),
   )
+}
+
+///|
+test "docker codex command fetches reference modules before codex starts" {
+  let command = docker_codex_entry_command(["codex", "exec", "Build an app"])
+  inspect(command[0], content="sh")
+  inspect(command[1], content="-lc")
+  assert_true(command[2].contains("moon fetch --no-update moonbitlang/async"))
+  assert_true(command[2].contains("moon fetch --no-update oboard/mocket"))
+  assert_true(command[2].contains("exec \"$@\""))
+  inspect(command[3], content="moonbitcloud-codex")
+  inspect(command[4], content="codex")
+  inspect(command[5], content="exec")
 }
 
 ///|
@@ -303,18 +318,18 @@ async test "workspace snapshot round-trips project files and excludes build outp
   let project_id = next_id("snapshot-roundtrip")
   let workspace_path = project_workspace(root, project_id)
   safe_remove_tree(project_root(root, project_id))
-  ensure_dir(workspace_path + "/frontend")
+  ensure_dir(workspace_path + "/app")
   ensure_dir(workspace_path + "/_build/cache")
-  safe_write_string(workspace_path + "/frontend/main.mbt", "first version\n")
+  safe_write_string(workspace_path + "/app/main.mbt", "first version\n")
   safe_write_string(workspace_path + "/_build/cache/output.txt", "generated\n")
 
   snapshot_workspace(store, root, project_id, workspace_path).unwrap()
-  safe_write_string(workspace_path + "/frontend/main.mbt", "second version\n")
+  safe_write_string(workspace_path + "/app/main.mbt", "second version\n")
   restore_workspace_snapshot(store, root, project_id, workspace_path).unwrap()
 
   inspect(store.get_workspace_snapshot(project_id) is Some(_), content="true")
   inspect(
-    safe_read_string_or(workspace_path + "/frontend/main.mbt", ""),
+    safe_read_string_or(workspace_path + "/app/main.mbt", ""),
     content="first version\n",
   )
   inspect(
