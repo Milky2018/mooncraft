@@ -3,12 +3,12 @@ fn theme_toggle_button(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
 ) -> @rabbita.Html {
+  let label = "Theme: " + model.theme_mode.label()
   @html.button(
     type_="button",
     on_click=dispatch(ToggleTheme),
     style=secondary_button_style(true),
-    "Theme: " + model.theme_mode.label(),
-  )
+  ) <| label
 }
 
 ///|
@@ -22,19 +22,16 @@ fn render_app_header(
         "padding: 12px 14px", "display: flex", "align-items: center", "justify-content: space-between",
         "gap: 12px",
       ],
-    [
-      @html.div(style=["display: flex", "align-items: center", "gap: 10px"], [
-        brand_logo(38),
-        @html.div(
-          style=[
-            "font-size: 22px", "font-weight: 600", "letter-spacing: -0.02em",
-          ],
-          "Mooncraft",
-        ),
-      ]),
-      theme_toggle_button(dispatch, model),
-    ],
-  )
+  ) <| [
+    @html.div(style=["display: flex", "align-items: center", "gap: 10px"], [
+      brand_logo(38),
+      @html.div(
+        style=["font-size: 22px", "font-weight: 600", "letter-spacing: -0.02em"],
+        "Mooncraft",
+      ),
+    ]),
+    theme_toggle_button(dispatch, model),
+  ]
 }
 
 ///|
@@ -62,8 +59,7 @@ fn auth_mode_button(
         true,
       ) +
       ["flex: 1"],
-    label,
-  )
+  ) <| label
 }
 
 ///|
@@ -76,7 +72,7 @@ fn auth_field(
   on_input : (String) -> Msg,
   dispatch : @rabbita.Dispatch[Msg],
 ) -> @rabbita.Html {
-  @html.div(style=["display: flex", "flex-direction: column", "gap: 8px"], [
+  @html.div(style=["display: flex", "flex-direction: column", "gap: 8px"]) <| [
     @html.label(for_=field_id, style=section_label_style(), label),
     @html.input(
       input_type~,
@@ -87,7 +83,7 @@ fn auth_field(
       style=input_style(false),
       "",
     ),
-  ])
+  ]
 }
 
 ///|
@@ -104,8 +100,7 @@ fn render_notice_card(notice : String?, tone : String) -> @rabbita.Html {
           "line-height: 1.6",
           "color: var(--text-1)",
         ],
-        message,
-      )
+      ) <| message
     None => @html.nothing
   }
 }
@@ -139,163 +134,145 @@ fn render_auth_screen(
     style=[
       "display: flex", "flex-wrap: wrap", "gap: 12px", "align-items: stretch", "flex: 1",
     ],
-    [
-      @html.div(
-        style=panel_style() +
-          [
-            "flex: 1 1 360px", "min-width: 320px", "padding: 28px", "display: flex",
-            "flex-direction: column", "gap: 18px", "justify-content: center",
-          ],
+  ) <| [
+    @html.div(
+      style=panel_style() +
         [
-          @html.div(
-            style=[
-              "font-size: 40px", "line-height: 1.04", "font-weight: 600", "letter-spacing: -0.03em",
-              "max-width: 620px",
-            ],
-            title,
-          ),
-          @html.div(
-            style=[
-              "font-size: 16px", "line-height: 1.65", "color: var(--text-2)", "max-width: 620px",
-            ],
-            subtitle,
-          ),
-          @html.div(
-            style=[
-              "display: grid", "grid-template-columns: repeat(3, minmax(0, 1fr))",
-              "gap: 10px", "padding-top: 18px", "max-width: 640px",
-            ],
-            [
-              auth_story_card("1", "Describe", "Tell Mooncraft what you want."),
-              auth_story_card("2", "Build", "The agent edits the workspace."),
-              auth_story_card("3", "Preview", "Watch the app run live."),
-            ],
-          ),
+          "flex: 1 1 360px", "min-width: 320px", "padding: 28px", "display: flex",
+          "flex-direction: column", "gap: 18px", "justify-content: center",
         ],
-      ),
+    ) <| [
       @html.div(
-        style=panel_style() +
-          [
-            "flex: 1 1 420px", "min-width: 320px", "max-width: 560px", "padding: 22px",
-            "display: flex", "flex-direction: column", "gap: 14px",
-          ],
-        [
-          @html.div(
-            style=[
-              "display: flex", "gap: 6px", "padding: 4px", "border-radius: 8px",
-              "background: var(--surface-3)", "border: 1px solid var(--border-soft)",
-            ],
-            [
-              auth_mode_button(dispatch, model.auth_mode, Signup, "Sign Up"),
-              auth_mode_button(dispatch, model.auth_mode, Login, "Log In"),
-            ],
-          ),
-          render_notice_card(model.auth_notice, "var(--danger-soft)"),
-          auth_field(
-            "Email",
-            "auth-email",
-            @html.Email,
-            model.auth_email,
-            "name@example.com",
-            fn(value) { AuthEmailChanged(value) },
-            dispatch,
-          ),
-          if model.auth_mode is ForgotPassword {
-            @html.nothing
-          } else {
-            auth_field(
-              "Password",
-              "auth-password",
-              @html.Password,
-              model.auth_password,
-              "At least 8 characters",
-              fn(value) { AuthPasswordChanged(value) },
-              dispatch,
-            )
-          },
-          if model.auth_mode is Signup {
-            auth_field(
-              "Display Name",
-              "auth-display-name",
-              @html.Text,
-              model.auth_display_name,
-              "Optional operator name",
-              fn(value) { AuthDisplayNameChanged(value) },
-              dispatch,
-            )
-          } else {
-            @html.nothing
-          },
-          if model.auth_mode is Login {
-            @html.button(
-              type_="button",
-              on_click=dispatch(AuthModeSelected(ForgotPassword)),
-              style=[
-                "align-self: flex-start", "border: none", "background: transparent",
-                "color: var(--text-2)", "padding: 0", "font-size: 13px", "font-weight: 700",
-                "cursor: pointer",
-              ],
-              "Forgot password?",
-            )
-          } else if model.auth_mode is ForgotPassword {
-            @html.button(
-              type_="button",
-              on_click=dispatch(AuthModeSelected(Login)),
-              style=[
-                "align-self: flex-start", "border: none", "background: transparent",
-                "color: var(--text-2)", "padding: 0", "font-size: 13px", "font-weight: 700",
-                "cursor: pointer",
-              ],
-              "Back to log in",
-            )
-          } else {
-            @html.nothing
-          },
-          @html.button(
-            type_="button",
-            disabled=!can_submit_auth(model),
-            on_click=dispatch(SubmitAuth),
-            style=primary_button_style(can_submit_auth(model)),
-            submit_label,
-          ),
-          if model.github_enabled && !(model.auth_mode is ForgotPassword) {
-            @html.fragment([
-              @html.div(
-                style=[
-                  "display: flex", "align-items: center", "gap: 12px", "color: var(--text-3)",
-                ],
-                [
-                  @html.div(
-                    style=[
-                      "flex: 1", "height: 1px", "background: var(--border-soft)",
-                    ],
-                    "",
-                  ),
-                  @html.div(style=section_label_style(), "or"),
-                  @html.div(
-                    style=[
-                      "flex: 1", "height: 1px", "background: var(--border-soft)",
-                    ],
-                    "",
-                  ),
-                ],
-              ),
-              @html.a(
-                href="/auth/github/start",
-                style=secondary_button_style(true) +
-                  [
-                    "text-decoration: none", "justify-content: center", "padding: 12px 14px",
-                  ],
-                "Continue with GitHub",
-              ),
-            ])
-          } else {
-            @html.nothing
-          },
+        style=[
+          "font-size: 40px", "line-height: 1.04", "font-weight: 600", "letter-spacing: -0.03em",
+          "max-width: 620px",
         ],
-      ),
+      ) <| title,
+      @html.div(
+        style=[
+          "font-size: 16px", "line-height: 1.65", "color: var(--text-2)", "max-width: 620px",
+        ],
+      ) <| subtitle,
+      @html.div(
+        style=[
+          "display: grid", "grid-template-columns: repeat(3, minmax(0, 1fr))", "gap: 10px",
+          "padding-top: 18px", "max-width: 640px",
+        ],
+      ) <| [
+        auth_story_card("1", "Describe", "Tell Mooncraft what you want."),
+        auth_story_card("2", "Build", "The agent edits the workspace."),
+        auth_story_card("3", "Preview", "Watch the app run live."),
+      ],
     ],
-  )
+    @html.div(
+      style=panel_style() +
+        [
+          "flex: 1 1 420px", "min-width: 320px", "max-width: 560px", "padding: 22px",
+          "display: flex", "flex-direction: column", "gap: 14px",
+        ],
+    ) <| [
+      @html.div(
+        style=[
+          "display: flex", "gap: 6px", "padding: 4px", "border-radius: 8px", "background: var(--surface-3)",
+          "border: 1px solid var(--border-soft)",
+        ],
+      ) <| [
+        auth_mode_button(dispatch, model.auth_mode, Signup, "Sign Up"),
+        auth_mode_button(dispatch, model.auth_mode, Login, "Log In"),
+      ],
+      render_notice_card(model.auth_notice, "var(--danger-soft)"),
+      auth_field(
+        "Email",
+        "auth-email",
+        @html.Email,
+        model.auth_email,
+        "name@example.com",
+        fn(value) { AuthEmailChanged(value) },
+        dispatch,
+      ),
+      if model.auth_mode is ForgotPassword {
+        @html.nothing
+      } else {
+        auth_field(
+          "Password",
+          "auth-password",
+          @html.Password,
+          model.auth_password,
+          "At least 8 characters",
+          fn(value) { AuthPasswordChanged(value) },
+          dispatch,
+        )
+      },
+      if model.auth_mode is Signup {
+        auth_field(
+          "Display Name",
+          "auth-display-name",
+          @html.Text,
+          model.auth_display_name,
+          "Optional operator name",
+          fn(value) { AuthDisplayNameChanged(value) },
+          dispatch,
+        )
+      } else {
+        @html.nothing
+      },
+      if model.auth_mode is Login {
+        @html.button(
+          type_="button",
+          on_click=dispatch(AuthModeSelected(ForgotPassword)),
+          style=[
+            "align-self: flex-start", "border: none", "background: transparent",
+            "color: var(--text-2)", "padding: 0", "font-size: 13px", "font-weight: 700",
+            "cursor: pointer",
+          ],
+        ) <| "Forgot password?"
+      } else if model.auth_mode is ForgotPassword {
+        @html.button(
+          type_="button",
+          on_click=dispatch(AuthModeSelected(Login)),
+          style=[
+            "align-self: flex-start", "border: none", "background: transparent",
+            "color: var(--text-2)", "padding: 0", "font-size: 13px", "font-weight: 700",
+            "cursor: pointer",
+          ],
+        ) <| "Back to log in"
+      } else {
+        @html.nothing
+      },
+      @html.button(
+        type_="button",
+        disabled=!can_submit_auth(model),
+        on_click=dispatch(SubmitAuth),
+        style=primary_button_style(can_submit_auth(model)),
+      ) <| submit_label,
+      if model.github_enabled && !(model.auth_mode is ForgotPassword) {
+        @html.fragment <| [
+          @html.div(
+            style=[
+              "display: flex", "align-items: center", "gap: 12px", "color: var(--text-3)",
+            ],
+          ) <| [
+            @html.div(
+              style=["flex: 1", "height: 1px", "background: var(--border-soft)"],
+            ) <| "",
+            @html.div(style=section_label_style()) <| "or",
+            @html.div(
+              style=["flex: 1", "height: 1px", "background: var(--border-soft)"],
+            ) <| "",
+          ],
+          @html.a(
+            href="/auth/github/start",
+            style=secondary_button_style(true) +
+              [
+                "text-decoration: none", "justify-content: center", "padding: 12px 14px",
+              ],
+          ) <| "Continue with GitHub",
+        ]
+      } else {
+        @html.nothing
+      },
+    ],
+  ]
 }
 
 ///|
@@ -309,24 +286,20 @@ fn auth_story_card(
       "padding: 14px", "border-radius: 14px", "background: var(--surface-2)", "border: 1px solid var(--border-soft)",
       "display: flex", "flex-direction: column", "gap: 8px", "min-height: 104px",
     ],
-    [
-      @html.div(
-        style=mono_style() +
-          [
-            "width: 24px", "height: 24px", "border-radius: 999px", "display: grid",
-            "place-items: center", "background: var(--accent-soft)", "color: var(--accent-strong)",
-            "font-size: 11px", "font-weight: 700",
-          ],
-        step,
-      ),
-      @html.div(
-        style=["font-size: 15px", "font-weight: 600", "color: var(--text-1)"],
-        title,
-      ),
-      @html.div(
-        style=["font-size: 12px", "line-height: 1.55", "color: var(--text-2)"],
-        body,
-      ),
-    ],
-  )
+  ) <| [
+    @html.div(
+      style=mono_style() +
+        [
+          "width: 24px", "height: 24px", "border-radius: 999px", "display: grid",
+          "place-items: center", "background: var(--accent-soft)", "color: var(--accent-strong)",
+          "font-size: 11px", "font-weight: 700",
+        ],
+    ) <| step,
+    @html.div(
+      style=["font-size: 15px", "font-weight: 600", "color: var(--text-1)"],
+    ) <| title,
+    @html.div(
+      style=["font-size: 12px", "line-height: 1.55", "color: var(--text-2)"],
+    ) <| body,
+  ]
 }

@@ -133,6 +133,7 @@ fn clear_workspace(model : Model) -> Model {
     run_events: [],
     last_run_event_seq: 0,
     run_spinner_tick: 0,
+    active_page: AppWorkspace,
     draft: "",
     create_project_pending: false,
     delete_project_confirming: None,
@@ -168,6 +169,11 @@ fn apply_session(model : Model, session : @sdk.SessionResponse) -> Model {
     },
     account_ai_api_key: "",
     auth_notice: None,
+    active_page: if session.authenticated {
+      model.active_page
+    } else {
+      AppWorkspace
+    },
   }
 }
 
@@ -193,6 +199,7 @@ fn auth_recovery(
       account_notice: None,
       account_panel_open: false,
       password_panel_open: false,
+      active_page: AppWorkspace,
       auth_notice: Some(message),
     },
   )

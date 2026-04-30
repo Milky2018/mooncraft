@@ -19,8 +19,7 @@ fn status_badge(state : @sdk.RunState) -> @rabbita.Html {
         "text-transform: uppercase",
         "border: 1px solid var(--border-soft)",
       ],
-    state.label(),
-  )
+  ) <| state.label()
 }
 
 ///|
@@ -43,14 +42,13 @@ fn brand_logo(size : Int) -> @rabbita.Html {
       "overflow: hidden",
       "flex-shrink: 0",
     ],
-    @html.img(
-      src=logo_asset_url(),
-      alt="Mooncraft logo",
-      loading="eager",
-      decoding="async",
-      style=["width: 100%", "height: 100%", "object-fit: contain"],
-      "",
-    ),
+  ) <| @html.img(
+    src=logo_asset_url(),
+    alt="Mooncraft logo",
+    loading="eager",
+    decoding="async",
+    style=["width: 100%", "height: 100%", "object-fit: contain"],
+    "",
   )
 }
 

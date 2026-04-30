@@ -13,6 +13,12 @@ enum ThemeMode {
 } derive(Eq)
 
 ///|
+enum ShellPage {
+  AppWorkspace
+  LlmConfig
+} derive(Eq)
+
+///|
 struct Model {
   boot_requested : Bool
   session_ready : Bool
@@ -37,6 +43,7 @@ struct Model {
   account_notice : String?
   account_panel_open : Bool
   password_panel_open : Bool
+  active_page : ShellPage
   projects : Array[@sdk.ProjectSummary]
   selected_project_id : String?
   project_detail : @sdk.ProjectDetail?
@@ -70,6 +77,7 @@ enum Msg {
   LoggedOut(Result[Unit, @sdk.ApiError])
   ToggleAccountPanel
   TogglePasswordPanel
+  OpenLlmConfig
   AccountCurrentPasswordChanged(String)
   AccountNewPasswordChanged(String)
   AccountAiProviderChanged(String)
@@ -189,6 +197,7 @@ fn initial_model() -> Model {
     account_notice: None,
     account_panel_open: false,
     password_panel_open: false,
+    active_page: AppWorkspace,
     projects: [],
     selected_project_id: None,
     project_detail: None,

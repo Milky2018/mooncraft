@@ -164,6 +164,18 @@ fn update(
         @rabbita.none,
         { ..model, password_panel_open: !model.password_panel_open },
       )
+    OpenLlmConfig =>
+      (
+        @rabbita.none,
+        {
+          ..model,
+          active_page: LlmConfig,
+          account_panel_open: false,
+          password_panel_open: false,
+          account_notice: None,
+          notice: None,
+        },
+      )
     AccountCurrentPasswordChanged(value) =>
       (@rabbita.none, { ..model, account_current_password: value })
     AccountNewPasswordChanged(value) =>
@@ -206,7 +218,7 @@ fn update(
           account_ai_model: settings.model,
           account_ai_api_key: "",
           account_pending: false,
-          account_notice: Some("AI provider settings saved."),
+          account_notice: Some("LLM config saved."),
         },
       )
     }
@@ -239,8 +251,6 @@ fn update(
           ..model,
           account_current_password: "",
           account_new_password: "",
-          account_ai_provider: "openai",
-          account_ai_model: "gpt-5.5",
           account_ai_api_key: "",
           account_pending: false,
           account_notice: Some(response.message),
@@ -333,6 +343,7 @@ fn update(
         load_project_cmd(dispatch, project_id),
         {
           ..model,
+          active_page: AppWorkspace,
           selected_project_id: Some(project_id),
           project_detail: None,
           messages: [],
@@ -393,6 +404,7 @@ fn update(
           create_project_cmd(dispatch),
           {
             ..model,
+            active_page: AppWorkspace,
             create_project_pending: true,
             delete_project_confirming: None,
             notice: None,
@@ -434,6 +446,7 @@ fn update(
         ]),
         {
           ..model,
+          active_page: AppWorkspace,
           create_project_pending: false,
           selected_project_id: Some(project.id),
           project_detail: Some(project),

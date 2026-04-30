@@ -171,6 +171,7 @@ async (page) => {
   await page.getByLabel("Display Name").fill("Playwright Operator")
   await page.getByRole("button", { name: "Create Account" }).click()
   await page.getByRole("button", { name: /Playwright Operator/ }).waitFor()
+  await page.getByRole("button", { name: /Playwright Operator/ }).click()
   await page.getByText("Verification pending").waitFor()
   await page.getByRole("button", { name: "Resend Verification" }).click()
   await page.getByText("Verification link has been queued.").waitFor()
@@ -209,6 +210,37 @@ async (page) => {
     throw new Error("Expected the signed-in user email to be verified")
   }
   return { phase: "verify-email", verified }
+}
+EOF
+
+run_playwright_phase "configure LLM settings page" <<EOF
+async (page) => {
+  await page.goto("$base_url", { waitUntil: "domcontentloaded" })
+  await page.getByRole("button", { name: /Playwright Operator/ }).waitFor()
+  await page.getByRole("button", { name: "LLM Config" }).click()
+  await page.getByText("Provider & Key").waitFor()
+  await page.getByRole("button", { name: "OpenRouter" }).click()
+  await page.getByPlaceholder("openai/gpt-5.5").fill("openai/gpt-5.5")
+  await page.getByPlaceholder("API key").fill("sk-smoke-test-key")
+  await page.getByRole("button", { name: "Save LLM Config" }).click()
+  await page.getByText("LLM config saved.").waitFor()
+  const settings = await page.evaluate(async () => {
+    const response = await fetch("/api/account/ai-settings")
+    if (!response.ok) {
+      throw new Error(\`AI settings fetch failed with HTTP \${response.status}\`)
+    }
+    return await response.json()
+  })
+  if (settings.provider !== "openrouter") {
+    throw new Error(\`Expected OpenRouter provider, got \${settings.provider}\`)
+  }
+  if (settings.model !== "openai/gpt-5.5") {
+    throw new Error(\`Expected OpenRouter model, got \${settings.model}\`)
+  }
+  if (!settings.api_key_configured) {
+    throw new Error("Expected AI key to be marked configured")
+  }
+  return { phase: "configure-llm", provider: settings.provider, model: settings.model }
 }
 EOF
 
@@ -331,7 +363,7 @@ async (page) => {
     throw new Error("Appearance helper copy should not be visible")
   }
   await page.getByRole("button", { name: "+ New Project" }).click()
-  await page.getByPlaceholder("Describe the change you want.").fill(
+  await page.getByPlaceholder("Tell Mooncraft what to build or change...").fill(
     "Build a deterministic Playwright smoke app.",
   )
   const runResponsePromise = page.waitForResponse((response) => {
@@ -339,7 +371,7 @@ async (page) => {
       response.url().includes("/runs") &&
       response.request().method() === "POST"
   })
-  await page.getByRole("button", { name: "Send Request" }).click()
+  await page.getByRole("button", { name: "Build With Mooncraft" }).click()
   const runResponse = await runResponsePromise
   const createdRun = await runResponse.json()
   const projectId = createdRun.run.project_id
@@ -368,7 +400,7 @@ async (page) => {
   }
   await page.getByRole("button", { name: "Delete" }).click()
   await page.getByRole("button", { name: "Confirm Delete" }).click()
-  await page.getByText("Create a project to begin.").waitFor()
+  await page.getByText("Create a project first").first().waitFor()
   await openAccountMenu()
   await clickVisibleButtonByText("Log Out")
   await page.getByLabel("Email").waitFor()
