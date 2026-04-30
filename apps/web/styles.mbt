@@ -6,10 +6,10 @@ fn mono_style() -> Array[String] {
 ///|
 fn theme_variables(theme_mode : ThemeMode) -> Array[String] {
   match theme_mode {
-    System => theme_variables(Dark)
+    System => theme_variables(Light)
     Dark =>
       [
-        "--page-bg: #101113", "--page-bg-alt: #111214", "--sidebar-bg: #17181a",
+        "--page-bg: #101113", "--page-bg-alt: #111214", "--sidebar-bg: rgba(23, 24, 26, 0.92)",
         "--surface-1: #17181b", "--surface-2: #1c1d20", "--surface-3: #222328", "--surface-raised: #25262b",
         "--preview-bg: #111214", "--border-soft: rgba(255, 255, 255, 0.09)", "--border-strong: rgba(47, 132, 255, 0.72)",
         "--text-1: #f4f4f5", "--text-2: #c7c7cb", "--text-3: #8c8e95", "--accent: #0b8f7f",
@@ -25,14 +25,14 @@ fn theme_variables(theme_mode : ThemeMode) -> Array[String] {
       ]
     Light =>
       [
-        "--page-bg: #f4f6f8", "--page-bg-alt: #ffffff", "--sidebar-bg: #eef1f5",
-        "--surface-1: #ffffff", "--surface-2: #f6f8fb", "--surface-3: #edf1f5", "--surface-raised: #ffffff",
-        "--preview-bg: #f7f9fc", "--border-soft: rgba(25, 35, 48, 0.14)", "--border-strong: rgba(47, 132, 255, 0.54)",
-        "--text-1: #121821", "--text-2: #3f4b5a", "--text-3: #707b8a", "--accent: #087b6d",
-        "--accent-strong: #006e63", "--accent-soft: rgba(0, 110, 99, 0.12)", "--action: #1f73e8",
-        "--action-strong: #155fd0", "--action-soft: rgba(31, 115, 232, 0.14)", "--on-action: #ffffff",
-        "--danger: #b94747", "--danger-soft: rgba(185, 71, 71, 0.10)", "--warning: #9b6b10",
-        "--warning-soft: rgba(155, 107, 16, 0.12)", "--shadow: 0 10px 24px rgba(24, 36, 52, 0.10), 0 0 0 1px rgba(25, 35, 48, 0.03)",
+        "--page-bg: #eef2f7", "--page-bg-alt: #f8fafc", "--sidebar-bg: rgba(248, 250, 252, 0.88)",
+        "--surface-1: rgba(255, 255, 255, 0.90)", "--surface-2: #ffffff", "--surface-3: #f1f5f9",
+        "--surface-raised: #ffffff", "--preview-bg: #f8fafc", "--border-soft: rgba(15, 23, 42, 0.10)",
+        "--border-strong: rgba(15, 118, 110, 0.36)", "--text-1: #0f172a", "--text-2: #475569",
+        "--text-3: #94a3b8", "--accent: #0f766e", "--accent-strong: #115e59", "--accent-soft: rgba(15, 118, 110, 0.10)",
+        "--action: #0f766e", "--action-strong: #115e59", "--action-soft: rgba(15, 118, 110, 0.14)",
+        "--on-action: #ffffff", "--danger: #b94747", "--danger-soft: rgba(185, 71, 71, 0.10)",
+        "--warning: #9b6b10", "--warning-soft: rgba(155, 107, 16, 0.12)", "--shadow: 0 18px 48px rgba(15, 23, 42, 0.08), 0 1px 0 rgba(255, 255, 255, 0.78) inset",
         "--badge-idle-bg: rgba(92, 110, 130, 0.12)", "--badge-idle-fg: #526173",
         "--badge-running-bg: rgba(31, 115, 232, 0.12)", "--badge-running-fg: #175ab9",
         "--badge-success-bg: rgba(0, 110, 99, 0.12)", "--badge-success-fg: #075f56",
@@ -46,8 +46,8 @@ fn theme_variables(theme_mode : ThemeMode) -> Array[String] {
 fn app_root_style(theme_mode : ThemeMode) -> Array[String] {
   theme_variables(theme_mode) +
   [
-    "min-height: 100vh", "padding: 0", "background-color: var(--page-bg)", "background-image: linear-gradient(180deg, var(--page-bg-alt), var(--page-bg))",
-    "background-size: auto", "color: var(--text-1)", "font-family: \"IBM Plex Sans\", \"Avenir Next\", \"Segoe UI\", sans-serif",
+    "min-height: 100vh", "padding: 0", "background-color: var(--page-bg)", "background-image: radial-gradient(circle at 18% 0%, rgba(15, 118, 110, 0.12), transparent 30%), radial-gradient(circle at 86% 8%, rgba(37, 99, 235, 0.08), transparent 28%), linear-gradient(135deg, var(--page-bg-alt), var(--page-bg))",
+    "background-size: auto", "color: var(--text-1)", "font-family: \"IBM Plex Sans\", \"Helvetica Neue\", \"Avenir Next\", sans-serif",
   ]
 }
 
@@ -62,15 +62,15 @@ fn app_stack_style() -> Array[String] {
 ///|
 fn panel_style() -> Array[String] {
   [
-    "background: var(--surface-1)", "border: 1px solid var(--border-soft)", "border-radius: 8px",
-    "box-shadow: var(--shadow)", "overflow: hidden", "backdrop-filter: blur(14px)",
+    "background: var(--surface-1)", "border: 1px solid var(--border-soft)", "border-radius: 18px",
+    "box-shadow: var(--shadow)", "overflow: hidden", "backdrop-filter: blur(18px)",
   ]
 }
 
 ///|
 fn inset_panel_style() -> Array[String] {
   [
-    "background: var(--surface-2)", "border: 1px solid var(--border-soft)", "border-radius: 6px",
+    "background: var(--surface-2)", "border: 1px solid var(--border-soft)", "border-radius: 14px",
   ]
 }
 
@@ -98,14 +98,14 @@ fn button_style(
     "gap: 10px",
     "padding: 10px 14px",
     "border: 1px solid var(--border-soft)",
-    "border-radius: 6px",
+    "border-radius: 10px",
     "background: " + background,
     "color: " + foreground,
     "font-size: 14px",
     "font-weight: 700",
     "cursor: " + cursor,
     "opacity: " + opacity,
-    "transition: opacity 120ms ease, transform 120ms ease",
+    "transition: opacity 120ms ease, transform 120ms ease, box-shadow 120ms ease",
   ]
 }
 
@@ -173,7 +173,7 @@ fn input_style(disabled : Bool) -> Array[String] {
     "width: 100%",
     "padding: 12px 14px",
     "border: 1px solid " + border_color,
-    "border-radius: 6px",
+    "border-radius: 12px",
     "background: " + background,
     "font-size: 15px",
     "line-height: 1.5",

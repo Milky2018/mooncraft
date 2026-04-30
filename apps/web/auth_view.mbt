@@ -27,7 +27,7 @@ fn render_app_header(
         brand_logo(38),
         @html.div(
           style=[
-            "font-size: 22px", "font-weight: 780", "letter-spacing: -0.02em",
+            "font-size: 22px", "font-weight: 600", "letter-spacing: -0.02em",
           ],
           "Mooncraft",
         ),
@@ -137,27 +137,39 @@ fn render_auth_screen(
   }
   @html.div(
     style=[
-      "display: flex", "flex-wrap: wrap", "gap: 10px", "align-items: stretch", "flex: 1",
+      "display: flex", "flex-wrap: wrap", "gap: 12px", "align-items: stretch", "flex: 1",
     ],
     [
       @html.div(
         style=panel_style() +
           [
-            "flex: 1 1 360px", "min-width: 320px", "padding: 22px", "display: flex",
-            "flex-direction: column", "gap: 12px", "justify-content: center",
+            "flex: 1 1 360px", "min-width: 320px", "padding: 28px", "display: flex",
+            "flex-direction: column", "gap: 18px", "justify-content: center",
           ],
         [
           @html.div(
             style=[
-              "font-size: 42px", "line-height: 1.02", "font-weight: 780", "max-width: 620px",
+              "font-size: 40px", "line-height: 1.04", "font-weight: 600", "letter-spacing: -0.03em",
+              "max-width: 620px",
             ],
             title,
           ),
           @html.div(
             style=[
-              "font-size: 17px", "line-height: 1.7", "color: var(--text-2)", "max-width: 620px",
+              "font-size: 16px", "line-height: 1.65", "color: var(--text-2)", "max-width: 620px",
             ],
             subtitle,
+          ),
+          @html.div(
+            style=[
+              "display: grid", "grid-template-columns: repeat(3, minmax(0, 1fr))",
+              "gap: 10px", "padding-top: 18px", "max-width: 640px",
+            ],
+            [
+              auth_story_card("1", "Describe", "Tell Mooncraft what you want."),
+              auth_story_card("2", "Build", "The agent edits the workspace."),
+              auth_story_card("3", "Preview", "Watch the app run live."),
+            ],
           ),
         ],
       ),
@@ -281,6 +293,39 @@ fn render_auth_screen(
             @html.nothing
           },
         ],
+      ),
+    ],
+  )
+}
+
+///|
+fn auth_story_card(
+  step : String,
+  title : String,
+  body : String,
+) -> @rabbita.Html {
+  @html.div(
+    style=[
+      "padding: 14px", "border-radius: 14px", "background: var(--surface-2)", "border: 1px solid var(--border-soft)",
+      "display: flex", "flex-direction: column", "gap: 8px", "min-height: 104px",
+    ],
+    [
+      @html.div(
+        style=mono_style() +
+          [
+            "width: 24px", "height: 24px", "border-radius: 999px", "display: grid",
+            "place-items: center", "background: var(--accent-soft)", "color: var(--accent-strong)",
+            "font-size: 11px", "font-weight: 700",
+          ],
+        step,
+      ),
+      @html.div(
+        style=["font-size: 15px", "font-weight: 600", "color: var(--text-1)"],
+        title,
+      ),
+      @html.div(
+        style=["font-size: 12px", "line-height: 1.55", "color: var(--text-2)"],
+        body,
       ),
     ],
   )

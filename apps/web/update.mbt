@@ -80,11 +80,7 @@ fn update(
           } else {
             model.account_notice
           },
-          account_panel_open: if model.auth_mode is Signup {
-            true
-          } else {
-            model.account_panel_open
-          },
+          account_panel_open: false,
           password_panel_open: false,
         },
       )

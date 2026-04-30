@@ -11,7 +11,7 @@ extern "js" fn js_load_theme_mode(succeed~ : (String, String) -> Unit) =
   #|     }
   #|     return "dark";
   #|   };
-  #|   let mode = "system";
+  #|   let mode = "light";
   #|   try {
   #|     const stored = window.localStorage.getItem("mooncraft-theme");
   #|     if (stored === "dark" || stored === "light" || stored === "system") {

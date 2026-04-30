@@ -5,13 +5,17 @@ fn render_loading_screen() -> @rabbita.Html {
     @html.div(
       style=panel_style() +
         [
-          "padding: 18px 20px", "display: flex", "flex-direction: column", "gap: 8px",
-          "min-width: 320px",
+          "padding: 26px 30px", "display: flex", "flex-direction: column", "gap: 10px",
+          "min-width: 340px",
         ],
       [
         @html.div(
-          style=["font-size: 28px", "line-height: 1.05", "font-weight: 760"],
-          "Loading...",
+          style=["font-size: 30px", "line-height: 1.05", "font-weight: 600"],
+          "Opening Mooncraft",
+        ),
+        @html.div(
+          style=["font-size: 14px", "line-height: 1.6", "color: var(--text-2)"],
+          "Preparing your project workspace.",
         ),
       ],
     ),
@@ -29,7 +33,7 @@ fn avatar_chip(label : String) -> @rabbita.Html {
     style=[
       "width: 28px", "height: 28px", "border-radius: 999px", "display: grid", "place-items: center",
       "background: var(--accent-strong)", "color: var(--on-action)", "font-size: 13px",
-      "font-weight: 760",
+      "font-weight: 700",
     ],
     label,
   )
@@ -42,11 +46,20 @@ fn sidebar_project_item(
   project : @sdk.ProjectSummary,
 ) -> @rabbita.Html {
   let selected = model.selected_project_id == Some(project.id)
-  let background = if selected { "var(--surface-2)" } else { "transparent" }
+  let background = if selected {
+    "linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(241, 245, 249, 0.88))"
+  } else {
+    "rgba(255, 255, 255, 0.38)"
+  }
   let border_color = if selected {
     "var(--border-strong)"
   } else {
-    "transparent"
+    "rgba(15, 23, 42, 0.08)"
+  }
+  let shadow = if selected {
+    "0 14px 30px rgba(26, 46, 43, 0.10)"
+  } else {
+    "none"
   }
   let deleting = model.delete_project_pending == Some(project.id)
   let confirming = model.delete_project_confirming == Some(project.id)
@@ -54,9 +67,10 @@ fn sidebar_project_item(
   @html.div(
     style=[
       "border: 1px solid " + border_color,
-      "border-radius: 6px",
+      "border-radius: 14px",
       "background: " + background,
-      "padding: 8px",
+      "box-shadow: " + shadow,
+      "padding: 10px",
       "display: flex",
       "align-items: center",
       "gap: 8px",
@@ -73,8 +87,8 @@ fn sidebar_project_item(
         [
           @html.div(
             style=[
-              "width: 30px", "height: 30px", "border-radius: 6px", "background: var(--surface-raised)",
-              "border: 1px solid var(--border-soft)",
+              "width: 34px", "height: 34px", "border-radius: 10px", "background: linear-gradient(135deg, var(--accent), #2563eb)",
+              "box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35)",
             ],
             "",
           ),
@@ -85,7 +99,7 @@ fn sidebar_project_item(
             [
               @html.div(
                 style=[
-                  "font-size: 14px", "font-weight: 720", "white-space: nowrap", "overflow: hidden",
+                  "font-size: 14px", "font-weight: 600", "white-space: nowrap", "overflow: hidden",
                   "text-overflow: ellipsis",
                 ],
                 project.display_name,
@@ -208,8 +222,8 @@ fn render_account_panel(
       @html.div(
         style=panel_style() +
           [
-            "position: absolute", "right: 0", "top: calc(100% + 8px)", "width: min(360px, calc(100vw - 24px))",
-            "padding: 12px", "display: flex", "flex-direction: column", "gap: 10px",
+            "position: absolute", "right: 0", "top: calc(100% + 10px)", "width: min(380px, calc(100vw - 32px))",
+            "padding: 14px", "display: flex", "flex-direction: column", "gap: 12px",
             "z-index: 10", "max-height: calc(100vh - 90px)", "overflow-y: auto",
           ],
         [
@@ -227,7 +241,7 @@ fn render_account_panel(
                   @html.div(style=section_label_style(), "Account"),
                   @html.div(
                     style=[
-                      "font-size: 14px", "font-weight: 760", "color: var(--text-1)",
+                      "font-size: 14px", "font-weight: 600", "color: var(--text-1)",
                       "white-space: nowrap", "overflow: hidden", "text-overflow: ellipsis",
                     ],
                     user.display_name,
@@ -425,7 +439,7 @@ fn render_account_toolbar(
       @html.div(
         style=panel_style() +
           [
-            "position: relative", "padding: 10px 12px", "display: flex", "align-items: center",
+            "position: relative", "padding: 12px 16px", "display: flex", "align-items: center",
             "justify-content: space-between", "gap: 10px", "flex-wrap: wrap", "flex-shrink: 0",
             "overflow: visible", "z-index: 20",
           ],
@@ -436,7 +450,7 @@ fn render_account_toolbar(
               @html.div(style=section_label_style(), "Workspace"),
               @html.div(
                 style=[
-                  "font-size: 15px", "font-weight: 760", "color: var(--text-1)",
+                  "font-size: 15px", "font-weight: 600", "color: var(--text-1)",
                 ],
                 workspace_name(model),
               ),
@@ -453,7 +467,7 @@ fn render_account_toolbar(
                 on_click=dispatch(ToggleAccountPanel),
                 style=secondary_button_style(true) +
                   [
-                    "padding: 7px 9px", "justify-content: flex-start", "min-width: 184px",
+                    "padding: 8px 10px", "justify-content: flex-start", "min-width: 190px",
                   ],
                 [
                   avatar_chip("U"),
@@ -465,7 +479,7 @@ fn render_account_toolbar(
                     [
                       @html.div(
                         style=[
-                          "font-size: 13px", "font-weight: 760", "color: var(--text-1)",
+                          "font-size: 13px", "font-weight: 600", "color: var(--text-1)",
                           "white-space: nowrap", "overflow: hidden", "text-overflow: ellipsis",
                           "max-width: 110px",
                         ],
@@ -513,9 +527,9 @@ fn render_project_sidebar(
   })
   @html.div(
     style=[
-      "width: 300px", "height: 100vh", "min-height: 0", "padding: 14px 12px", "display: flex",
-      "flex-direction: column", "gap: 14px", "background: var(--sidebar-bg)", "border-right: 1px solid var(--border-soft)",
-      "box-sizing: border-box", "flex-shrink: 0", "overflow: hidden",
+      "width: 320px", "height: 100vh", "min-height: 0", "padding: 18px 14px", "display: flex",
+      "flex-direction: column", "gap: 16px", "background: var(--sidebar-bg)", "border-right: 1px solid rgba(15, 23, 42, 0.08)",
+      "box-sizing: border-box", "flex-shrink: 0", "overflow: hidden", "backdrop-filter: blur(24px)",
     ],
     [
       @html.div(style=["display: flex", "align-items: center", "gap: 10px"], [
@@ -526,7 +540,9 @@ fn render_project_sidebar(
           ],
           [
             @html.div(
-              style=["font-size: 16px", "font-weight: 800"],
+              style=[
+                "font-size: 18px", "font-weight: 600", "letter-spacing: -0.02em",
+              ],
               "Mooncraft",
             ),
             @html.div(
@@ -544,7 +560,7 @@ fn render_project_sidebar(
         disabled=model.create_project_pending,
         on_click=dispatch(CreateProject),
         style=primary_button_style(!model.create_project_pending) +
-          ["width: 100%"],
+          ["width: 100%", "padding: 12px 14px"],
         if model.create_project_pending {
           "Creating..."
         } else {
@@ -554,7 +570,7 @@ fn render_project_sidebar(
       @html.div(
         style=[
           "display: flex", "justify-content: space-between", "align-items: center",
-          "color: var(--text-2)", "font-size: 13px", "font-weight: 760",
+          "color: var(--text-2)", "font-size: 13px", "font-weight: 700",
         ],
         [
           @html.div("Projects"),
@@ -570,10 +586,10 @@ fn render_project_sidebar(
           [
             @html.div(
               style=[
-                "padding: 12px", "border: 1px solid var(--border-soft)", "border-radius: 6px",
-                "color: var(--text-3)", "font-size: 13px", "line-height: 1.5",
+                "padding: 16px", "border: 1px dashed var(--border-soft)", "border-radius: 14px",
+                "color: var(--text-3)", "font-size: 13px", "line-height: 1.55", "background: rgba(255, 255, 255, 0.36)",
               ],
-              "Create a project to begin.",
+              "Create your first project. The preview will appear on the right.",
             ),
           ]
         } else {
@@ -592,20 +608,20 @@ fn render_workspace_shell(
   @html.div(
     style=[
       "height: 100vh", "min-height: 0", "display: flex", "align-items: stretch",
-      "background: var(--page-bg)", "overflow: hidden",
+      "background: transparent", "overflow: hidden",
     ],
     [
       render_project_sidebar(dispatch, model),
       @html.div(
         style=[
-          "flex: 1", "min-width: 0", "padding: 10px", "display: flex", "flex-direction: column",
-          "gap: 10px", "box-sizing: border-box", "min-height: 0", "overflow: hidden",
+          "flex: 1", "min-width: 0", "padding: 16px", "display: flex", "flex-direction: column",
+          "gap: 16px", "box-sizing: border-box", "min-height: 0", "overflow: hidden",
         ],
         [
           render_account_toolbar(dispatch, model),
           @html.div(
             style=[
-              "flex: 1", "min-width: 0", "min-height: 0", "display: flex", "gap: 10px",
+              "flex: 1", "min-width: 0", "min-height: 0", "display: flex", "gap: 16px",
               "align-items: stretch", "overflow: hidden",
             ],
             [

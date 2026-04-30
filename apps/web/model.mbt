@@ -167,8 +167,8 @@ fn initial_model() -> Model {
   {
     boot_requested: false,
     session_ready: false,
-    theme_mode: System,
-    resolved_theme_mode: Dark,
+    theme_mode: Light,
+    resolved_theme_mode: Light,
     current_user: None,
     github_enabled: false,
     auth_mode: Signup,
