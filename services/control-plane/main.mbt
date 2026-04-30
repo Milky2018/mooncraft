@@ -115,7 +115,7 @@ fn path_param(
   name : String,
 ) -> Result[String, @mocket.HttpResponse] {
   match event.params.get(name) {
-    Some(value) => Ok(value.to_string())
+    Some(value) => Ok(value.to_owned())
     None =>
       Err(
         api_error_response(
@@ -146,18 +146,18 @@ fn proxy_method(http_method_name : String) -> @mocket.HttpMethod {
 fn proxy_request_headers(event : @mocket.MocketEvent) -> Map[String, String] {
   let headers : Map[String, String] = {}
   match event.req.headers.get("Content-Type") {
-    Some(value) => headers["Content-Type"] = value.to_string()
+    Some(value) => headers["Content-Type"] = value.to_owned()
     None =>
       match event.req.headers.get("content-type") {
-        Some(value) => headers["Content-Type"] = value.to_string()
+        Some(value) => headers["Content-Type"] = value.to_owned()
         None => ignore(())
       }
   }
   match event.req.headers.get("Accept") {
-    Some(value) => headers["Accept"] = value.to_string()
+    Some(value) => headers["Accept"] = value.to_owned()
     None =>
       match event.req.headers.get("accept") {
-        Some(value) => headers["Accept"] = value.to_string()
+        Some(value) => headers["Accept"] = value.to_owned()
         None => ignore(())
       }
   }
@@ -260,7 +260,7 @@ fn static_preview_relative_path(target_path : String) -> String? {
   let parts = normalized_target.split("/").to_array()
   let safe_parts : Array[String] = []
   for part in parts {
-    let piece = part.to_string()
+    let piece = part.to_owned()
     if piece == "" {
       continue
     }
@@ -303,7 +303,7 @@ fn run_static_preview_mode(port : Int, static_dir : String) -> Unit {
   app.get("/**", event => {
     let remainder = event.params
       .get("_")
-      .map(fn(value) { value.to_string() })
+      .map(fn(value) { value.to_owned() })
       .unwrap_or("")
     static_preview_response(static_dir, preview_target_path(remainder))
   })
@@ -365,7 +365,7 @@ fn AppContext::serve_platform_asset(
   event : @mocket.MocketEvent,
 ) -> @mocket.HttpResponse {
   match event.params.get("_") {
-    Some(value) if value.to_string() == "logo.svg" => self.serve_platform_logo()
+    Some(value) if value.to_owned() == "logo.svg" => self.serve_platform_logo()
     _ => text_response(NotFound, "Not found")
   }
 }
@@ -414,7 +414,7 @@ fn main {
   app.get("/control-plane-assets/**", event => {
     let remainder = event.params
       .get("_")
-      .map(fn(value) { value.to_string() })
+      .map(fn(value) { value.to_owned() })
       .unwrap_or("")
     control_plane_asset_response(ctx.root, remainder)
   })
@@ -754,7 +754,7 @@ fn main {
     }
     let remainder = event.params
       .get("_")
-      .map(fn(value) { value.to_string() })
+      .map(fn(value) { value.to_owned() })
       .unwrap_or("")
     let project = match
       ctx.store.get_project_detail_by_preview_public_id(preview_public_id) {

@@ -86,7 +86,7 @@ fn CodexDockerConfig::load(
   settings : AiRuntimeSettings,
 ) -> Result[CodexDockerConfig, String] {
   let image = match @env.get_env_var("MOONCRAFT_CODEX_DOCKER_IMAGE") {
-    Some(value) if value.trim() != "" => value.trim().to_string()
+    Some(value) if value.trim() != "" => value.trim().to_owned()
     _ => default_codex_docker_image
   }
   if @env.get_env_var("MOONCRAFT_CODEX_HOME_HOST") is Some(value) &&
@@ -250,7 +250,7 @@ fn dependency_fetch_failure_assistant_message(
 
 ///|
 fn trim_or_default(text : String, fallback : String) -> String {
-  let normalized = text.trim(chars="\n\r ").to_string()
+  let normalized = text.trim(chars="\n\r ").to_owned()
   if normalized == "" {
     fallback
   } else {
@@ -260,7 +260,7 @@ fn trim_or_default(text : String, fallback : String) -> String {
 
 ///|
 fn tail_text(text : String, limit : Int) -> String {
-  let normalized = text.trim(chars="\n\r ").to_string()
+  let normalized = text.trim(chars="\n\r ").to_owned()
   if normalized.length() <= limit {
     normalized
   } else {
@@ -277,9 +277,9 @@ fn prompt_section_after(prompt : String, marker : String) -> String? {
     Some(index) =>
       Some(
         prompt[index + marker.length():]
-        .to_string()
+        .to_owned()
         .trim(chars="\n\r ")
-        .to_string(),
+        .to_owned(),
       )
     None => None
   }
@@ -304,7 +304,7 @@ fn fake_codex_user_request(prompt : String) -> String {
 fn fake_codex_forced_failure(prompt : String) -> String? {
   match @env.get_env_var("MOONCRAFT_CODEX_FAKE_FAIL_CONTAINS") {
     Some(value) if value.trim() != "" => {
-      let needle = value.trim().to_string()
+      let needle = value.trim().to_owned()
       if fake_codex_user_request(prompt).contains(needle) {
         Some("Fake Codex forced failure for Playwright coverage.")
       } else {
@@ -334,7 +334,7 @@ fn extract_json_string_field(line : String, field : String) -> String? {
 ///|
 fn extract_thread_id(events : String) -> String? {
   for raw_line in events.replace_all(old="\r\n", new="\n").split("\n") {
-    let line = raw_line.to_string()
+    let line = raw_line.to_owned()
     if line.contains("\"type\":\"thread.started\"") {
       return extract_json_string_field(line, "thread_id")
     }
@@ -371,7 +371,7 @@ fn codex_command_progress_message(line : String) -> String? {
 
 ///|
 fn codex_display_event(line : String) -> (String, String)? {
-  let trimmed = line.trim().to_string()
+  let trimmed = line.trim().to_owned()
   if trimmed == "" || !trimmed.has_prefix("{") {
     return None
   }
@@ -896,7 +896,7 @@ async fn collect_codex_command_output(
       "Running fake Codex executor.",
     )
     for raw_line in result.1.replace_all(old="\r\n", new="\n").split("\n") {
-      let line = raw_line.to_string()
+      let line = raw_line.to_owned()
       if line != "" {
         append_codex_display_event(store, project.id, run_id, line)
       }

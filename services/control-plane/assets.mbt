@@ -22,7 +22,7 @@ fn safe_control_plane_asset_relative_path(path : String) -> String? {
   let parts = path.split("/").to_array()
   let safe_parts : Array[String] = []
   for part in parts {
-    let piece = part.to_string()
+    let piece = part.to_owned()
     if piece == "" {
       continue
     }

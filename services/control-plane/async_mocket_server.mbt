@@ -35,8 +35,8 @@ fn mocket_match_path_segments(
   }
   let template_part = template_parts[template_idx]
   let path_part = path_parts[path_idx]
-  if template_part.to_string().strip_prefix(":") is Some(param_name) {
-    params[param_name.to_string()] = path_part
+  if template_part.to_owned().strip_prefix(":") is Some(param_name) {
+    params[param_name.to_owned()] = path_part
     mocket_match_path_segments(
       template_parts,
       path_parts,
@@ -145,7 +145,7 @@ fn response_headers_to_http(
   response : @mocket.HttpResponse,
 ) -> Map[String, String] {
   let out : Map[String, String] = {}
-  response.headers.each((key, value) => out[key.to_string()] = value.to_string())
+  response.headers.each((key, value) => out[key.to_owned()] = value.to_owned())
   let cookie_values : Array[String] = []
   response.cookies
   .values()
@@ -177,7 +177,7 @@ async fn serve_mocket_request(
   } noraise {
     value => value
   }
-  let route_path = request.path.split("?").to_array()[0].to_string()
+  let route_path = request.path.split("?").to_array()[0].to_owned()
   let http_method = http_method_name(request.meth)
   let (handler, params) = match
     mocket_find_route(app, http_method, route_path) {

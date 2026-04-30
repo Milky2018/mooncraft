@@ -18,7 +18,7 @@ test "bootstrap prompt includes the core execution rules" {
 ///|
 test "extract thread id from codex json event" {
   let events = "{\"type\":\"thread.started\",\"thread_id\":\"019db86f-4b45-75c3-a409-984993d1f897\"}\n{\"type\":\"turn.started\"}"
-  inspect(
+  debug_inspect(
     extract_thread_id(events),
     content="Some(\"019db86f-4b45-75c3-a409-984993d1f897\")",
   )
@@ -49,7 +49,7 @@ test "success summary copy is shared across run completion paths" {
 
 ///|
 test "fake codex forced failure is disabled unless configured" {
-  inspect(fake_codex_forced_failure("Force fake failure"), content="None")
+  debug_inspect(fake_codex_forced_failure("Force fake failure"), content="None")
 }
 
 ///|
@@ -266,33 +266,33 @@ async test "delete project removes the persisted Codex home" {
 
 ///|
 test "codex display events hide protocol noise" {
-  inspect(
+  debug_inspect(
     codex_display_event("Reading additional input from stdin..."),
     content="None",
   )
-  inspect(
+  debug_inspect(
     codex_display_event(
       "2026-04-27T07:31:22Z ERROR codex_core_skills::manager: failed to install system skills",
     ),
     content="None",
   )
-  inspect(
+  debug_inspect(
     codex_display_event(
       "{\"type\":\"thread.started\",\"thread_id\":\"local-thread\"}",
     ),
     content="Some((\"status\", \"Started Codex session.\"))",
   )
-  inspect(
+  debug_inspect(
     codex_display_event("{\"type\":\"turn.started\"}"),
     content="Some((\"status\", \"Planning the change.\"))",
   )
-  inspect(
+  debug_inspect(
     codex_display_event(
       "{\"type\":\"item.started\",\"item\":{\"type\":\"command_execution\",\"command\":\"/bin/bash -lc 'moon check'\",\"status\":\"in_progress\"}}",
     ),
     content="Some((\"status\", \"Checking the workspace.\"))",
   )
-  inspect(
+  debug_inspect(
     codex_display_event(
       "{\"type\":\"item.completed\",\"item\":{\"type\":\"file_change\",\"status\":\"completed\"}}",
     ),
@@ -386,9 +386,9 @@ async test "start_run persists the initial project prompt once" {
     ),
   )
 
-  inspect(store.get_initial_project_prompt(project_id), content="None")
+  debug_inspect(store.get_initial_project_prompt(project_id), content="None")
   let first_run = store.start_run(project_id, "Build a todo app").unwrap()
-  inspect(
+  debug_inspect(
     store.get_initial_project_prompt(project_id),
     content="Some(\"Build a todo app\")",
   )
@@ -401,7 +401,7 @@ async test "start_run persists the initial project prompt once" {
   )
   let second_run = store.start_run(project_id, "Add labels").unwrap()
   let _ = second_run
-  inspect(
+  debug_inspect(
     store.get_initial_project_prompt(project_id),
     content="Some(\"Build a todo app\")",
   )
@@ -465,17 +465,17 @@ async test "startup recovery makes stale running runs retryable" {
   inspect(store.fail_stale_running_runs_on_startup(), content="1")
   let recovered_run = store.get_run(project_id, stale_run.run_id).unwrap()
   inspect(recovered_run.state == @sdk.Failed, content="true")
-  inspect(
+  debug_inspect(
     recovered_run.summary,
     content="Some(\"The previous worker was interrupted before it could finish. Send another message to retry this project.\")",
   )
-  inspect(
+  debug_inspect(
     recovered_run.failure_debug.map(fn(debug) { debug.stage }),
     content="Some(\"Worker recovery\")",
   )
   let project = store.get_project_detail(project_id).unwrap()
   inspect(project.status == @sdk.Failed, content="true")
-  inspect(project.current_run_id, content="None")
+  debug_inspect(project.current_run_id, content="None")
   let retry_run = store.start_run(project_id, "Retry the app")
   inspect(
     match retry_run {

@@ -509,7 +509,7 @@ fn update(
     SendDraft =>
       match model.selected_project_id {
         Some(project_id) if can_send(model) => {
-          let content = model.draft.trim().to_string()
+          let content = model.draft.trim().to_owned()
           (
             create_run_cmd(dispatch, project_id, content),
             {

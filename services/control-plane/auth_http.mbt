@@ -66,7 +66,7 @@ fn github_provider_name() -> String {
 fn github_public_base_url() -> String {
   match @env.get_env_var("MOONCRAFT_PUBLIC_BASE_URL") {
     Some(value) if value != "" && value.has_suffix("/") =>
-      value[:value.length() - 1].to_string()
+      value[:value.length() - 1].to_owned()
     Some(value) if value != "" => value
     _ =>
       match @env.get_env_var("MOONCRAFT_PORT") {
@@ -137,13 +137,13 @@ fn github_oauth_enabled() -> Bool {
 
 ///|
 fn normalized_email(email : String) -> String {
-  email.trim().to_string().to_lower()
+  email.trim().to_owned().to_lower()
 }
 
 ///|
 fn default_display_name_from_email(email : String) -> String {
   let parts = email.split("@").to_array()
-  match parts[0].to_string() {
+  match parts[0].to_owned() {
     "" => "MoonBit Builder"
     local_part =>
       local_part
@@ -288,7 +288,7 @@ async fn reset_password(
   ctx : AppContext,
   request : @sdk.ResetPasswordRequest,
 ) -> Result[@sdk.AuthActionResponse, String] noraise {
-  let token = request.token.trim().to_string()
+  let token = request.token.trim().to_owned()
   if token == "" {
     return Err("The reset link is missing its token.")
   }
@@ -358,7 +358,7 @@ async fn verify_email(
   ctx : AppContext,
   request : @sdk.VerifyEmailRequest,
 ) -> Result[@sdk.AuthActionResponse, String] noraise {
-  let token = request.token.trim().to_string()
+  let token = request.token.trim().to_owned()
   if token == "" {
     return Err("The verification link is missing its token.")
   }
@@ -388,7 +388,7 @@ async fn signup_user(
     Ok(_) => ignore(())
   }
   let display_name = match request.display_name {
-    Some(value) if value.trim() != "" => value.trim().to_string()
+    Some(value) if value.trim() != "" => value.trim().to_owned()
     _ => default_display_name_from_email(email)
   }
   let user = match
@@ -530,7 +530,7 @@ async fn github_fetch_email(
 ///|
 fn github_display_name(profile : GitHubUserProfile) -> String {
   match profile.name {
-    Some(name) if name.trim() != "" => name.trim().to_string()
+    Some(name) if name.trim() != "" => name.trim().to_owned()
     _ => profile.login
   }
 }

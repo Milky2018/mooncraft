@@ -100,12 +100,12 @@ fn timing_safe_equals(left : String, right : String) -> Bool {
 ///|
 fn verify_password(password : String, stored_hash : String) -> Bool {
   let parts = stored_hash.split("$").to_array()
-  if parts.length() != 4 || parts[0].to_string() != "pbkdf2_sha256" {
+  if parts.length() != 4 || parts[0].to_owned() != "pbkdf2_sha256" {
     return false
   }
   let iterations = @string.parse_int(parts[1]) catch { _ => return false }
-  let expected = pbkdf2_sha256(password, parts[2].to_string(), iterations)
-  timing_safe_equals(expected, parts[3].to_string())
+  let expected = pbkdf2_sha256(password, parts[2].to_owned(), iterations)
+  timing_safe_equals(expected, parts[3].to_owned())
 }
 
 ///|

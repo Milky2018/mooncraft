@@ -340,7 +340,7 @@ fn ensure_dir(path : String) -> Unit {
   let parts = path.split("/").to_array()
   let mut current = if path.has_prefix("/") { "/" } else { "" }
   for part in parts {
-    let piece = part.to_string()
+    let piece = part.to_owned()
     if piece == "" {
       continue
     }
@@ -364,7 +364,7 @@ fn parent_dir(path : String) -> String {
     let directory_parts : Array[String] = []
     let last_index = parts.length() - 1
     for i in 0..<last_index {
-      directory_parts.push(parts[i].to_string())
+      directory_parts.push(parts[i].to_owned())
     }
     directory_parts.join("/")
   }
@@ -511,29 +511,29 @@ fn interrupted_worker_error() -> String {
 ///|
 fn parse_database_url(url : String) -> Result[@pg.Config, String] {
   let raw = match url.strip_prefix("postgres://") {
-    Some(rest) => rest.to_string()
+    Some(rest) => rest.to_owned()
     None =>
       match url.strip_prefix("postgresql://") {
-        Some(rest) => rest.to_string()
+        Some(rest) => rest.to_owned()
         None => return Err("PostgreSQL URL must start with postgres://")
       }
   }
-  let main = raw.split("?").to_array()[0].to_string()
+  let main = raw.split("?").to_array()[0].to_owned()
   let mut auth_host = main
   let mut database = "postgres"
   if main.find("/") is Some(index) {
-    auth_host = main[:index].to_string()
-    database = main[index + 1:].to_string()
+    auth_host = main[:index].to_owned()
+    database = main[index + 1:].to_owned()
   }
   let mut user = "postgres"
   let mut password : String? = None
   let mut host_port = auth_host
   if auth_host.find("@") is Some(index) {
-    let auth = auth_host[:index].to_string()
-    host_port = auth_host[index + 1:].to_string()
+    let auth = auth_host[:index].to_owned()
+    host_port = auth_host[index + 1:].to_owned()
     if auth.find(":") is Some(colon) {
-      user = auth[:colon].to_string()
-      password = Some(auth[colon + 1:].to_string())
+      user = auth[:colon].to_owned()
+      password = Some(auth[colon + 1:].to_owned())
     } else if auth != "" {
       user = auth
     }
@@ -541,8 +541,8 @@ fn parse_database_url(url : String) -> Result[@pg.Config, String] {
   let mut host = host_port
   let mut port = 5432
   if host_port.find(":") is Some(index) {
-    host = host_port[:index].to_string()
-    port = @string.parse_int(host_port[index + 1:].to_string()) catch {
+    host = host_port[:index].to_owned()
+    port = @string.parse_int(host_port[index + 1:].to_owned()) catch {
       _ => 5432
     }
   }
@@ -638,7 +638,7 @@ fn postgres_text_param(value : String?) -> @db.Param {
     None => @db.Null
     Some(text) =>
       if text.has_prefix("\\x") {
-        let encoded = @utf8.encode(text[2:].to_string())
+        let encoded = @utf8.encode(text[2:].to_owned())
         let bytes : Array[Byte] = []
         let mut index = 0
         while index + 1 < encoded.length() {
@@ -729,7 +729,7 @@ async fn exec_postgres_raw(
             let parts = tag.split(" ").to_array()
             if parts.length() > 1 {
               rows_affected = @string.parse_int(
-                parts[parts.length() - 1].to_string(),
+                parts[parts.length() - 1].to_owned(),
               ) catch {
                 _ => rows_affected
               }
@@ -889,7 +889,7 @@ async fn Store::try_new_async(
 ) -> Result[Store, String] noraise {
   let store = match @env.get_env_var("MOONCRAFT_DATABASE_URL") {
     Some(url) if url.trim() != "" => {
-      let config = match parse_database_url(url.trim().to_string()) {
+      let config = match parse_database_url(url.trim().to_owned()) {
         Ok(config) => config
         Err(message) => return Err(message)
       }
