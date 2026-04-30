@@ -81,7 +81,7 @@ Then open `http://localhost:8080`.
 Notes:
 
 - local dev/test leaves `MOONBITCLOUD_DATABASE_URL` unset, so the control plane uses `data/control-plane/state-v2.sqlite`
-- production should set `MOONBITCLOUD_DATABASE_URL` to a PostgreSQL URL; the included `docker-compose.yml` wires this to a colocated `postgres` service
+- test/prod Compose deployments set `MOONBITCLOUD_DATABASE_URL` to a colocated PostgreSQL service
 - the image includes the MoonBit toolchain because the control plane still rebuilds generated previews at runtime
 - the image copies the full repo into `/app`, including `services/control-plane/assets`, which the control plane reads at runtime for file-backed HTML/CSS shells
 - set `MOONBITCLOUD_BUILD_PROFILE=release` if you want the control plane to stage and run release artifacts inside the container
@@ -107,20 +107,40 @@ Notes:
 
 ### Docker Compose
 
-For EC2-style deployment with PostgreSQL:
+There are two explicit Compose files for hosted environments:
+
+- `docker-compose.test.yml`: local images, real Codex mode, PostgreSQL, default host port `18080`
+- `docker-compose.prod.yml`: local images, real Codex mode, PostgreSQL, default host port `8080`
+
+They intentionally use the same service definitions and volume layout. Their top-level Compose project names differ, so running both from the same checkout creates isolated Docker volumes while keeping the same internal structure.
+
+Build the local images first:
+
+```bash
+just build-moonbitcloud-image
+just build-codex-image
+```
+
+Run test:
+
+```bash
+export MOONBITCLOUD_PUBLIC_BASE_URL=http://test.example.com
+export MOONBITCLOUD_POSTGRES_PASSWORD='replace-me'
+docker compose -f docker-compose.test.yml up -d
+```
+
+Run prod:
 
 ```bash
 export MOONBITCLOUD_PUBLIC_BASE_URL=https://moonbitcloud.example.com
 export MOONBITCLOUD_POSTGRES_PASSWORD='replace-me'
-export MOONBITCLOUD_IMAGE='756584956649.dkr.ecr.us-west-2.amazonaws.com/mbt-cloud/moonbitcloud:latest'
-docker compose pull
-docker compose up -d
+docker compose -f docker-compose.prod.yml up -d
 ```
 
-The compose file keeps the app stateless with durable data in Docker volumes:
+The Compose files keep the app stateless with durable data in Docker volumes:
 
-- `moonbitcloud-postgres` for PostgreSQL
-- `moonbitcloud-runtime` for runtime scratch files, staged bundles, and logs
+- `moonbitcloud-<env>_moonbitcloud-postgres` for PostgreSQL
+- `moonbitcloud-<env>_moonbitcloud-runtime` for runtime scratch files, staged bundles, and logs
 
 ## Build Profiles
 

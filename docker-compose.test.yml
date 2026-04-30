@@ -1,3 +1,5 @@
+name: moonbitcloud-test
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -18,21 +20,21 @@ services:
       start_period: 10s
 
   moonbitcloud:
-    image: ${MOONBITCLOUD_IMAGE:-756584956649.dkr.ecr.us-west-2.amazonaws.com/mbt-cloud/moonbitcloud:latest}
+    image: ${MOONBITCLOUD_IMAGE:-moonbitcloud:local}
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      MOONBITCLOUD_PORT: ${MOONBITCLOUD_PORT:-8080}
-      MOONBITCLOUD_PUBLIC_BASE_URL: ${MOONBITCLOUD_PUBLIC_BASE_URL:-http://localhost:8080}
+      MOONBITCLOUD_PORT: 8080
+      MOONBITCLOUD_PUBLIC_BASE_URL: ${MOONBITCLOUD_PUBLIC_BASE_URL:-http://localhost:18080}
       MOONBITCLOUD_BUILD_PROFILE: ${MOONBITCLOUD_BUILD_PROFILE:-release}
       MOONBITCLOUD_DATABASE_URL: ${MOONBITCLOUD_DATABASE_URL:-postgres://moonbitcloud:moonbitcloud@postgres:5432/moonbitcloud}
       MOONBITCLOUD_CODEX_DOCKER_IMAGE: ${MOONBITCLOUD_CODEX_DOCKER_IMAGE:-docker.io/moonbitcloud/codex:codex-0.125.0-node24}
       MOONBITCLOUD_GITHUB_CLIENT_ID: ${MOONBITCLOUD_GITHUB_CLIENT_ID:-}
       MOONBITCLOUD_GITHUB_CLIENT_SECRET: ${MOONBITCLOUD_GITHUB_CLIENT_SECRET:-}
     ports:
-      - "${MOONBITCLOUD_HTTP_PORT:-8080}:8080"
+      - "${MOONBITCLOUD_TEST_HTTP_PORT:-18080}:8080"
     volumes:
       - moonbitcloud-runtime:/app/data
       - /var/run/docker.sock:/var/run/docker.sock
