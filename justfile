@@ -1,8 +1,8 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-codex_repository := "docker.io/mooncraft/codex"
+codex_repository := "docker.io/moonbitcloud/codex"
 codex_version := "codex-0.125.0-node24"
-codex_image := "docker.io/mooncraft/codex:codex-0.125.0-node24"
+codex_image := "docker.io/moonbitcloud/codex:codex-0.125.0-node24"
 
 # Show available recipes
 default:
@@ -99,10 +99,10 @@ serve target='8080' profile='debug':
   public_base_url="${MOONCRAFT_PUBLIC_BASE_URL:-$base_url}"
   echo "Mooncraft: $base_url"
   if [[ "$profile" == "release" ]]; then
-    MOONCRAFT_PORT="$port" MOONCRAFT_PUBLIC_BASE_URL="$public_base_url" MOONCRAFT_BUILD_PROFILE=release \
+    MOONCRAFT_APP_MODE="${MOONCRAFT_APP_MODE:-development}" MOONCRAFT_PORT="$port" MOONCRAFT_PUBLIC_BASE_URL="$public_base_url" MOONCRAFT_BUILD_PROFILE=release \
       moon -C . run --target native --release services/control-plane
   else
-    MOONCRAFT_PORT="$port" MOONCRAFT_PUBLIC_BASE_URL="$public_base_url" MOONCRAFT_BUILD_PROFILE=debug \
+    MOONCRAFT_APP_MODE="${MOONCRAFT_APP_MODE:-development}" MOONCRAFT_PORT="$port" MOONCRAFT_PUBLIC_BASE_URL="$public_base_url" MOONCRAFT_BUILD_PROFILE=debug \
       moon -C . run --target native services/control-plane
   fi
 

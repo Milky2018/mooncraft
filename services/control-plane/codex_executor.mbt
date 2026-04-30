@@ -22,7 +22,7 @@ struct CodexDockerConfig {
 }
 
 ///|
-let default_codex_docker_image = "docker.io/mooncraft/codex:codex-0.125.0-node24"
+let default_codex_docker_image = "docker.io/moonbitcloud/codex:codex-0.125.0-node24"
 
 ///|
 let default_codex_model = "gpt-5.5"

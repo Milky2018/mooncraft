@@ -48,6 +48,34 @@ test "success summary copy is shared across run completion paths" {
 }
 
 ///|
+test "public run status hides failure diagnostics outside development mode" {
+  let run = @sdk.RunStatusResponse::{
+    run_id: "run-1",
+    project_id: "project-1",
+    state: @sdk.Failed,
+    summary: Some("I couldn't finish that update."),
+    error_message: Some("raw command output and private log paths"),
+    failure_debug: Some(@sdk.RunFailureDebug::{
+      stage: "Codex session startup",
+      command: Some("codex exec <prompt>"),
+      exit_code: Some(125),
+      codex_log_path: Some("/private/codex.log"),
+      validation_log_path: Some("/private/validation.log"),
+      final_summary_path: Some("/private/last_message.txt"),
+    }),
+    preview: None,
+    started_at: "1",
+    finished_at: Some("2"),
+  }
+  let public = public_run_status(run)
+  debug_inspect(
+    public.error_message,
+    content="Some(\"I couldn't finish that update.\")",
+  )
+  debug_inspect(public.failure_debug, content="None")
+}
+
+///|
 test "fake codex forced failure is disabled unless configured" {
   debug_inspect(fake_codex_forced_failure("Force fake failure"), content="None")
 }

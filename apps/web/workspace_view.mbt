@@ -260,6 +260,9 @@ fn render_run_failure_detail(
 
 ///|
 fn render_run_failure_card(model : Model) -> @rabbita.Html {
+  if model.app_mode != "development" {
+    return @html.nothing
+  }
   match model.run_status {
     Some(run) if run.state is @sdk.Failed => {
       let summary = run_failure_summary(run).unwrap_or(

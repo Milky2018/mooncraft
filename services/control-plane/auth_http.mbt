@@ -27,6 +27,25 @@ fn email_verification_purpose() -> String {
 }
 
 ///|
+fn mooncraft_app_mode() -> String {
+  match @env.get_env_var("MOONCRAFT_APP_MODE") {
+    Some(value) =>
+      match value.trim().to_lower() {
+        "dev" | "development" => "development"
+        "test" => "test"
+        "prod" | "production" => "production"
+        _ => "production"
+      }
+    None => "production"
+  }
+}
+
+///|
+fn mooncraft_development_mode() -> Bool {
+  mooncraft_app_mode() == "development"
+}
+
+///|
 struct GitHubCallbackPayload {
   code : String
   state : String
@@ -643,6 +662,7 @@ async fn session_status_response(
     authenticated: user is Some(_),
     user,
     github_enabled: github_oauth_enabled(),
+    app_mode: mooncraft_app_mode(),
   }
 }
 

@@ -31,6 +31,7 @@ pub(all) struct SessionResponse {
   authenticated : Bool
   user : UserSummary?
   github_enabled : Bool
+  app_mode : String
 } derive(Debug, ToJson, FromJson)
 
 ///|

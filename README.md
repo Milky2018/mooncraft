@@ -91,15 +91,15 @@ Notes:
   - optional `MOONCRAFT_CODEX_CONTAINER_HOME` (defaults to `/root`)
 - each platform user configures their own AI provider, model, and API key in Account settings; v1 supports OpenAI and OpenRouter
 - API keys are passed only into the isolated Codex container for that user's run; the platform no longer reads a deployment-level OpenAI key
-- the default Codex runtime image is `docker.io/mooncraft/codex:codex-0.125.0-node24`; override it through `MOONCRAFT_CODEX_DOCKER_IMAGE`
+- the default Codex runtime image is `docker.io/moonbitcloud/codex:codex-0.125.0-node24`; override it through `MOONCRAFT_CODEX_DOCKER_IMAGE`
 - the Codex runtime image seeds skills from `https://github.com/moonbitlang/skills` into the container-local Codex home before each run
 - Mooncraft never mounts a host Codex home
 - inspect the effective Codex runtime config with `just codex-config`
 - build the Codex runtime image locally with `just build-codex-image` (defaults to the official tag for `linux/amd64`)
 - the Codex runtime image must have an initialized MoonBit registry; the bundled Dockerfile runs `moon update` at image build time so Docker-backed validation can run without mutating the registry at runtime
-- publish the multi-arch Codex runtime image with `just docker-codex-publish` after `docker login` (defaults to `docker.io/mooncraft/codex:codex-0.125.0-node24` and `docker.io/mooncraft/codex:latest` for `linux/amd64,linux/arm64`)
+- publish the multi-arch Codex runtime image with `just docker-codex-publish` after `docker login` (defaults to `docker.io/moonbitcloud/codex:codex-0.125.0-node24` and `docker.io/moonbitcloud/codex:latest` for `linux/amd64,linux/arm64`)
 - publish to another Docker Hub namespace with `just docker-codex-publish docker.io/<namespace>/codex`
-- for shared environments, prefer `MOONCRAFT_CODEX_DOCKER_IMAGE=docker.io/mooncraft/codex:codex-0.125.0-node24` over `latest`
+- for shared environments, prefer `MOONCRAFT_CODEX_DOCKER_IMAGE=docker.io/moonbitcloud/codex:codex-0.125.0-node24` over `latest`
 - run `just codex-smoke` to verify the real Docker-backed Codex CLI path by building a Todo List App end to end
 - GitHub OAuth is optional and uses:
   - `MOONCRAFT_GITHUB_CLIENT_ID`

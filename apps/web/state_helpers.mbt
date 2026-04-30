@@ -154,6 +154,7 @@ fn apply_session(model : Model, session : @sdk.SessionResponse) -> Model {
       None
     },
     github_enabled: session.github_enabled,
+    app_mode: session.app_mode,
     auth_pending: false,
     logout_pending: false,
     account_pending: false,

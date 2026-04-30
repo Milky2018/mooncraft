@@ -69,7 +69,7 @@ Required Codex runtime configuration:
 - `MOONCRAFT_CODEX_DOCKER_IMAGE`
 - optional `MOONCRAFT_CODEX_CONTAINER_HOME` (defaults to `/root`)
 
-The default runtime image is `docker.io/mooncraft/codex:codex-0.125.0-node24`. Override it through `MOONCRAFT_CODEX_DOCKER_IMAGE` when testing local images, PR images, rollbacks, or digest-pinned production deployments.
+The default runtime image is `docker.io/moonbitcloud/codex:codex-0.125.0-node24`. Override it through `MOONCRAFT_CODEX_DOCKER_IMAGE` when testing local images, PR images, rollbacks, or digest-pinned production deployments.
 
 The runtime intentionally does not mount a host Codex home and the platform no longer reads a deployment-level OpenAI key. Each platform user configures OpenAI or OpenRouter, model, and API key in Account settings. The worker passes that user's key into the isolated Codex container only for the active run.
 

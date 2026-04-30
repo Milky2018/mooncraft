@@ -10,7 +10,7 @@ artifact_dir="${artifact_root}/${run_stamp}"
 provider="${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_PROVIDER:-${MOONCRAFT_CODEX_SMOKE_PROVIDER:-openrouter}}"
 model="${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_MODEL:-${MOONCRAFT_CODEX_SMOKE_MODEL:-openai/gpt-5.5}}"
 api_key="${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_API_KEY:-${MOONCRAFT_CODEX_SMOKE_API_KEY:-}}"
-codex_image="${MOONCRAFT_CODEX_DOCKER_IMAGE:-docker.io/mooncraft/codex:codex-0.125.0-node24}"
+codex_image="${MOONCRAFT_CODEX_DOCKER_IMAGE:-docker.io/moonbitcloud/codex:codex-0.125.0-node24}"
 
 if [[ -z "$api_key" ]]; then
   echo "MOONCRAFT_PLAYWRIGHT_REAL_AGENT_API_KEY is required." >&2

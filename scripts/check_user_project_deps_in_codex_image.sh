@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-image="${MOONCRAFT_CODEX_DEPS_CHECK_DOCKER_IMAGE:-docker.io/mooncraft/codex:codex-0.125.0-node24}"
+image="${MOONCRAFT_CODEX_DEPS_CHECK_DOCKER_IMAGE:-docker.io/moonbitcloud/codex:codex-0.125.0-node24}"
 platform="${MOONCRAFT_CODEX_DEPS_CHECK_DOCKER_PLATFORM:-linux/amd64}"
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 modules_file="$repo_root/config/user_project_reference_modules.txt"

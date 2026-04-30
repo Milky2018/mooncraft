@@ -18,6 +18,7 @@ struct Model {
   session_ready : Bool
   theme_mode : ThemeMode
   resolved_theme_mode : ThemeMode
+  app_mode : String
   current_user : @sdk.UserSummary?
   github_enabled : Bool
   auth_mode : AuthMode
@@ -169,6 +170,7 @@ fn initial_model() -> Model {
     session_ready: false,
     theme_mode: Light,
     resolved_theme_mode: Light,
+    app_mode: "production",
     current_user: None,
     github_enabled: false,
     auth_mode: Signup,

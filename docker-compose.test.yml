@@ -27,10 +27,11 @@ services:
         condition: service_healthy
     environment:
       MOONCRAFT_PORT: 8080
+      MOONCRAFT_APP_MODE: test
       MOONCRAFT_PUBLIC_BASE_URL: ${MOONCRAFT_PUBLIC_BASE_URL:-http://localhost:18080}
       MOONCRAFT_BUILD_PROFILE: ${MOONCRAFT_BUILD_PROFILE:-release}
       MOONCRAFT_DATABASE_URL: ${MOONCRAFT_DATABASE_URL:-postgres://mooncraft:mooncraft@postgres:5432/mooncraft}
-      MOONCRAFT_CODEX_DOCKER_IMAGE: ${MOONCRAFT_CODEX_DOCKER_IMAGE:-docker.io/mooncraft/codex:codex-0.125.0-node24}
+      MOONCRAFT_CODEX_DOCKER_IMAGE: ${MOONCRAFT_CODEX_DOCKER_IMAGE:-docker.io/moonbitcloud/codex:codex-0.125.0-node24}
       MOONCRAFT_GITHUB_CLIENT_ID: ${MOONCRAFT_GITHUB_CLIENT_ID:-}
       MOONCRAFT_GITHUB_CLIENT_SECRET: ${MOONCRAFT_GITHUB_CLIENT_SECRET:-}
     ports:

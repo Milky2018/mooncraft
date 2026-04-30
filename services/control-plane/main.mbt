@@ -77,6 +77,31 @@ fn unauthorized_response() -> @mocket.HttpResponse {
 }
 
 ///|
+fn public_run_error_message(run : @sdk.RunStatusResponse) -> String? {
+  if !(run.state is @sdk.Failed) {
+    run.error_message
+  } else {
+    match run.summary {
+      Some(message) => Some(message)
+      None => Some("The run failed before the preview could be refreshed.")
+    }
+  }
+}
+
+///|
+fn public_run_status(run : @sdk.RunStatusResponse) -> @sdk.RunStatusResponse {
+  if mooncraft_development_mode() {
+    run
+  } else {
+    @sdk.RunStatusResponse::{
+      ..run,
+      error_message: public_run_error_message(run),
+      failure_debug: None,
+    }
+  }
+}
+
+///|
 fn redirect_response(location : String) -> @mocket.HttpResponse {
   @mocket.HttpResponse::new(Found, headers={ "Location": location }).body("")
 }
@@ -686,7 +711,10 @@ fn main {
     match ctx.spawn_project_turn_worker(project_id, run.run_id) {
       Ok(worker_pid) => {
         ctx.store.set_run_worker_pid(project_id, run.run_id, worker_pid)
-        json_created(@sdk.CreateRunResponse::{ run, poll_after_ms: Some(1000) })
+        json_created(@sdk.CreateRunResponse::{
+          run: public_run_status(run),
+          poll_after_ms: Some(1000),
+        })
       }
       Err(message) => {
         ctx.store.finish_run_failure(
@@ -700,7 +728,7 @@ fn main {
           .get_run(project_id, run.run_id)
           .unwrap_or(run)
         json_created(@sdk.CreateRunResponse::{
-          run: latest_run,
+          run: public_run_status(latest_run),
           poll_after_ms: None,
         })
       }
@@ -720,7 +748,7 @@ fn main {
       Err(response) => return response
     }
     match ctx.store.get_run_for_user(user.id, project_id, run_id) {
-      Some(run) => json_ok(run)
+      Some(run) => json_ok(public_run_status(run))
       None => api_error_response(NotFound, @sdk.NotFound, "Run not found.")
     }
   })
