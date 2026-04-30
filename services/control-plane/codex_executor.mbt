@@ -722,6 +722,7 @@ fn failure_debug(
 fn docker_command_args(
   config : CodexDockerConfig,
   workspace_path : String,
+  codex_home_path : String?,
   artifacts : RunArtifacts,
   container_command : Array[String],
 ) -> Array[String] {
@@ -736,6 +737,14 @@ fn docker_command_args(
   args.push("MOONCRAFT_AI_MODEL=" + config.model)
   args.push("-e")
   args.push("MOONCRAFT_AI_API_KEY=" + config.api_key)
+  match codex_home_path {
+    Some(path) => {
+      ensure_dir(path)
+      args.push("-v")
+      args.push(path + ":" + config.container_codex_home())
+    }
+    None => ()
+  }
   args.push("-v")
   args.push(workspace_path + ":" + codex_container_workspace_dir())
   args.push("-v")
@@ -775,11 +784,12 @@ async fn collect_docker_output(
   root : String,
   config : CodexDockerConfig,
   workspace_path : String,
+  codex_home_path : String?,
   artifacts : RunArtifacts,
   container_command : Array[String],
 ) -> Result[(Int, String), String] noraise {
   let docker_args = docker_command_args(
-    config, workspace_path, artifacts, container_command,
+    config, workspace_path, codex_home_path, artifacts, container_command,
   )
   let result = try
     @process.collect_output_merged("docker", docker_args, cwd=root)
@@ -802,11 +812,12 @@ async fn stream_docker_output(
   run_id : String,
   config : CodexDockerConfig,
   workspace_path : String,
+  codex_home_path : String?,
   artifacts : RunArtifacts,
   container_command : Array[String],
 ) -> Result[(Int, String), String] noraise {
   let docker_args = docker_command_args(
-    config, workspace_path, artifacts, container_command,
+    config, workspace_path, codex_home_path, artifacts, container_command,
   )
   let pipe = @process.read_from_process() catch {
     err =>
@@ -894,6 +905,7 @@ async fn collect_codex_command_output(
   } else {
     match config {
       Some(config) => {
+        let codex_home_path = project_codex_home(root, project.id)
         let result = match
           stream_docker_output(
             store,
@@ -902,6 +914,7 @@ async fn collect_codex_command_output(
             run_id,
             config,
             workspace_path,
+            Some(codex_home_path),
             artifacts,
             command,
           ) {
@@ -1245,7 +1258,12 @@ async fn run_validation_command(
       Some(config) =>
         match
           collect_docker_output(
-            root, config, workspace_path, artifacts, command,
+            root,
+            config,
+            workspace_path,
+            None,
+            artifacts,
+            command,
           ) {
           Ok(result) => result
           Err(message) =>
@@ -1333,7 +1351,14 @@ async fn run_docker_validation_sequence(
   let result = match config {
     Some(config) =>
       match
-        collect_docker_output(root, config, workspace_path, artifacts, command) {
+        collect_docker_output(
+          root,
+          config,
+          workspace_path,
+          None,
+          artifacts,
+          command,
+        ) {
         Ok(result) => result
         Err(message) =>
           return Err(

@@ -67,11 +67,11 @@ Important persisted fields include:
 - current run id
 - preview URL and port
 - last error
-- thread id placeholder
+- Codex thread id
 
 ## Generated Workspace Boundary
 
-The control plane owns only the runtime boundary, not the app's source layout:
+The control plane owns only the runtime boundary, not the app's source layout. Codex continuity is split deliberately: the database stores the project's `codex_thread_id`, while the matching Codex CLI state lives in the app data volume under `data/codex-sessions/<project-id>/.codex` and is mounted into the disposable Docker container as `CODEX_HOME`.
 
 - new projects start without a platform-owned app scaffold
 - Codex creates the real MoonBit project with `moon new`

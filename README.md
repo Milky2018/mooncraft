@@ -52,7 +52,7 @@ The platform no longer keeps official app templates or template manifests.
 - Generated previews run through the project's root `mooncraft-preview.sh` contract instead of a fixed platform-owned app layout.
 - Preview URLs are public opaque paths like `/p/<preview_public_id>/` and stay same-origin through the control plane.
 - `packages/sdk` defines the shared request and response payloads used by the frontend and control plane.
-- `AgentGateway` runs Docker-backed Codex CLI work through a durable async worker process and persists one `codex_thread_id` per project so later messages can resume the same Codex session.
+- `AgentGateway` runs Docker-backed Codex CLI work through a durable async worker process, persists one `codex_thread_id` per project, and mounts a Mooncraft-owned per-project Codex home from `data/codex-sessions/<project-id>/.codex` so later messages can resume the same Codex session.
 - Before Codex runs, validation, and preview builds, the control plane runs `moon fetch --no-update` for the pinned user-project modules listed in `config/user_project_reference_modules.txt`.
 
 ## Core Docs
@@ -82,6 +82,7 @@ Notes:
 
 - local dev/test leaves `MOONCRAFT_DATABASE_URL` unset, so the control plane uses `data/control-plane/state-v2.sqlite`
 - test/prod Compose deployments set `MOONCRAFT_DATABASE_URL` to a colocated PostgreSQL service
+- Codex session files are stored under the app data volume at `data/codex-sessions/<project-id>/.codex`; API keys still come from user account settings, not from Codex home
 - the image includes the MoonBit toolchain because the control plane still rebuilds generated previews at runtime
 - the image copies the full repo into `/app`, including `services/control-plane/assets`, which the control plane reads at runtime for file-backed HTML/CSS shells
 - set `MOONCRAFT_BUILD_PROFILE=release` if you want the control plane to stage and run release artifacts inside the container

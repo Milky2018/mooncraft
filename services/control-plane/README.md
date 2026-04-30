@@ -16,9 +16,11 @@ Responsibilities:
 
 The platform no longer uses official app templates. Project rows do not carry template ids, and project creation writes only Mooncraft workspace metadata. The first user prompt decides what the app becomes; Codex is instructed to use `moon new` and choose the project shape.
 
-The current `AgentGateway` uses Docker-backed Codex CLI runs. Each project keeps one persistent `codex_thread_id`, and each new chat message starts a detached worker process through `moonbitlang/async/process` that resumes that session, validates the workspace with dependency fetches plus `moon fmt`, `moon check`, `moon build`, and `moon test`, then refreshes the preview. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
+The current `AgentGateway` uses Docker-backed Codex CLI runs. Each project keeps one persistent `codex_thread_id` in the database and one platform-owned Codex home under `data/codex-sessions/<project-id>/.codex`. Each new chat message starts a detached worker process through `moonbitlang/async/process` that mounts that Codex home into the disposable container, resumes the session, validates the workspace with dependency fetches plus `moon fmt`, `moon check`, `moon build`, and `moon test`, then refreshes the preview. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
 
 Workspace directories are no longer durable state. The control plane saves the latest source archive in SQLite after initial workspace generation and after Codex edits. Each run hydrates that database snapshot into an isolated runtime workspace before starting Codex, then restores the local preview cache from the saved snapshot.
+
+Codex session directories are durable app data, not host user state. Mooncraft does not mount a developer's local Codex home, and API keys are injected from encrypted user account settings instead of being read from `CODEX_HOME`. Deleting a project removes its workspace cache, artifacts, database rows, and `data/codex-sessions/<project-id>`.
 
 The legacy `data/projects` workspace root is cleaned at startup. It is not used as a restore fallback, because generated files must come from the database snapshot or be treated as unavailable.
 

@@ -196,13 +196,72 @@ test "docker command receives user scoped AI settings" {
     codex_log_path: "/tmp/artifacts/codex.log",
     validation_log_path: "/tmp/artifacts/validation.log",
   }
-  let args = docker_command_args(config, "/tmp/workspace", artifacts, [
-    "codex", "exec", "Build an app",
-  ])
+  let args = docker_command_args(
+    config,
+    "/tmp/workspace",
+    Some("/tmp/mooncraft-codex-home"),
+    artifacts,
+    ["codex", "exec", "Build an app"],
+  )
   assert_true(args.contains("MOONCRAFT_AI_PROVIDER=openrouter"))
   assert_true(args.contains("MOONCRAFT_AI_MODEL=openai/gpt-5.5"))
   assert_true(args.contains("MOONCRAFT_AI_API_KEY=user-key"))
+  assert_true(args.contains("CODEX_HOME=/root/.codex"))
+  assert_true(args.contains("/tmp/mooncraft-codex-home:/root/.codex"))
   assert_false(args.contains("OPENAI_API_KEY"))
+}
+
+///|
+test "project Codex home is platform managed and outside the runtime workspace cache" {
+  let root = "/tmp/mooncraft-root"
+  let project_id = "project-123"
+  inspect(
+    project_codex_home(root, project_id),
+    content="/tmp/mooncraft-root/data/codex-sessions/project-123/.codex",
+  )
+  assert_false(
+    project_codex_home(root, project_id).contains("/runtime/projects/"),
+  )
+  assert_false(project_codex_home(root, project_id).contains("/workspace"))
+}
+
+///|
+async test "delete project removes the persisted Codex home" {
+  let root = @env.current_dir().unwrap_or(".") +
+    "/data/control-plane-test-roots/" +
+    next_id("codex-home-delete")
+  safe_remove_tree(root)
+  let db_path = root + "/data/control-plane/state-v2.sqlite"
+  ensure_dir(parent_dir(db_path))
+  let store = Store::try_new_async(db_path).unwrap()
+  let ctx = AppContext::{
+    root,
+    build_profile: Debug,
+    store,
+    previews: PreviewManager::new(root, Debug),
+    agent_gateway: AgentGateway::new(root),
+  }
+  let project_id = next_id("project")
+  ignore(
+    ctx.store.create_project(
+      project_id,
+      "user-1",
+      "preview-" + project_id,
+      Some("Codex Home Delete Test"),
+      project_workspace(root, project_id),
+    ),
+  )
+  let codex_home = project_codex_home(root, project_id)
+  ensure_dir(codex_home)
+  safe_write_string(codex_home + "/state.json", "{}")
+
+  inspect(@fs.path_exists(codex_home + "/state.json"), content="true")
+  ctx.delete_project(project_id).unwrap()
+  inspect(
+    @fs.path_exists(project_codex_session_root(root, project_id)),
+    content="false",
+  )
+  safe_remove_tree(root)
 }
 
 ///|

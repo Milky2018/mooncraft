@@ -28,19 +28,19 @@ Required fix:
 
 ### 2. Persistence is production-database backed, but not HA
 
-Local durable state defaults to SQLite. Production should set `MOONCRAFT_DATABASE_URL` and use PostgreSQL. Generated project directories under `data/runtime/` are scratch caches hydrated from database snapshots.
+Local durable state defaults to SQLite. Production should set `MOONCRAFT_DATABASE_URL` and use PostgreSQL. Generated project directories under `data/runtime/` are scratch caches hydrated from database snapshots. Codex session state is file-backed under `data/codex-sessions/` and must be preserved with the app data volume on the current single-node deployment.
 
 Why this matters:
 
 - one-node staging is fine
 - multi-instance or high-availability production is not yet designed
-- PostgreSQL keeps metadata and workspace snapshots off app-local disk, but workspace snapshots should move to object storage before multi-instance production
+- PostgreSQL keeps metadata and workspace snapshots off app-local disk, but workspace snapshots and Codex session state should move to shared durable storage before multi-instance production
 
 Short-term decision:
 
 - for local dev/test, SQLite is still the simplest path
 - for EC2 production, use PostgreSQL through `MOONCRAFT_DATABASE_URL`
-- for anything beyond one node, move workspace snapshots out of the app database
+- for anything beyond one node, move workspace snapshots and Codex session state out of single-node app-local storage
 
 ### 3. Preview processes need stronger supervision
 

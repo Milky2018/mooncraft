@@ -391,6 +391,16 @@ fn project_workspace(root : String, project_id : String) -> String {
 }
 
 ///|
+fn project_codex_session_root(root : String, project_id : String) -> String {
+  root + "/data/codex-sessions/" + project_id
+}
+
+///|
+fn project_codex_home(root : String, project_id : String) -> String {
+  project_codex_session_root(root, project_id) + "/.codex"
+}
+
+///|
 fn public_preview_url(preview_public_id : String) -> String {
   @sdk.preview_public_path(preview_public_id)
 }
@@ -2354,5 +2364,6 @@ async fn AppContext::delete_project(
   }
   self.previews.remove_project_runtime(project_id, project.preview)
   safe_remove_tree(project_root(self.root, project_id))
+  safe_remove_tree(project_codex_session_root(self.root, project_id))
   self.store.delete_project(project_id)
 }

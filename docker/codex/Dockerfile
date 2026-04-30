@@ -11,7 +11,11 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates curl git bash \
   && rm -rf /var/lib/apt/lists/*
 
-RUN curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash -s -- "${MOONBIT_VERSION}"
+RUN for attempt in 1 2 3 4 5; do \
+    curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash -s -- "${MOONBIT_VERSION}" && break; \
+    if [ "$attempt" = "5" ]; then exit 1; fi; \
+    sleep $((attempt * 5)); \
+  done
 
 RUN for tool in /opt/moon/bin/*; do \
   if [ -f "$tool" ] && [ -x "$tool" ]; then \
@@ -58,12 +62,12 @@ RUN printf '%s\n' \
   'env_key = "OPENAI_API_KEY"' \
   'wire_api = "chat"' \
   'EOF' \
-  'elif [ "$provider" != "openai" ]; then' \
+  'elif [ "$provider" = "openai" ]; then' \
+  '  rm -f "$codex_home/config.toml"' \
+  '  printf "%s" "$OPENAI_API_KEY" | codex login --with-api-key >/dev/null' \
+  'else' \
   '  echo "Unsupported MOONCRAFT_AI_PROVIDER: $provider" >&2' \
   '  exit 64' \
-  'fi' \
-  'if [ "$provider" = "openai" ] && [ ! -f "$codex_home/auth.json" ]; then' \
-  '  printf "%s" "$OPENAI_API_KEY" | codex login --with-api-key >/dev/null' \
   'fi' \
   'unset MOONCRAFT_AI_API_KEY' \
   'exec "$@"' \

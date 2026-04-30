@@ -21,17 +21,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   unzip \
   && rm -rf /var/lib/apt/lists/*
 
-RUN curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash -s -- "${MOONBIT_VERSION}"
-
-RUN moon update
+RUN for attempt in 1 2 3 4 5; do \
+    curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash -s -- "${MOONBIT_VERSION}" && break; \
+    if [ "$attempt" = "5" ]; then exit 1; fi; \
+    sleep $((attempt * 5)); \
+  done
 
 WORKDIR /app
 
 COPY . /app
 
 RUN chmod +x /app/docker/mooncraft/entrypoint.sh \
-  && moon update --manifest-path /app/moon.work \
-  && moon build --manifest-path /app/moon.work
+  && moon -C /app update \
+  && moon -C /app build
 
 EXPOSE 8080
 
