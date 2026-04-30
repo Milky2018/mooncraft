@@ -1,8 +1,8 @@
 {
-  "name": "moonbitcloud/control-plane",
+  "name": "mooncraft/control-plane",
   "version": "0.1.0",
   "deps": {
-    "moonbitcloud/sdk": "0.1.0",
+    "mooncraft/sdk": "0.1.0",
     "oboard/mocket": "0.7.1",
     "moonbitlang/async": "0.17.0",
     "moonbitlang/x": "0.4.41",
@@ -17,6 +17,6 @@
     "cloud",
     "backend"
   ],
-  "description": "MoonBit Cloud local control plane.",
+  "description": "Mooncraft local control plane.",
   "preferred-target": "native"
 }

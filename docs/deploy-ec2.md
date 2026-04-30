@@ -1,4 +1,4 @@
-# Deploying MoonBit Cloud on EC2
+# Deploying Mooncraft on EC2
 
 ## Status
 
@@ -28,7 +28,7 @@ Required fix:
 
 ### 2. Persistence is production-database backed, but not HA
 
-Local durable state defaults to SQLite. Production should set `MOONBITCLOUD_DATABASE_URL` and use PostgreSQL. Generated project directories under `data/runtime/` are scratch caches hydrated from database snapshots.
+Local durable state defaults to SQLite. Production should set `MOONCRAFT_DATABASE_URL` and use PostgreSQL. Generated project directories under `data/runtime/` are scratch caches hydrated from database snapshots.
 
 Why this matters:
 
@@ -39,7 +39,7 @@ Why this matters:
 Short-term decision:
 
 - for local dev/test, SQLite is still the simplest path
-- for EC2 production, use PostgreSQL through `MOONBITCLOUD_DATABASE_URL`
+- for EC2 production, use PostgreSQL through `MOONCRAFT_DATABASE_URL`
 - for anything beyond one node, move workspace snapshots out of the app database
 
 ### 3. Preview processes need stronger supervision
@@ -94,8 +94,8 @@ Why this is the right first hosted shape:
 
 ### Phase 1: Make the app internet-correct
 
-1. Set `MOONBITCLOUD_PUBLIC_BASE_URL` for the first hosted environment.
-2. Optionally set `MOONBITCLOUD_GITHUB_CLIENT_ID` and `MOONBITCLOUD_GITHUB_CLIENT_SECRET` if GitHub OAuth should be live.
+1. Set `MOONCRAFT_PUBLIC_BASE_URL` for the first hosted environment.
+2. Optionally set `MOONCRAFT_GITHUB_CLIENT_ID` and `MOONCRAFT_GITHUB_CLIENT_SECRET` if GitHub OAuth should be live.
 3. Decide whether the first hosted target is staging-only or true production.
 4. Keep the deployment single-instance until the real agent runtime and preview supervision are stronger.
 
@@ -103,8 +103,8 @@ Why this is the right first hosted shape:
 
 1. Create an EC2 instance role that supports Systems Manager.
 2. Install Docker and Docker Compose.
-3. Build or load the local `moonbitcloud:local` and Codex runtime images.
-4. Set deployment environment variables in your service manager or shell: `MOONBITCLOUD_PUBLIC_BASE_URL` and `MOONBITCLOUD_POSTGRES_PASSWORD`.
+3. Build or load the local `mooncraft:local` and Codex runtime images.
+4. Set deployment environment variables in your service manager or shell: `MOONCRAFT_PUBLIC_BASE_URL` and `MOONCRAFT_POSTGRES_PASSWORD`.
 5. Run `docker compose -f docker-compose.test.yml up -d` for the test route or `docker compose -f docker-compose.prod.yml up -d` for the production route.
 
 ### Phase 3: Run the app as a service

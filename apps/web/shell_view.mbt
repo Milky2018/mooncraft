@@ -527,7 +527,7 @@ fn render_project_sidebar(
           [
             @html.div(
               style=["font-size: 16px", "font-weight: 800"],
-              "MoonBit Cloud",
+              "Mooncraft",
             ),
             @html.div(
               style=[

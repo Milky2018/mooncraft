@@ -1,5 +1,5 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "moonbitcloud/sdk"
+package "mooncraft/sdk"
 
 import {
   "moonbitlang/core/debug",

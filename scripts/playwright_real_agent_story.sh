@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-port="${1:-${MOONBITCLOUD_PLAYWRIGHT_REAL_AGENT_PORT:-8096}}"
+port="${1:-${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_PORT:-8096}}"
 base_url="http://127.0.0.1:${port}"
-playwright_version="${MOONBITCLOUD_PLAYWRIGHT_VERSION:-1.56.1}"
-artifact_root="${MOONBITCLOUD_PLAYWRIGHT_OUTPUT_DIR:-output/playwright/real-agent-story}"
+playwright_version="${MOONCRAFT_PLAYWRIGHT_VERSION:-1.56.1}"
+artifact_root="${MOONCRAFT_PLAYWRIGHT_OUTPUT_DIR:-output/playwright/real-agent-story}"
 run_stamp="$(date +%Y%m%d-%H%M%S)"
 artifact_dir="${artifact_root}/${run_stamp}"
-provider="${MOONBITCLOUD_PLAYWRIGHT_REAL_AGENT_PROVIDER:-${MOONBITCLOUD_CODEX_SMOKE_PROVIDER:-openrouter}}"
-model="${MOONBITCLOUD_PLAYWRIGHT_REAL_AGENT_MODEL:-${MOONBITCLOUD_CODEX_SMOKE_MODEL:-openai/gpt-5.5}}"
-api_key="${MOONBITCLOUD_PLAYWRIGHT_REAL_AGENT_API_KEY:-${MOONBITCLOUD_CODEX_SMOKE_API_KEY:-}}"
-codex_image="${MOONBITCLOUD_CODEX_DOCKER_IMAGE:-docker.io/moonbitcloud/codex:codex-0.125.0-node24}"
+provider="${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_PROVIDER:-${MOONCRAFT_CODEX_SMOKE_PROVIDER:-openrouter}}"
+model="${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_MODEL:-${MOONCRAFT_CODEX_SMOKE_MODEL:-openai/gpt-5.5}}"
+api_key="${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_API_KEY:-${MOONCRAFT_CODEX_SMOKE_API_KEY:-}}"
+codex_image="${MOONCRAFT_CODEX_DOCKER_IMAGE:-docker.io/mooncraft/codex:codex-0.125.0-node24}"
 
 if [[ -z "$api_key" ]]; then
-  echo "MOONBITCLOUD_PLAYWRIGHT_REAL_AGENT_API_KEY is required." >&2
+  echo "MOONCRAFT_PLAYWRIGHT_REAL_AGENT_API_KEY is required." >&2
   echo "This browser story uses a real provider-backed Codex run and is intentionally opt-in." >&2
   exit 1
 fi
@@ -68,18 +68,18 @@ const fs = require("node:fs")
 const path = require("node:path")
 const { chromium } = require("playwright")
 
-const baseUrl = process.env.MOONBITCLOUD_PLAYWRIGHT_BASE_URL
-const artifactDir = process.env.MOONBITCLOUD_PLAYWRIGHT_ARTIFACT_DIR
-const provider = process.env.MOONBITCLOUD_PLAYWRIGHT_REAL_AGENT_PROVIDER
-const model = process.env.MOONBITCLOUD_PLAYWRIGHT_REAL_AGENT_MODEL
-const apiKey = process.env.MOONBITCLOUD_PLAYWRIGHT_REAL_AGENT_API_KEY
-const timeoutSeconds = Number(process.env.MOONBITCLOUD_PLAYWRIGHT_REAL_AGENT_TIMEOUT_SECONDS || "1800")
+const baseUrl = process.env.MOONCRAFT_PLAYWRIGHT_BASE_URL
+const artifactDir = process.env.MOONCRAFT_PLAYWRIGHT_ARTIFACT_DIR
+const provider = process.env.MOONCRAFT_PLAYWRIGHT_REAL_AGENT_PROVIDER
+const model = process.env.MOONCRAFT_PLAYWRIGHT_REAL_AGENT_MODEL
+const apiKey = process.env.MOONCRAFT_PLAYWRIGHT_REAL_AGENT_API_KEY
+const timeoutSeconds = Number(process.env.MOONCRAFT_PLAYWRIGHT_REAL_AGENT_TIMEOUT_SECONDS || "1800")
 
-if (!baseUrl) throw new Error("MOONBITCLOUD_PLAYWRIGHT_BASE_URL is required")
-if (!artifactDir) throw new Error("MOONBITCLOUD_PLAYWRIGHT_ARTIFACT_DIR is required")
-if (!provider) throw new Error("MOONBITCLOUD_PLAYWRIGHT_REAL_AGENT_PROVIDER is required")
-if (!model) throw new Error("MOONBITCLOUD_PLAYWRIGHT_REAL_AGENT_MODEL is required")
-if (!apiKey) throw new Error("MOONBITCLOUD_PLAYWRIGHT_REAL_AGENT_API_KEY is required")
+if (!baseUrl) throw new Error("MOONCRAFT_PLAYWRIGHT_BASE_URL is required")
+if (!artifactDir) throw new Error("MOONCRAFT_PLAYWRIGHT_ARTIFACT_DIR is required")
+if (!provider) throw new Error("MOONCRAFT_PLAYWRIGHT_REAL_AGENT_PROVIDER is required")
+if (!model) throw new Error("MOONCRAFT_PLAYWRIGHT_REAL_AGENT_MODEL is required")
+if (!apiKey) throw new Error("MOONCRAFT_PLAYWRIGHT_REAL_AGENT_API_KEY is required")
 
 const screenshot = (name) => path.join(artifactDir, name)
 const prompt =
@@ -253,11 +253,11 @@ main().catch((error) => {
 })
 EOF
 
-MOONBITCLOUD_PORT="$port" \
-MOONBITCLOUD_PUBLIC_BASE_URL="$base_url" \
-MOONBITCLOUD_BUILD_PROFILE=debug \
-MOONBITCLOUD_CODEX_FAKE_MODE= \
-MOONBITCLOUD_CODEX_DOCKER_IMAGE="$codex_image" \
+MOONCRAFT_PORT="$port" \
+MOONCRAFT_PUBLIC_BASE_URL="$base_url" \
+MOONCRAFT_BUILD_PROFILE=debug \
+MOONCRAFT_CODEX_FAKE_MODE= \
+MOONCRAFT_CODEX_DOCKER_IMAGE="$codex_image" \
 moon -C . run --target native services/control-plane >"$log_file" 2>&1 &
 server_pid=$!
 
@@ -274,11 +274,11 @@ if ! curl -fsS "${base_url}/api/health" | grep -q '"ok":true'; then
   exit 1
 fi
 
-MOONBITCLOUD_PLAYWRIGHT_BASE_URL="$base_url" \
-MOONBITCLOUD_PLAYWRIGHT_ARTIFACT_DIR="$artifact_dir" \
-MOONBITCLOUD_PLAYWRIGHT_REAL_AGENT_PROVIDER="$provider" \
-MOONBITCLOUD_PLAYWRIGHT_REAL_AGENT_MODEL="$model" \
-MOONBITCLOUD_PLAYWRIGHT_REAL_AGENT_API_KEY="$api_key" \
+MOONCRAFT_PLAYWRIGHT_BASE_URL="$base_url" \
+MOONCRAFT_PLAYWRIGHT_ARTIFACT_DIR="$artifact_dir" \
+MOONCRAFT_PLAYWRIGHT_REAL_AGENT_PROVIDER="$provider" \
+MOONCRAFT_PLAYWRIGHT_REAL_AGENT_MODEL="$model" \
+MOONCRAFT_PLAYWRIGHT_REAL_AGENT_API_KEY="$api_key" \
   node "$runner_script" | tee "${artifact_dir}/result.json"
 
 echo "Playwright real-agent report: ${artifact_dir}/REPORT.md"

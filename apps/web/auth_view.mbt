@@ -29,7 +29,7 @@ fn render_app_header(
           style=[
             "font-size: 22px", "font-weight: 780", "letter-spacing: -0.02em",
           ],
-          "MoonBit Cloud",
+          "Mooncraft",
         ),
       ]),
       theme_toggle_button(dispatch, model),

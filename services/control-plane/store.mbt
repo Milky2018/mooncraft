@@ -79,11 +79,11 @@ fn bytes_to_string(bytes : Bytes) -> String {
 
 ///|
 #borrow(command)
-extern "C" fn shell_status_ffi(command : Bytes) -> Int = "moonbitcloud_shell_status"
+extern "C" fn shell_status_ffi(command : Bytes) -> Int = "mooncraft_shell_status"
 
 ///|
 #borrow(pid)
-extern "C" fn process_alive_ffi(pid : Int) -> Int = "moonbitcloud_process_alive"
+extern "C" fn process_alive_ffi(pid : Int) -> Int = "mooncraft_process_alive"
 
 ///|
 fn shell_status(command : String) -> Int {
@@ -275,7 +275,7 @@ fn row_bool(row : Map[String, @db.Param], key : String) -> Bool {
 
 ///|
 fn build_profile_from_env() -> BuildProfile {
-  match @env.get_env_var("MOONBITCLOUD_BUILD_PROFILE") {
+  match @env.get_env_var("MOONCRAFT_BUILD_PROFILE") {
     Some(value) if value.to_lower() == "release" => Release
     _ => Debug
   }
@@ -427,7 +427,7 @@ fn platform_web_build_output_path(
   root +
   "/_build/js/" +
   build_profile.build_dir() +
-  "/build/moonbitcloud/web/web.js"
+  "/build/mooncraft/web/web.js"
 }
 
 ///|
@@ -438,7 +438,7 @@ fn control_plane_executable_path(
   root +
   "/_build/native/" +
   build_profile.build_dir() +
-  "/build/moonbitcloud/control-plane/control-plane.exe"
+  "/build/mooncraft/control-plane/control-plane.exe"
 }
 
 ///|
@@ -548,7 +548,7 @@ fn parse_database_url(url : String) -> Result[@pg.Config, String] {
         password~,
         port~,
         ssl_mode=@pg.SslMode::disable(),
-        application_name="moonbitcloud",
+        application_name="mooncraft",
       )
     None =>
       @pg.Config::new(
@@ -557,7 +557,7 @@ fn parse_database_url(url : String) -> Result[@pg.Config, String] {
         database~,
         port~,
         ssl_mode=@pg.SslMode::disable(),
-        application_name="moonbitcloud",
+        application_name="mooncraft",
       )
   }
   Ok(config)
@@ -877,7 +877,7 @@ async fn Store::backfill_initial_project_prompts(
 async fn Store::try_new_async(
   db_path : String,
 ) -> Result[Store, String] noraise {
-  let store = match @env.get_env_var("MOONBITCLOUD_DATABASE_URL") {
+  let store = match @env.get_env_var("MOONCRAFT_DATABASE_URL") {
     Some(url) if url.trim() != "" => {
       let config = match parse_database_url(url.trim().to_string()) {
         Ok(config) => config
@@ -2247,7 +2247,7 @@ fn PreviewManager::rebuild_and_restart(
   let script_path = preview_script_path(workspace_path)
   if !@fs.path_exists(script_path) {
     return Err(
-      "The app did not provide `moonbitcloud-preview.sh`, so MoonBit Cloud does not know how to start the live preview.",
+      "The app did not provide `mooncraft-preview.sh`, so Mooncraft does not know how to start the live preview.",
     )
   }
   let preferred_port = project.preview.map(fn(target) { target.port })
@@ -2259,9 +2259,9 @@ fn PreviewManager::rebuild_and_restart(
   let pid = shell_status(
     "cd " +
     shell_quote(workspace_path) +
-    " && chmod +x ./moonbitcloud-preview.sh && nohup ./moonbitcloud-preview.sh \{port} " +
+    " && chmod +x ./mooncraft-preview.sh && nohup ./mooncraft-preview.sh \{port} " +
     shell_quote(self.build_profile.build_dir()) +
-    " >/tmp/moonbitcloud-preview-\{project.id}.log 2>&1 &",
+    " >/tmp/mooncraft-preview-\{project.id}.log 2>&1 &",
   )
   if pid != 0 {
     return Err("The preview process could not be started.")

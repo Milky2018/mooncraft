@@ -3,7 +3,7 @@ set -euo pipefail
 
 port="${1:-8094}"
 base_url="http://127.0.0.1:${port}"
-playwright_version="${MOONBITCLOUD_PLAYWRIGHT_VERSION:-1.56.1}"
+playwright_version="${MOONCRAFT_PLAYWRIGHT_VERSION:-1.56.1}"
 
 if ! command -v npm >/dev/null 2>&1; then
   echo "npm is required for the Playwright smoke runner." >&2
@@ -103,11 +103,11 @@ run_playwright() {
     node "$runner_script" "$@"
 }
 
-MOONBITCLOUD_PORT="$port" \
-MOONBITCLOUD_PUBLIC_BASE_URL="$base_url" \
-MOONBITCLOUD_BUILD_PROFILE=debug \
-MOONBITCLOUD_CODEX_FAKE_MODE=smoke \
-MOONBITCLOUD_CODEX_DOCKER_IMAGE= \
+MOONCRAFT_PORT="$port" \
+MOONCRAFT_PUBLIC_BASE_URL="$base_url" \
+MOONCRAFT_BUILD_PROFILE=debug \
+MOONCRAFT_CODEX_FAKE_MODE=smoke \
+MOONCRAFT_CODEX_DOCKER_IMAGE= \
 moon -C . run --target native services/control-plane \
   >"$log_file" 2>&1 &
 server_pid=$!

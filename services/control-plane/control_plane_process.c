@@ -8,7 +8,7 @@
 #include <sys/wait.h>
 
 MOONBIT_FFI_EXPORT
-int32_t moonbitcloud_shell_status(moonbit_bytes_t command) {
+int32_t mooncraft_shell_status(moonbit_bytes_t command) {
   int status = system((const char *)command);
   if (status < 0) {
     return 1;
@@ -20,7 +20,7 @@ int32_t moonbitcloud_shell_status(moonbit_bytes_t command) {
 }
 
 MOONBIT_FFI_EXPORT
-int32_t moonbitcloud_process_alive(int32_t pid) {
+int32_t mooncraft_process_alive(int32_t pid) {
   if (pid <= 0) {
     return 0;
   }
@@ -31,7 +31,7 @@ int32_t moonbitcloud_process_alive(int32_t pid) {
 }
 
 MOONBIT_FFI_EXPORT
-moonbit_bytes_t moonbitcloud_random_hex(int32_t byte_count) {
+moonbit_bytes_t mooncraft_random_hex(int32_t byte_count) {
   if (byte_count <= 0) {
     return moonbit_empty_int8_array;
   }

@@ -2,7 +2,7 @@
 
 ## Role Of Documentation
 
-Documentation is a core runtime dependency for MoonBit Cloud. The end user interacts with the system through an agent, so the agent needs precise and reliable internal knowledge about how generated apps are structured and how platform invariants must be preserved.
+Documentation is a core runtime dependency for Mooncraft. The end user interacts with the system through an agent, so the agent needs precise and reliable internal knowledge about how generated apps are structured and how platform invariants must be preserved.
 
 These docs are primarily for the agent. Human readability matters, but agent usability matters more.
 

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-image="${MOONBITCLOUD_CODEX_DEPS_CHECK_DOCKER_IMAGE:-docker.io/moonbitcloud/codex:codex-0.125.0-node24}"
-platform="${MOONBITCLOUD_CODEX_DEPS_CHECK_DOCKER_PLATFORM:-linux/amd64}"
+image="${MOONCRAFT_CODEX_DEPS_CHECK_DOCKER_IMAGE:-docker.io/mooncraft/codex:codex-0.125.0-node24}"
+platform="${MOONCRAFT_CODEX_DEPS_CHECK_DOCKER_PLATFORM:-linux/amd64}"
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 modules_file="$repo_root/config/user_project_reference_modules.txt"
-tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/moonbitcloud-user-project-deps-docker.XXXXXX")"
+tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/mooncraft-user-project-deps-docker.XXXXXX")"
 cleanup() {
   rm -rf "$tmp_root"
 }
@@ -19,7 +19,7 @@ fi
 docker run --rm \
   --platform "$platform" \
   -v "$tmp_root:/workspace" \
-  -v "$modules_file:/moonbitcloud-user-project-reference-modules.txt:ro" \
+  -v "$modules_file:/mooncraft-user-project-reference-modules.txt:ro" \
   -w /workspace \
   "$image" \
   bash -lc '
@@ -27,7 +27,7 @@ docker run --rm \
     modules=()
     while IFS= read -r module; do
       modules+=("$module")
-    done < <(grep -vE "^[[:space:]]*(#|$)" /moonbitcloud-user-project-reference-modules.txt)
+    done < <(grep -vE "^[[:space:]]*(#|$)" /mooncraft-user-project-reference-modules.txt)
     if [[ "${#modules[@]}" -eq 0 ]]; then
       echo "No user-project reference modules configured." >&2
       exit 1

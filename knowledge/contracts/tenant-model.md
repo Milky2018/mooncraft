@@ -1,6 +1,6 @@
 ---
 title: Tenant Model
-summary: The local prototype tenant contract for MoonBit Cloud apps
+summary: The local prototype tenant contract for Mooncraft apps
 applies_to:
   - multi-tenant
   - durable-storage

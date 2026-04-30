@@ -372,7 +372,7 @@ fn AppContext::serve_platform_asset(
 
 ///|
 fn control_plane_port() -> Int {
-  match @env.get_env_var("MOONBITCLOUD_PORT") {
+  match @env.get_env_var("MOONCRAFT_PORT") {
     Some(value) => @string.parse_int(value) catch { _ => 8080 }
     None => 8080
   }
@@ -394,7 +394,7 @@ fn main {
   let port = control_plane_port()
   let ctx = match AppContext::try_new(root) {
     Ok(ctx) => ctx
-    Err(message) => abort("MoonBit Cloud cannot start: " + message)
+    Err(message) => abort("Mooncraft cannot start: " + message)
   }
   let stale_runs_ref : Ref[Int] = @ref.new(0)
   @async.run_async_main(async fn() {
@@ -802,6 +802,6 @@ fn main {
     }
   })
 
-  println("MoonBit Cloud running at http://localhost:\{port}")
+  println("Mooncraft running at http://localhost:\{port}")
   @async.run_async_main(() => serve_mocket_async(app, port))
 }

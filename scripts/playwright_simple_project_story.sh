@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-port="${1:-${MOONBITCLOUD_PLAYWRIGHT_PORT:-8095}}"
+port="${1:-${MOONCRAFT_PLAYWRIGHT_PORT:-8095}}"
 base_url="http://127.0.0.1:${port}"
-playwright_version="${MOONBITCLOUD_PLAYWRIGHT_VERSION:-1.56.1}"
-artifact_root="${MOONBITCLOUD_PLAYWRIGHT_OUTPUT_DIR:-output/playwright/simple-project-story}"
+playwright_version="${MOONCRAFT_PLAYWRIGHT_VERSION:-1.56.1}"
+artifact_root="${MOONCRAFT_PLAYWRIGHT_OUTPUT_DIR:-output/playwright/simple-project-story}"
 run_stamp="$(date +%Y%m%d-%H%M%S)"
 artifact_dir="${artifact_root}/${run_stamp}"
 
@@ -53,11 +53,11 @@ const fs = require("node:fs")
 const path = require("node:path")
 const { chromium } = require("playwright")
 
-const baseUrl = process.env.MOONBITCLOUD_PLAYWRIGHT_BASE_URL
-const artifactDir = process.env.MOONBITCLOUD_PLAYWRIGHT_ARTIFACT_DIR
+const baseUrl = process.env.MOONCRAFT_PLAYWRIGHT_BASE_URL
+const artifactDir = process.env.MOONCRAFT_PLAYWRIGHT_ARTIFACT_DIR
 
-if (!baseUrl) throw new Error("MOONBITCLOUD_PLAYWRIGHT_BASE_URL is required")
-if (!artifactDir) throw new Error("MOONBITCLOUD_PLAYWRIGHT_ARTIFACT_DIR is required")
+if (!baseUrl) throw new Error("MOONCRAFT_PLAYWRIGHT_BASE_URL is required")
+if (!artifactDir) throw new Error("MOONCRAFT_PLAYWRIGHT_ARTIFACT_DIR is required")
 
 const screenshot = (name) => path.join(artifactDir, name)
 const prompt =
@@ -158,7 +158,7 @@ async function main() {
     await page.getByText("The app is updated and the preview is ready.").waitFor()
     await page.getByText(prompt).waitFor()
     const firstPreviewFrame = page.frameLocator(`iframe[src*="${firstDetail.preview.url}"]`)
-    await firstPreviewFrame.getByText("MoonBit Cloud smoke preview").waitFor()
+    await firstPreviewFrame.getByText("Mooncraft smoke preview").waitFor()
     await assertNoInternalPromptLeak(page, firstPreviewFrame)
     const previewTitle = await firstPreviewFrame.locator("h1").innerText()
     screenshots.push(screenshot("05-completed-preview.png"))
@@ -191,7 +191,7 @@ async function main() {
       throw new Error("Expected the preview URL to persist after refresh")
     }
     const refreshedPreviewFrame = page.frameLocator(`iframe[src*="${refreshedDetail.preview.url}"]`)
-    await refreshedPreviewFrame.getByText("MoonBit Cloud smoke preview").waitFor()
+    await refreshedPreviewFrame.getByText("Mooncraft smoke preview").waitFor()
     await assertNoInternalPromptLeak(page, refreshedPreviewFrame)
     screenshots.push(screenshot("07-refresh-persistence.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
@@ -215,7 +215,7 @@ async function main() {
       throw new Error("Expected the last successful preview to remain available after a failed run")
     }
     const failedPreviewFrame = page.frameLocator(`iframe[src*="${failedDetail.preview.url}"]`)
-    await failedPreviewFrame.getByText("MoonBit Cloud smoke preview").waitFor()
+    await failedPreviewFrame.getByText("Mooncraft smoke preview").waitFor()
     await assertNoInternalPromptLeak(page, failedPreviewFrame)
     screenshots.push(screenshot("08-failed-run-preserves-preview.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
@@ -224,7 +224,7 @@ async function main() {
 
 - Result: Passed
 - App URL: \`${baseUrl}\`
-- Mode: \`MOONBITCLOUD_CODEX_FAKE_MODE=smoke\`
+- Mode: \`MOONCRAFT_CODEX_FAKE_MODE=smoke\`
 - User: \`${email}\`
 - Project ID: \`${projectId}\`
 - First run ID: \`${firstRunId}\`
@@ -277,12 +277,12 @@ main().catch((error) => {
 })
 EOF
 
-MOONBITCLOUD_PORT="$port" \
-MOONBITCLOUD_PUBLIC_BASE_URL="$base_url" \
-MOONBITCLOUD_BUILD_PROFILE=debug \
-MOONBITCLOUD_CODEX_FAKE_MODE=smoke \
-MOONBITCLOUD_CODEX_FAKE_FAIL_CONTAINS="${MOONBITCLOUD_CODEX_FAKE_FAIL_CONTAINS:-Force fake failure}" \
-MOONBITCLOUD_CODEX_DOCKER_IMAGE= \
+MOONCRAFT_PORT="$port" \
+MOONCRAFT_PUBLIC_BASE_URL="$base_url" \
+MOONCRAFT_BUILD_PROFILE=debug \
+MOONCRAFT_CODEX_FAKE_MODE=smoke \
+MOONCRAFT_CODEX_FAKE_FAIL_CONTAINS="${MOONCRAFT_CODEX_FAKE_FAIL_CONTAINS:-Force fake failure}" \
+MOONCRAFT_CODEX_DOCKER_IMAGE= \
 moon -C . run --target native services/control-plane >"$log_file" 2>&1 &
 server_pid=$!
 
@@ -299,8 +299,8 @@ if ! curl -fsS "${base_url}/api/health" | grep -q '"ok":true'; then
   exit 1
 fi
 
-MOONBITCLOUD_PLAYWRIGHT_BASE_URL="$base_url" \
-MOONBITCLOUD_PLAYWRIGHT_ARTIFACT_DIR="$artifact_dir" \
+MOONCRAFT_PLAYWRIGHT_BASE_URL="$base_url" \
+MOONCRAFT_PLAYWRIGHT_ARTIFACT_DIR="$artifact_dir" \
   node "$runner_script" | tee "${artifact_dir}/result.json"
 
 echo "Playwright report: $(cd "$artifact_dir" && pwd)/REPORT.md"

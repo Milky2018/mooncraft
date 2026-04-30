@@ -1,8 +1,8 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-codex_repository := "docker.io/moonbitcloud/codex"
+codex_repository := "docker.io/mooncraft/codex"
 codex_version := "codex-0.125.0-node24"
-codex_image := "docker.io/moonbitcloud/codex:codex-0.125.0-node24"
+codex_image := "docker.io/mooncraft/codex:codex-0.125.0-node24"
 
 # Show available recipes
 default:
@@ -34,9 +34,9 @@ build-control-plane profile='debug':
 build-codex-image tag=codex_image platform='linux/amd64':
   docker build --platform {{platform}} -f docker/codex/Dockerfile -t {{tag}} .
 
-# Build the Docker image used by the MoonBit Cloud app runtime
-build-moonbitcloud-image tag='moonbitcloud:local' platform='linux/amd64':
-  docker build --platform {{platform}} -f docker/moonbitcloud/Dockerfile -t {{tag}} .
+# Build the Docker image used by the Mooncraft app runtime
+build-mooncraft-image tag='mooncraft:local' platform='linux/amd64':
+  docker build --platform {{platform}} -f docker/mooncraft/Dockerfile -t {{tag}} .
 
 # Publish the Codex executor image to Docker Hub for amd64 and arm64
 docker-codex-publish repository=codex_repository version=codex_version platforms='linux/amd64,linux/arm64':
@@ -45,7 +45,7 @@ docker-codex-publish repository=codex_repository version=codex_version platforms
   repository="{{repository}}"
   version="{{version}}"
   platforms="{{platforms}}"
-  builder="${MOONBITCLOUD_CODEX_BUILDX_BUILDER:-moonbitcloud-codex-builder}"
+  builder="${MOONCRAFT_CODEX_BUILDX_BUILDER:-mooncraft-codex-builder}"
   if ! docker buildx inspect "$builder" >/dev/null 2>&1; then
     docker buildx create --name "$builder" --driver docker-container --bootstrap >/dev/null
   else
@@ -65,10 +65,10 @@ docker-codex-publish repository=codex_repository version=codex_version platforms
 codex-config:
   #!/usr/bin/env bash
   set -euo pipefail
-  image="${MOONBITCLOUD_CODEX_DOCKER_IMAGE:-{{codex_image}}}"
-  container_home="${MOONBITCLOUD_CODEX_CONTAINER_HOME:-/root}"
-  echo "MOONBITCLOUD_CODEX_DOCKER_IMAGE=$image"
-  echo "MOONBITCLOUD_CODEX_CONTAINER_HOME=$container_home"
+  image="${MOONCRAFT_CODEX_DOCKER_IMAGE:-{{codex_image}}}"
+  container_home="${MOONCRAFT_CODEX_CONTAINER_HOME:-/root}"
+  echo "MOONCRAFT_CODEX_DOCKER_IMAGE=$image"
+  echo "MOONCRAFT_CODEX_CONTAINER_HOME=$container_home"
   echo "AI provider/API key/model are configured per user in Account settings."
 
 # Build the whole workspace
@@ -81,7 +81,7 @@ check-user-project-deps:
 
 # Check generated user-project dependency fetches inside the Codex runtime image
 check-user-project-deps-codex image=codex_image:
-  MOONBITCLOUD_CODEX_DEPS_CHECK_DOCKER_IMAGE="{{image}}" ./scripts/check_user_project_deps_in_codex_image.sh
+  MOONCRAFT_CODEX_DEPS_CHECK_DOCKER_IMAGE="{{image}}" ./scripts/check_user_project_deps_in_codex_image.sh
 
 # Serve the app. Examples: `just serve`, `just serve 8107`, `just serve release`, `just serve 8107 release`
 serve target='8080' profile='debug':
@@ -91,18 +91,18 @@ serve target='8080' profile='debug':
   profile="{{profile}}"
   if [[ "$target" == "debug" || "$target" == "release" ]]; then
     profile="$target"
-    port="${MOONBITCLOUD_PORT:-8080}"
+    port="${MOONCRAFT_PORT:-8080}"
   else
     port="$target"
   fi
   base_url="http://localhost:$port"
-  public_base_url="${MOONBITCLOUD_PUBLIC_BASE_URL:-$base_url}"
-  echo "MoonBit Cloud: $base_url"
+  public_base_url="${MOONCRAFT_PUBLIC_BASE_URL:-$base_url}"
+  echo "Mooncraft: $base_url"
   if [[ "$profile" == "release" ]]; then
-    MOONBITCLOUD_PORT="$port" MOONBITCLOUD_PUBLIC_BASE_URL="$public_base_url" MOONBITCLOUD_BUILD_PROFILE=release \
+    MOONCRAFT_PORT="$port" MOONCRAFT_PUBLIC_BASE_URL="$public_base_url" MOONCRAFT_BUILD_PROFILE=release \
       moon -C . run --target native --release services/control-plane
   else
-    MOONBITCLOUD_PORT="$port" MOONBITCLOUD_PUBLIC_BASE_URL="$public_base_url" MOONBITCLOUD_BUILD_PROFILE=debug \
+    MOONCRAFT_PORT="$port" MOONCRAFT_PUBLIC_BASE_URL="$public_base_url" MOONCRAFT_BUILD_PROFILE=debug \
       moon -C . run --target native services/control-plane
   fi
 
@@ -129,7 +129,7 @@ playwright-real-agent-story:
 smoke:
   #!/usr/bin/env bash
   set -euo pipefail
-  port="${MOONBITCLOUD_SMOKE_PORT:-8080}"
+  port="${MOONCRAFT_SMOKE_PORT:-8080}"
   base_url="http://127.0.0.1:$port"
   if curl -fsS "$base_url/api/health" >/dev/null 2>&1; then
     echo "Port $port is already serving a control plane. Stop it first or use 'just smoke-running'." >&2
@@ -137,7 +137,7 @@ smoke:
   fi
   tmpdir="$(mktemp -d)"
   log_file="$tmpdir/control-plane.log"
-  MOONBITCLOUD_CODEX_FAKE_MODE=smoke MOONBITCLOUD_PORT="$port" MOONBITCLOUD_PUBLIC_BASE_URL="$base_url" moon -C . run --target native services/control-plane >"$log_file" 2>&1 &
+  MOONCRAFT_CODEX_FAKE_MODE=smoke MOONCRAFT_PORT="$port" MOONCRAFT_PUBLIC_BASE_URL="$base_url" moon -C . run --target native services/control-plane >"$log_file" 2>&1 &
   server_pid=$!
   cleanup() {
     kill "$server_pid" >/dev/null 2>&1 || true
@@ -154,15 +154,15 @@ smoke:
   done
 
   curl -fsS "$base_url/api/health" | grep -q '"ok":true'
-  MOONBITCLOUD_CODEX_FAKE_MODE=smoke just smoke-running
+  MOONCRAFT_CODEX_FAKE_MODE=smoke just smoke-running
 
 # Run the smoke test against an already running control plane
 smoke-running:
   #!/usr/bin/env bash
   set -euo pipefail
-  port="${MOONBITCLOUD_SMOKE_PORT:-8080}"
+  port="${MOONCRAFT_SMOKE_PORT:-8080}"
   base_url="http://127.0.0.1:$port"
-  run_poll_limit="${MOONBITCLOUD_SMOKE_RUN_POLL_LIMIT:-180}"
+  run_poll_limit="${MOONCRAFT_SMOKE_RUN_POLL_LIMIT:-180}"
   tmpdir="$(mktemp -d)"
   cleanup() {
     rm -rf "$tmpdir"
@@ -292,7 +292,7 @@ smoke-running:
     exit 1
   fi
   wait_for_ok "$base_url${preview_url}api/health"
-  if [[ -z "${MOONBITCLOUD_DATABASE_URL:-}" ]]; then
+  if [[ -z "${MOONCRAFT_DATABASE_URL:-}" ]]; then
     snapshot_count="$(sqlite3 data/control-plane/state-v2.sqlite "SELECT COUNT(*) FROM project_workspace_snapshots WHERE project_id = '$project_id';")"
     [[ "$snapshot_count" == "1" ]]
   fi
@@ -366,7 +366,7 @@ smoke-running:
     echo "Project still appears in the project list after deletion: $project_id" >&2
     exit 1
   fi
-  if [[ -z "${MOONBITCLOUD_DATABASE_URL:-}" ]]; then
+  if [[ -z "${MOONCRAFT_DATABASE_URL:-}" ]]; then
     snapshot_count_after_delete="$(sqlite3 data/control-plane/state-v2.sqlite "SELECT COUNT(*) FROM project_workspace_snapshots WHERE project_id = '$project_id';")"
     if [[ "$snapshot_count_after_delete" != "0" ]]; then
       echo "Project workspace snapshot still exists after deletion: $project_id" >&2
@@ -402,11 +402,11 @@ smoke-running:
 codex-smoke:
   #!/usr/bin/env bash
   set -euo pipefail
-  codex_image="${MOONBITCLOUD_CODEX_DOCKER_IMAGE:-{{codex_image}}}"
-  export MOONBITCLOUD_CODEX_DOCKER_IMAGE="$codex_image"
-  codex_provider="${MOONBITCLOUD_CODEX_SMOKE_PROVIDER:-openai}"
-  codex_model="${MOONBITCLOUD_CODEX_SMOKE_MODEL:-gpt-5.5}"
-  codex_api_key="${MOONBITCLOUD_CODEX_SMOKE_API_KEY:-}"
+  codex_image="${MOONCRAFT_CODEX_DOCKER_IMAGE:-{{codex_image}}}"
+  export MOONCRAFT_CODEX_DOCKER_IMAGE="$codex_image"
+  codex_provider="${MOONCRAFT_CODEX_SMOKE_PROVIDER:-openai}"
+  codex_model="${MOONCRAFT_CODEX_SMOKE_MODEL:-gpt-5.5}"
+  codex_api_key="${MOONCRAFT_CODEX_SMOKE_API_KEY:-}"
   echo "Using Codex Docker image: $codex_image"
   echo "Using Codex provider: $codex_provider"
   echo "Using Codex model: $codex_model"
@@ -415,15 +415,15 @@ codex-smoke:
     exit 1
   fi
   if [[ -z "$codex_api_key" ]]; then
-    echo "MOONBITCLOUD_CODEX_SMOKE_API_KEY is required for the real Codex smoke test. The test stores it through the user AI settings API before starting a run." >&2
+    echo "MOONCRAFT_CODEX_SMOKE_API_KEY is required for the real Codex smoke test. The test stores it through the user AI settings API before starting a run." >&2
     exit 1
   fi
 
-  port="${MOONBITCLOUD_CODEX_SMOKE_PORT:-${MOONBITCLOUD_SMOKE_PORT:-18081}}"
-  timeout_seconds="${MOONBITCLOUD_CODEX_SMOKE_TIMEOUT_SECONDS:-1800}"
+  port="${MOONCRAFT_CODEX_SMOKE_PORT:-${MOONCRAFT_SMOKE_PORT:-18081}}"
+  timeout_seconds="${MOONCRAFT_CODEX_SMOKE_TIMEOUT_SECONDS:-1800}"
   base_url="http://127.0.0.1:$port"
   if curl -fsS "$base_url/api/health" >/dev/null 2>&1; then
-    echo "Port $port is already serving a control plane. Stop it first or choose MOONBITCLOUD_CODEX_SMOKE_PORT." >&2
+    echo "Port $port is already serving a control plane. Stop it first or choose MOONCRAFT_CODEX_SMOKE_PORT." >&2
     exit 1
   fi
 
@@ -476,7 +476,7 @@ codex-smoke:
   }
   trap cleanup EXIT
 
-  MOONBITCLOUD_CODEX_FAKE_MODE= MOONBITCLOUD_PORT="$port" moon -C . run --target native services/control-plane >"$log_file" 2>&1 &
+  MOONCRAFT_CODEX_FAKE_MODE= MOONCRAFT_PORT="$port" moon -C . run --target native services/control-plane >"$log_file" 2>&1 &
   server_pid=$!
   for _ in {1..60}; do
     if curl -fsS "$base_url/api/health" >/dev/null 2>&1; then

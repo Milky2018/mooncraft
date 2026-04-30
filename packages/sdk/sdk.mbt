@@ -220,7 +220,7 @@ pub fn RunState::label(self : RunState) -> String {
 pub fn ChatRole::label(self : ChatRole) -> String {
   match self {
     User => "You"
-    Assistant => "MoonBit Cloud"
+    Assistant => "Mooncraft"
     System => "System"
   }
 }

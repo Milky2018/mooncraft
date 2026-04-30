@@ -1,5 +1,5 @@
 ///|
-let session_cookie_name = "moonbitcloud_session"
+let session_cookie_name = "mooncraft_session"
 
 ///|
 let session_max_age_seconds : Int = 60 * 60 * 24 * 14
@@ -64,12 +64,12 @@ fn github_provider_name() -> String {
 
 ///|
 fn github_public_base_url() -> String {
-  match @env.get_env_var("MOONBITCLOUD_PUBLIC_BASE_URL") {
+  match @env.get_env_var("MOONCRAFT_PUBLIC_BASE_URL") {
     Some(value) if value != "" && value.has_suffix("/") =>
       value[:value.length() - 1].to_string()
     Some(value) if value != "" => value
     _ =>
-      match @env.get_env_var("MOONBITCLOUD_PORT") {
+      match @env.get_env_var("MOONCRAFT_PORT") {
         Some(port) if port != "" => "http://localhost:\{port}"
         _ => "http://localhost:8080"
       }
@@ -117,8 +117,8 @@ fn github_callback_url() -> String {
 fn github_credentials() -> (String, String)? {
   match
     (
-      @env.get_env_var("MOONBITCLOUD_GITHUB_CLIENT_ID"),
-      @env.get_env_var("MOONBITCLOUD_GITHUB_CLIENT_SECRET"),
+      @env.get_env_var("MOONCRAFT_GITHUB_CLIENT_ID"),
+      @env.get_env_var("MOONCRAFT_GITHUB_CLIENT_SECRET"),
     ) {
     (Some(client_id), Some(client_secret)) =>
       if client_id != "" && client_secret != "" {
@@ -242,7 +242,7 @@ async fn queue_email_verification(
   append_account_email(
     ctx,
     user.email,
-    "Verify your MoonBit Cloud email",
+    "Verify your Mooncraft email",
     "Open this link to verify your email address:\n\{url}",
   )
 }
@@ -263,7 +263,7 @@ async fn queue_password_reset(
   append_account_email(
     ctx,
     user.email,
-    "Reset your MoonBit Cloud password",
+    "Reset your Mooncraft password",
     "Open this link to set a new password:\n\{url}",
   )
 }
@@ -459,7 +459,7 @@ fn github_api_headers(access_token : String) -> Map[String, String] {
   {
     "Accept": "application/vnd.github+json",
     "Authorization": "Bearer \{access_token}",
-    "User-Agent": "moonbitcloud",
+    "User-Agent": "mooncraft",
     "X-GitHub-Api-Version": "2022-11-28",
   }
 }

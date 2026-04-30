@@ -5,7 +5,7 @@ fn preview_health_path() -> String {
 
 ///|
 fn preview_script_relative_path() -> String {
-  "moonbitcloud-preview.sh"
+  "mooncraft-preview.sh"
 }
 
 ///|
@@ -24,7 +24,7 @@ fn required_user_project_fetches() -> Array[String] {
   let content = @fs.read_file_to_string(user_project_reference_modules_path()) catch {
     err =>
       abort(
-        "MoonBit Cloud cannot read user-project reference modules from " +
+        "Mooncraft cannot read user-project reference modules from " +
         user_project_reference_modules_path() +
         ": \{err}",
       )
@@ -38,7 +38,7 @@ fn required_user_project_fetches() -> Array[String] {
   }
   if modules.length() == 0 {
     abort(
-      "MoonBit Cloud requires at least one user-project reference module in " +
+      "Mooncraft requires at least one user-project reference module in " +
       user_project_reference_modules_path(),
     )
   }
@@ -133,16 +133,16 @@ fn scaffold_write_file(path : String, content : String) -> Result[Unit, String] 
 fn empty_workspace_seed_files() -> Array[(String, String)] {
   [
     (
-      ".moonbitcloud/bootstrap.md",
+      ".mooncraft/bootstrap.md",
       (
-        #|# MoonBit Cloud Workspace
+        #|# Mooncraft Workspace
         #|
         #|This directory intentionally starts without an app scaffold.
         #|
         #|The Codex agent should create the real MoonBit project with `moon new`, choose the project shape that fits the request, and keep root-level validation commands working.
         #|
         #|Preview contract:
-        #|- Keep `moonbitcloud-preview.sh` at the workspace root.
+        #|- Keep `mooncraft-preview.sh` at the workspace root.
         #|- The script receives `<port> <build-profile>` arguments.
         #|- The script must start the generated app server and keep running.
         #|- The app must serve `/api/health` successfully and serve the user-facing app at `/`.

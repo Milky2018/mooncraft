@@ -13,7 +13,7 @@ extern "js" fn js_load_theme_mode(succeed~ : (String, String) -> Unit) =
   #|   };
   #|   let mode = "system";
   #|   try {
-  #|     const stored = window.localStorage.getItem("moonbitcloud-theme");
+  #|     const stored = window.localStorage.getItem("mooncraft-theme");
   #|     if (stored === "dark" || stored === "light" || stored === "system") {
   #|       mode = stored;
   #|     }
@@ -46,7 +46,7 @@ extern "js" fn js_persist_theme_mode(
   #|   const mode = value === "light" || value === "dark" || value === "system" ? value : "system";
   #|   const resolved = resolveTheme(mode);
   #|   try {
-  #|     window.localStorage.setItem("moonbitcloud-theme", mode);
+  #|     window.localStorage.setItem("mooncraft-theme", mode);
   #|   } catch (_) {}
   #|   try {
   #|     document.documentElement.dataset.theme = mode;

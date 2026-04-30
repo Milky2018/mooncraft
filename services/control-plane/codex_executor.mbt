@@ -22,7 +22,7 @@ struct CodexDockerConfig {
 }
 
 ///|
-let default_codex_docker_image = "docker.io/moonbitcloud/codex:codex-0.125.0-node24"
+let default_codex_docker_image = "docker.io/mooncraft/codex:codex-0.125.0-node24"
 
 ///|
 let default_codex_model = "gpt-5.5"
@@ -44,7 +44,7 @@ struct CodexExecutionResult {
 
 ///|
 fn smoke_codex_enabled() -> Bool {
-  match @env.get_env_var("MOONBITCLOUD_CODEX_FAKE_MODE") {
+  match @env.get_env_var("MOONCRAFT_CODEX_FAKE_MODE") {
     Some(value) => value.trim() == "smoke"
     None => false
   }
@@ -85,18 +85,18 @@ fn codex_container_artifacts_dir() -> String {
 fn CodexDockerConfig::load(
   settings : AiRuntimeSettings,
 ) -> Result[CodexDockerConfig, String] {
-  let image = match @env.get_env_var("MOONBITCLOUD_CODEX_DOCKER_IMAGE") {
+  let image = match @env.get_env_var("MOONCRAFT_CODEX_DOCKER_IMAGE") {
     Some(value) if value.trim() != "" => value.trim().to_string()
     _ => default_codex_docker_image
   }
-  if @env.get_env_var("MOONBITCLOUD_CODEX_HOME_HOST") is Some(value) &&
+  if @env.get_env_var("MOONCRAFT_CODEX_HOME_HOST") is Some(value) &&
     value.trim() != "" {
     return Err(
-      "MOONBITCLOUD_CODEX_HOME_HOST is not supported. Configure AI keys in MoonBit Cloud account settings instead.",
+      "MOONCRAFT_CODEX_HOME_HOST is not supported. Configure AI keys in Mooncraft account settings instead.",
     )
   }
   let container_home = match
-    @env.get_env_var("MOONBITCLOUD_CODEX_CONTAINER_HOME") {
+    @env.get_env_var("MOONCRAFT_CODEX_CONTAINER_HOME") {
     Some(value) if value.trim() != "" => value
     _ => "/root"
   }
@@ -112,7 +112,7 @@ fn CodexDockerConfig::load(
 ///|
 fn bootstrap_prompt(user_message : String) -> String {
   (
-    #|You are the software engineer for MoonBit Cloud. Build the user's app inside the current workspace.
+    #|You are the software engineer for Mooncraft. Build the user's app inside the current workspace.
     #|
     #|Working rules:
     #|- Default to MoonBit unless the user explicitly asks for another technology.
@@ -126,7 +126,7 @@ fn bootstrap_prompt(user_message : String) -> String {
   reference_modules_prompt_rule() +
   (
     #|
-    #|- Create or maintain `moonbitcloud-preview.sh` at the workspace root. It receives `<port> <build-profile>`, starts the generated app server, serves the user-facing app at `/`, and returns success from `/api/health`.
+    #|- Create or maintain `mooncraft-preview.sh` at the workspace root. It receives `<port> <build-profile>`, starts the generated app server, serves the user-facing app at `/`, and returns success from `/api/health`.
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
     #|- You may run shell commands as needed.
     #|- Before finishing, run `moon fmt`, `moon check`, `moon test`, and `moon build`.
@@ -142,7 +142,7 @@ fn bootstrap_prompt(user_message : String) -> String {
 ///|
 fn followup_prompt(user_message : String) -> String {
   (
-    #|Continue building the same MoonBit Cloud app in the current workspace.
+    #|Continue building the same Mooncraft app in the current workspace.
     #|
     #|Working rules:
     #|- Default to MoonBit unless the user explicitly asks for another technology.
@@ -155,7 +155,7 @@ fn followup_prompt(user_message : String) -> String {
   reference_modules_prompt_rule() +
   (
     #|
-    #|- Maintain `moonbitcloud-preview.sh` at the workspace root. It receives `<port> <build-profile>`, starts the generated app server, serves the user-facing app at `/`, and returns success from `/api/health`.
+    #|- Maintain `mooncraft-preview.sh` at the workspace root. It receives `<port> <build-profile>`, starts the generated app server, serves the user-facing app at `/`, and returns success from `/api/health`.
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
     #|- You may run shell commands as needed.
     #|- Before finishing, run `moon fmt`, `moon check`, `moon test`, and `moon build`.
@@ -174,7 +174,7 @@ fn recovery_prompt(
   user_message : String,
 ) -> String {
   (
-    #|Continue building the same MoonBit Cloud app inside the current workspace.
+    #|Continue building the same Mooncraft app inside the current workspace.
     #|
     #|Working rules:
     #|- Default to MoonBit unless the user explicitly asks for another technology.
@@ -188,7 +188,7 @@ fn recovery_prompt(
   reference_modules_prompt_rule() +
   (
     #|
-    #|- Maintain `moonbitcloud-preview.sh` at the workspace root. It receives `<port> <build-profile>`, starts the generated app server, serves the user-facing app at `/`, and returns success from `/api/health`.
+    #|- Maintain `mooncraft-preview.sh` at the workspace root. It receives `<port> <build-profile>`, starts the generated app server, serves the user-facing app at `/`, and returns success from `/api/health`.
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
     #|- You may run shell commands as needed.
     #|- Before finishing, run `moon fmt`, `moon check`, `moon test`, and `moon build`.
@@ -302,7 +302,7 @@ fn fake_codex_user_request(prompt : String) -> String {
 
 ///|
 fn fake_codex_forced_failure(prompt : String) -> String? {
-  match @env.get_env_var("MOONBITCLOUD_CODEX_FAKE_FAIL_CONTAINS") {
+  match @env.get_env_var("MOONCRAFT_CODEX_FAKE_FAIL_CONTAINS") {
     Some(value) if value.trim() != "" => {
       let needle = value.trim().to_string()
       if fake_codex_user_request(prompt).contains(needle) {
@@ -467,7 +467,7 @@ fn fake_codex_update_workspace(
 ) -> Result[String, String] {
   let normalized = trim_or_default(
     fake_codex_user_request(prompt),
-    "MoonBit Cloud update",
+    "Mooncraft update",
   )
   let async_version = required_reference_module_version("moonbitlang/async")
   let mocket_version = required_reference_module_version("oboard/mocket")
@@ -482,7 +482,7 @@ fn fake_codex_update_workspace(
     workspace_path + "/moon.mod.json",
     (
       #|{
-      #|  "name": "moonbitcloud/generated-app",
+      #|  "name": "mooncraft/generated-app",
       #|  "version": "0.1.0",
       #|  "preferred-target": "native",
       #|  "deps": {
@@ -501,8 +501,8 @@ fn fake_codex_update_workspace(
       #|  "readme": "README.md",
       #|  "repository": "",
       #|  "license": "Apache-2.0",
-      #|  "keywords": ["moonbit", "moonbitcloud", "generated"],
-      #|  "description": "Smoke-mode generated MoonBit Cloud app."
+      #|  "keywords": ["moonbit", "mooncraft", "generated"],
+      #|  "description": "Smoke-mode generated Mooncraft app."
       #|}
     ),
   )
@@ -548,7 +548,7 @@ fn fake_codex_update_workspace(
       #|
       #|  let app = @mocket.new()
       #|  app.get("/api/health", _ => @mocket.HttpResponse::new(OK, headers={ "Content-Type": "application/json" }).body("{\"ok\":true}"))
-      #|  app.get("/", _ => @mocket.HttpResponse::new(OK, headers={ "Content-Type": "text/html; charset=utf-8" }).body("<!doctype html><html><head><meta charset='utf-8'><title>" + title + "</title><style>body{font-family:sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;background:#f6fbf8;color:#10231b}.card{max-width:680px;padding:40px;border-radius:28px;background:white;box-shadow:0 30px 90px #d7e4dc}p{color:#52645b;line-height:1.6}</style></head><body><main class='card'><p>MoonBit Cloud smoke preview</p><h1>" + title + "</h1><p>" + subtitle + "</p></main></body></html>"))
+      #|  app.get("/", _ => @mocket.HttpResponse::new(OK, headers={ "Content-Type": "text/html; charset=utf-8" }).body("<!doctype html><html><head><meta charset='utf-8'><title>" + title + "</title><style>body{font-family:sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;background:#f6fbf8;color:#10231b}.card{max-width:680px;padding:40px;border-radius:28px;background:white;box-shadow:0 30px 90px #d7e4dc}p{color:#52645b;line-height:1.6}</style></head><body><main class='card'><p>Mooncraft smoke preview</p><h1>" + title + "</h1><p>" + subtitle + "</p></main></body></html>"))
       #|  app.listen("0.0.0.0:\{port}")
       #|}
     ),
@@ -731,11 +731,11 @@ fn docker_command_args(
   args.push("-e")
   args.push("CODEX_HOME=" + config.container_codex_home())
   args.push("-e")
-  args.push("MOONBITCLOUD_AI_PROVIDER=" + config.provider)
+  args.push("MOONCRAFT_AI_PROVIDER=" + config.provider)
   args.push("-e")
-  args.push("MOONBITCLOUD_AI_MODEL=" + config.model)
+  args.push("MOONCRAFT_AI_MODEL=" + config.model)
   args.push("-e")
-  args.push("MOONBITCLOUD_AI_API_KEY=" + config.api_key)
+  args.push("MOONCRAFT_AI_API_KEY=" + config.api_key)
   args.push("-v")
   args.push(workspace_path + ":" + codex_container_workspace_dir())
   args.push("-v")
@@ -762,7 +762,7 @@ fn docker_codex_entry_command(
     "sh",
     "-lc",
     script_lines.join("\n"),
-    "moonbitcloud-codex",
+    "mooncraft-codex",
   ]
   for part in container_command {
     wrapped.push(part)
@@ -1807,7 +1807,7 @@ async fn run_worker_mode(
 ) -> Unit {
   let ctx = match AppContext::try_new_for_worker_async(root) {
     Ok(ctx) => ctx
-    Err(message) => abort("MoonBit Cloud worker cannot start: " + message)
+    Err(message) => abort("Mooncraft worker cannot start: " + message)
   }
   ctx.run_project_turn(project_id, run_id)
 }

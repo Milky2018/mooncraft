@@ -1,6 +1,6 @@
 # Control Plane
 
-This module is the local backend for the current MoonBit Cloud prototype.
+This module is the local backend for the current Mooncraft prototype.
 
 Responsibilities:
 
@@ -14,7 +14,7 @@ Responsibilities:
 - rebuild and restart local previews
 - store preview URLs and last-known run state
 
-The platform no longer uses official app templates. Project rows do not carry template ids, and project creation writes only MoonBit Cloud workspace metadata. The first user prompt decides what the app becomes; Codex is instructed to use `moon new` and choose the project shape.
+The platform no longer uses official app templates. Project rows do not carry template ids, and project creation writes only Mooncraft workspace metadata. The first user prompt decides what the app becomes; Codex is instructed to use `moon new` and choose the project shape.
 
 The current `AgentGateway` uses Docker-backed Codex CLI runs. Each project keeps one persistent `codex_thread_id`, and each new chat message starts a detached worker process through `moonbitlang/async/process` that resumes that session, validates the workspace with dependency fetches plus `moon fmt`, `moon check`, `moon build`, and `moon test`, then refreshes the preview. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
 
@@ -46,11 +46,11 @@ If you run a compiled `control-plane.exe` from another directory, keep `services
 
 ## Account Emails
 
-Password reset and email verification links are queued to `data/control-plane/account-emails.log` in local development. Set `MOONBITCLOUD_PUBLIC_BASE_URL` when the control plane is served from a non-default origin so generated links point at the correct host.
+Password reset and email verification links are queued to `data/control-plane/account-emails.log` in local development. Set `MOONCRAFT_PUBLIC_BASE_URL` when the control plane is served from a non-default origin so generated links point at the correct host.
 
 ## Preview Flow
 
-Generated previews are script-backed. The control plane builds the generated workspace, starts `./moonbitcloud-preview.sh <port> <build-profile>` on a private local port, and exposes it through `/p/<preview_public_id>/`.
+Generated previews are script-backed. The control plane builds the generated workspace, starts `./mooncraft-preview.sh <port> <build-profile>` on a private local port, and exposes it through `/p/<preview_public_id>/`.
 
 The preview script must keep `/api/health` available so the preview manager can verify readiness, and it must serve the user-facing app at `/`.
 
@@ -64,13 +64,13 @@ Use these repository-level checks:
 
 Required Codex runtime configuration:
 
-- `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
-- optional `MOONBITCLOUD_CODEX_CONTAINER_HOME` (defaults to `/root`)
+- `MOONCRAFT_CODEX_DOCKER_IMAGE`
+- optional `MOONCRAFT_CODEX_CONTAINER_HOME` (defaults to `/root`)
 
-The default runtime image is `docker.io/moonbitcloud/codex:codex-0.125.0-node24`. Override it through `MOONBITCLOUD_CODEX_DOCKER_IMAGE` when testing local images, PR images, rollbacks, or digest-pinned production deployments.
+The default runtime image is `docker.io/mooncraft/codex:codex-0.125.0-node24`. Override it through `MOONCRAFT_CODEX_DOCKER_IMAGE` when testing local images, PR images, rollbacks, or digest-pinned production deployments.
 
 The runtime intentionally does not mount a host Codex home and the platform no longer reads a deployment-level OpenAI key. Each platform user configures OpenAI or OpenRouter, model, and API key in Account settings. The worker passes that user's key into the isolated Codex container only for the active run.
 
 Use `just codex-config` to inspect the effective runtime configuration. Build the runtime image locally with `just build-codex-image` and publish the shared multi-arch runtime image with `just docker-codex-publish` after `docker login`.
 
-Use `MOONBITCLOUD_CODEX_SMOKE_API_KEY=... just codex-smoke` from the repository root only when you intentionally want to spend real Codex quota on an end-to-end Docker-backed build. Optional smoke overrides are `MOONBITCLOUD_CODEX_SMOKE_PROVIDER` and `MOONBITCLOUD_CODEX_SMOKE_MODEL`.
+Use `MOONCRAFT_CODEX_SMOKE_API_KEY=... just codex-smoke` from the repository root only when you intentionally want to spend real Codex quota on an end-to-end Docker-backed build. Optional smoke overrides are `MOONCRAFT_CODEX_SMOKE_PROVIDER` and `MOONCRAFT_CODEX_SMOKE_MODEL`.

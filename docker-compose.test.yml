@@ -1,15 +1,15 @@
-name: moonbitcloud-test
+name: mooncraft-test
 
 services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${MOONBITCLOUD_POSTGRES_DB:-moonbitcloud}
-      POSTGRES_USER: ${MOONBITCLOUD_POSTGRES_USER:-moonbitcloud}
-      POSTGRES_PASSWORD: ${MOONBITCLOUD_POSTGRES_PASSWORD:-moonbitcloud}
+      POSTGRES_DB: ${MOONCRAFT_POSTGRES_DB:-mooncraft}
+      POSTGRES_USER: ${MOONCRAFT_POSTGRES_USER:-mooncraft}
+      POSTGRES_PASSWORD: ${MOONCRAFT_POSTGRES_PASSWORD:-mooncraft}
     volumes:
-      - moonbitcloud-postgres:/var/lib/postgresql/data
+      - mooncraft-postgres:/var/lib/postgresql/data
     healthcheck:
       test:
         - CMD-SHELL
@@ -19,26 +19,26 @@ services:
       retries: 5
       start_period: 10s
 
-  moonbitcloud:
-    image: ${MOONBITCLOUD_IMAGE:-moonbitcloud:local}
+  mooncraft:
+    image: ${MOONCRAFT_IMAGE:-mooncraft:local}
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      MOONBITCLOUD_PORT: 8080
-      MOONBITCLOUD_PUBLIC_BASE_URL: ${MOONBITCLOUD_PUBLIC_BASE_URL:-http://localhost:18080}
-      MOONBITCLOUD_BUILD_PROFILE: ${MOONBITCLOUD_BUILD_PROFILE:-release}
-      MOONBITCLOUD_DATABASE_URL: ${MOONBITCLOUD_DATABASE_URL:-postgres://moonbitcloud:moonbitcloud@postgres:5432/moonbitcloud}
-      MOONBITCLOUD_CODEX_DOCKER_IMAGE: ${MOONBITCLOUD_CODEX_DOCKER_IMAGE:-docker.io/moonbitcloud/codex:codex-0.125.0-node24}
-      MOONBITCLOUD_GITHUB_CLIENT_ID: ${MOONBITCLOUD_GITHUB_CLIENT_ID:-}
-      MOONBITCLOUD_GITHUB_CLIENT_SECRET: ${MOONBITCLOUD_GITHUB_CLIENT_SECRET:-}
+      MOONCRAFT_PORT: 8080
+      MOONCRAFT_PUBLIC_BASE_URL: ${MOONCRAFT_PUBLIC_BASE_URL:-http://localhost:18080}
+      MOONCRAFT_BUILD_PROFILE: ${MOONCRAFT_BUILD_PROFILE:-release}
+      MOONCRAFT_DATABASE_URL: ${MOONCRAFT_DATABASE_URL:-postgres://mooncraft:mooncraft@postgres:5432/mooncraft}
+      MOONCRAFT_CODEX_DOCKER_IMAGE: ${MOONCRAFT_CODEX_DOCKER_IMAGE:-docker.io/mooncraft/codex:codex-0.125.0-node24}
+      MOONCRAFT_GITHUB_CLIENT_ID: ${MOONCRAFT_GITHUB_CLIENT_ID:-}
+      MOONCRAFT_GITHUB_CLIENT_SECRET: ${MOONCRAFT_GITHUB_CLIENT_SECRET:-}
     ports:
-      - "${MOONBITCLOUD_TEST_HTTP_PORT:-18080}:8080"
+      - "${MOONCRAFT_TEST_HTTP_PORT:-18080}:8080"
     volumes:
-      - moonbitcloud-runtime:/app/data
+      - mooncraft-runtime:/app/data
       - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
-  moonbitcloud-postgres:
-  moonbitcloud-runtime:
+  mooncraft-postgres:
+  mooncraft-runtime:

@@ -1,5 +1,5 @@
 import {
-  "moonbitcloud/sdk" @sdk,
+  "mooncraft/sdk" @sdk,
   "moonbit-community/rabbita",
   "moonbit-community/rabbita/cmd" @cmd,
   "moonbit-community/rabbita/html" @html,

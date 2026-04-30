@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/moonbitcloud-user-project-deps.XXXXXX")"
+tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/mooncraft-user-project-deps.XXXXXX")"
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 modules_file="$repo_root/config/user_project_reference_modules.txt"
 cleanup() {

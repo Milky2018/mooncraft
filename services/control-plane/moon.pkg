@@ -1,5 +1,5 @@
 import {
-  "moonbitcloud/sdk" @sdk,
+  "mooncraft/sdk" @sdk,
   "oboard/mocket",
   "moonbitlang/async" @async,
   "moonbitlang/async/http" @http,

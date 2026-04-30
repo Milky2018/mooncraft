@@ -1,6 +1,6 @@
-# MoonBit Cloud
+# Mooncraft
 
-MoonBit Cloud is a chat-first local prototype for building MoonBit apps through conversation. The user works in one browser page, talks to the agent, and sees a live preview. Source code exists in the workspace, but it stays hidden in the default flow.
+Mooncraft is a chat-first local prototype for building MoonBit apps through conversation. The user works in one browser page, talks to the agent, and sees a live preview. Source code exists in the workspace, but it stays hidden in the default flow.
 
 ## Current V1 Slice
 
@@ -25,7 +25,7 @@ This slice is intentionally narrow:
 ## Workspace Layout
 
 ```text
-moonbitcloud/
+mooncraft/
 ├── moon.work
 ├── apps/
 │   └── web/                  # Rabbita frontend
@@ -38,18 +38,18 @@ moonbitcloud/
 └── data/                     # local SQLite state and disposable runtime scratch
 ```
 
-Generated user projects are materialized as disposable scratch workspaces under `data/runtime/projects/<project-id>/workspace/`. The authoritative project source snapshot is stored in SQLite, not in that directory. Every new project starts without an app scaffold; it only contains MoonBit Cloud metadata so snapshots and agent instructions have a stable anchor.
+Generated user projects are materialized as disposable scratch workspaces under `data/runtime/projects/<project-id>/workspace/`. The authoritative project source snapshot is stored in SQLite, not in that directory. Every new project starts without an app scaffold; it only contains Mooncraft metadata so snapshots and agent instructions have a stable anchor.
 
-The first user prompt decides what the app becomes. Codex is instructed to use `moon new`, choose the MoonBit project shape that fits the request, keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working, and maintain a root `moonbitcloud-preview.sh` script for live preview startup.
+The first user prompt decides what the app becomes. Codex is instructed to use `moon new`, choose the MoonBit project shape that fits the request, keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working, and maintain a root `mooncraft-preview.sh` script for live preview startup.
 
 The platform no longer keeps official app templates or template manifests.
 
 ## Implementation Notes
 
 - `apps/web` renders the app-develop page with a left project rail, center chat workspace, and right preview panel.
-- `services/control-plane` persists `users`, `sessions`, `oauth_accounts`, `projects`, `messages`, `runs`, and workspace snapshots through Morm. It defaults to SQLite for dev/test and switches to PostgreSQL when `MOONBITCLOUD_DATABASE_URL` is set.
+- `services/control-plane` persists `users`, `sessions`, `oauth_accounts`, `projects`, `messages`, `runs`, and workspace snapshots through Morm. It defaults to SQLite for dev/test and switches to PostgreSQL when `MOONCRAFT_DATABASE_URL` is set.
 - Each successful run fetches approved MoonBit reference packages, rebuilds the generated project, and restarts a local preview server on a stable port.
-- Generated previews run through the project's root `moonbitcloud-preview.sh` contract instead of a fixed platform-owned app layout.
+- Generated previews run through the project's root `mooncraft-preview.sh` contract instead of a fixed platform-owned app layout.
 - Preview URLs are public opaque paths like `/p/<preview_public_id>/` and stay same-origin through the control plane.
 - `packages/sdk` defines the shared request and response payloads used by the frontend and control plane.
 - `AgentGateway` runs Docker-backed Codex CLI work through a durable async worker process and persists one `codex_thread_id` per project so later messages can resume the same Codex session.
@@ -57,53 +57,53 @@ The platform no longer keeps official app templates or template manifests.
 
 ## Core Docs
 
-- [Product PRD](/Users/zhengyu/Documents/projects/moonbitcloud/docs/prd.md)
-- [Architecture](/Users/zhengyu/Documents/projects/moonbitcloud/docs/architecture.md)
-- [Website Prototype](/Users/zhengyu/Documents/projects/moonbitcloud/docs/website-prototype.md)
-- [EC2 Deployment Notes](/Users/zhengyu/Documents/projects/moonbitcloud/docs/deploy-ec2.md)
-- [Agent Docs Plan](/Users/zhengyu/Documents/projects/moonbitcloud/docs/agent-docs.md)
-- [Issue Tracker](/Users/zhengyu/Documents/projects/moonbitcloud/docs/issue-tracker.md)
+- [Product PRD](docs/prd.md)
+- [Architecture](docs/architecture.md)
+- [Website Prototype](docs/website-prototype.md)
+- [EC2 Deployment Notes](docs/deploy-ec2.md)
+- [Agent Docs Plan](docs/agent-docs.md)
+- [Issue Tracker](docs/issue-tracker.md)
 
 ## Docker
 
 You can run the current single-instance control plane in Docker:
 
 ```bash
-just build-moonbitcloud-image
+just build-mooncraft-image
 docker run --rm \
   -p 8080:8080 \
-  -v moonbitcloud-data:/app/data \
-  moonbitcloud:local
+  -v mooncraft-data:/app/data \
+  mooncraft:local
 ```
 
 Then open `http://localhost:8080`.
 
 Notes:
 
-- local dev/test leaves `MOONBITCLOUD_DATABASE_URL` unset, so the control plane uses `data/control-plane/state-v2.sqlite`
-- test/prod Compose deployments set `MOONBITCLOUD_DATABASE_URL` to a colocated PostgreSQL service
+- local dev/test leaves `MOONCRAFT_DATABASE_URL` unset, so the control plane uses `data/control-plane/state-v2.sqlite`
+- test/prod Compose deployments set `MOONCRAFT_DATABASE_URL` to a colocated PostgreSQL service
 - the image includes the MoonBit toolchain because the control plane still rebuilds generated previews at runtime
 - the image copies the full repo into `/app`, including `services/control-plane/assets`, which the control plane reads at runtime for file-backed HTML/CSS shells
-- set `MOONBITCLOUD_BUILD_PROFILE=release` if you want the control plane to stage and run release artifacts inside the container
+- set `MOONCRAFT_BUILD_PROFILE=release` if you want the control plane to stage and run release artifacts inside the container
 - Codex-backed editing also needs a separate Docker image that contains both `codex` and the MoonBit toolchain, exposed through:
-  - `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
-  - optional `MOONBITCLOUD_CODEX_CONTAINER_HOME` (defaults to `/root`)
+  - `MOONCRAFT_CODEX_DOCKER_IMAGE`
+  - optional `MOONCRAFT_CODEX_CONTAINER_HOME` (defaults to `/root`)
 - each platform user configures their own AI provider, model, and API key in Account settings; v1 supports OpenAI and OpenRouter
 - API keys are passed only into the isolated Codex container for that user's run; the platform no longer reads a deployment-level OpenAI key
-- the default Codex runtime image is `docker.io/moonbitcloud/codex:codex-0.125.0-node24`; override it through `MOONBITCLOUD_CODEX_DOCKER_IMAGE`
+- the default Codex runtime image is `docker.io/mooncraft/codex:codex-0.125.0-node24`; override it through `MOONCRAFT_CODEX_DOCKER_IMAGE`
 - the Codex runtime image seeds skills from `https://github.com/moonbitlang/skills` into the container-local Codex home before each run
-- MoonBit Cloud never mounts a host Codex home
+- Mooncraft never mounts a host Codex home
 - inspect the effective Codex runtime config with `just codex-config`
 - build the Codex runtime image locally with `just build-codex-image` (defaults to the official tag for `linux/amd64`)
 - the Codex runtime image must have an initialized MoonBit registry; the bundled Dockerfile runs `moon update` at image build time so Docker-backed validation can run without mutating the registry at runtime
-- publish the multi-arch Codex runtime image with `just docker-codex-publish` after `docker login` (defaults to `docker.io/moonbitcloud/codex:codex-0.125.0-node24` and `docker.io/moonbitcloud/codex:latest` for `linux/amd64,linux/arm64`)
+- publish the multi-arch Codex runtime image with `just docker-codex-publish` after `docker login` (defaults to `docker.io/mooncraft/codex:codex-0.125.0-node24` and `docker.io/mooncraft/codex:latest` for `linux/amd64,linux/arm64`)
 - publish to another Docker Hub namespace with `just docker-codex-publish docker.io/<namespace>/codex`
-- for shared environments, prefer `MOONBITCLOUD_CODEX_DOCKER_IMAGE=docker.io/moonbitcloud/codex:codex-0.125.0-node24` over `latest`
+- for shared environments, prefer `MOONCRAFT_CODEX_DOCKER_IMAGE=docker.io/mooncraft/codex:codex-0.125.0-node24` over `latest`
 - run `just codex-smoke` to verify the real Docker-backed Codex CLI path by building a Todo List App end to end
 - GitHub OAuth is optional and uses:
-  - `MOONBITCLOUD_GITHUB_CLIENT_ID`
-  - `MOONBITCLOUD_GITHUB_CLIENT_SECRET`
-  - `MOONBITCLOUD_PUBLIC_BASE_URL`
+  - `MOONCRAFT_GITHUB_CLIENT_ID`
+  - `MOONCRAFT_GITHUB_CLIENT_SECRET`
+  - `MOONCRAFT_PUBLIC_BASE_URL`
 
 ### Docker Compose
 
@@ -117,30 +117,30 @@ They intentionally use the same service definitions and volume layout. Their top
 Build the local images first:
 
 ```bash
-just build-moonbitcloud-image
+just build-mooncraft-image
 just build-codex-image
 ```
 
 Run test:
 
 ```bash
-export MOONBITCLOUD_PUBLIC_BASE_URL=http://test.example.com
-export MOONBITCLOUD_POSTGRES_PASSWORD='replace-me'
+export MOONCRAFT_PUBLIC_BASE_URL=http://test.example.com
+export MOONCRAFT_POSTGRES_PASSWORD='replace-me'
 docker compose -f docker-compose.test.yml up -d
 ```
 
 Run prod:
 
 ```bash
-export MOONBITCLOUD_PUBLIC_BASE_URL=https://moonbitcloud.example.com
-export MOONBITCLOUD_POSTGRES_PASSWORD='replace-me'
+export MOONCRAFT_PUBLIC_BASE_URL=https://mooncraft.example.com
+export MOONCRAFT_POSTGRES_PASSWORD='replace-me'
 docker compose -f docker-compose.prod.yml up -d
 ```
 
 The Compose files keep the app stateless with durable data in Docker volumes:
 
-- `moonbitcloud-<env>_moonbitcloud-postgres` for PostgreSQL
-- `moonbitcloud-<env>_moonbitcloud-runtime` for runtime scratch files, staged bundles, and logs
+- `mooncraft-<env>_mooncraft-postgres` for PostgreSQL
+- `mooncraft-<env>_mooncraft-runtime` for runtime scratch files, staged bundles, and logs
 
 ## Build Profiles
 
@@ -156,7 +156,7 @@ just serve release
 just serve 8107 release
 ```
 
-`just serve <port>` sets `MOONBITCLOUD_PORT` and `MOONBITCLOUD_PUBLIC_BASE_URL` for that local origin. `just serve release` sets `MOONBITCLOUD_BUILD_PROFILE=release`, so the control plane stages the platform bundle and generated preview bundles from the release build output directories.
+`just serve <port>` sets `MOONCRAFT_PORT` and `MOONCRAFT_PUBLIC_BASE_URL` for that local origin. `just serve release` sets `MOONCRAFT_BUILD_PROFILE=release`, so the control plane stages the platform bundle and generated preview bundles from the release build output directories.
 
 `just check-user-project-deps` verifies that required generated-project registry modules can be fetched and reports optional modules that are not published yet.
 

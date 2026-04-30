@@ -1,6 +1,6 @@
 ---
 title: HTTP Handler Contract
-summary: The initial request, response, and context contract for MoonBit Cloud apps
+summary: The initial request, response, and context contract for Mooncraft apps
 applies_to:
   - http-api
   - sdk

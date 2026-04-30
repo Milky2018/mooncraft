@@ -2,7 +2,7 @@
 
 ## Goal
 
-MoonBit Cloud v1 is a local app-develop system with three visible ideas:
+Mooncraft v1 is a local app-develop system with three visible ideas:
 
 - projects
 - chat
@@ -33,7 +33,7 @@ This keeps the live preview tied to a real generated app instead of a fake demo 
 
 ## Current Runtime Flow
 
-1. `POST /api/projects` creates project metadata and writes only MoonBit Cloud workspace metadata.
+1. `POST /api/projects` creates project metadata and writes only Mooncraft workspace metadata.
 2. `POST /api/projects/:id/runs` stores the user message, opens a run, and locks the project.
 3. `AgentGateway` runs Codex in the project workspace. For the first app turn, Codex is instructed to create the real MoonBit project with `moon new`.
 4. `PreviewManager` fetches approved MoonBit modules, rebuilds the generated app, and starts the root preview script on a stable local port.
@@ -76,7 +76,7 @@ The control plane owns only the runtime boundary, not the app's source layout:
 - new projects start without a platform-owned app scaffold
 - Codex creates the real MoonBit project with `moon new`
 - root-level `moon fmt`, `moon check`, `moon test`, and `moon build` must remain valid
-- `moonbitcloud-preview.sh` must exist at the workspace root
+- `mooncraft-preview.sh` must exist at the workspace root
 - the preview script receives `<port> <build-profile>`, starts the app server, serves `/`, and returns success from `/api/health`
 - source snapshots are persisted after creation and after successful Codex edits
 
@@ -126,7 +126,7 @@ The current preview path is same-origin and exposed through:
 - stored `preview.url` values like `/p/<preview_public_id>/`
 - `ALL /p/:preview_public_id/*` reverse proxy handling in the control plane
 
-Generated projects run their preview script on a private local port. The control plane builds the workspace, runs `./moonbitcloud-preview.sh <port> <build-profile>`, proxies browser traffic through `/p/<preview_public_id>/`, and health-checks `/api/health`.
+Generated projects run their preview script on a private local port. The control plane builds the workspace, runs `./mooncraft-preview.sh <port> <build-profile>`, proxies browser traffic through `/p/<preview_public_id>/`, and health-checks `/api/health`.
 
 ## Why This Shape
 

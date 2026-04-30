@@ -1,5 +1,5 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "moonbitcloud/control-plane"
+package "mooncraft/control-plane"
 
 import {
   "moonbitlang/core/debug",

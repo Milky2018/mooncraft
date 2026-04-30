@@ -29,7 +29,7 @@ WORKDIR /app
 
 COPY . /app
 
-RUN chmod +x /app/docker/moonbitcloud/entrypoint.sh \
+RUN chmod +x /app/docker/mooncraft/entrypoint.sh \
   && moon update --manifest-path /app/moon.work \
   && moon build --manifest-path /app/moon.work
 
@@ -40,4 +40,4 @@ VOLUME ["/app/data"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD curl --fail http://127.0.0.1:8080/api/health || exit 1
 
-ENTRYPOINT ["/app/docker/moonbitcloud/entrypoint.sh"]
+ENTRYPOINT ["/app/docker/mooncraft/entrypoint.sh"]

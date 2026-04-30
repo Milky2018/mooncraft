@@ -1,10 +1,10 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "moonbitcloud/web"
+package "mooncraft/web"
 
 import {
   "moonbit-community/rabbita/cmd",
-  "moonbitcloud/sdk",
   "moonbitlang/core/json",
+  "mooncraft/sdk",
 }
 
 // Values

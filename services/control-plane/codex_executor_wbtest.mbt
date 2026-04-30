@@ -99,7 +99,7 @@ test "docker codex command fetches reference modules before codex starts" {
     assert_true(command[2].contains("moon fetch --no-update " + module_name))
   }
   assert_true(command[2].contains("exec \"$@\""))
-  inspect(command[3], content="moonbitcloud-codex")
+  inspect(command[3], content="mooncraft-codex")
   inspect(command[4], content="codex")
   inspect(command[5], content="exec")
 }
@@ -199,9 +199,9 @@ test "docker command receives user scoped AI settings" {
   let args = docker_command_args(config, "/tmp/workspace", artifacts, [
     "codex", "exec", "Build an app",
   ])
-  assert_true(args.contains("MOONBITCLOUD_AI_PROVIDER=openrouter"))
-  assert_true(args.contains("MOONBITCLOUD_AI_MODEL=openai/gpt-5.5"))
-  assert_true(args.contains("MOONBITCLOUD_AI_API_KEY=user-key"))
+  assert_true(args.contains("MOONCRAFT_AI_PROVIDER=openrouter"))
+  assert_true(args.contains("MOONCRAFT_AI_MODEL=openai/gpt-5.5"))
+  assert_true(args.contains("MOONCRAFT_AI_API_KEY=user-key"))
   assert_false(args.contains("OPENAI_API_KEY"))
 }
 

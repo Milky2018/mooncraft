@@ -1,8 +1,8 @@
-# MoonBit Cloud PRD
+# Mooncraft PRD
 
 ## Product Summary
 
-MoonBit Cloud is an agent-first app builder for AI-first indie builders who do not want to choose languages, frameworks, or backend architecture. The user should describe intent in chat, wait briefly, and see a working app preview.
+Mooncraft is an agent-first app builder for AI-first indie builders who do not want to choose languages, frameworks, or backend architecture. The user should describe intent in chat, wait briefly, and see a working app preview.
 
 The current product target is a local single-instance multi-user prototype.
 

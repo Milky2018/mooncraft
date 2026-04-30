@@ -85,7 +85,7 @@ fn render_run_events(model : Model) -> @rabbita.Html {
               "font-size: 11px", "letter-spacing: 0.08em", "text-transform: uppercase",
               "opacity: 0.86", "font-weight: 700",
             ],
-          "MoonBit Cloud is working",
+          "Mooncraft is working",
         ),
         @html.div(
           style=[

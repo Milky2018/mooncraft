@@ -1,6 +1,6 @@
 ///|
 #borrow(byte_count)
-extern "C" fn random_hex_ffi(byte_count : Int) -> Bytes = "moonbitcloud_random_hex"
+extern "C" fn random_hex_ffi(byte_count : Int) -> Bytes = "mooncraft_random_hex"
 
 ///|
 let pbkdf2_iterations = 100000
