@@ -21,8 +21,13 @@ priv enum StoreBackend {
 
 ///|
 priv enum StoreEngine {
-  SQLiteEngine(@morm_sqlite.SQLiteEngine)
+  SQLiteEngine(StoreSQLiteEngine)
   PostgresEngine(@pg.Config)
+}
+
+///|
+priv struct StoreSQLiteEngine {
+  conn : @morm_sqlite.Connection
 }
 
 ///|
@@ -677,6 +682,107 @@ fn Store::sql(self : Store, sql : String) -> String {
 }
 
 ///|
+fn StoreSQLiteEngine::open(
+  db_path : String,
+) -> Result[StoreSQLiteEngine, String] {
+  Ok(StoreSQLiteEngine::{ conn: @morm_sqlite.Connection::open(db_path) }) catch {
+    @morm_sqlite.SqliteError(err) => Err(err.to_string())
+  }
+}
+
+///|
+fn sqlite_bind_param(
+  stmt : @morm_sqlite.Statement,
+  index : Int,
+  param : @db.Param,
+) -> Unit raise @morm_sqlite.SqliteError {
+  match param {
+    @db.Double(value) => stmt.bind(index~, val=value)
+    @db.Float(value) => stmt.bind(index~, val=value.to_double())
+    @db.Byte(value) => stmt.bind(index~, val=value.to_int())
+    @db.Int(value) => stmt.bind(index~, val=value)
+    @db.Int16(value) => stmt.bind(index~, val=value.to_int())
+    @db.UInt16(value) => stmt.bind(index~, val=value.to_int())
+    @db.UInt(value) => stmt.bind(index~, val=value.to_string())
+    @db.UInt64(value) => stmt.bind(index~, val=value.to_string())
+    @db.Int64(value) => stmt.bind(index~, val=value)
+    @db.BigInt(value) => stmt.bind(index~, val=value.to_string())
+    @db.Decimal(value) => stmt.bind(index~, val=value)
+    @db.Date(value, format) =>
+      stmt.bind(index~, val=@db.format_plain_date(value, format))
+    @db.Time(value, format) =>
+      stmt.bind(index~, val=@db.format_plain_time(value, format))
+    @db.DateTime(value, format) =>
+      stmt.bind(index~, val=@db.format_plain_date_time(value, format))
+    @db.Timestamp(value, format) =>
+      stmt.bind(index~, val=@db.format_zoned_date_time(value, format))
+    @db.Uuid(value) => stmt.bind(index~, val=value)
+    @db.Json(value) => stmt.bind(index~, val=value.stringify())
+    @db.String(value) => stmt.bind(index~, val=value)
+    @db.Bytes(value) => stmt.bind(index~, val=value)
+    @db.Bool(value) => stmt.bind(index~, val=if value { 1 } else { 0 })
+    @db.Null => stmt.bind_null(index~)
+  }
+}
+
+///|
+fn sqlite_row_param(stmt : @morm_sqlite.Statement, index : Int) -> @db.Param {
+  match stmt.column_type(index~) {
+    @morm_sqlite.SQLITE_NULL => @db.Null
+    @morm_sqlite.SQLITE_INTEGER => {
+      let value : Int = stmt.column(index~)
+      @db.Int(value)
+    }
+    @morm_sqlite.SQLITE_FLOAT => {
+      let value : Double = stmt.column(index~)
+      @db.Double(value)
+    }
+    @morm_sqlite.SQLITE_TEXT => {
+      let value : String = stmt.column(index~)
+      @db.String(value)
+    }
+    @morm_sqlite.SQLITE_BLOB => {
+      let value : Bytes = stmt.column(index~)
+      @db.Bytes(value)
+    }
+    _ => @db.String(stmt.column_blob_as_string(index~))
+  }
+}
+
+///|
+fn StoreSQLiteEngine::exec_raw(
+  self : StoreSQLiteEngine,
+  sql : String,
+  params : FixedArray[@db.Param],
+) -> @db.QueryResult {
+  let rows : Array[Map[String, @db.Param]] = []
+  let mut error = None
+  try {
+    let stmt = self.conn.prepare(sql + ";")
+    params.eachi((index, param) => sqlite_bind_param(stmt, index, param))
+    while stmt.step() {
+      let row : Map[String, @db.Param] = {}
+      let column_count = stmt.column_count()
+      let mut index = 0
+      while index < column_count {
+        row[stmt.column_name(index~)] = sqlite_row_param(stmt, index)
+        index = index + 1
+      }
+      rows.push(row)
+    }
+    stmt.finalize()
+  } catch {
+    @morm_sqlite.SqliteError(err) => error = Some(err.to_string())
+  }
+  @db.QueryResult::{
+    ok: error is None,
+    rows_affected: 0,
+    rows: FixedArray::from_array(rows),
+    error,
+  }
+}
+
+///|
 async fn Store::exec_raw(
   self : Store,
   sql : String,
@@ -684,18 +790,7 @@ async fn Store::exec_raw(
 ) -> @db.QueryResult noraise {
   let rendered = self.sql(sql)
   match self.engine {
-    SQLiteEngine(engine) =>
-      try engine.exec_raw(rendered, params) catch {
-        _ =>
-          return @db.QueryResult::{
-            ok: false,
-            rows_affected: 0,
-            rows: [],
-            error: Some("database execution raised an error"),
-          }
-      } noraise {
-        result => result
-      }
+    SQLiteEngine(engine) => engine.exec_raw(rendered, params)
     PostgresEngine(config) => exec_postgres_raw(config, rendered, params)
   }
 }
@@ -899,7 +994,10 @@ async fn Store::try_new_async(
       if (@fs.is_dir(db_path) catch { _ => false }) {
         return Err("SQLite database path points to a directory: \{db_path}")
       }
-      let engine = @morm_sqlite.SQLiteEngine::open(db_path)
+      let engine = match StoreSQLiteEngine::open(db_path) {
+        Ok(engine) => engine
+        Err(message) => return Err(message)
+      }
       Store::{ engine: SQLiteEngine(engine), backend: SQLite }
     }
   }
