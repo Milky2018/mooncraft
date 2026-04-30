@@ -2335,6 +2335,23 @@ fn PreviewManager::wait_until_healthy(
 }
 
 ///|
+fn preview_health_attempts() -> Int {
+  match @env.get_env_var("MOONCRAFT_PREVIEW_HEALTH_ATTEMPTS") {
+    Some(value) => {
+      let attempts = @string.parse_int(value.trim().to_owned()) catch {
+        _ => 60
+      }
+      if attempts > 0 {
+        attempts
+      } else {
+        60
+      }
+    }
+    None => 60
+  }
+}
+
+///|
 fn PreviewManager::rebuild_and_restart(
   self : PreviewManager,
   project : @sdk.ProjectDetail,
@@ -2374,7 +2391,11 @@ fn PreviewManager::rebuild_and_restart(
   if pid != 0 {
     return Err("The preview process could not be started.")
   }
-  if !self.wait_until_healthy(port, preview_health_path(), 12) {
+  if !self.wait_until_healthy(
+      port,
+      preview_health_path(),
+      preview_health_attempts(),
+    ) {
     return Err(
       "The preview process started, but it did not become healthy in time.",
     )

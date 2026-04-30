@@ -139,7 +139,9 @@ fn empty_workspace_seed_files() -> Array[(String, String)] {
         #|
         #|This directory intentionally starts without an app scaffold.
         #|
-        #|The Codex agent should create the real MoonBit project with `moon new`, choose the project shape that fits the request, and keep root-level validation commands working.
+        #|The Codex agent should create the real MoonBit project at this workspace root, choose the project shape that fits the request, and keep root-level validation commands working.
+        #|
+        #|`moon new` is only a scaffold helper. If it creates a child directory, move or adapt the generated files so this workspace root contains the runnable MoonBit project before finishing.
         #|
         #|Preview contract:
         #|- Keep `mooncraft-preview.sh` at the workspace root.

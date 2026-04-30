@@ -74,6 +74,10 @@ const provider = process.env.MOONCRAFT_PLAYWRIGHT_REAL_AGENT_PROVIDER
 const model = process.env.MOONCRAFT_PLAYWRIGHT_REAL_AGENT_MODEL
 const apiKey = process.env.MOONCRAFT_PLAYWRIGHT_REAL_AGENT_API_KEY
 const timeoutSeconds = Number(process.env.MOONCRAFT_PLAYWRIGHT_REAL_AGENT_TIMEOUT_SECONDS || "1800")
+const expectedPreviewTerms = (process.env.MOONCRAFT_PLAYWRIGHT_REAL_AGENT_EXPECTED_TERMS || "counter,increment,reset")
+  .split(",")
+  .map((term) => term.trim().toLowerCase())
+  .filter(Boolean)
 
 if (!baseUrl) throw new Error("MOONCRAFT_PLAYWRIGHT_BASE_URL is required")
 if (!artifactDir) throw new Error("MOONCRAFT_PLAYWRIGHT_ARTIFACT_DIR is required")
@@ -82,7 +86,7 @@ if (!model) throw new Error("MOONCRAFT_PLAYWRIGHT_REAL_AGENT_MODEL is required")
 if (!apiKey) throw new Error("MOONCRAFT_PLAYWRIGHT_REAL_AGENT_API_KEY is required")
 
 const screenshot = (name) => path.join(artifactDir, name)
-const prompt =
+const prompt = process.env.MOONCRAFT_PLAYWRIGHT_REAL_AGENT_PROMPT ||
   "Build a tiny MoonBit counter app with a clear heading, increment and reset controls, and a live preview UI."
 
 async function waitForRun(page, projectId, runId) {
@@ -146,7 +150,7 @@ async function main() {
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
 
     await page.getByRole("button", { name: "+ New Project" }).click()
-    await page.getByPlaceholder("Describe the change you want.").fill(prompt)
+    await page.locator("textarea").fill(prompt)
     screenshots.push(screenshot("03-real-agent-prompt.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
 
@@ -155,7 +159,7 @@ async function main() {
         response.url().includes("/runs") &&
         response.request().method() === "POST"
     })
-    await page.getByRole("button", { name: "Send Request" }).click()
+    await page.getByRole("button", { name: /Build With Mooncraft|Send Request/ }).click()
     screenshots.push(screenshot("04-real-agent-run-started.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
 
@@ -175,7 +179,6 @@ async function main() {
 
     await page.reload({ waitUntil: "domcontentloaded" })
     await page.getByText(prompt).waitFor()
-    await page.getByText("The app is updated and the preview is ready.").waitFor()
     const detail = await projectDetail(page, projectId)
     if (!detail.codex_thread_id) {
       throw new Error("Expected a persisted Codex thread id")
@@ -184,6 +187,16 @@ async function main() {
     await previewFrame.locator("body").waitFor()
     screenshots.push(screenshot("05-real-agent-preview.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
+
+    const previewPage = await browser.newPage({ viewport: { width: 1280, height: 900 } })
+    await previewPage.goto(`${baseUrl}${run.preview.url}`, { waitUntil: "domcontentloaded" })
+    await previewPage.waitForLoadState("networkidle", { timeout: 30000 }).catch(() => {})
+    const previewText = (await previewPage.locator("body").innerText({ timeout: 30000 })).toLowerCase()
+    if (expectedPreviewTerms.length > 0 && !expectedPreviewTerms.some((term) => previewText.includes(term))) {
+      throw new Error(`Preview loaded, but none of the expected terms were visible: ${expectedPreviewTerms.join(", ")}`)
+    }
+    screenshots.push(screenshot("06-live-preview-direct.png"))
+    await previewPage.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
 
     const report = `# Playwright Real-Agent Story Report
 
@@ -196,6 +209,7 @@ async function main() {
 - Run ID: \`${runId}\`
 - Preview URL: \`${run.preview.url}\`
 - Codex thread ID persisted: yes
+- Expected preview terms: \`${expectedPreviewTerms.join(", ")}\`
 
 ## Assertions
 
@@ -205,6 +219,7 @@ async function main() {
 - The run reaches \`Succeeded\`.
 - The project persists a Codex thread ID.
 - The preview iframe loads the generated app.
+- The direct preview page contains at least one expected user-facing term.
 
 ## Screenshots
 
@@ -255,6 +270,7 @@ EOF
 
 MOONCRAFT_PORT="$port" \
 MOONCRAFT_PUBLIC_BASE_URL="$base_url" \
+MOONCRAFT_APP_MODE="${MOONCRAFT_APP_MODE:-test}" \
 MOONCRAFT_BUILD_PROFILE=debug \
 MOONCRAFT_CODEX_FAKE_MODE= \
 MOONCRAFT_CODEX_DOCKER_IMAGE="$codex_image" \

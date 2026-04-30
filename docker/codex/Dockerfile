@@ -60,7 +60,7 @@ RUN printf '%s\n' \
   'name = "OpenRouter"' \
   'base_url = "https://openrouter.ai/api/v1"' \
   'env_key = "OPENAI_API_KEY"' \
-  'wire_api = "chat"' \
+  'wire_api = "responses"' \
   'EOF' \
   'elif [ "$provider" = "openai" ]; then' \
   '  rm -f "$codex_home/config.toml"' \

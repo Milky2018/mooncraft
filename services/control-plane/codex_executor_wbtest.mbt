@@ -11,6 +11,10 @@ test "bootstrap prompt includes the core execution rules" {
       "Use subagents only for concrete, bounded implementation tasks.",
     ),
   )
+  assert_true(
+    prompt.contains("The current workspace root is the generated app root."),
+  )
+  assert_true(prompt.contains("Do not stop with a progress-only final answer."))
   assert_true(prompt.contains("moon fmt"))
   assert_true(prompt.contains("Build a todo app"))
 }
@@ -226,17 +230,25 @@ test "docker command receives user scoped AI settings" {
   }
   let args = docker_command_args(
     config,
+    "/tmp/artifacts/codex.env",
     "/tmp/workspace",
     Some("/tmp/mooncraft-codex-home"),
     artifacts,
     ["codex", "exec", "Build an app"],
   )
-  assert_true(args.contains("MOONCRAFT_AI_PROVIDER=openrouter"))
-  assert_true(args.contains("MOONCRAFT_AI_MODEL=openai/gpt-5.5"))
-  assert_true(args.contains("MOONCRAFT_AI_API_KEY=user-key"))
-  assert_true(args.contains("CODEX_HOME=/root/.codex"))
+  assert_true(args.contains("--env-file"))
+  assert_true(args.contains("/tmp/artifacts/codex.env"))
+  assert_false(args.contains("MOONCRAFT_AI_PROVIDER=openrouter"))
+  assert_false(args.contains("MOONCRAFT_AI_MODEL=openai/gpt-5.5"))
+  assert_false(args.contains("MOONCRAFT_AI_API_KEY=user-key"))
+  assert_false(args.contains("CODEX_HOME=/root/.codex"))
   assert_true(args.contains("/tmp/mooncraft-codex-home:/root/.codex"))
   assert_false(args.contains("OPENAI_API_KEY"))
+  let env_file = docker_env_file_content(config)
+  assert_true(env_file.contains("MOONCRAFT_AI_PROVIDER=openrouter"))
+  assert_true(env_file.contains("MOONCRAFT_AI_MODEL=openai/gpt-5.5"))
+  assert_true(env_file.contains("MOONCRAFT_AI_API_KEY=user-key"))
+  assert_true(env_file.contains("CODEX_HOME=/root/.codex"))
 }
 
 ///|

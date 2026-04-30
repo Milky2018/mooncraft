@@ -82,6 +82,52 @@ fn codex_container_artifacts_dir() -> String {
 }
 
 ///|
+fn docker_env_value(value : String) -> String {
+  value.replace_all(old="\r", new="").replace_all(old="\n", new="")
+}
+
+///|
+fn docker_env_file_path(artifacts : RunArtifacts) -> String {
+  artifacts.dir + "/codex.env"
+}
+
+///|
+fn docker_env_file_content(config : CodexDockerConfig) -> String {
+  "HOME=" +
+  docker_env_value(config.container_home) +
+  "\n" +
+  "CODEX_HOME=" +
+  docker_env_value(config.container_codex_home()) +
+  "\n" +
+  "MOONCRAFT_AI_PROVIDER=" +
+  docker_env_value(config.provider) +
+  "\n" +
+  "MOONCRAFT_AI_MODEL=" +
+  docker_env_value(config.model) +
+  "\n" +
+  "MOONCRAFT_AI_API_KEY=" +
+  docker_env_value(config.api_key) +
+  "\n"
+}
+
+///|
+fn write_docker_env_file(
+  config : CodexDockerConfig,
+  artifacts : RunArtifacts,
+) -> String {
+  let path = docker_env_file_path(artifacts)
+  safe_write_string(path, docker_env_file_content(config))
+  path
+}
+
+///|
+fn remove_docker_env_file(path : String) -> Unit {
+  @fs.remove_file(path) catch {
+    _ => ()
+  }
+}
+
+///|
 fn CodexDockerConfig::load(
   settings : AiRuntimeSettings,
 ) -> Result[CodexDockerConfig, String] {
@@ -119,8 +165,9 @@ fn bootstrap_prompt(user_message : String) -> String {
     #|- Complete the job in one turn without asking follow-up questions.
     #|- Use subagents only for concrete, bounded implementation tasks.
     #|- This workspace intentionally starts without an app scaffold. Do not assume `frontend/`, `backend/`, or `shared/` directories exist.
-    #|- Use `moon new` to create the real MoonBit project, and choose the project structure that fits the user's app.
-    #|- Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working. If `moon new` creates a child directory, add a root `moon.work` or otherwise make root-level commands valid.
+    #|- The current workspace root is the generated app root. Do not leave the only MoonBit module inside a child directory.
+    #|- Use `moon new` only as a scaffold helper. If it creates a child directory, move or adapt the generated files so the workspace root contains the runnable MoonBit project before finishing.
+    #|- Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working from the current workspace root.
     #|
   ) +
   reference_modules_prompt_rule() +
@@ -130,7 +177,7 @@ fn bootstrap_prompt(user_message : String) -> String {
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
     #|- You may run shell commands as needed.
     #|- Before finishing, run `moon fmt`, `moon check`, `moon test`, and `moon build`.
-    #|- Your final response must be brief: summarize what you built, mention validation status, and mention any blocking failure.
+    #|- Do not stop with a progress-only final answer. Your final response must be brief and must summarize the completed app, validation status, and any blocking failure.
     #|
     #|User's requirement:
     #|
@@ -149,7 +196,7 @@ fn followup_prompt(user_message : String) -> String {
     #|- Complete the job in one turn without asking follow-up questions.
     #|- Use subagents only for concrete, bounded implementation tasks.
     #|- Do not assume a fixed project layout. Preserve the existing app structure unless a change is needed.
-    #|- Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working.
+    #|- The current workspace root is the generated app root. Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working from that root.
     #|
   ) +
   reference_modules_prompt_rule() +
@@ -159,7 +206,7 @@ fn followup_prompt(user_message : String) -> String {
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
     #|- You may run shell commands as needed.
     #|- Before finishing, run `moon fmt`, `moon check`, `moon test`, and `moon build`.
-    #|- Your final response must be brief: summarize what you built, mention validation status, and mention any blocking failure.
+    #|- Do not stop with a progress-only final answer. Your final response must be brief and must summarize the completed app, validation status, and any blocking failure.
     #|
     #|Latest user request:
     #|
@@ -182,7 +229,7 @@ fn recovery_prompt(
     #|- Use subagents only for concrete, bounded implementation tasks.
     #|- The current workspace already contains the latest saved project state.
     #|- Do not assume a fixed project layout. Preserve the existing app structure unless a change is needed.
-    #|- Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working.
+    #|- The current workspace root is the generated app root. Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working from that root.
     #|
   ) +
   reference_modules_prompt_rule() +
@@ -192,7 +239,7 @@ fn recovery_prompt(
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
     #|- You may run shell commands as needed.
     #|- Before finishing, run `moon fmt`, `moon check`, `moon test`, and `moon build`.
-    #|- Your final response must be brief: summarize what you built, mention validation status, and mention any blocking failure.
+    #|- Do not stop with a progress-only final answer. Your final response must be brief and must summarize the completed app, validation status, and any blocking failure.
     #|
     #|Original project requirement:
     #|
@@ -721,22 +768,15 @@ fn failure_debug(
 ///|
 fn docker_command_args(
   config : CodexDockerConfig,
+  env_file_path : String,
   workspace_path : String,
   codex_home_path : String?,
   artifacts : RunArtifacts,
   container_command : Array[String],
 ) -> Array[String] {
   let args : Array[String] = ["run", "--rm"]
-  args.push("-e")
-  args.push("HOME=" + config.container_home)
-  args.push("-e")
-  args.push("CODEX_HOME=" + config.container_codex_home())
-  args.push("-e")
-  args.push("MOONCRAFT_AI_PROVIDER=" + config.provider)
-  args.push("-e")
-  args.push("MOONCRAFT_AI_MODEL=" + config.model)
-  args.push("-e")
-  args.push("MOONCRAFT_AI_API_KEY=" + config.api_key)
+  args.push("--env-file")
+  args.push(env_file_path)
   match codex_home_path {
     Some(path) => {
       ensure_dir(path)
@@ -788,17 +828,21 @@ async fn collect_docker_output(
   artifacts : RunArtifacts,
   container_command : Array[String],
 ) -> Result[(Int, String), String] noraise {
+  let env_file_path = write_docker_env_file(config, artifacts)
   let docker_args = docker_command_args(
-    config, workspace_path, codex_home_path, artifacts, container_command,
+    config, env_file_path, workspace_path, codex_home_path, artifacts, container_command,
   )
   let result = try
     @process.collect_output_merged("docker", docker_args, cwd=root)
   catch {
-    err =>
+    err => {
+      remove_docker_env_file(env_file_path)
       return Err("The Docker-backed Codex command could not be started: \{err}")
+    }
   } noraise {
     value => value
   }
+  remove_docker_env_file(env_file_path)
   let (exit_code, output) = result
   let text = output.text() catch { _ => "" }
   Ok((exit_code, text))
@@ -816,14 +860,17 @@ async fn stream_docker_output(
   artifacts : RunArtifacts,
   container_command : Array[String],
 ) -> Result[(Int, String), String] noraise {
+  let env_file_path = write_docker_env_file(config, artifacts)
   let docker_args = docker_command_args(
-    config, workspace_path, codex_home_path, artifacts, container_command,
+    config, env_file_path, workspace_path, codex_home_path, artifacts, container_command,
   )
   let pipe = @process.read_from_process() catch {
-    err =>
+    err => {
+      remove_docker_env_file(env_file_path)
       return Err(
         "The Docker-backed Codex output pipe could not be opened: \{err}",
       )
+    }
   }
   let (reader, writer) = pipe
   let chunks : Array[String] = []
@@ -861,13 +908,16 @@ async fn stream_docker_output(
       ()
     })
   catch {
-    err =>
+    err => {
+      remove_docker_env_file(env_file_path)
       return Err(
         "The Docker-backed Codex command failed while streaming output: \{err}",
       )
+    }
   } noraise {
     value => value
   }
+  remove_docker_env_file(env_file_path)
   ignore(group_result)
   Ok((exit_code_ref.val, chunks.join("")))
 }
