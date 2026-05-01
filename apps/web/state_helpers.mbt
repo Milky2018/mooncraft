@@ -82,6 +82,19 @@ fn can_save_ai_settings(model : Model) -> Bool {
 }
 
 ///|
+fn model_options_include(
+  items : Array[@sdk.ModelOption],
+  model_id : String,
+) -> Bool {
+  for item in items {
+    if item.id == model_id {
+      return true
+    }
+  }
+  false
+}
+
+///|
 fn append_local_user_message(
   model : Model,
   project_id : String,
@@ -168,6 +181,8 @@ fn apply_session(model : Model, session : @sdk.SessionResponse) -> Model {
       None => "gpt-5.5"
     },
     account_ai_api_key: "",
+    account_model_options: [],
+    account_model_options_pending: false,
     auth_notice: None,
     active_page: if session.authenticated {
       model.active_page

@@ -153,26 +153,6 @@ fn account_password_input(
 }
 
 ///|
-fn account_text_input(
-  value : String,
-  placeholder : String,
-  on_input : (String) -> Msg,
-  dispatch : @rabbita.Dispatch[Msg],
-) -> @rabbita.Html {
-  @html.input(
-    input_type=@html.Text,
-    value~,
-    placeholder~,
-    on_input=fn(next) { dispatch(on_input(next)) },
-    style=input_style(false) +
-      [
-        "padding: 9px 10px", "font-size: 13px", "border-color: var(--border-soft)",
-      ],
-    "",
-  )
-}
-
-///|
 fn ai_provider_button(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
@@ -210,6 +190,105 @@ fn ai_key_status_text(user : @sdk.UserSummary) -> String {
 }
 
 ///|
+fn model_option_label(option : @sdk.ModelOption) -> String {
+  let prefix = if option.recommended { "Recommended - " } else { "" }
+  if option.label == option.id {
+    prefix + option.id
+  } else {
+    prefix + option.label + " (" + option.id + ")"
+  }
+}
+
+///|
+fn model_option_select_items(model : Model) -> Array[@rabbita.Html] {
+  let items : Array[@rabbita.Html] = []
+  if model.account_ai_model != "" &&
+    !model_options_include(model.account_model_options, model.account_ai_model) {
+    items.push(
+      @html.option(
+        value=model.account_ai_model,
+        selected=true,
+        "Current - " + model.account_ai_model,
+      ),
+    )
+  }
+  for option in model.account_model_options {
+    items.push(
+      @html.option(
+        value=option.id,
+        selected=option.id == model.account_ai_model,
+        model_option_label(option),
+      ),
+    )
+  }
+  items
+}
+
+///|
+fn render_model_selector(
+  dispatch : @rabbita.Dispatch[Msg],
+  model : Model,
+) -> @rabbita.Html {
+  let disabled = model.account_model_options_pending ||
+    model.account_model_options.length() == 0
+  let select_items = if model.account_model_options_pending {
+    [
+      @html.option(
+        value=model.account_ai_model,
+        selected=true,
+        "Loading models...",
+      ),
+    ]
+  } else {
+    model_option_select_items(model)
+  }
+  @html.div(style=["display: flex", "flex-direction: column", "gap: 7px"]) <| [
+    @html.label(
+      for_="ai-model-select",
+      style=["font-size: 12px", "font-weight: 700", "color: var(--text-2)"],
+      "Model",
+    ),
+    @html.select(
+      id="ai-model-select",
+      disabled~,
+      on_change=fn(value) { dispatch(AccountAiModelChanged(value)) },
+      style=input_style(false) +
+        [
+          "padding: 9px 10px", "font-size: 13px", "border-color: var(--border-soft)",
+          "background: var(--surface-1)",
+        ],
+      select_items,
+    ),
+    @html.div(
+      style=[
+        "display: flex", "align-items: center", "justify-content: space-between",
+        "gap: 8px",
+      ],
+      [
+        @html.div(
+          style=["font-size: 12px", "line-height: 1.5", "color: var(--text-2)"],
+          if model.account_model_options_pending {
+            "Loading models from " + model.account_ai_provider + "."
+          } else if model.account_model_options.length() == 0 {
+            "No live model list is available. The saved model will be kept."
+          } else {
+            "Choose a model available for this provider."
+          },
+        ),
+        @html.button(
+          type_="button",
+          disabled=model.account_model_options_pending,
+          on_click=dispatch(RefreshModelOptions),
+          style=button_style("var(--surface-1)", "var(--text-2)", true) +
+            ["padding: 7px 9px", "font-size: 12px", "white-space: nowrap"],
+          "Refresh list",
+        ),
+      ],
+    ),
+  ]
+}
+
+///|
 fn render_ai_settings_form(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
@@ -218,11 +297,6 @@ fn render_ai_settings_form(
 ) -> @rabbita.Html {
   let padding = if compact { "10px" } else { "18px" }
   let radius = if compact { "10px" } else { "18px" }
-  let model_placeholder = if model.account_ai_provider == "openrouter" {
-    "openai/gpt-5.5"
-  } else {
-    "gpt-5.5"
-  }
   let key_placeholder = if user.ai_api_key_configured {
     "Leave blank to keep saved API key"
   } else {
@@ -265,12 +339,7 @@ fn render_ai_settings_form(
       ai_provider_button(dispatch, model, "openai", "OpenAI"),
       ai_provider_button(dispatch, model, "openrouter", "OpenRouter"),
     ]),
-    account_text_input(
-      model.account_ai_model,
-      model_placeholder,
-      fn(value) { AccountAiModelChanged(value) },
-      dispatch,
-    ),
+    render_model_selector(dispatch, model),
     account_password_input(
       model.account_ai_api_key,
       key_placeholder,

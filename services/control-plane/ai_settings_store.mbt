@@ -6,6 +6,12 @@ struct AiRuntimeSettings {
 }
 
 ///|
+struct AiCredentialSettings {
+  provider : String
+  api_key : String
+}
+
+///|
 fn default_ai_provider() -> String {
   "openai"
 }
@@ -73,6 +79,33 @@ async fn Store::get_ai_settings(
       params=[@db.String(user_id)],
     ) {
     Some(row) => Some(ai_settings_response_from_row(row))
+    None => None
+  }
+}
+
+///|
+async fn Store::get_ai_credential_settings(
+  self : Store,
+  user_id : String,
+) -> AiCredentialSettings? noraise {
+  match
+    self.query_one(
+      (
+        #|SELECT
+        #|  COALESCE(ai_provider, 'openai') AS ai_provider,
+        #|  COALESCE(ai_model, '') AS ai_model,
+        #|  COALESCE(ai_api_key, '') AS ai_api_key
+        #|FROM users
+        #|WHERE id = ?;
+      ),
+      params=[@db.String(user_id)],
+    ) {
+    Some(row) => {
+      let provider = normalize_ai_provider(row_text(row, "ai_provider")).unwrap_or(
+        default_ai_provider(),
+      )
+      Some({ provider, api_key: row_text(row, "ai_api_key") })
+    }
     None => None
   }
 }

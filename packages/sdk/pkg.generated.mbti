@@ -7,6 +7,10 @@ import {
 }
 
 // Values
+pub fn ai_model_options_path(String) -> String
+
+pub fn ai_model_options_route() -> RouteSpec
+
 pub fn ai_settings_path() -> String
 
 pub fn ai_settings_route() -> RouteSpec
@@ -178,6 +182,14 @@ pub(all) struct ListMessagesResponse {
   items : Array[ChatMessage]
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
+pub(all) struct ListModelOptionsResponse {
+  provider : String
+  items : Array[ModelOption]
+  fetched_at : String
+  source : String
+  warning : String?
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
 pub(all) struct ListProjectsResponse {
   items : Array[ProjectSummary]
 } derive(ToJson, @debug.Debug, @json.FromJson)
@@ -189,6 +201,15 @@ pub(all) struct ListRunEventsResponse {
 pub(all) struct LoginRequest {
   email : String
   password : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct ModelOption {
+  id : String
+  label : String
+  provider : String
+  recommended : Bool
+  context_length : Int?
+  description : String?
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct PreviewTarget {

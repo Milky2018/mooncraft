@@ -123,6 +123,16 @@ pub fn ai_settings_path() -> String {
 }
 
 ///|
+pub fn ai_model_options_route() -> RouteSpec {
+  route(GET, "/api/account/ai-model-options/:provider", Ok)
+}
+
+///|
+pub fn ai_model_options_path(provider : String) -> String {
+  "/api/account/ai-model-options/\{provider}"
+}
+
+///|
 pub fn list_projects_route() -> RouteSpec {
   route(GET, "/api/projects", Ok)
 }

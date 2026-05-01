@@ -203,6 +203,25 @@ pub(all) struct UpdateAiSettingsRequest {
 } derive(Debug, ToJson, FromJson)
 
 ///|
+pub(all) struct ModelOption {
+  id : String
+  label : String
+  provider : String
+  recommended : Bool
+  context_length : Int?
+  description : String?
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct ListModelOptionsResponse {
+  provider : String
+  items : Array[ModelOption]
+  fetched_at : String
+  source : String
+  warning : String?
+} derive(Debug, ToJson, FromJson)
+
+///|
 pub(all) struct HealthResponse {
   ok : Bool
 } derive(Debug, ToJson, FromJson)

@@ -220,7 +220,7 @@ async (page) => {
   await page.getByRole("button", { name: "LLM Config" }).click()
   await page.getByText("Provider & Key").waitFor()
   await page.getByRole("button", { name: "OpenRouter" }).click()
-  await page.getByPlaceholder("openai/gpt-5.5").fill("openai/gpt-5.5")
+  await page.getByRole("combobox", { name: "Model" }).selectOption("openai/gpt-5.5")
   await page.getByPlaceholder("API key").fill("sk-smoke-test-key")
   await page.getByRole("button", { name: "Save LLM Config" }).click()
   await page.getByText("LLM config saved.").waitFor()

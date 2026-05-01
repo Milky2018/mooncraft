@@ -196,6 +196,16 @@ fn save_ai_settings_cmd(
 }
 
 ///|
+fn load_model_options_cmd(
+  dispatch : @rabbita.Dispatch[Msg],
+  provider : String,
+) -> @rabbita.Cmd {
+  get_json(@sdk.ai_model_options_path(provider), fn(result) {
+    dispatch(ModelOptionsLoaded(provider, result))
+  })
+}
+
+///|
 fn resend_email_verification_cmd(
   dispatch : @rabbita.Dispatch[Msg],
 ) -> @rabbita.Cmd {

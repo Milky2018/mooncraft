@@ -558,6 +558,26 @@ fn main {
       None => api_error_response(NotFound, @sdk.NotFound, "User not found.")
     }
   })
+  app.get(@sdk.ai_model_options_route().path_pattern, async fn(event) noraise {
+    let user = match require_session_user(ctx, event) {
+      Ok(user) => user
+      Err(response) => return response
+    }
+    let provider = match path_param(event, "provider") {
+      Ok(provider) => provider
+      Err(response) => return response
+    }
+    let credentials = match ctx.store.get_ai_credential_settings(user.id) {
+      Some(settings) => settings
+      None =>
+        return api_error_response(NotFound, @sdk.NotFound, "User not found.")
+    }
+    match list_ai_model_options(user.id, provider, credentials) {
+      Ok(response) => json_ok(response)
+      Err(message) =>
+        api_error_response(UnprocessableEntity, @sdk.ValidationFailed, message)
+    }
+  })
   app.put(@sdk.ai_settings_path(), async fn(event) noraise {
     let user = match require_session_user(ctx, event) {
       Ok(user) => user

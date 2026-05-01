@@ -229,6 +229,7 @@ smoke-running:
     | grep -q 'Email address verified'
   curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/session" | grep -q '"email_verified":true'
   curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/account/ai-settings" | grep -q '"api_key_configured":false'
+  curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/account/ai-model-options/openrouter" | grep -q '"provider":"openrouter"'
   curl -fsS -c "$user1_cookie" -b "$user1_cookie" \
     -X PUT "$base_url/api/account/ai-settings" \
     -H 'Content-Type: application/json' \

@@ -129,6 +129,8 @@ fn update(
           account_ai_provider: "openai",
           account_ai_model: "gpt-5.5",
           account_ai_api_key: "",
+          account_model_options: [],
+          account_model_options_pending: false,
           account_pending: false,
           account_notice: None,
           account_panel_open: false,
@@ -166,12 +168,14 @@ fn update(
       )
     OpenLlmConfig =>
       (
-        @rabbita.none,
+        load_model_options_cmd(dispatch, model.account_ai_provider),
         {
           ..model,
           active_page: LlmConfig,
           account_panel_open: false,
           password_panel_open: false,
+          account_model_options: [],
+          account_model_options_pending: true,
           account_notice: None,
           notice: None,
         },
@@ -181,11 +185,76 @@ fn update(
     AccountNewPasswordChanged(value) =>
       (@rabbita.none, { ..model, account_new_password: value })
     AccountAiProviderChanged(value) =>
-      (@rabbita.none, { ..model, account_ai_provider: value })
+      (
+        load_model_options_cmd(dispatch, value),
+        {
+          ..model,
+          account_ai_provider: value,
+          account_model_options: [],
+          account_model_options_pending: true,
+          account_notice: None,
+        },
+      )
     AccountAiModelChanged(value) =>
       (@rabbita.none, { ..model, account_ai_model: value })
     AccountAiApiKeyChanged(value) =>
       (@rabbita.none, { ..model, account_ai_api_key: value })
+    RefreshModelOptions =>
+      (
+        load_model_options_cmd(dispatch, model.account_ai_provider),
+        {
+          ..model,
+          account_model_options: [],
+          account_model_options_pending: true,
+          account_notice: None,
+        },
+      )
+    ModelOptionsLoaded(provider, Ok(response)) =>
+      if provider != model.account_ai_provider {
+        (@rabbita.none, model)
+      } else {
+        let has_current_model = model_options_include(
+          response.items,
+          model.account_ai_model,
+        )
+        let selected_model = if model.account_ai_model != "" &&
+          (has_current_model || response.items.length() == 0) {
+          model.account_ai_model
+        } else {
+          match response.items.get(0) {
+            Some(item) => item.id
+            None => model.account_ai_model
+          }
+        }
+        (
+          @rabbita.none,
+          {
+            ..model,
+            account_ai_model: selected_model,
+            account_model_options: response.items,
+            account_model_options_pending: false,
+            account_notice: response.warning,
+          },
+        )
+      }
+    ModelOptionsLoaded(provider, Err(error)) =>
+      if provider != model.account_ai_provider {
+        (@rabbita.none, model)
+      } else if is_unauthorized_error(error) {
+        auth_recovery(dispatch, model, "Your session expired. Sign in again.")
+      } else {
+        (
+          @rabbita.none,
+          {
+            ..model,
+            account_model_options: [],
+            account_model_options_pending: false,
+            account_notice: Some(
+              "Model list could not be loaded. Your saved model is still available.",
+            ),
+          },
+        )
+      }
     SaveAiSettings =>
       if !can_save_ai_settings(model) {
         (@rabbita.none, model)
