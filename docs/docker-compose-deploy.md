@@ -1,0 +1,208 @@
+# Docker Compose Deployment
+
+This guide describes the current test and production deployment path for Mooncraft using Docker Compose.
+
+The two environments intentionally use the same runtime shape:
+
+- the same locally built Mooncraft app image
+- the same real Docker-backed Codex mode
+- the same mounted Docker socket
+- the same persistent app and PostgreSQL volume pattern
+- different compose project names and host ports
+
+## Runtime Model
+
+Mooncraft runs as one app container plus one PostgreSQL container. When a user sends a project message, the Mooncraft container starts a background worker process. That worker calls the Docker CLI inside the Mooncraft container, which talks to the host Docker daemon through `/var/run/docker.sock`, and starts a separate Codex runtime container for the user run.
+
+This means the host must have Docker installed and the Mooncraft service container must mount:
+
+```yaml
+- /var/run/docker.sock:/var/run/docker.sock
+```
+
+The Mooncraft app image installs `docker-ce-cli`; it does not run a Docker daemon inside the container.
+
+## Images
+
+Build the Mooncraft app image on the deployment host:
+
+```bash
+git pull
+just build-mooncraft-image mooncraft:local linux/amd64
+```
+
+Make sure the Codex runtime image is available:
+
+```bash
+docker pull docker.io/moonbitcloud/codex:codex-0.125.0-node24
+```
+
+If you are publishing your own Codex runtime image, push it first and set `MOONCRAFT_CODEX_DOCKER_IMAGE` when starting Compose.
+
+## Test Deployment
+
+The test environment uses [docker-compose.test.yml](../docker-compose.test.yml).
+
+Default host port: `18080`
+
+```bash
+export MOONCRAFT_IMAGE=mooncraft:local
+export MOONCRAFT_PUBLIC_BASE_URL=https://test.your-domain.com
+export MOONCRAFT_TEST_HTTP_PORT=18080
+export MOONCRAFT_POSTGRES_PASSWORD='replace-with-test-password'
+
+docker compose -f docker-compose.test.yml up -d
+curl -fsS http://127.0.0.1:18080/api/health
+```
+
+If GitHub login should work in test:
+
+```bash
+export MOONCRAFT_GITHUB_CLIENT_ID='github-client-id'
+export MOONCRAFT_GITHUB_CLIENT_SECRET='github-client-secret'
+```
+
+## Production Deployment
+
+The production environment uses [docker-compose.prod.yml](../docker-compose.prod.yml).
+
+Default host port: `8080`
+
+```bash
+export MOONCRAFT_IMAGE=mooncraft:local
+export MOONCRAFT_PUBLIC_BASE_URL=https://your-domain.com
+export MOONCRAFT_PROD_HTTP_PORT=8080
+export MOONCRAFT_POSTGRES_PASSWORD='replace-with-prod-password'
+
+docker compose -f docker-compose.prod.yml up -d
+curl -fsS http://127.0.0.1:8080/api/health
+```
+
+If GitHub login should work in production:
+
+```bash
+export MOONCRAFT_GITHUB_CLIENT_ID='github-client-id'
+export MOONCRAFT_GITHUB_CLIENT_SECRET='github-client-secret'
+```
+
+## User LLM Keys
+
+Do not configure a deployment-level OpenAI or OpenRouter key.
+
+Each platform user configures their own provider, model, and API key in the Mooncraft UI. The worker injects that user's key into the isolated Codex container only for the active run.
+
+## Reverse Proxy
+
+Put Caddy, Nginx, or an AWS load balancer in front of the host ports.
+
+Typical routing:
+
+- `https://test.your-domain.com` -> `127.0.0.1:18080`
+- `https://your-domain.com` -> `127.0.0.1:8080`
+
+The public base URL must match the external URL:
+
+```bash
+export MOONCRAFT_PUBLIC_BASE_URL=https://your-domain.com
+```
+
+This matters for OAuth callback URLs, account action links, cookies, and preview URLs.
+
+## Upgrade
+
+For either environment:
+
+```bash
+git pull
+just build-mooncraft-image mooncraft:local linux/amd64
+docker compose -f docker-compose.test.yml up -d
+```
+
+For production, replace the compose file:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+If the Codex runtime image changes:
+
+```bash
+docker pull docker.io/moonbitcloud/codex:codex-0.125.0-node24
+docker compose -f docker-compose.prod.yml up -d
+```
+
+## Logs And Operations
+
+Show service status:
+
+```bash
+docker compose -f docker-compose.prod.yml ps
+```
+
+Follow logs:
+
+```bash
+docker compose -f docker-compose.prod.yml logs -f mooncraft
+```
+
+Restart the app container:
+
+```bash
+docker compose -f docker-compose.prod.yml restart mooncraft
+```
+
+Stop an environment:
+
+```bash
+docker compose -f docker-compose.prod.yml down
+```
+
+Do not use `down -v` unless you intentionally want to delete PostgreSQL and Mooncraft runtime volumes.
+
+## Data
+
+Compose creates named volumes:
+
+- `mooncraft-postgres` for PostgreSQL data
+- `mooncraft-runtime` for app runtime data
+
+For the current single-node deployment, preserve both volumes. PostgreSQL stores users, projects, messages, runs, and workspace snapshots. Mooncraft runtime data stores local runtime caches and per-project Codex session homes.
+
+Before treating this as hardened production, define backup and restore for PostgreSQL and the Mooncraft runtime volume.
+
+## Validation
+
+After deployment:
+
+```bash
+curl -fsS http://127.0.0.1:8080/api/health
+```
+
+Then verify through the public URL:
+
+```bash
+curl -fsS https://your-domain.com/api/health
+```
+
+For an opt-in real Codex smoke test from the repo root:
+
+```bash
+export MOONCRAFT_CODEX_SMOKE_PROVIDER=openrouter
+export MOONCRAFT_CODEX_SMOKE_MODEL=openai/gpt-5.5
+export MOONCRAFT_CODEX_SMOKE_API_KEY='your-test-key'
+just codex-smoke
+```
+
+This spends real provider quota.
+
+## Current Limits
+
+This Compose deployment is a single-node deployment. It is suitable for test, staging, and early production validation, but it is not yet a horizontally scalable architecture.
+
+Known limits:
+
+- the app container has access to the host Docker socket
+- generated previews run on the same host
+- Codex session homes are file-backed under the Mooncraft runtime volume
+- runtime volume backups are still operator-managed
+- no hard per-user resource quotas are enforced yet
