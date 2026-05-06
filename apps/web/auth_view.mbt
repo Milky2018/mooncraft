@@ -184,7 +184,7 @@ fn render_auth_screen(
       auth_field(
         "Email",
         "auth-email",
-        @html.Email,
+        Email,
         model.auth_email,
         "name@example.com",
         fn(value) { AuthEmailChanged(value) },
@@ -196,7 +196,7 @@ fn render_auth_screen(
         auth_field(
           "Password",
           "auth-password",
-          @html.Password,
+          Password,
           model.auth_password,
           "At least 8 characters",
           fn(value) { AuthPasswordChanged(value) },
@@ -207,7 +207,7 @@ fn render_auth_screen(
         auth_field(
           "Display Name",
           "auth-display-name",
-          @html.Text,
+          Text,
           model.auth_display_name,
           "Optional operator name",
           fn(value) { AuthDisplayNameChanged(value) },

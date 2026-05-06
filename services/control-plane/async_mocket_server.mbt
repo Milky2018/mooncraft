@@ -185,7 +185,7 @@ async fn serve_mocket_request(
     None => (@mocket.handle_not_found(), {})
   }
   let event = @mocket.MocketEvent::{
-    req: @mocket.HttpRequest::{
+    req: {
       http_method,
       url: request.path,
       raw_body: body,

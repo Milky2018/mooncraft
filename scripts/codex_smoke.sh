@@ -154,8 +154,7 @@ fi
 
 snapshot_count="$(sqlite3 data/control-plane/state-v2.sqlite "SELECT COUNT(*) FROM project_workspace_snapshots WHERE project_id = '$project_id';")"
 [[ "$snapshot_count" == "1" ]] || fail "Codex smoke did not persist a database workspace snapshot."
-[[ -d "data/runtime/projects/$project_id/workspace" ]] || fail "Codex smoke did not restore the canonical workspace cache."
-[[ ! -d "data/runtime/projects/$project_id/run-workspaces/$run_id" ]] || fail "Codex smoke left the run workspace behind."
+[[ -d "data/runtime/projects/$project_id/workspace" ]] || fail "Codex smoke did not preserve the stable project workspace."
 wait_for_ok "$base_url${preview_url}api/health" || fail "Codex smoke preview health endpoint was not reachable."
 
 curl -fsS -c "$user_cookie" -b "$user_cookie" -X DELETE "$base_url/api/projects/$project_id" -d '' >/dev/null

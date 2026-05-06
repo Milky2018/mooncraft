@@ -182,7 +182,6 @@ if [[ "$second_thread_id" == "$first_thread_id" ]]; then
 fi
 
 [[ -d "$runtime_project_dir/workspace" ]]
-[[ ! -d "$runtime_project_dir/run-workspaces/$run_id_2" ]]
 grep -q 'Add recovery badge' "$runtime_project_dir/workspace/README.md"
 wait_for_ok "$base_url${preview_url_2}api/health"
 

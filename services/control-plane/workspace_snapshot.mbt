@@ -7,20 +7,6 @@ fn project_workspace_snapshot_temp_path(
 }
 
 ///|
-fn project_run_workspaces_root(root : String, project_id : String) -> String {
-  project_root(root, project_id) + "/run-workspaces"
-}
-
-///|
-fn project_run_workspace_path(
-  root : String,
-  project_id : String,
-  run_id : String,
-) -> String {
-  project_run_workspaces_root(root, project_id) + "/" + run_id
-}
-
-///|
 async fn snapshot_workspace(
   store : Store,
   root : String,
@@ -117,27 +103,15 @@ async fn restore_workspace_snapshot(
 }
 
 ///|
-async fn hydrate_run_workspace(
+async fn restore_project_workspace_for_run(
   store : Store,
   root : String,
   project_id : String,
-  run_id : String,
 ) -> Result[String, String] noraise {
-  let run_workspace_path = project_run_workspace_path(root, project_id, run_id)
+  let workspace_path = project_workspace(root, project_id)
   match
-    restore_workspace_snapshot_to_path(
-      store, root, project_id, run_workspace_path,
-    ) {
-    Ok(_) => Ok(run_workspace_path)
+    restore_workspace_snapshot_to_path(store, root, project_id, workspace_path) {
+    Ok(_) => Ok(workspace_path)
     Err(message) => Err(message)
   }
-}
-
-///|
-fn remove_run_workspace(
-  root : String,
-  project_id : String,
-  run_id : String,
-) -> Unit {
-  safe_remove_tree(project_run_workspace_path(root, project_id, run_id))
 }

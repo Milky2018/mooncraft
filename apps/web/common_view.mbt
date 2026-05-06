@@ -1,10 +1,10 @@
 ///|
 fn status_badge(state : @sdk.RunState) -> @rabbita.Html {
   let (background, foreground) = match state {
-    @sdk.Idle => ("var(--badge-idle-bg)", "var(--badge-idle-fg)")
-    @sdk.Running => ("var(--badge-running-bg)", "var(--badge-running-fg)")
-    @sdk.Succeeded => ("var(--badge-success-bg)", "var(--badge-success-fg)")
-    @sdk.Failed => ("var(--badge-failed-bg)", "var(--badge-failed-fg)")
+    Idle => ("var(--badge-idle-bg)", "var(--badge-idle-fg)")
+    Running => ("var(--badge-running-bg)", "var(--badge-running-fg)")
+    Succeeded => ("var(--badge-success-bg)", "var(--badge-success-fg)")
+    Failed => ("var(--badge-failed-bg)", "var(--badge-failed-fg)")
   }
   @html.div(
     style=mono_style() +
@@ -77,6 +77,6 @@ fn project_headline(model : Model) -> String {
 fn active_project_status(model : Model) -> @sdk.RunState {
   match model.project_detail {
     Some(project) => project.status
-    None => if active_run(model) is Some(_) { @sdk.Running } else { @sdk.Idle }
+    None => if active_run(model) is Some(_) { Running } else { Idle }
   }
 }

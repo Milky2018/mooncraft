@@ -19,16 +19,16 @@ fn pick_selected_project_id(
 ///|
 fn active_run(model : Model) -> @sdk.RunStatusResponse? {
   match model.run_status {
-    Some(run) if run.state is @sdk.Running => Some(run)
+    Some(run) if run.state is Running => Some(run)
     _ =>
       match model.project_detail {
-        Some(project) if project.status is @sdk.Running =>
+        Some(project) if project.status is Running =>
           match project.current_run_id {
             Some(run_id) =>
-              Some(@sdk.RunStatusResponse::{
+              Some({
                 run_id,
                 project_id: project.id,
-                state: @sdk.Running,
+                state: Running,
                 summary: None,
                 error_message: None,
                 failure_debug: None,
@@ -101,11 +101,11 @@ fn append_local_user_message(
   content : String,
 ) -> Array[@sdk.ChatMessage] {
   let messages = model.messages.copy()
-  messages.push(@sdk.ChatMessage::{
+  messages.push({
     id: "local-" + content.length().to_string(),
     project_id,
     run_id: None,
-    role: @sdk.User,
+    role: User,
     content,
     created_at: "now",
   })
@@ -119,7 +119,7 @@ fn error_notice(prefix : String, error : @sdk.ApiError) -> String {
 
 ///|
 fn run_failure_summary(run : @sdk.RunStatusResponse) -> String? {
-  if !(run.state is @sdk.Failed) {
+  if !(run.state is Failed) {
     None
   } else {
     match run.summary {
@@ -131,7 +131,7 @@ fn run_failure_summary(run : @sdk.RunStatusResponse) -> String? {
 
 ///|
 fn is_unauthorized_error(error : @sdk.ApiError) -> Bool {
-  error.code == @sdk.Unauthorized
+  error.code == Unauthorized
 }
 
 ///|

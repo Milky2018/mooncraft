@@ -203,7 +203,7 @@ fn set_session_cookie(response : @mocket.HttpResponse, token : String) -> Unit {
     max_age=session_max_age_seconds,
     path="/",
     http_only=true,
-    same_site=@mocket.Lax,
+    same_site=Lax,
   )
 }
 
@@ -215,7 +215,7 @@ fn clear_session_cookie(response : @mocket.HttpResponse) -> Unit {
     max_age=0,
     path="/",
     http_only=true,
-    same_site=@mocket.Lax,
+    same_site=Lax,
   )
 }
 
@@ -297,9 +297,7 @@ async fn request_password_reset(
     Some(user) => queue_password_reset(ctx, user)
     None => ignore(())
   }
-  @sdk.AuthActionResponse::{
-    message: "If that email is registered, a reset link has been queued.",
-  }
+  { message: "If that email is registered, a reset link has been queued." }
 }
 
 ///|
@@ -326,9 +324,7 @@ async fn reset_password(
   ctx.store.update_user_password_hash(user_id, hash_password(request.password))
   ctx.store.set_user_email_verified(user_id)
   ctx.store.delete_sessions_for_user(user_id)
-  Ok(@sdk.AuthActionResponse::{
-    message: "Password updated. Sign in with the new password.",
-  })
+  Ok({ message: "Password updated. Sign in with the new password." })
 }
 
 ///|
@@ -348,7 +344,7 @@ async fn change_password(
           user.id,
           hash_password(request.new_password),
         )
-        Ok(@sdk.AuthActionResponse::{ message: "Password changed." })
+        Ok({ message: "Password changed." })
       } else {
         Err("The current password is incorrect.")
       }
@@ -365,10 +361,10 @@ async fn resend_email_verification(
   user : @sdk.UserSummary,
 ) -> @sdk.AuthActionResponse noraise {
   if user.email_verified {
-    @sdk.AuthActionResponse::{ message: "Email is already verified." }
+    { message: "Email is already verified." }
   } else {
     queue_email_verification(ctx, user)
-    @sdk.AuthActionResponse::{ message: "Verification link has been queued." }
+    { message: "Verification link has been queued." }
   }
 }
 
@@ -390,7 +386,7 @@ async fn verify_email(
     None => return Err("This verification link is invalid or has expired.")
   }
   ctx.store.set_user_email_verified(user_id)
-  Ok(@sdk.AuthActionResponse::{ message: "Email address verified." })
+  Ok({ message: "Email address verified." })
 }
 
 ///|
@@ -658,7 +654,7 @@ async fn session_status_response(
   event : @mocket.MocketEvent,
 ) -> @sdk.SessionResponse noraise {
   let user = session_user_from_event(ctx, event)
-  @sdk.SessionResponse::{
+  {
     authenticated: user is Some(_),
     user,
     github_enabled: github_oauth_enabled(),

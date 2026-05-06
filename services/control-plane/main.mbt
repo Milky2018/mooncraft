@@ -27,9 +27,7 @@ fn api_error_response(
   code : @sdk.ApiErrorCode,
   message : String,
 ) -> @mocket.HttpResponse {
-  json_response(status, @sdk.ApiErrorResponse::{
-    error: @sdk.ApiError::{ code, message },
-  })
+  json_response(status, @sdk.ApiErrorResponse::{ error: { code, message } })
 }
 
 ///|
@@ -73,7 +71,7 @@ fn platform_logo_asset_path(root : String) -> String {
 
 ///|
 fn unauthorized_response() -> @mocket.HttpResponse {
-  api_error_response(Unauthorized, @sdk.Unauthorized, "Sign in to continue.")
+  api_error_response(Unauthorized, Unauthorized, "Sign in to continue.")
 }
 
 ///|
@@ -122,7 +120,7 @@ fn require_admin_token(
       return Err(
         api_error_response(
           ServiceUnavailable,
-          @sdk.ServiceUnavailable,
+          ServiceUnavailable,
           "Admin diagnostics are not configured.",
         ),
       )
@@ -133,7 +131,7 @@ fn require_admin_token(
       Err(
         api_error_response(
           Unauthorized,
-          @sdk.Unauthorized,
+          Unauthorized,
           "A valid admin token is required.",
         ),
       )
@@ -142,7 +140,7 @@ fn require_admin_token(
 
 ///|
 fn public_run_error_message(run : @sdk.RunStatusResponse) -> String? {
-  if !(run.state is @sdk.Failed) {
+  if !(run.state is Failed) {
     run.error_message
   } else {
     match run.summary {
@@ -157,11 +155,7 @@ fn public_run_status(run : @sdk.RunStatusResponse) -> @sdk.RunStatusResponse {
   if mooncraft_development_mode() {
     run
   } else {
-    @sdk.RunStatusResponse::{
-      ..run,
-      error_message: public_run_error_message(run),
-      failure_debug: None,
-    }
+    { ..run, error_message: public_run_error_message(run), failure_debug: None }
   }
 }
 
@@ -187,7 +181,7 @@ fn limit_admin_log_content(content : String) -> (String, Bool) {
 fn read_admin_log_file(label : String, path : String?) -> @sdk.AdminRunLogFile {
   match path {
     None =>
-      @sdk.AdminRunLogFile::{
+      {
         label,
         path: None,
         exists: false,
@@ -197,7 +191,7 @@ fn read_admin_log_file(label : String, path : String?) -> @sdk.AdminRunLogFile {
       }
     Some(path) =>
       if !@fs.path_exists(path) {
-        @sdk.AdminRunLogFile::{
+        {
           label,
           path: Some(path),
           exists: false,
@@ -208,7 +202,7 @@ fn read_admin_log_file(label : String, path : String?) -> @sdk.AdminRunLogFile {
       } else {
         let content = @fs.read_file_to_string(path) catch {
           _ =>
-            return @sdk.AdminRunLogFile::{
+            return {
               label,
               path: Some(path),
               exists: true,
@@ -218,7 +212,7 @@ fn read_admin_log_file(label : String, path : String?) -> @sdk.AdminRunLogFile {
             }
         }
         let (content, truncated) = limit_admin_log_content(content)
-        @sdk.AdminRunLogFile::{
+        {
           label,
           path: Some(path),
           exists: true,
@@ -255,7 +249,7 @@ async fn admin_run_logs_response(
       debug.bind(fn(debug) { debug.final_summary_path }),
     ),
   )
-  @sdk.AdminRunLogsResponse::{
+  {
     run,
     events: ctx.store.list_run_events(run.project_id, run.run_id, 0),
     logs,
@@ -276,7 +270,7 @@ fn[T : FromJson] decode_json_body(
       return Err(
         api_error_response(
           BadRequest,
-          @sdk.InvalidJson,
+          InvalidJson,
           "The request body must be valid JSON.",
         ),
       )
@@ -287,7 +281,7 @@ fn[T : FromJson] decode_json_body(
         return Err(
           api_error_response(
             BadRequest,
-            @sdk.InvalidJson,
+            InvalidJson,
             "The JSON body does not match the expected shape.",
           ),
         )
@@ -306,7 +300,7 @@ fn path_param(
       Err(
         api_error_response(
           BadRequest,
-          @sdk.ValidationFailed,
+          ValidationFailed,
           "Missing route parameter: \{name}.",
         ),
       )
@@ -333,7 +327,7 @@ async fn admin_project_diagnostics_response(
   ctx : AppContext,
   project : @sdk.ProjectDetail,
 ) -> @sdk.AdminProjectDiagnosticsResponse noraise {
-  @sdk.AdminProjectDiagnosticsResponse::{
+  {
     project,
     messages: ctx.store.list_messages(project.id),
     runs: ctx.store.list_project_runs(project.id, 50),
@@ -639,7 +633,7 @@ fn main {
     } else {
       api_error_response(
         ServiceUnavailable,
-        @sdk.ServiceUnavailable,
+        ServiceUnavailable,
         "The database is not available.",
       )
     }
@@ -658,7 +652,7 @@ fn main {
     }
     match ctx.store.get_run_by_id(run_id) {
       Some(run) => json_ok(admin_run_logs_response(ctx, run))
-      None => api_error_response(NotFound, @sdk.NotFound, "Run not found.")
+      None => api_error_response(NotFound, NotFound, "Run not found.")
     }
   })
   app.get(@sdk.admin_recent_runs_route().path_pattern, event => {
@@ -681,7 +675,7 @@ fn main {
     }
     match ctx.store.get_run_by_id(run_id) {
       Some(run) => json_ok(run)
-      None => api_error_response(NotFound, @sdk.NotFound, "Run not found.")
+      None => api_error_response(NotFound, NotFound, "Run not found.")
     }
   })
   app.get(@sdk.admin_run_events_route().path_pattern, event => {
@@ -695,8 +689,7 @@ fn main {
     }
     let run = match ctx.store.get_run_by_id(run_id) {
       Some(run) => run
-      None =>
-        return api_error_response(NotFound, @sdk.NotFound, "Run not found.")
+      None => return api_error_response(NotFound, NotFound, "Run not found.")
     }
     let after_seq = match path_param(event, "after_seq") {
       Ok(value) => @string.parse_int(value) catch { _ => 0 }
@@ -726,7 +719,7 @@ fn main {
     }
     match ctx.store.get_project_detail(project_id) {
       Some(project) => json_ok(admin_project_diagnostics_response(ctx, project))
-      None => api_error_response(NotFound, @sdk.NotFound, "Project not found.")
+      None => api_error_response(NotFound, NotFound, "Project not found.")
     }
   })
   app.post(@sdk.signup_path(), async fn(event) noraise {
@@ -737,7 +730,7 @@ fn main {
     match signup_user(ctx, request) {
       Ok(user) => authenticated_response(ctx, event, user, status=Created)
       Err(message) =>
-        api_error_response(UnprocessableEntity, @sdk.ValidationFailed, message)
+        api_error_response(UnprocessableEntity, ValidationFailed, message)
     }
   })
   app.post(@sdk.login_path(), async fn(event) noraise {
@@ -748,7 +741,7 @@ fn main {
     match login_user(ctx, request) {
       Ok(user) => authenticated_response(ctx, event, user)
       Err(message) =>
-        api_error_response(Unauthorized, @sdk.InvalidCredentials, message)
+        api_error_response(Unauthorized, InvalidCredentials, message)
     }
   })
   app.post(@sdk.logout_path(), async fn(event) noraise {
@@ -782,7 +775,7 @@ fn main {
     match reset_password(ctx, request) {
       Ok(response) => json_ok(response)
       Err(message) =>
-        api_error_response(UnprocessableEntity, @sdk.ValidationFailed, message)
+        api_error_response(UnprocessableEntity, ValidationFailed, message)
     }
   })
   app.post(@sdk.change_password_path(), async fn(event) noraise {
@@ -797,7 +790,7 @@ fn main {
     match change_password(ctx, user, request) {
       Ok(response) => json_ok(response)
       Err(message) =>
-        api_error_response(UnprocessableEntity, @sdk.ValidationFailed, message)
+        api_error_response(UnprocessableEntity, ValidationFailed, message)
     }
   })
   app.post(@sdk.resend_email_verification_path(), async fn(event) noraise {
@@ -815,7 +808,7 @@ fn main {
     match verify_email(ctx, request) {
       Ok(response) => json_ok(response)
       Err(message) =>
-        api_error_response(UnprocessableEntity, @sdk.ValidationFailed, message)
+        api_error_response(UnprocessableEntity, ValidationFailed, message)
     }
   })
   app.get(@sdk.ai_settings_path(), async fn(event) noraise {
@@ -825,7 +818,7 @@ fn main {
     }
     match ctx.store.get_ai_settings(user.id) {
       Some(settings) => json_ok(settings)
-      None => api_error_response(NotFound, @sdk.NotFound, "User not found.")
+      None => api_error_response(NotFound, NotFound, "User not found.")
     }
   })
   app.get(@sdk.ai_model_options_route().path_pattern, async fn(event) noraise {
@@ -839,13 +832,12 @@ fn main {
     }
     let credentials = match ctx.store.get_ai_credential_settings(user.id) {
       Some(settings) => settings
-      None =>
-        return api_error_response(NotFound, @sdk.NotFound, "User not found.")
+      None => return api_error_response(NotFound, NotFound, "User not found.")
     }
     match list_ai_model_options(user.id, provider, credentials) {
       Ok(response) => json_ok(response)
       Err(message) =>
-        api_error_response(UnprocessableEntity, @sdk.ValidationFailed, message)
+        api_error_response(UnprocessableEntity, ValidationFailed, message)
     }
   })
   app.put(@sdk.ai_settings_path(), async fn(event) noraise {
@@ -866,7 +858,7 @@ fn main {
       ) {
       Ok(settings) => json_ok(settings)
       Err(message) =>
-        api_error_response(UnprocessableEntity, @sdk.ValidationFailed, message)
+        api_error_response(UnprocessableEntity, ValidationFailed, message)
     }
   })
   app.get("/auth/github/start", async fn(_) noraise {
@@ -882,8 +874,7 @@ fn main {
     }
     match ctx.complete_github_sign_in(payload) {
       Ok(user) => authenticated_response(ctx, event, user)
-      Err(message) =>
-        api_error_response(BadRequest, @sdk.ValidationFailed, message)
+      Err(message) => api_error_response(BadRequest, ValidationFailed, message)
     }
   })
 
@@ -918,7 +909,7 @@ fn main {
       Err(message) => {
         safe_remove_tree(project_root(ctx.root, project_id))
         ignore(ctx.store.delete_project(project_id))
-        api_error_response(ServiceUnavailable, @sdk.ServiceUnavailable, message)
+        api_error_response(ServiceUnavailable, ServiceUnavailable, message)
       }
     }
   })
@@ -932,15 +923,15 @@ fn main {
       Err(response) => return response
     }
     if ctx.store.get_project_detail_for_user(project_id, user.id) is None {
-      return api_error_response(NotFound, @sdk.NotFound, "Project not found.")
+      return api_error_response(NotFound, NotFound, "Project not found.")
     }
     match ctx.delete_project(project_id) {
       Ok(_) => json_no_content()
       Err(message) =>
         if message == "Project not found." {
-          api_error_response(NotFound, @sdk.NotFound, message)
+          api_error_response(NotFound, NotFound, message)
         } else {
-          api_error_response(Conflict, @sdk.Conflict, message)
+          api_error_response(Conflict, Conflict, message)
         }
     }
   })
@@ -955,7 +946,7 @@ fn main {
     }
     match ctx.store.get_project_detail_for_user(project_id, user.id) {
       Some(project) => json_ok(project)
-      None => api_error_response(NotFound, @sdk.NotFound, "Project not found.")
+      None => api_error_response(NotFound, NotFound, "Project not found.")
     }
   })
   app.get(@sdk.list_messages_route().path_pattern, async fn(event) noraise {
@@ -969,7 +960,7 @@ fn main {
     }
     match ctx.store.list_messages_for_user(user.id, project_id) {
       Some(messages) => json_ok(@sdk.ListMessagesResponse::{ items: messages })
-      None => api_error_response(NotFound, @sdk.NotFound, "Project not found.")
+      None => api_error_response(NotFound, NotFound, "Project not found.")
     }
   })
   app.post(@sdk.create_run_route().path_pattern, async fn(event) noraise {
@@ -988,15 +979,14 @@ fn main {
     if request.content == "" {
       return api_error_response(
         UnprocessableEntity,
-        @sdk.ValidationFailed,
+        ValidationFailed,
         "Message content cannot be empty.",
       )
     }
     let run = match
       ctx.store.start_run_for_user(user.id, project_id, request.content) {
       Ok(run) => run
-      Err(message) =>
-        return api_error_response(Conflict, @sdk.Conflict, message)
+      Err(message) => return api_error_response(Conflict, Conflict, message)
     }
     match ctx.spawn_project_turn_worker(project_id, run.run_id) {
       Ok(worker_pid) => {
@@ -1039,7 +1029,7 @@ fn main {
     }
     match ctx.store.get_run_for_user(user.id, project_id, run_id) {
       Some(run) => json_ok(public_run_status(run))
-      None => api_error_response(NotFound, @sdk.NotFound, "Run not found.")
+      None => api_error_response(NotFound, NotFound, "Run not found.")
     }
   })
   app.get(@sdk.list_run_events_route().path_pattern, event => {
@@ -1062,7 +1052,7 @@ fn main {
     match
       ctx.store.list_run_events_for_user(user.id, project_id, run_id, after_seq) {
       Some(items) => json_ok(@sdk.ListRunEventsResponse::{ items, })
-      None => api_error_response(NotFound, @sdk.NotFound, "Run not found.")
+      None => api_error_response(NotFound, NotFound, "Run not found.")
     }
   })
   app.all(@sdk.preview_route_pattern(), async fn(event) noraise {

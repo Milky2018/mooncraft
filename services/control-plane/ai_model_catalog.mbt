@@ -112,14 +112,7 @@ fn model_option(
   context_length? : Int? = None,
   description? : String? = None,
 ) -> @sdk.ModelOption {
-  @sdk.ModelOption::{
-    id,
-    label,
-    provider,
-    recommended,
-    context_length,
-    description,
-  }
+  { id, label, provider, recommended, context_length, description }
 }
 
 ///|
@@ -179,13 +172,7 @@ fn model_options_response(
   source : String,
   warning : String?,
 ) -> @sdk.ListModelOptionsResponse {
-  @sdk.ListModelOptionsResponse::{
-    provider,
-    items,
-    fetched_at: now_string(),
-    source,
-    warning,
-  }
+  { provider, items, fetched_at: now_string(), source, warning }
 }
 
 ///|

@@ -27,3 +27,4 @@ Agents do not edit this. This file is maintainable by human developers.
   - [ ] Resend verification email
 - [ ] Use `codex-sdk` instead of CLI
 - [ ] Improve the generated workspace bootstrap
+- [ ] OAuth with github account

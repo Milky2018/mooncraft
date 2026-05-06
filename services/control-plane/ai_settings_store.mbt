@@ -54,7 +54,7 @@ fn ai_settings_response_from_row(
   let provider = normalize_ai_provider(row_text(row, "ai_provider")).unwrap_or(
     default_ai_provider(),
   )
-  @sdk.AiSettingsResponse::{
+  {
     provider,
     model: normalized_ai_model(provider, row_text(row, "ai_model")),
     api_key_configured: row_text(row, "ai_api_key") != "",
@@ -76,7 +76,7 @@ async fn Store::get_ai_settings(
         #|FROM users
         #|WHERE id = ?;
       ),
-      params=[@db.String(user_id)],
+      params=[String(user_id)],
     ) {
     Some(row) => Some(ai_settings_response_from_row(row))
     None => None
@@ -98,7 +98,7 @@ async fn Store::get_ai_credential_settings(
         #|FROM users
         #|WHERE id = ?;
       ),
-      params=[@db.String(user_id)],
+      params=[String(user_id)],
     ) {
     Some(row) => {
       let provider = normalize_ai_provider(row_text(row, "ai_provider")).unwrap_or(
@@ -130,7 +130,7 @@ async fn Store::update_ai_settings(
         #|FROM users
         #|WHERE id = ?;
       ),
-      params=[@db.String(user_id)],
+      params=[String(user_id)],
     ) {
     Some(row) => row_text(row, "ai_api_key")
     None => return Err("User not found.")
@@ -155,11 +155,11 @@ async fn Store::update_ai_settings(
       ),
       "update user AI settings",
       params=[
-        @db.String(provider),
-        @db.String(model),
-        @db.String(api_key),
-        @db.String(now_string()),
-        @db.String(user_id),
+        String(provider),
+        String(model),
+        String(api_key),
+        String(now_string()),
+        String(user_id),
       ],
     ) {
     Ok(_) =>
@@ -187,7 +187,7 @@ async fn Store::get_ai_runtime_settings_for_project(
         #|JOIN users u ON u.id = p.owner_user_id
         #|WHERE p.id = ?;
       ),
-      params=[@db.String(project_id)],
+      params=[String(project_id)],
     ) {
     Some(row) => {
       let provider = match normalize_ai_provider(row_text(row, "ai_provider")) {

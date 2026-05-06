@@ -265,8 +265,8 @@ fn update(
         )
       }
     AiSettingsSaved(Ok(settings)) => {
-      let current_user = model.current_user.map(fn(user) {
-        @sdk.UserSummary::{
+      let current_user = model.current_user.map(fn(user) -> @sdk.UserSummary {
+        {
           id: user.id,
           email: user.email,
           email_verified: user.email_verified,
@@ -425,7 +425,7 @@ fn update(
       )
     ProjectLoaded(Ok(project)) => {
       let cmd = match project.current_run_id {
-        Some(run_id) if project.status is @sdk.Running =>
+        Some(run_id) if project.status is Running =>
           @rabbita.batch([
             @rabbita.delay(dispatch(PollRun(project.id, run_id)), 1000),
             dispatch(PollRunEvents(project.id, run_id)),
@@ -606,7 +606,7 @@ fn update(
       }
     RunCreated(Ok(response)) =>
       match response.poll_after_ms {
-        Some(delay_ms) if response.run.state is @sdk.Running =>
+        Some(delay_ms) if response.run.state is Running =>
           (
             @rabbita.batch([
               @rabbita.delay(
@@ -656,7 +656,7 @@ fn update(
     PollRun(project_id, run_id) =>
       (load_run_cmd(dispatch, project_id, run_id), model)
     RunLoaded(project_id, run_id, Ok(run)) =>
-      if run.state is @sdk.Running {
+      if run.state is Running {
         (
           @rabbita.batch([
             @rabbita.delay(dispatch(PollRun(project_id, run_id)), 1000),

@@ -53,13 +53,13 @@ test "success summary copy is shared across run completion paths" {
 
 ///|
 test "public run status hides failure diagnostics outside development mode" {
-  let run = @sdk.RunStatusResponse::{
+  let run : @sdk.RunStatusResponse = {
     run_id: "run-1",
     project_id: "project-1",
-    state: @sdk.Failed,
+    state: Failed,
     summary: Some("The update failed before the preview could be refreshed."),
     error_message: Some("raw command output and private log paths"),
-    failure_debug: Some(@sdk.RunFailureDebug::{
+    failure_debug: Some({
       stage: "Codex session startup",
       command: Some("codex exec <prompt>"),
       exit_code: Some(125),
@@ -333,13 +333,13 @@ async test "delete project removes the persisted Codex home" {
   safe_remove_tree(root)
   let db_path = root + "/data/control-plane/state-v2.sqlite"
   ensure_dir(parent_dir(db_path))
-  let store = Store::try_new_async(db_path).unwrap()
+  let store = try_new_async(db_path).unwrap()
   let ctx = AppContext::{
     root,
     build_profile: Debug,
     store,
     previews: PreviewManager::new(root, Debug),
-    agent_gateway: AgentGateway::new(root),
+    agent_gateway: new(root),
   }
   let project_id = next_id("project")
   ignore(
@@ -422,7 +422,7 @@ async fn new_test_store(root : String, prefix : String) -> (Store, String) {
   ensure_dir(db_dir)
   let db_path = db_dir + "/" + next_id(prefix) + ".sqlite"
   cleanup_test_db(db_path)
-  (Store::try_new_async(db_path).unwrap(), db_path)
+  (try_new_async(db_path).unwrap(), db_path)
 }
 
 ///|
@@ -434,7 +434,7 @@ test "store reports database open failures" {
   safe_remove_tree(db_path)
   ensure_dir(db_path)
 
-  let result = Store::try_new(db_path)
+  let result = try_new(db_path)
 
   inspect(
     match result {
@@ -599,7 +599,7 @@ async test "startup recovery makes stale running runs retryable" {
 
   inspect(store.fail_stale_running_runs_on_startup(), content="1")
   let recovered_run = store.get_run(project_id, stale_run.run_id).unwrap()
-  inspect(recovered_run.state == @sdk.Failed, content="true")
+  inspect(recovered_run.state == Failed, content="true")
   debug_inspect(
     recovered_run.summary,
     content="Some(\"The previous worker was interrupted before it could finish. Send another message to retry this project.\")",
@@ -609,7 +609,7 @@ async test "startup recovery makes stale running runs retryable" {
     content="Some(\"Worker recovery\")",
   )
   let project = store.get_project_detail(project_id).unwrap()
-  inspect(project.status == @sdk.Failed, content="true")
+  inspect(project.status == Failed, content="true")
   debug_inspect(project.current_run_id, content="None")
   let retry_run = store.start_run(project_id, "Retry the app")
   inspect(
@@ -681,11 +681,10 @@ async test "restore without a database snapshot fails without legacy fallback" {
 }
 
 ///|
-async test "hydrate run workspace restores the saved snapshot into an isolated path" {
+async test "restore project workspace for run uses the stable project workspace path" {
   let root = @env.current_dir().unwrap_or(".")
-  let (store, db_path) = new_test_store(root, "snapshot-hydrate-db")
-  let project_id = next_id("snapshot-hydrate")
-  let run_id = next_id("run")
+  let (store, db_path) = new_test_store(root, "snapshot-stable-workspace-db")
+  let project_id = next_id("snapshot-stable-workspace")
   let workspace_path = project_workspace(root, project_id)
   safe_remove_tree(project_root(root, project_id))
   ensure_dir(workspace_path)
@@ -693,38 +692,31 @@ async test "hydrate run workspace restores the saved snapshot into an isolated p
   snapshot_workspace(store, root, project_id, workspace_path).unwrap()
   safe_write_string(workspace_path + "/README.md", "changed cache\n")
 
-  let run_workspace_path = hydrate_run_workspace(
-    store, root, project_id, run_id,
+  let restored_workspace_path = restore_project_workspace_for_run(
+    store, root, project_id,
   ).unwrap()
 
-  inspect(run_workspace_path == workspace_path, content="false")
-  inspect(
-    safe_read_string_or(run_workspace_path + "/README.md", ""),
-    content="from snapshot\n",
-  )
+  inspect(restored_workspace_path == workspace_path, content="true")
   inspect(
     safe_read_string_or(workspace_path + "/README.md", ""),
-    content="changed cache\n",
+    content="from snapshot\n",
   )
-  remove_run_workspace(root, project_id, run_id)
-  inspect(@fs.path_exists(run_workspace_path), content="false")
   safe_remove_tree(project_root(root, project_id))
   cleanup_test_db(db_path)
 }
 
 ///|
-async test "hydrate without a database snapshot fails without legacy fallback" {
+async test "restore project workspace for run fails without legacy fallback" {
   let root = @env.current_dir().unwrap_or(".")
-  let (store, db_path) = new_test_store(root, "snapshot-hydrate-legacy-db")
-  let project_id = next_id("snapshot-hydrate-legacy")
-  let run_id = next_id("run")
+  let (store, db_path) = new_test_store(root, "snapshot-run-legacy-db")
+  let project_id = next_id("snapshot-run-legacy")
   let legacy_root = legacy_project_workspaces_root(root) + "/" + project_id
   safe_remove_tree(project_root(root, project_id))
   safe_remove_tree(legacy_root)
   ensure_dir(legacy_root)
   safe_write_string(legacy_root + "/README.md", "legacy\n")
 
-  let result = hydrate_run_workspace(store, root, project_id, run_id)
+  let result = restore_project_workspace_for_run(store, root, project_id)
 
   inspect(
     match result {
@@ -734,27 +726,22 @@ async test "hydrate without a database snapshot fails without legacy fallback" {
     content="true",
   )
   inspect(@fs.path_exists(legacy_root), content="true")
-  inspect(
-    @fs.path_exists(project_run_workspace_path(root, project_id, run_id)),
-    content="false",
-  )
   safe_remove_tree(legacy_root)
   safe_remove_tree(project_root(root, project_id))
   cleanup_test_db(db_path)
 }
 
 ///|
-async test "hydrate requires a database snapshot" {
+async test "restore project workspace for run requires a database snapshot" {
   let root = @env.current_dir().unwrap_or(".")
-  let (store, db_path) = new_test_store(root, "snapshot-hydrate-migration-db")
-  let project_id = next_id("snapshot-hydrate-migration")
-  let run_id = next_id("run")
+  let (store, db_path) = new_test_store(root, "snapshot-run-migration-db")
+  let project_id = next_id("snapshot-run-migration")
   let workspace_path = project_workspace(root, project_id)
   safe_remove_tree(project_root(root, project_id))
   ensure_dir(workspace_path)
   safe_write_string(workspace_path + "/README.md", "local cache only\n")
 
-  let result = hydrate_run_workspace(store, root, project_id, run_id)
+  let result = restore_project_workspace_for_run(store, root, project_id)
 
   inspect(
     match result {

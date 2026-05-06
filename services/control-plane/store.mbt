@@ -153,16 +153,16 @@ fn safe_read_bytes_or(path : String, fallback : Bytes) -> Bytes {
 ///|
 fn nullable_int_param(value : Int?) -> @db.Param {
   match value {
-    Some(number) => @db.Int(number)
-    None => @db.Null
+    Some(number) => Int(number)
+    None => Null
   }
 }
 
 ///|
 fn nullable_text_param(value : String?) -> @db.Param {
   match value {
-    Some(text) => @db.String(text)
-    None => @db.Null
+    Some(text) => String(text)
+    None => Null
   }
 }
 
@@ -196,44 +196,44 @@ fn int_to_none_if_negative(value : Int) -> Int? {
 ///|
 fn param_to_string(value : @db.Param) -> String {
   match value {
-    @db.Null => ""
-    @db.Bool(v) => if v { "1" } else { "0" }
-    @db.Byte(v) => v.to_int().to_string()
-    @db.Int(v) => v.to_string()
-    @db.Int16(v) => v.to_string()
-    @db.UInt16(v) => v.to_string()
-    @db.UInt(v) => v.to_string()
-    @db.UInt64(v) => v.to_string()
-    @db.Int64(v) => v.to_string()
-    @db.BigInt(v) => v.to_string()
-    @db.Float(v) => v.to_string()
-    @db.Double(v) => v.to_string()
-    @db.Decimal(v) => v
-    @db.Date(v, _) => v.to_string()
-    @db.Time(v, _) => v.to_string()
-    @db.DateTime(v, _) => v.to_string()
-    @db.Timestamp(v, _) => v.to_string()
-    @db.Uuid(v) => v
-    @db.Json(v) => v.stringify()
-    @db.String(v) => v
-    @db.Bytes(v) => bytes_to_string(v)
+    Null => ""
+    Bool(v) => if v { "1" } else { "0" }
+    Byte(v) => v.to_int().to_string()
+    Int(v) => v.to_string()
+    Int16(v) => v.to_string()
+    UInt16(v) => v.to_string()
+    UInt(v) => v.to_string()
+    UInt64(v) => v.to_string()
+    Int64(v) => v.to_string()
+    BigInt(v) => v.to_string()
+    Float(v) => v.to_string()
+    Double(v) => v.to_string()
+    Decimal(v) => v
+    Date(v, _) => v.to_string()
+    Time(v, _) => v.to_string()
+    DateTime(v, _) => v.to_string()
+    Timestamp(v, _) => v.to_string()
+    Uuid(v) => v
+    Json(v) => v.stringify()
+    String(v) => v
+    Bytes(v) => bytes_to_string(v)
   }
 }
 
 ///|
 fn param_to_int(value : @db.Param) -> Int {
   match value {
-    @db.Bool(v) => if v { 1 } else { 0 }
-    @db.Byte(v) => v.to_int()
-    @db.Int(v) => v
-    @db.Int16(v) => v.to_int()
-    @db.UInt16(v) => v.to_int()
-    @db.UInt(v) => v.reinterpret_as_int()
-    @db.UInt64(v) => v.to_int()
-    @db.Int64(v) => v.to_int()
-    @db.Float(v) => v.to_int()
-    @db.Double(v) => v.to_int()
-    @db.String(v) => @string.parse_int(v) catch { _ => 0 }
+    Bool(v) => if v { 1 } else { 0 }
+    Byte(v) => v.to_int()
+    Int(v) => v
+    Int16(v) => v.to_int()
+    UInt16(v) => v.to_int()
+    UInt(v) => v.reinterpret_as_int()
+    UInt64(v) => v.to_int()
+    Int64(v) => v.to_int()
+    Float(v) => v.to_int()
+    Double(v) => v.to_int()
+    String(v) => @string.parse_int(v) catch { _ => 0 }
     _ => 0
   }
 }
@@ -241,10 +241,10 @@ fn param_to_int(value : @db.Param) -> Int {
 ///|
 fn param_to_bool(value : @db.Param) -> Bool {
   match value {
-    @db.Bool(v) => v
-    @db.Int(v) => v != 0
-    @db.Int64(v) => v != 0L
-    @db.String(v) => v == "1" || v.to_lower() == "true"
+    Bool(v) => v
+    Int(v) => v != 0
+    Int64(v) => v != 0L
+    String(v) => v == "1" || v.to_lower() == "true"
     _ => false
   }
 }
@@ -252,15 +252,15 @@ fn param_to_bool(value : @db.Param) -> Bool {
 ///|
 fn param_to_bytes(value : @db.Param) -> Bytes? {
   match value {
-    @db.Bytes(v) => Some(v)
-    @db.String(v) => Some(@utf8.encode(v))
+    Bytes(v) => Some(v)
+    String(v) => Some(@utf8.encode(v))
     _ => None
   }
 }
 
 ///|
 fn row_get(row : Map[String, @db.Param], key : String) -> @db.Param {
-  row.get(key).unwrap_or(@db.Null)
+  row.get(key).unwrap_or(Null)
 }
 
 ///|
@@ -471,7 +471,7 @@ fn preview_from_columns(
     } else {
       url
     }
-    Some(@sdk.PreviewTarget::{ url: public_url, port, healthy: healthy != 0 })
+    Some({ url: public_url, port, healthy: healthy != 0 })
   }
 }
 
@@ -492,7 +492,7 @@ fn run_failure_debug_from_columns(
     final_summary_path == "" {
     None
   } else {
-    Some(@sdk.RunFailureDebug::{
+    Some({
       stage,
       command: empty_to_none(command),
       exit_code: int_to_none_if_negative(exit_code),
@@ -586,27 +586,27 @@ fn postgres_quote(value : String) -> String {
 ///|
 fn postgres_param_sql(param : @db.Param) -> String {
   match param {
-    @db.Null => "NULL"
-    @db.Bool(value) => if value { "TRUE" } else { "FALSE" }
-    @db.Byte(value) => value.to_int().to_string()
-    @db.Int(value) => value.to_string()
-    @db.Int16(value) => value.to_int().to_string()
-    @db.UInt16(value) => value.to_int().to_string()
-    @db.UInt(value) => value.to_string()
-    @db.UInt64(value) => value.to_string()
-    @db.Int64(value) => value.to_string()
-    @db.BigInt(value) => value.to_string()
-    @db.Float(value) => value.to_string()
-    @db.Double(value) => value.to_string()
-    @db.Decimal(value) => value
-    @db.Date(value, _) => postgres_quote(value.to_string())
-    @db.Time(value, _) => postgres_quote(value.to_string())
-    @db.DateTime(value, _) => postgres_quote(value.to_string())
-    @db.Timestamp(value, _) => postgres_quote(value.to_string())
-    @db.Uuid(value) => postgres_quote(value)
-    @db.Json(value) => postgres_quote(value.stringify())
-    @db.String(value) => postgres_quote(value)
-    @db.Bytes(value) => "decode('\{@crypto.bytes_to_hex_string(value)}', 'hex')"
+    Null => "NULL"
+    Bool(value) => if value { "TRUE" } else { "FALSE" }
+    Byte(value) => value.to_int().to_string()
+    Int(value) => value.to_string()
+    Int16(value) => value.to_int().to_string()
+    UInt16(value) => value.to_int().to_string()
+    UInt(value) => value.to_string()
+    UInt64(value) => value.to_string()
+    Int64(value) => value.to_string()
+    BigInt(value) => value.to_string()
+    Float(value) => value.to_string()
+    Double(value) => value.to_string()
+    Decimal(value) => value
+    Date(value, _) => postgres_quote(value.to_string())
+    Time(value, _) => postgres_quote(value.to_string())
+    DateTime(value, _) => postgres_quote(value.to_string())
+    Timestamp(value, _) => postgres_quote(value.to_string())
+    Uuid(value) => postgres_quote(value)
+    Json(value) => postgres_quote(value.stringify())
+    String(value) => postgres_quote(value)
+    Bytes(value) => "decode('\{@crypto.bytes_to_hex_string(value)}', 'hex')"
   }
 }
 
@@ -640,7 +640,7 @@ fn hex_nibble(byte : Byte) -> Int? {
 ///|
 fn postgres_text_param(value : String?) -> @db.Param {
   match value {
-    None => @db.Null
+    None => Null
     Some(text) =>
       if text.has_prefix("\\x") {
         let encoded = @utf8.encode(text[2:].to_owned())
@@ -649,13 +649,13 @@ fn postgres_text_param(value : String?) -> @db.Param {
         while index + 1 < encoded.length() {
           match (hex_nibble(encoded[index]), hex_nibble(encoded[index + 1])) {
             (Some(high), Some(low)) => bytes.push(((high << 4) | low).to_byte())
-            _ => return @db.String(text)
+            _ => return String(text)
           }
           index = index + 2
         }
-        @db.Bytes(Bytes::from_array(bytes))
+        Bytes(Bytes::from_array(bytes))
       } else {
-        @db.String(text)
+        String(text)
       }
   }
 }
@@ -682,11 +682,9 @@ fn Store::sql(self : Store, sql : String) -> String {
 }
 
 ///|
-fn StoreSQLiteEngine::open(
-  db_path : String,
-) -> Result[StoreSQLiteEngine, String] {
-  Ok(StoreSQLiteEngine::{ conn: @morm_sqlite.Connection::open(db_path) }) catch {
-    @morm_sqlite.SqliteError(err) => Err(err.to_string())
+fn open(db_path : String) -> Result[StoreSQLiteEngine, String] {
+  Ok({ conn: @morm_sqlite.Connection::open(db_path) }) catch {
+    SqliteError(err) => Err(err.to_string())
   }
 }
 
@@ -697,55 +695,55 @@ fn sqlite_bind_param(
   param : @db.Param,
 ) -> Unit raise @morm_sqlite.SqliteError {
   match param {
-    @db.Double(value) => stmt.bind(index~, val=value)
-    @db.Float(value) => stmt.bind(index~, val=value.to_double())
-    @db.Byte(value) => stmt.bind(index~, val=value.to_int())
-    @db.Int(value) => stmt.bind(index~, val=value)
-    @db.Int16(value) => stmt.bind(index~, val=value.to_int())
-    @db.UInt16(value) => stmt.bind(index~, val=value.to_int())
-    @db.UInt(value) => stmt.bind(index~, val=value.to_string())
-    @db.UInt64(value) => stmt.bind(index~, val=value.to_string())
-    @db.Int64(value) => stmt.bind(index~, val=value)
-    @db.BigInt(value) => stmt.bind(index~, val=value.to_string())
-    @db.Decimal(value) => stmt.bind(index~, val=value)
-    @db.Date(value, format) =>
+    Double(value) => stmt.bind(index~, val=value)
+    Float(value) => stmt.bind(index~, val=value.to_double())
+    Byte(value) => stmt.bind(index~, val=value.to_int())
+    Int(value) => stmt.bind(index~, val=value)
+    Int16(value) => stmt.bind(index~, val=value.to_int())
+    UInt16(value) => stmt.bind(index~, val=value.to_int())
+    UInt(value) => stmt.bind(index~, val=value.to_string())
+    UInt64(value) => stmt.bind(index~, val=value.to_string())
+    Int64(value) => stmt.bind(index~, val=value)
+    BigInt(value) => stmt.bind(index~, val=value.to_string())
+    Decimal(value) => stmt.bind(index~, val=value)
+    Date(value, format) =>
       stmt.bind(index~, val=@db.format_plain_date(value, format))
-    @db.Time(value, format) =>
+    Time(value, format) =>
       stmt.bind(index~, val=@db.format_plain_time(value, format))
-    @db.DateTime(value, format) =>
+    DateTime(value, format) =>
       stmt.bind(index~, val=@db.format_plain_date_time(value, format))
-    @db.Timestamp(value, format) =>
+    Timestamp(value, format) =>
       stmt.bind(index~, val=@db.format_zoned_date_time(value, format))
-    @db.Uuid(value) => stmt.bind(index~, val=value)
-    @db.Json(value) => stmt.bind(index~, val=value.stringify())
-    @db.String(value) => stmt.bind(index~, val=value)
-    @db.Bytes(value) => stmt.bind(index~, val=value)
-    @db.Bool(value) => stmt.bind(index~, val=if value { 1 } else { 0 })
-    @db.Null => stmt.bind_null(index~)
+    Uuid(value) => stmt.bind(index~, val=value)
+    Json(value) => stmt.bind(index~, val=value.stringify())
+    String(value) => stmt.bind(index~, val=value)
+    Bytes(value) => stmt.bind(index~, val=value)
+    Bool(value) => stmt.bind(index~, val=if value { 1 } else { 0 })
+    Null => stmt.bind_null(index~)
   }
 }
 
 ///|
 fn sqlite_row_param(stmt : @morm_sqlite.Statement, index : Int) -> @db.Param {
   match stmt.column_type(index~) {
-    @morm_sqlite.SQLITE_NULL => @db.Null
+    @morm_sqlite.SQLITE_NULL => Null
     @morm_sqlite.SQLITE_INTEGER => {
       let value : Int = stmt.column(index~)
-      @db.Int(value)
+      Int(value)
     }
     @morm_sqlite.SQLITE_FLOAT => {
       let value : Double = stmt.column(index~)
-      @db.Double(value)
+      Double(value)
     }
     @morm_sqlite.SQLITE_TEXT => {
       let value : String = stmt.column(index~)
-      @db.String(value)
+      String(value)
     }
     @morm_sqlite.SQLITE_BLOB => {
       let value : Bytes = stmt.column(index~)
-      @db.Bytes(value)
+      Bytes(value)
     }
-    _ => @db.String(stmt.column_blob_as_string(index~))
+    _ => String(stmt.column_blob_as_string(index~))
   }
 }
 
@@ -772,9 +770,9 @@ fn StoreSQLiteEngine::exec_raw(
     }
     stmt.finalize()
   } catch {
-    @morm_sqlite.SqliteError(err) => error = Some(err.to_string())
+    SqliteError(err) => error = Some(err.to_string())
   }
-  @db.QueryResult::{
+  {
     ok: error is None,
     rows_affected: 0,
     rows: FixedArray::from_array(rows),
@@ -812,7 +810,7 @@ async fn exec_postgres_raw(
       let mut rows_affected = 0
       for message in messages {
         match message {
-          @pg.SimpleQueryMessage::Row(row) => {
+          Row(row) => {
             let item : Map[String, @db.Param] = {}
             let columns = row.columns()
             for index, column in columns {
@@ -820,7 +818,7 @@ async fn exec_postgres_raw(
             }
             rows.push(item)
           }
-          @pg.SimpleQueryMessage::CommandComplete(tag) => {
+          CommandComplete(tag) => {
             let parts = tag.split(" ").to_array()
             if parts.length() > 1 {
               rows_affected = @string.parse_int(
@@ -842,7 +840,7 @@ async fn exec_postgres_raw(
     })
   catch {
     error =>
-      return @db.QueryResult::{
+      return {
         ok: false,
         rows_affected: 0,
         rows: [],
@@ -924,7 +922,7 @@ async fn Store::column_exists(
           #|  AND column_name = ?
           #|LIMIT 1;
         ),
-        params=[@db.String(table_name), @db.String(column_name)],
+        params=[String(table_name), String(column_name)],
       )
       Ok(row is Some(_))
     }
@@ -974,31 +972,29 @@ async fn Store::backfill_initial_project_prompts(
       #|  );
     ),
     "backfill initial project prompts",
-    params=[@db.String(role), @db.String(role)],
+    params=[String(role), String(role)],
   )
 }
 
 ///|
-async fn Store::try_new_async(
-  db_path : String,
-) -> Result[Store, String] noraise {
+async fn try_new_async(db_path : String) -> Result[Store, String] noraise {
   let store = match @env.get_env_var("MOONCRAFT_DATABASE_URL") {
     Some(url) if url.trim() != "" => {
       let config = match parse_database_url(url.trim().to_owned()) {
         Ok(config) => config
         Err(message) => return Err(message)
       }
-      Store::{ engine: PostgresEngine(config), backend: Postgres }
+      { engine: PostgresEngine(config), backend: Postgres }
     }
     _ => {
       if (@fs.is_dir(db_path) catch { _ => false }) {
         return Err("SQLite database path points to a directory: \{db_path}")
       }
-      let engine = match StoreSQLiteEngine::open(db_path) {
+      let engine = match open(db_path) {
         Ok(engine) => engine
         Err(message) => return Err(message)
       }
-      Store::{ engine: SQLiteEngine(engine), backend: SQLite }
+      { engine: SQLiteEngine(engine), backend: SQLite }
     }
   }
   match store.init_schema() {
@@ -1008,13 +1004,11 @@ async fn Store::try_new_async(
 }
 
 ///|
-fn Store::try_new(db_path : String) -> Result[Store, String] {
+fn try_new(db_path : String) -> Result[Store, String] {
   let result : Ref[Result[Store, String]] = @ref.new(
     Err("The database was not initialized."),
   )
-  @async.run_async_main(async fn() {
-    result.val = Store::try_new_async(db_path)
-  })
+  @async.run_async_main(async fn() { result.val = try_new_async(db_path) })
   result.val
 }
 
@@ -1356,7 +1350,7 @@ fn project_detail_from_row(row : Map[String, @db.Param]) -> @sdk.ProjectDetail {
     row_int(row, "preview_port"),
     row_int(row, "preview_healthy"),
   )
-  @sdk.ProjectDetail::{
+  {
     id: row_text(row, "id"),
     preview_public_id: row_text(row, "preview_public_id"),
     display_name: row_text(row, "display_name"),
@@ -1373,7 +1367,7 @@ fn project_detail_from_row(row : Map[String, @db.Param]) -> @sdk.ProjectDetail {
 
 ///|
 fn chat_message_from_row(row : Map[String, @db.Param]) -> @sdk.ChatMessage {
-  @sdk.ChatMessage::{
+  {
     id: row_text(row, "id"),
     project_id: row_text(row, "project_id"),
     run_id: empty_to_none(row_text(row, "run_id")),
@@ -1399,7 +1393,7 @@ fn run_status_from_row(row : Map[String, @db.Param]) -> @sdk.RunStatusResponse {
     row_text(row, "validation_log_path"),
     row_text(row, "final_summary_path"),
   )
-  @sdk.RunStatusResponse::{
+  {
     run_id: row_text(row, "id"),
     project_id: row_text(row, "project_id"),
     state: run_state_from_db(row_text(row, "state")),
@@ -1430,11 +1424,7 @@ async fn Store::save_workspace_snapshot(
       #|  updated_at = excluded.updated_at;
     ),
     "save workspace snapshot",
-    params=[
-      @db.String(project_id),
-      @db.Bytes(archive),
-      @db.String(now_string()),
-    ],
+    params=[String(project_id), Bytes(archive), String(now_string())],
   )
 }
 
@@ -1450,7 +1440,7 @@ async fn Store::get_workspace_snapshot(
         #|FROM project_workspace_snapshots
         #|WHERE project_id = ?;
       ),
-      params=[@db.String(project_id)],
+      params=[String(project_id)],
     ) {
     Some(row) => param_to_bytes(row_get(row, "archive"))
     None => None
@@ -1482,7 +1472,7 @@ async fn Store::get_project_detail(
         #|FROM projects
         #|WHERE id = ?;
       ),
-      params=[@db.String(project_id)],
+      params=[String(project_id)],
     ) {
     Some(row) => Some(project_detail_from_row(row))
     None => None
@@ -1514,7 +1504,7 @@ async fn Store::list_recent_projects(
       #|ORDER BY updated_at DESC
       #|LIMIT ?;
     ),
-    params=[@db.Int(limit)],
+    params=[Int(limit)],
   )
   let items : Array[@sdk.ProjectDetail] = []
   for row in rows {
@@ -1541,7 +1531,7 @@ async fn Store::list_messages(
       #|WHERE project_id = ?
       #|ORDER BY created_at ASC;
     ),
-    params=[@db.String(project_id)],
+    params=[String(project_id)],
   )
   let items : Array[@sdk.ChatMessage] = []
   for row in rows {
@@ -1582,7 +1572,7 @@ async fn Store::get_run(
         #|JOIN projects p ON p.id = r.project_id
         #|WHERE r.id = ? AND r.project_id = ?;
       ),
-      params=[@db.String(run_id), @db.String(project_id)],
+      params=[String(run_id), String(project_id)],
     ) {
     Some(row) => Some(run_status_from_row(row))
     None => None
@@ -1620,7 +1610,7 @@ async fn Store::get_run_by_id(
         #|JOIN projects p ON p.id = r.project_id
         #|WHERE r.id = ?;
       ),
-      params=[@db.String(run_id)],
+      params=[String(run_id)],
     ) {
     Some(row) => Some(run_status_from_row(row))
     None => None
@@ -1658,7 +1648,7 @@ async fn Store::list_recent_runs(
       #|ORDER BY r.started_at DESC
       #|LIMIT ?;
     ),
-    params=[@db.Int(limit)],
+    params=[Int(limit)],
   )
   let items : Array[@sdk.RunStatusResponse] = []
   for row in rows {
@@ -1700,7 +1690,7 @@ async fn Store::list_project_runs(
       #|ORDER BY r.started_at DESC
       #|LIMIT ?;
     ),
-    params=[@db.String(project_id), @db.Int(limit)],
+    params=[String(project_id), Int(limit)],
   )
   let items : Array[@sdk.RunStatusResponse] = []
   for row in rows {
@@ -1727,7 +1717,7 @@ async fn Store::append_run_event(
         #|FROM run_events
         #|WHERE project_id = ? AND run_id = ?;
       ),
-      params=[@db.String(project_id), @db.String(run_id)],
+      params=[String(project_id), String(run_id)],
     ) {
     Some(row) => row_int(row, "next_seq")
     None => 1
@@ -1747,13 +1737,13 @@ async fn Store::append_run_event(
       ),
       "append run event",
       params=[
-        @db.String(next_id("event")),
-        @db.String(project_id),
-        @db.String(run_id),
-        @db.Int(seq),
-        @db.String(kind),
-        @db.String(content),
-        @db.String(now_string()),
+        String(next_id("event")),
+        String(project_id),
+        String(run_id),
+        Int(seq),
+        String(kind),
+        String(content),
+        String(now_string()),
       ],
     ),
   )
@@ -1774,11 +1764,11 @@ async fn Store::list_run_events(
       #|ORDER BY seq ASC
       #|LIMIT 200;
     ),
-    params=[@db.String(project_id), @db.String(run_id), @db.Int(after_seq)],
+    params=[String(project_id), String(run_id), Int(after_seq)],
   )
   let items : Array[@sdk.RunEvent] = []
   for row in rows {
-    items.push(@sdk.RunEvent::{
+    items.push({
       seq: row_int(row, "seq"),
       kind: row_text(row, "kind"),
       content: row_text(row, "content"),
@@ -1801,7 +1791,7 @@ async fn Store::list_running_runs(self : Store) -> Array[RunningRun] noraise {
       #|WHERE r.state = ?
       #|ORDER BY r.started_at ASC;
     ),
-    params=[@db.String(run_state_to_db(Running))],
+    params=[String(run_state_to_db(Running))],
   )
   let runs : Array[RunningRun] = []
   for row in rows {
@@ -1832,10 +1822,10 @@ async fn Store::fail_orphaned_running_projects_on_startup(
       ),
       "fail orphaned running projects",
       params=[
-        @db.String(run_state_to_db(Failed)),
-        @db.String(interrupted_worker_summary()),
-        @db.String(now),
-        @db.String(run_state_to_db(Running)),
+        String(run_state_to_db(Failed)),
+        String(interrupted_worker_summary()),
+        String(now),
+        String(run_state_to_db(Running)),
       ],
     ),
   )
@@ -1851,7 +1841,7 @@ async fn Store::fail_stale_running_runs_on_startup(self : Store) -> Int noraise 
       interrupted_worker_summary(),
       interrupted_worker_error(),
       run.thread_id,
-      Some(@sdk.RunFailureDebug::{
+      Some({
         stage: "Worker recovery",
         command: None,
         exit_code: None,
@@ -1895,14 +1885,14 @@ async fn Store::create_project(
       ),
       "create project",
       params=[
-        @db.String(project_id),
-        @db.String(owner_user_id),
-        @db.String(preview_public_id),
-        @db.String(name),
-        @db.String(workspace_path),
-        @db.String(run_state_to_db(Idle)),
-        @db.String(now),
-        @db.String(now),
+        String(project_id),
+        String(owner_user_id),
+        String(preview_public_id),
+        String(name),
+        String(workspace_path),
+        String(run_state_to_db(Idle)),
+        String(now),
+        String(now),
       ],
     ),
   )
@@ -1921,32 +1911,32 @@ async fn Store::delete_project(
     self.exec_or_error(
       "DELETE FROM messages WHERE project_id = ?;",
       "delete project messages",
-      params=[@db.String(project_id)],
+      params=[String(project_id)],
     ),
   )
   ignore(
     self.exec_or_error(
       "DELETE FROM run_events WHERE project_id = ?;",
       "delete project run events",
-      params=[@db.String(project_id)],
+      params=[String(project_id)],
     ),
   )
   ignore(
     self.exec_or_error(
       "DELETE FROM runs WHERE project_id = ?;",
       "delete project runs",
-      params=[@db.String(project_id)],
+      params=[String(project_id)],
     ),
   )
   ignore(
     self.exec_or_error(
       "DELETE FROM project_workspace_snapshots WHERE project_id = ?;",
       "delete project workspace snapshot",
-      params=[@db.String(project_id)],
+      params=[String(project_id)],
     ),
   )
   self.exec_or_error("DELETE FROM projects WHERE id = ?;", "delete project", params=[
-    @db.String(project_id),
+    String(project_id),
   ])
 }
 
@@ -1983,12 +1973,12 @@ async fn Store::start_run(
       ),
       "create user message",
       params=[
-        @db.String(message_id),
-        @db.String(project_id),
-        @db.String(run_id),
-        @db.String(chat_role_to_db(User)),
-        @db.String(content),
-        @db.String(now),
+        String(message_id),
+        String(project_id),
+        String(run_id),
+        String(chat_role_to_db(User)),
+        String(content),
+        String(now),
       ],
     ),
   )
@@ -2004,10 +1994,10 @@ async fn Store::start_run(
       ),
       "create run",
       params=[
-        @db.String(run_id),
-        @db.String(project_id),
-        @db.String(run_state_to_db(Running)),
-        @db.String(now),
+        String(run_id),
+        String(project_id),
+        String(run_state_to_db(Running)),
+        String(now),
       ],
     ),
   )
@@ -2028,18 +2018,18 @@ async fn Store::start_run(
       ),
       "mark project running",
       params=[
-        @db.String(run_state_to_db(Running)),
-        @db.String(run_id),
-        @db.String(content),
-        @db.String(now),
-        @db.String(project_id),
+        String(run_state_to_db(Running)),
+        String(run_id),
+        String(content),
+        String(now),
+        String(project_id),
       ],
     ),
   )
-  Ok(@sdk.RunStatusResponse::{
+  Ok({
     run_id,
     project_id,
-    state: @sdk.Running,
+    state: Running,
     summary: None,
     error_message: None,
     failure_debug: None,
@@ -2060,7 +2050,7 @@ async fn Store::set_run_worker_pid(
     self.exec_or_error(
       "UPDATE runs SET worker_pid = ? WHERE id = ? AND project_id = ?;",
       "set run worker pid",
-      params=[@db.Int(worker_pid), @db.String(run_id), @db.String(project_id)],
+      params=[Int(worker_pid), String(run_id), String(project_id)],
     ),
   )
 }
@@ -2075,7 +2065,7 @@ async fn Store::set_project_thread_id(
     self.exec_or_error(
       "UPDATE projects SET codex_thread_id = ? WHERE id = ?;",
       "set project thread id",
-      params=[@db.String(thread_id), @db.String(project_id)],
+      params=[String(thread_id), String(project_id)],
     ),
   )
 }
@@ -2097,11 +2087,7 @@ async fn Store::get_run_prompt(
         #|ORDER BY created_at DESC
         #|LIMIT 1;
       ),
-      params=[
-        @db.String(project_id),
-        @db.String(run_id),
-        @db.String(chat_role_to_db(User)),
-      ],
+      params=[String(project_id), String(run_id), String(chat_role_to_db(User))],
     ) {
     Some(row) => Some(row_text(row, "content"))
     None => None
@@ -2120,7 +2106,7 @@ async fn Store::get_initial_project_prompt(
         #|FROM projects
         #|WHERE id = ?;
       ),
-      params=[@db.String(project_id)],
+      params=[String(project_id)],
     ) {
     Some(row) => empty_to_none(row_text(row, "prompt"))
     None => None
@@ -2160,12 +2146,12 @@ async fn Store::finish_run_success(
       ),
       "create assistant success message",
       params=[
-        @db.String(next_id("message")),
-        @db.String(project_id),
-        @db.String(run_id),
-        @db.String(chat_role_to_db(Assistant)),
-        @db.String(assistant_message),
-        @db.String(now),
+        String(next_id("message")),
+        String(project_id),
+        String(run_id),
+        String(chat_role_to_db(Assistant)),
+        String(assistant_message),
+        String(now),
       ],
     ),
   )
@@ -2191,13 +2177,13 @@ async fn Store::finish_run_success(
       ),
       "finish run successfully",
       params=[
-        @db.String(run_state_to_db(Succeeded)),
-        @db.String(assistant_message),
-        @db.String(preview.url),
-        @db.Int(preview.port),
-        @db.Int(bool_to_int(preview.healthy)),
-        @db.String(now),
-        @db.String(run_id),
+        String(run_state_to_db(Succeeded)),
+        String(assistant_message),
+        String(preview.url),
+        Int(preview.port),
+        Int(bool_to_int(preview.healthy)),
+        String(now),
+        String(run_id),
       ],
     ),
   )
@@ -2220,15 +2206,15 @@ async fn Store::finish_run_success(
       ),
       "mark project succeeded",
       params=[
-        @db.String(run_state_to_db(Succeeded)),
-        @db.String(preview.url),
-        @db.Int(preview.port),
-        @db.Int(bool_to_int(preview.healthy)),
-        @db.String(preview.url),
-        @db.Int(preview.port),
-        @db.Int(bool_to_int(preview.healthy)),
-        @db.String(now),
-        @db.String(project_id),
+        String(run_state_to_db(Succeeded)),
+        String(preview.url),
+        Int(preview.port),
+        Int(bool_to_int(preview.healthy)),
+        String(preview.url),
+        Int(preview.port),
+        Int(bool_to_int(preview.healthy)),
+        String(now),
+        String(project_id),
       ],
     ),
   )
@@ -2297,12 +2283,12 @@ async fn Store::finish_run_failure_with_debug(
       ),
       "create assistant failure message",
       params=[
-        @db.String(next_id("message")),
-        @db.String(project_id),
-        @db.String(run_id),
-        @db.String(chat_role_to_db(Assistant)),
-        @db.String(message_text),
-        @db.String(now),
+        String(next_id("message")),
+        String(project_id),
+        String(run_id),
+        String(chat_role_to_db(Assistant)),
+        String(message_text),
+        String(now),
       ],
     ),
   )
@@ -2325,17 +2311,17 @@ async fn Store::finish_run_failure_with_debug(
       ),
       "finish run with failure",
       params=[
-        @db.String(run_state_to_db(Failed)),
-        @db.String(message_text),
-        @db.String(error_message),
+        String(run_state_to_db(Failed)),
+        String(message_text),
+        String(error_message),
         nullable_text_param(failure_stage),
         nullable_text_param(failure_command),
         nullable_int_param(failure_exit_code),
         nullable_text_param(codex_log_path),
         nullable_text_param(validation_log_path),
         nullable_text_param(final_summary_path),
-        @db.String(now),
-        @db.String(run_id),
+        String(now),
+        String(run_id),
       ],
     ),
   )
@@ -2352,10 +2338,10 @@ async fn Store::finish_run_failure_with_debug(
       ),
       "mark project failed",
       params=[
-        @db.String(run_state_to_db(Failed)),
-        @db.String(message_text),
-        @db.String(now),
-        @db.String(project_id),
+        String(run_state_to_db(Failed)),
+        String(message_text),
+        String(now),
+        String(project_id),
       ],
     ),
   )
@@ -2369,7 +2355,7 @@ async fn Store::recover_interrupted_runs(self : Store) -> Unit noraise {
       #|FROM runs
       #|WHERE state = ?;
     ),
-    params=[@db.String(run_state_to_db(Running))],
+    params=[String(run_state_to_db(Running))],
   )
   let interrupted : Array[(String, String)] = []
   for row in rows {
@@ -2555,16 +2541,12 @@ fn PreviewManager::rebuild_and_restart(
     )
   }
   self.runtimes[project.id] = { port, pid }
-  Ok(@sdk.PreviewTarget::{
-    url: public_preview_url(project.preview_public_id),
-    port,
-    healthy: true,
-  })
+  Ok({ url: public_preview_url(project.preview_public_id), port, healthy: true })
 }
 
 ///|
-fn AgentGateway::new(root : String) -> AgentGateway {
-  AgentGateway::{ root, }
+fn new(root : String) -> AgentGateway {
+  { root, }
 }
 
 ///|
@@ -2582,7 +2564,7 @@ async fn AppContext::try_new_for_worker_async(
   ensure_dir(data_dir)
   clean_legacy_project_workspaces(root)
   let db_path = data_dir + "/state-v2.sqlite"
-  let store = match Store::try_new_async(db_path) {
+  let store = match try_new_async(db_path) {
     Ok(store) => store
     Err(message) => return Err(message)
   }
@@ -2591,7 +2573,7 @@ async fn AppContext::try_new_for_worker_async(
     build_profile,
     store,
     previews: PreviewManager::new(root, build_profile),
-    agent_gateway: AgentGateway::new(root),
+    agent_gateway: new(root),
   })
 }
 
@@ -2606,7 +2588,7 @@ fn AppContext::try_new_with_recovery(
   ensure_dir(data_dir)
   clean_legacy_project_workspaces(root)
   let db_path = data_dir + "/state-v2.sqlite"
-  let store = match Store::try_new(db_path) {
+  let store = match try_new(db_path) {
     Ok(store) => store
     Err(message) => return Err(message)
   }
@@ -2615,7 +2597,7 @@ fn AppContext::try_new_with_recovery(
     build_profile,
     store,
     previews: PreviewManager::new(root, build_profile),
-    agent_gateway: AgentGateway::new(root),
+    agent_gateway: new(root),
   }
   ignore(recover_interrupted)
   Ok(ctx)

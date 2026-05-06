@@ -59,7 +59,7 @@ fn sidebar_project_item(
   }
   let deleting = model.delete_project_pending == Some(project.id)
   let confirming = model.delete_project_confirming == Some(project.id)
-  let delete_enabled = !(project.status is @sdk.Running || deleting)
+  let delete_enabled = !(project.status is Running || deleting)
   @html.div(
     style=[
       "border: 1px solid " + border_color,
@@ -140,7 +140,7 @@ fn account_password_input(
   dispatch : @rabbita.Dispatch[Msg],
 ) -> @rabbita.Html {
   @html.input(
-    input_type=@html.Password,
+    input_type=Password,
     value~,
     placeholder~,
     on_input=fn(next) { dispatch(on_input(next)) },

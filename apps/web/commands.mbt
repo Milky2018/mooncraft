@@ -68,9 +68,7 @@ fn load_project_cmd(
 
 ///|
 fn create_project_cmd(dispatch : @rabbita.Dispatch[Msg]) -> @rabbita.Cmd {
-  let payload : @sdk.CreateProjectRequest = @sdk.CreateProjectRequest::{
-    display_name: None,
-  }
+  let payload : @sdk.CreateProjectRequest = { display_name: None }
   post_json(@sdk.projects_path(), payload, fn(result) {
     dispatch(ProjectCreated(result))
   })
@@ -82,7 +80,7 @@ fn create_run_cmd(
   project_id : String,
   content : String,
 ) -> @rabbita.Cmd {
-  let payload : @sdk.CreateRunRequest = @sdk.CreateRunRequest::{ content, }
+  let payload : @sdk.CreateRunRequest = { content, }
   post_json(@sdk.create_run_path(project_id), payload, fn(result) {
     dispatch(RunCreated(result))
   })
@@ -128,7 +126,7 @@ fn submit_auth_cmd(
 ) -> @rabbita.Cmd {
   match model.auth_mode {
     Login => {
-      let payload : @sdk.LoginRequest = @sdk.LoginRequest::{
+      let payload : @sdk.LoginRequest = {
         email: model.auth_email,
         password: model.auth_password,
       }
@@ -137,7 +135,7 @@ fn submit_auth_cmd(
       })
     }
     Signup => {
-      let payload : @sdk.SignupRequest = @sdk.SignupRequest::{
+      let payload : @sdk.SignupRequest = {
         email: model.auth_email,
         password: model.auth_password,
         display_name: if model.auth_display_name == "" {
@@ -151,7 +149,7 @@ fn submit_auth_cmd(
       })
     }
     ForgotPassword => {
-      let payload : @sdk.RequestPasswordResetRequest = @sdk.RequestPasswordResetRequest::{
+      let payload : @sdk.RequestPasswordResetRequest = {
         email: model.auth_email,
       }
       post_json(@sdk.request_password_reset_path(), payload, fn(result) {
@@ -171,7 +169,7 @@ fn change_password_cmd(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
 ) -> @rabbita.Cmd {
-  let payload : @sdk.ChangePasswordRequest = @sdk.ChangePasswordRequest::{
+  let payload : @sdk.ChangePasswordRequest = {
     current_password: model.account_current_password,
     new_password: model.account_new_password,
   }
@@ -185,7 +183,7 @@ fn save_ai_settings_cmd(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
 ) -> @rabbita.Cmd {
-  let payload : @sdk.UpdateAiSettingsRequest = @sdk.UpdateAiSettingsRequest::{
+  let payload : @sdk.UpdateAiSettingsRequest = {
     provider: model.account_ai_provider,
     model: model.account_ai_model,
     api_key: model.account_ai_api_key,

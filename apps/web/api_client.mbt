@@ -27,24 +27,24 @@ fn network_error(detail : String) -> @sdk.ApiError {
   } else {
     "The network request failed: \{detail}"
   }
-  @sdk.ApiError::{ code: @sdk.NetworkFailure, message }
+  { code: NetworkFailure, message }
 }
 
 ///|
 fn unexpected_response_error(message : String) -> @sdk.ApiError {
-  @sdk.ApiError::{ code: @sdk.UnexpectedResponse, message }
+  { code: UnexpectedResponse, message }
 }
 
 ///|
 fn fallback_error_code(status : Int) -> @sdk.ApiErrorCode {
   match status {
-    400 => @sdk.InvalidJson
-    401 => @sdk.Unauthorized
-    404 => @sdk.NotFound
-    409 => @sdk.Conflict
-    422 => @sdk.ValidationFailed
-    503 => @sdk.ServiceUnavailable
-    _ => @sdk.UnexpectedResponse
+    400 => InvalidJson
+    401 => Unauthorized
+    404 => NotFound
+    409 => Conflict
+    422 => ValidationFailed
+    503 => ServiceUnavailable
+    _ => UnexpectedResponse
   }
 }
 
@@ -103,10 +103,7 @@ fn decode_error_response(status : Int, body : String) -> @sdk.ApiError {
       } else {
         body
       }
-      return @sdk.ApiError::{
-        code: fallback_error_code(status),
-        message: fallback,
-      }
+      return { code: fallback_error_code(status), message: fallback }
     }
   }
   let response : @sdk.ApiErrorResponse = @json.from_json(parsed) catch {
@@ -116,10 +113,7 @@ fn decode_error_response(status : Int, body : String) -> @sdk.ApiError {
       } else {
         body
       }
-      return @sdk.ApiError::{
-        code: fallback_error_code(status),
-        message: fallback,
-      }
+      return { code: fallback_error_code(status), message: fallback }
     }
   }
   response.error

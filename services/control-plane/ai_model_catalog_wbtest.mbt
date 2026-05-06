@@ -16,23 +16,23 @@ test "openai model filtering removes non-agent models" {
 
 ///|
 test "openrouter filtering prefers text output models" {
-  let text_model = OpenRouterModel::{
+  let text_model = {
     id: "openai/gpt-5.5",
     name: Some("GPT-5.5"),
     description: None,
     context_length: Some(128000),
-    architecture: Some(OpenRouterArchitecture::{
+    architecture: Some({
       modality: None,
       input_modalities: Some(["text"]),
       output_modalities: Some(["text"]),
     }),
   }
-  let image_model = OpenRouterModel::{
+  let image_model = {
     id: "provider/image-model",
     name: Some("Image Model"),
     description: None,
     context_length: None,
-    architecture: Some(OpenRouterArchitecture::{
+    architecture: Some({
       modality: None,
       input_modalities: Some(["text"]),
       output_modalities: Some(["image"]),
@@ -46,7 +46,7 @@ test "openrouter filtering prefers text output models" {
 test "provider model responses prepend missing recommended options" {
   let payload = OpenRouterModelsResponse::{
     data: [
-      OpenRouterModel::{
+      {
         id: "provider/custom-text",
         name: Some("Custom Text"),
         description: None,

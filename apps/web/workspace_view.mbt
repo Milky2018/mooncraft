@@ -1,6 +1,6 @@
 ///|
 fn render_message(message : @sdk.ChatMessage) -> @rabbita.Html {
-  let is_user = message.role is @sdk.User
+  let is_user = message.role is User
   let bubble_background = if is_user {
     "linear-gradient(135deg, var(--action-strong), var(--action))"
   } else {
@@ -251,7 +251,7 @@ fn render_run_failure_card(model : Model) -> @rabbita.Html {
     return @html.nothing
   }
   match model.run_status {
-    Some(run) if run.state is @sdk.Failed => {
+    Some(run) if run.state is Failed => {
       let summary = run_failure_summary(run).unwrap_or(
         "The run failed before the preview could be refreshed.",
       )
@@ -469,8 +469,8 @@ fn preview_url_with_theme(url : String, theme_mode : ThemeMode) -> String {
 fn render_preview_panel(model : Model) -> @rabbita.Html {
   let preview = model.project_detail.bind(fn(project) { project.preview })
   let status = match preview {
-    Some(target) => if target.healthy { @sdk.Succeeded } else { @sdk.Failed }
-    None => if active_run(model) is Some(_) { @sdk.Running } else { @sdk.Idle }
+    Some(target) => if target.healthy { @sdk.Succeeded } else { Failed }
+    None => if active_run(model) is Some(_) { Running } else { Idle }
   }
   @html.div(
     style=panel_style() +

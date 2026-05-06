@@ -5,9 +5,9 @@ fn subscriptions(dispatch : @rabbita.Dispatch[Msg], model : Model) -> @sub.Sub {
   }
   @sub.custom_sub(
     "bootstrap",
-    @sub.Local,
+    Local,
     ScheduleBootstrap(dispatch(Bootstrap)),
-    @sub.SubLoader((payload, scheduler) => {
+    SubLoader((payload, scheduler) => {
       match payload {
         ScheduleBootstrap(cmd) => {
           scheduler.add(cmd)
