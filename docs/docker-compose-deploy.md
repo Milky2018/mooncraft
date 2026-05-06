@@ -57,7 +57,7 @@ cp .env.test.example .env.test
 cp .env.prod.example .env.prod
 ```
 
-Then edit `.env.test` and `.env.prod` with real domains, ports, passwords, admin tokens, and optional GitHub OAuth credentials.
+Then edit `.env.test` and `.env.prod` with real domains, ports, passwords, admin tokens, and GitHub OAuth credentials. GitHub OAuth is required because it is the only supported sign-in provider.
 
 Real env files are ignored by Git:
 
@@ -114,7 +114,7 @@ Put Caddy, Nginx, or an AWS load balancer in front of the host ports.
 
 Typical routing:
 
-- `https://test.craft.moonbitlang.com` -> `127.0.0.1:18089`
+- `https://craft-test.moonbitlang.com` -> `127.0.0.1:18089`
 - `https://craft.moonbitlang.com` -> `127.0.0.1:8089`
 
 The public base URL must match the external URL:

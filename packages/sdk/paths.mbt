@@ -28,26 +28,6 @@ pub fn session_path() -> String {
 }
 
 ///|
-pub fn signup_route() -> RouteSpec {
-  route(POST, "/api/auth/signup", Created)
-}
-
-///|
-pub fn signup_path() -> String {
-  signup_route().path_pattern
-}
-
-///|
-pub fn login_route() -> RouteSpec {
-  route(POST, "/api/auth/login", Ok)
-}
-
-///|
-pub fn login_path() -> String {
-  login_route().path_pattern
-}
-
-///|
 pub fn logout_route() -> RouteSpec {
   route(POST, "/api/auth/logout", NoContent)
 }
@@ -55,56 +35,6 @@ pub fn logout_route() -> RouteSpec {
 ///|
 pub fn logout_path() -> String {
   logout_route().path_pattern
-}
-
-///|
-pub fn request_password_reset_route() -> RouteSpec {
-  route(POST, "/api/auth/password-reset/request", Ok)
-}
-
-///|
-pub fn request_password_reset_path() -> String {
-  request_password_reset_route().path_pattern
-}
-
-///|
-pub fn reset_password_route() -> RouteSpec {
-  route(POST, "/api/auth/password-reset/confirm", Ok)
-}
-
-///|
-pub fn reset_password_path() -> String {
-  reset_password_route().path_pattern
-}
-
-///|
-pub fn change_password_route() -> RouteSpec {
-  route(POST, "/api/auth/password/change", Ok)
-}
-
-///|
-pub fn change_password_path() -> String {
-  change_password_route().path_pattern
-}
-
-///|
-pub fn resend_email_verification_route() -> RouteSpec {
-  route(POST, "/api/auth/email/verification/resend", Ok)
-}
-
-///|
-pub fn resend_email_verification_path() -> String {
-  resend_email_verification_route().path_pattern
-}
-
-///|
-pub fn verify_email_route() -> RouteSpec {
-  route(POST, "/api/auth/email/verification/confirm", Ok)
-}
-
-///|
-pub fn verify_email_path() -> String {
-  verify_email_route().path_pattern
 }
 
 ///|

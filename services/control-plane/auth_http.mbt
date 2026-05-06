@@ -11,22 +11,6 @@ let session_max_age_millis : UInt64 = 14UL * 24UL * 60UL * 60UL * 1000UL
 let oauth_state_max_age_millis : UInt64 = 10UL * 60UL * 1000UL
 
 ///|
-let password_reset_max_age_millis : UInt64 = 60UL * 60UL * 1000UL
-
-///|
-let email_verification_max_age_millis : UInt64 = 24UL * 60UL * 60UL * 1000UL
-
-///|
-fn password_reset_purpose() -> String {
-  "password_reset"
-}
-
-///|
-fn email_verification_purpose() -> String {
-  "email_verification"
-}
-
-///|
 fn mooncraft_app_mode() -> String {
   match @env.get_env_var("MOONCRAFT_APP_MODE") {
     Some(value) =>
@@ -49,6 +33,13 @@ fn mooncraft_development_mode() -> Bool {
 struct GitHubCallbackPayload {
   code : String
   state : String
+} derive(Debug, FromJson)
+
+///|
+struct DevAuthRequest {
+  email : String
+  display_name : String?
+  github_login : String?
 } derive(Debug, FromJson)
 
 ///|
@@ -96,38 +87,6 @@ fn github_public_base_url() -> String {
 }
 
 ///|
-fn account_email_outbox_path(root : String) -> String {
-  root + "/data/control-plane/account-emails.log"
-}
-
-///|
-fn append_account_email(
-  ctx : AppContext,
-  to : String,
-  subject : String,
-  body : String,
-) -> Unit {
-  ensure_dir(ctx.root + "/data")
-  ensure_dir(ctx.root + "/data/control-plane")
-  let entry = "---\nqueued_at: " +
-    now_string() +
-    "\nto: " +
-    to +
-    "\nsubject: " +
-    subject +
-    "\n\n" +
-    body +
-    "\n\n"
-  safe_append_string(account_email_outbox_path(ctx.root), entry)
-  println("account email queued for \{to}: \{subject}")
-}
-
-///|
-fn account_action_url(path : String, token : String) -> String {
-  github_public_base_url() + path + "?token=" + token
-}
-
-///|
 fn github_callback_url() -> String {
   github_public_base_url() + "/auth/github/callback"
 }
@@ -155,15 +114,23 @@ fn github_oauth_enabled() -> Bool {
 }
 
 ///|
+fn dev_auth_enabled() -> Bool {
+  match @env.get_env_var("MOONCRAFT_ENABLE_DEV_AUTH") {
+    Some(value) => value == "1" || value.to_lower() == "true"
+    None => false
+  }
+}
+
+///|
 fn normalized_email(email : String) -> String {
   email.trim().to_owned().to_lower()
 }
 
 ///|
-fn default_display_name_from_email(email : String) -> String {
+fn display_name_from_email(email : String) -> String {
   let parts = email.split("@").to_array()
   match parts[0].to_owned() {
-    "" => "MoonBit Builder"
+    "" => "Mooncraft Builder"
     local_part =>
       local_part
       .replace_all(old=".", new=" ")
@@ -237,208 +204,6 @@ async fn authenticated_response(
 }
 
 ///|
-fn validate_password(password : String) -> Result[Unit, String] {
-  if password.length() < 8 {
-    Err("Passwords must be at least 8 characters long.")
-  } else {
-    Ok(())
-  }
-}
-
-///|
-async fn queue_email_verification(
-  ctx : AppContext,
-  user : @sdk.UserSummary,
-) -> Unit noraise {
-  let token = new_account_action_token()
-  ctx.store.save_account_action_token(
-    user.id,
-    email_verification_purpose(),
-    account_action_token_hash(token),
-    future_unix_millis_string(email_verification_max_age_millis),
-  )
-  let url = account_action_url("/auth/email/verify", token)
-  append_account_email(
-    ctx,
-    user.email,
-    "Verify your Mooncraft email",
-    "Open this link to verify your email address:\n\{url}",
-  )
-}
-
-///|
-async fn queue_password_reset(
-  ctx : AppContext,
-  user : @sdk.UserSummary,
-) -> Unit noraise {
-  let token = new_account_action_token()
-  ctx.store.save_account_action_token(
-    user.id,
-    password_reset_purpose(),
-    account_action_token_hash(token),
-    future_unix_millis_string(password_reset_max_age_millis),
-  )
-  let url = account_action_url("/auth/password/reset", token)
-  append_account_email(
-    ctx,
-    user.email,
-    "Reset your Mooncraft password",
-    "Open this link to set a new password:\n\{url}",
-  )
-}
-
-///|
-async fn request_password_reset(
-  ctx : AppContext,
-  request : @sdk.RequestPasswordResetRequest,
-) -> @sdk.AuthActionResponse noraise {
-  let email = normalized_email(request.email)
-  match ctx.store.get_user_by_email(email) {
-    Some(user) => queue_password_reset(ctx, user)
-    None => ignore(())
-  }
-  { message: "If that email is registered, a reset link has been queued." }
-}
-
-///|
-async fn reset_password(
-  ctx : AppContext,
-  request : @sdk.ResetPasswordRequest,
-) -> Result[@sdk.AuthActionResponse, String] noraise {
-  let token = request.token.trim().to_owned()
-  if token == "" {
-    return Err("The reset link is missing its token.")
-  }
-  match validate_password(request.password) {
-    Err(message) => return Err(message)
-    Ok(_) => ignore(())
-  }
-  let user_id = match
-    ctx.store.consume_account_action_token(
-      password_reset_purpose(),
-      account_action_token_hash(token),
-    ) {
-    Some(user_id) => user_id
-    None => return Err("This reset link is invalid or has expired.")
-  }
-  ctx.store.update_user_password_hash(user_id, hash_password(request.password))
-  ctx.store.set_user_email_verified(user_id)
-  ctx.store.delete_sessions_for_user(user_id)
-  Ok({ message: "Password updated. Sign in with the new password." })
-}
-
-///|
-async fn change_password(
-  ctx : AppContext,
-  user : @sdk.UserSummary,
-  request : @sdk.ChangePasswordRequest,
-) -> Result[@sdk.AuthActionResponse, String] noraise {
-  match validate_password(request.new_password) {
-    Err(message) => return Err(message)
-    Ok(_) => ignore(())
-  }
-  match ctx.store.get_user_with_password_hash(user.email) {
-    Some((_, Some(password_hash))) =>
-      if verify_password(request.current_password, password_hash) {
-        ctx.store.update_user_password_hash(
-          user.id,
-          hash_password(request.new_password),
-        )
-        Ok({ message: "Password changed." })
-      } else {
-        Err("The current password is incorrect.")
-      }
-    _ =>
-      Err(
-        "This account does not have a password. Use password reset to set one.",
-      )
-  }
-}
-
-///|
-async fn resend_email_verification(
-  ctx : AppContext,
-  user : @sdk.UserSummary,
-) -> @sdk.AuthActionResponse noraise {
-  if user.email_verified {
-    { message: "Email is already verified." }
-  } else {
-    queue_email_verification(ctx, user)
-    { message: "Verification link has been queued." }
-  }
-}
-
-///|
-async fn verify_email(
-  ctx : AppContext,
-  request : @sdk.VerifyEmailRequest,
-) -> Result[@sdk.AuthActionResponse, String] noraise {
-  let token = request.token.trim().to_owned()
-  if token == "" {
-    return Err("The verification link is missing its token.")
-  }
-  let user_id = match
-    ctx.store.consume_account_action_token(
-      email_verification_purpose(),
-      account_action_token_hash(token),
-    ) {
-    Some(user_id) => user_id
-    None => return Err("This verification link is invalid or has expired.")
-  }
-  ctx.store.set_user_email_verified(user_id)
-  Ok({ message: "Email address verified." })
-}
-
-///|
-async fn signup_user(
-  ctx : AppContext,
-  request : @sdk.SignupRequest,
-) -> Result[@sdk.UserSummary, String] noraise {
-  let email = normalized_email(request.email)
-  if email == "" || !email.contains("@") {
-    return Err("Enter a valid email address.")
-  }
-  match validate_password(request.password) {
-    Err(message) => return Err(message)
-    Ok(_) => ignore(())
-  }
-  let display_name = match request.display_name {
-    Some(value) if value.trim() != "" => value.trim().to_owned()
-    _ => default_display_name_from_email(email)
-  }
-  let user = match
-    ctx.store.create_user(
-      email,
-      Some(hash_password(request.password)),
-      display_name,
-      None,
-      false,
-    ) {
-    Ok(user) => user
-    Err(message) => return Err(message)
-  }
-  queue_email_verification(ctx, user)
-  Ok(user)
-}
-
-///|
-async fn login_user(
-  ctx : AppContext,
-  request : @sdk.LoginRequest,
-) -> Result[@sdk.UserSummary, String] noraise {
-  let email = normalized_email(request.email)
-  match ctx.store.get_user_with_password_hash(email) {
-    Some((user, Some(password_hash))) =>
-      if verify_password(request.password, password_hash) {
-        Ok(user)
-      } else {
-        Err("The email or password is incorrect.")
-      }
-    _ => Err("The email or password is incorrect.")
-  }
-}
-
-///|
 async fn github_authorization_response(
   ctx : AppContext,
 ) -> @mocket.HttpResponse noraise {
@@ -467,6 +232,48 @@ async fn github_authorization_response(
         "GitHub sign-in is not configured on this server.",
       )
   }
+}
+
+///|
+async fn dev_authenticated_response(
+  ctx : AppContext,
+  event : @mocket.MocketEvent,
+  request : DevAuthRequest,
+) -> Result[@mocket.HttpResponse, String] noraise {
+  if !dev_auth_enabled() {
+    return Err("Development auth is not enabled.")
+  }
+  let email = normalized_email(request.email)
+  if email == "" || !email.contains("@") {
+    return Err("Enter a valid email address.")
+  }
+  let login = match request.github_login {
+    Some(value) if value.trim() != "" => value.trim().to_owned()
+    _ =>
+      email.split("@").to_array()[0]
+      .to_owned()
+      .replace_all(old=".", new="-")
+      .replace_all(old="_", new="-")
+  }
+  let user = match ctx.store.get_user_by_email(email) {
+    Some(existing) => {
+      ctx.store.set_user_email_verified(existing.id)
+      ctx.store.update_user_github_login(existing.id, login)
+      ctx.store.get_user_by_id(existing.id).unwrap_or(existing)
+    }
+    None => {
+      let display_name = match request.display_name {
+        Some(value) if value.trim() != "" => value.trim().to_owned()
+        _ => display_name_from_email(email)
+      }
+      match
+        ctx.store.create_user(email, None, display_name, Some(login), true) {
+        Ok(user) => user
+        Err(message) => return Err(message)
+      }
+    }
+  }
+  Ok(authenticated_response(ctx, event, user))
 }
 
 ///|
@@ -665,14 +472,4 @@ async fn session_status_response(
 ///|
 fn github_callback_page_html(root : String) -> String {
   control_plane_asset_string(root, "auth/github-callback/index.html", "")
-}
-
-///|
-fn email_verification_page_html(root : String) -> String {
-  control_plane_asset_string(root, "auth/email-verification/index.html", "")
-}
-
-///|
-fn password_reset_page_html(root : String) -> String {
-  control_plane_asset_string(root, "auth/password-reset/index.html", "")
 }

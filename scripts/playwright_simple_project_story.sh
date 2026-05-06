@@ -112,20 +112,23 @@ async function main() {
   const page = await browser.newPage({ viewport: { width: 1440, height: 980 } })
   page.setDefaultTimeout(20000)
   const email = `simple-story-${Date.now()}@example.com`
-  const password = "password123"
   const screenshots = []
 
   try {
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" })
-    await page.getByLabel("Email").fill(email)
-    await page.getByLabel("Password").fill(password)
-    await page.getByLabel("Display Name").fill("Simple Story Tester")
-    screenshots.push(screenshot("01-signup-form.png"))
-    await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
-
-    await page.getByRole("button", { name: "Create Account" }).click()
+    const authResponse = await page.evaluate(async (email) => {
+      return await fetch("/api/dev/auth/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, display_name: "Simple Story Tester" }),
+      }).then((response) => ({ ok: response.ok, status: response.status }))
+    }, email)
+    if (!authResponse.ok) {
+      throw new Error(`Development sign-in failed with HTTP ${authResponse.status}`)
+    }
+    await page.reload({ waitUntil: "domcontentloaded" })
     await page.getByRole("button", { name: /Simple Story Tester/ }).waitFor()
-    screenshots.push(screenshot("02-empty-workspace.png"))
+    screenshots.push(screenshot("01-empty-workspace.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
 
     await page.getByRole("button", { name: "+ New Project" }).click()
@@ -235,7 +238,7 @@ async function main() {
 
 ## Assertions
 
-- Signup opens an empty authenticated workspace.
+- Development sign-in opens an empty authenticated workspace.
 - New project creation starts from the chat composer.
 - First prompt creates one project run and reaches \`Succeeded\`.
 - The project API exposes a healthy preview target.
@@ -281,6 +284,7 @@ MOONCRAFT_PORT="$port" \
 MOONCRAFT_PUBLIC_BASE_URL="$base_url" \
 MOONCRAFT_BUILD_PROFILE=debug \
 MOONCRAFT_CODEX_FAKE_MODE=smoke \
+MOONCRAFT_ENABLE_DEV_AUTH=1 \
 MOONCRAFT_CODEX_FAKE_FAIL_CONTAINS="${MOONCRAFT_CODEX_FAKE_FAIL_CONTAINS:-Force fake failure}" \
 MOONCRAFT_CODEX_DOCKER_IMAGE= \
 moon -C . run --target native services/control-plane >"$log_file" 2>&1 &

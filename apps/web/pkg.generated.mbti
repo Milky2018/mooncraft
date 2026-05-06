@@ -23,8 +23,6 @@ pub fn[Req : ToJson, Resp : @json.FromJson] put_json(String, Req, @cmd.Dispatch[
 // Errors
 
 // Types and methods
-type AuthMode derive(Eq)
-
 type Model
 
 type Msg

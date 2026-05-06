@@ -722,28 +722,6 @@ fn main {
       None => api_error_response(NotFound, NotFound, "Project not found.")
     }
   })
-  app.post(@sdk.signup_path(), async fn(event) noraise {
-    let request : @sdk.SignupRequest = match decode_json_body(event) {
-      Ok(request) => request
-      Err(response) => return response
-    }
-    match signup_user(ctx, request) {
-      Ok(user) => authenticated_response(ctx, event, user, status=Created)
-      Err(message) =>
-        api_error_response(UnprocessableEntity, ValidationFailed, message)
-    }
-  })
-  app.post(@sdk.login_path(), async fn(event) noraise {
-    let request : @sdk.LoginRequest = match decode_json_body(event) {
-      Ok(request) => request
-      Err(response) => return response
-    }
-    match login_user(ctx, request) {
-      Ok(user) => authenticated_response(ctx, event, user)
-      Err(message) =>
-        api_error_response(Unauthorized, InvalidCredentials, message)
-    }
-  })
   app.post(@sdk.logout_path(), async fn(event) noraise {
     match event.req.get_cookie(session_cookie_name) {
       Some(cookie) if cookie.value != "" =>
@@ -753,62 +731,14 @@ fn main {
     clear_session_cookie(event.res)
     json_no_content()
   })
-  app.get("/auth/email/verify", _ => {
-    html_response(email_verification_page_html(ctx.root))
-  })
-  app.get("/auth/password/reset", _ => {
-    html_response(password_reset_page_html(ctx.root))
-  })
-  app.post(@sdk.request_password_reset_path(), async fn(event) noraise {
-    let request : @sdk.RequestPasswordResetRequest = match
-      decode_json_body(event) {
+  app.post("/api/dev/auth/session", async fn(event) noraise {
+    let request : DevAuthRequest = match decode_json_body(event) {
       Ok(request) => request
       Err(response) => return response
     }
-    json_ok(request_password_reset(ctx, request))
-  })
-  app.post(@sdk.reset_password_path(), async fn(event) noraise {
-    let request : @sdk.ResetPasswordRequest = match decode_json_body(event) {
-      Ok(request) => request
-      Err(response) => return response
-    }
-    match reset_password(ctx, request) {
-      Ok(response) => json_ok(response)
-      Err(message) =>
-        api_error_response(UnprocessableEntity, ValidationFailed, message)
-    }
-  })
-  app.post(@sdk.change_password_path(), async fn(event) noraise {
-    let user = match require_session_user(ctx, event) {
-      Ok(user) => user
-      Err(response) => return response
-    }
-    let request : @sdk.ChangePasswordRequest = match decode_json_body(event) {
-      Ok(request) => request
-      Err(response) => return response
-    }
-    match change_password(ctx, user, request) {
-      Ok(response) => json_ok(response)
-      Err(message) =>
-        api_error_response(UnprocessableEntity, ValidationFailed, message)
-    }
-  })
-  app.post(@sdk.resend_email_verification_path(), async fn(event) noraise {
-    let user = match require_session_user(ctx, event) {
-      Ok(user) => user
-      Err(response) => return response
-    }
-    json_ok(resend_email_verification(ctx, user))
-  })
-  app.post(@sdk.verify_email_path(), async fn(event) noraise {
-    let request : @sdk.VerifyEmailRequest = match decode_json_body(event) {
-      Ok(request) => request
-      Err(response) => return response
-    }
-    match verify_email(ctx, request) {
-      Ok(response) => json_ok(response)
-      Err(message) =>
-        api_error_response(UnprocessableEntity, ValidationFailed, message)
+    match dev_authenticated_response(ctx, event, request) {
+      Ok(response) => response
+      Err(message) => api_error_response(NotFound, NotFound, message)
     }
   })
   app.get(@sdk.ai_settings_path(), async fn(event) noraise {

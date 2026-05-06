@@ -20,7 +20,7 @@ Last updated: 2026-04-29
 | EPIC-005 | Persistence | Persist users, sessions, projects, messages, runs, preview metadata, and workspace snapshots in a dev-friendly store. | DONE | Implemented with SQLite; generated workspaces are runtime scratch. |
 | EPIC-006 | Agent | Replace the local `AgentGateway` adapter with real Codex-driven editing. | IN_PROGRESS | Docker-backed Codex CLI runs, database-backed workspace snapshots, and persistent `codex_thread_id` sessions are wired in; executor hardening still needs follow-up. |
 | EPIC-007 | Generated Apps | Keep the generated workspace bootstrap small, validated, and dependency-ready. | IN_PROGRESS | Runtime templates were removed; dependency fetch validation now covers approved modules. |
-| EPIC-008 | Auth | Add multi-user platform auth, user-owned projects, and public preview tokens. | DONE | Email/password and cookie sessions are verified locally; GitHub OAuth is implemented but still needs live credential verification. |
+| EPIC-008 | Auth | Add multi-user platform auth, user-owned projects, and public preview tokens. | DONE | GitHub OAuth and cookie sessions are the only supported sign-in path; live credential verification is still required before public launch. |
 
 ## Tasks
 
@@ -40,8 +40,8 @@ Last updated: 2026-04-29
 | TASK-012 | Docs | Define the first website prototype for the app-develop page. | DONE | `docs/website-prototype.md` now matches the implemented page. |
 | TASK-013 | Agent | Integrate real Codex project editing behind `AgentGateway`. | IN_PROGRESS | Background worker mode, persistent Codex sessions, and validation-before-preview are implemented; Docker/runtime hardening remains. |
 | TASK-014 | Runtime | Move preview execution out of `services/control-plane` into a dedicated runner service. | TODO | Keep stable ports and health checks. |
-| TASK-015 | Auth | Add signup, login, logout, cookie sessions, and owner-scoped project APIs. | DONE | Verified locally through `just smoke` and `just test`. |
-| TASK-016 | Auth | Add GitHub OAuth support for platform sign-in. | IN_PROGRESS | The flow is implemented, but only the unconfigured-path behavior has been verified locally. |
+| TASK-015 | Auth | Add logout, cookie sessions, and owner-scoped project APIs. | DONE | Email/password signup and login were removed from the product surface. |
+| TASK-016 | Auth | Add GitHub OAuth support for platform sign-in. | IN_PROGRESS | GitHub is now the only sign-in provider; the flow still needs live credential verification. |
 | TASK-017 | Runtime | Replace predictable preview paths with opaque public preview tokens. | DONE | Preview URLs now use `/p/<preview_public_id>/`. |
 | TASK-018 | Playwright simple project story | Fake Codex smoke mode leaks the full internal agent prompt into the assistant summary and preview iframe instead of showing only the user's request. | DONE | Fixed by extracting the user request from wrapped Codex prompts before fake-mode preview generation; verified with `moon test services/control-plane` and `just playwright-story`. |
 | TASK-019 | Playwright simple project story | Frontend-visible success copy is inconsistent between fake-mode summaries and the cleaner backend/store success message. | DONE | Fake-mode and fallback completion paths now share `The app is updated and the preview is ready.`; verified with `moon test services/control-plane` and `just playwright-story`. |

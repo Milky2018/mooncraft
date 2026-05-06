@@ -9,6 +9,7 @@ Responsibilities:
 - serve the app-develop HTTP API
 - serve the main workspace page and platform bundle
 - serve file-backed control-plane HTML/CSS assets from `services/control-plane/assets`
+- authenticate users through GitHub OAuth and cookie sessions
 - launch durable asynchronous Codex workers against generated workspaces
 - fetch approved MoonBit registry modules before validation and preview builds
 - rebuild and restart local previews
@@ -39,16 +40,18 @@ If Mooncakes returns a transient network error such as a TLS handshake EOF durin
 Static control-plane shells live under `services/control-plane/assets` instead of MoonBit string literals. This includes:
 
 - `platform/index.html` and `platform/style.css` for the root app shell
-- `auth/**/index.html` and shared auth CSS for account action pages
+- `auth/github-callback/index.html` for the OAuth callback handoff page
 - `preview-fallback/index.html` and `preview-fallback/styles.css` for generated previews that do not provide their own shell
 
 These files are runtime assets. `moon build` checks and builds the MoonBit code, but it does not embed this directory into the executable. The supported local walkthrough runs from the repository root through `just serve` or `moon -C . run --target native services/control-plane`, so the assets are available at `services/control-plane/assets`. The Docker walkthrough also includes them because the image uses `COPY . /app` before running the control plane from `/app`.
 
 If you run a compiled `control-plane.exe` from another directory, keep `services/control-plane/assets` available under that working directory or the file-backed HTML pages will not render.
 
-## Account Emails
+## Authentication
 
-Password reset and email verification links are queued to `data/control-plane/account-emails.log` in local development. Set `MOONCRAFT_PUBLIC_BASE_URL` when the control plane is served from a non-default origin so generated links point at the correct host.
+GitHub OAuth is the only supported sign-in provider. Set `MOONCRAFT_PUBLIC_BASE_URL`, `MOONCRAFT_GITHUB_CLIENT_ID`, and `MOONCRAFT_GITHUB_CLIENT_SECRET` before exposing the service. Users are created or linked from their verified GitHub email address, and sessions are stored in HTTP-only cookies.
+
+Automated local tests can set `MOONCRAFT_ENABLE_DEV_AUTH=1` to enable `POST /api/dev/auth/session`. That endpoint creates a GitHub-shaped test session without external OAuth and must stay disabled outside local smoke runs.
 
 ## Preview Flow
 

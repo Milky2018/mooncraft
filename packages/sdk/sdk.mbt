@@ -178,48 +178,8 @@ pub(all) struct CreateRunResponse {
 } derive(Debug, ToJson, FromJson)
 
 ///|
-pub(all) struct SignupRequest {
-  email : String
-  password : String
-  display_name : String?
-} derive(Debug, ToJson, FromJson)
-
-///|
-pub(all) struct LoginRequest {
-  email : String
-  password : String
-} derive(Debug, ToJson, FromJson)
-
-///|
-pub(all) struct RequestPasswordResetRequest {
-  email : String
-} derive(Debug, ToJson, FromJson)
-
-///|
-pub(all) struct ResetPasswordRequest {
-  token : String
-  password : String
-} derive(Debug, ToJson, FromJson)
-
-///|
-pub(all) struct ChangePasswordRequest {
-  current_password : String
-  new_password : String
-} derive(Debug, ToJson, FromJson)
-
-///|
-pub(all) struct VerifyEmailRequest {
-  token : String
-} derive(Debug, ToJson, FromJson)
-
-///|
 pub(all) struct AuthResponse {
   user : UserSummary
-} derive(Debug, ToJson, FromJson)
-
-///|
-pub(all) struct AuthActionResponse {
-  message : String
 } derive(Debug, ToJson, FromJson)
 
 ///|

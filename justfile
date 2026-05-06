@@ -37,7 +37,7 @@ test: build check-user-project-deps smoke
 smoke:
   ./scripts/smoke.sh
 
-# Run the fake-agent API smoke test against an already running control plane
+# Run the fake-agent API smoke test against a dev-auth-enabled control plane
 smoke-running:
   ./scripts/smoke_running.sh
 

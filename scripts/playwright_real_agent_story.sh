@@ -121,20 +121,23 @@ async function main() {
   const page = await browser.newPage({ viewport: { width: 1440, height: 980 } })
   page.setDefaultTimeout(30000)
   const email = `real-agent-story-${Date.now()}@example.com`
-  const password = "password123"
   const screenshots = []
   let projectId = ""
   let runId = ""
 
   try {
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" })
-    await page.getByLabel("Email").fill(email)
-    await page.getByLabel("Password").fill(password)
-    await page.getByLabel("Display Name").fill("Real Agent Tester")
-    screenshots.push(screenshot("01-signup-form.png"))
-    await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
-
-    await page.getByRole("button", { name: "Create Account" }).click()
+    const authResponse = await page.evaluate(async (email) => {
+      return await fetch("/api/dev/auth/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, display_name: "Real Agent Tester" }),
+      }).then((response) => ({ ok: response.ok, status: response.status }))
+    }, email)
+    if (!authResponse.ok) {
+      throw new Error(`Development sign-in failed with HTTP ${authResponse.status}`)
+    }
+    await page.reload({ waitUntil: "domcontentloaded" })
     await page.getByRole("button", { name: /Real Agent Tester/ }).waitFor()
     await page.evaluate(async ({ provider, model, apiKey }) => {
       const response = await fetch("/api/account/ai-settings", {
@@ -213,7 +216,7 @@ async function main() {
 
 ## Assertions
 
-- Browser signup succeeds.
+- Development sign-in succeeds.
 - User-scoped AI settings are saved without storing provider secrets in this report.
 - Browser prompt starts a real Docker-backed Codex run.
 - The run reaches \`Succeeded\`.
@@ -273,6 +276,7 @@ MOONCRAFT_PUBLIC_BASE_URL="$base_url" \
 MOONCRAFT_APP_MODE="${MOONCRAFT_APP_MODE:-test}" \
 MOONCRAFT_BUILD_PROFILE=debug \
 MOONCRAFT_CODEX_FAKE_MODE= \
+MOONCRAFT_ENABLE_DEV_AUTH=1 \
 MOONCRAFT_CODEX_DOCKER_IMAGE="$codex_image" \
 moon -C . run --target native services/control-plane >"$log_file" 2>&1 &
 server_pid=$!

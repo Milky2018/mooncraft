@@ -39,10 +39,6 @@ pub fn ai_settings_path() -> String
 
 pub fn ai_settings_route() -> RouteSpec
 
-pub fn change_password_path() -> String
-
-pub fn change_password_route() -> RouteSpec
-
 pub fn create_project_route() -> RouteSpec
 
 pub fn create_run_path(String) -> String
@@ -63,10 +59,6 @@ pub fn list_projects_route() -> RouteSpec
 
 pub fn list_run_events_route() -> RouteSpec
 
-pub fn login_path() -> String
-
-pub fn login_route() -> RouteSpec
-
 pub fn logout_path() -> String
 
 pub fn logout_route() -> RouteSpec
@@ -83,18 +75,6 @@ pub fn project_route() -> RouteSpec
 
 pub fn projects_path() -> String
 
-pub fn request_password_reset_path() -> String
-
-pub fn request_password_reset_route() -> RouteSpec
-
-pub fn resend_email_verification_path() -> String
-
-pub fn resend_email_verification_route() -> RouteSpec
-
-pub fn reset_password_path() -> String
-
-pub fn reset_password_route() -> RouteSpec
-
 pub fn run_events_path(String, String, Int) -> String
 
 pub fn run_path(String, String) -> String
@@ -103,15 +83,7 @@ pub fn session_path() -> String
 
 pub fn session_route() -> RouteSpec
 
-pub fn signup_path() -> String
-
-pub fn signup_route() -> RouteSpec
-
 pub fn update_ai_settings_route() -> RouteSpec
-
-pub fn verify_email_path() -> String
-
-pub fn verify_email_route() -> RouteSpec
 
 // Errors
 
@@ -173,17 +145,8 @@ pub(all) struct ApiErrorResponse {
   error : ApiError
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
-pub(all) struct AuthActionResponse {
-  message : String
-} derive(ToJson, @debug.Debug, @json.FromJson)
-
 pub(all) struct AuthResponse {
   user : UserSummary
-} derive(ToJson, @debug.Debug, @json.FromJson)
-
-pub(all) struct ChangePasswordRequest {
-  current_password : String
-  new_password : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct ChatMessage {
@@ -251,11 +214,6 @@ pub(all) struct ListRunEventsResponse {
   items : Array[RunEvent]
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
-pub(all) struct LoginRequest {
-  email : String
-  password : String
-} derive(ToJson, @debug.Debug, @json.FromJson)
-
 pub(all) struct ModelOption {
   id : String
   label : String
@@ -292,15 +250,6 @@ pub(all) struct ProjectSummary {
   preview : PreviewTarget?
   current_run_id : String?
   updated_at : String
-} derive(ToJson, @debug.Debug, @json.FromJson)
-
-pub(all) struct RequestPasswordResetRequest {
-  email : String
-} derive(ToJson, @debug.Debug, @json.FromJson)
-
-pub(all) struct ResetPasswordRequest {
-  token : String
-  password : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct RouteSpec {
@@ -352,12 +301,6 @@ pub(all) struct SessionResponse {
   app_mode : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
-pub(all) struct SignupRequest {
-  email : String
-  password : String
-  display_name : String?
-} derive(ToJson, @debug.Debug, @json.FromJson)
-
 pub(all) enum SuccessStatus {
   Ok
   Created
@@ -382,10 +325,6 @@ pub(all) struct UserSummary {
   ai_model : String
   ai_api_key_configured : Bool
   created_at : String
-} derive(ToJson, @debug.Debug, @json.FromJson)
-
-pub(all) struct VerifyEmailRequest {
-  token : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 // Type aliases

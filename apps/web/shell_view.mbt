@@ -368,12 +368,15 @@ fn render_account_panel(
 ) -> @rabbita.Html {
   match model.current_user {
     Some(user) => {
-      let verification_text = if user.email_verified {
-        "Verified"
-      } else {
-        "Verification pending"
+      let provider_text = match user.github_login {
+        Some(login) if login != "" => "GitHub @" + login
+        _ => "GitHub"
       }
-      let resend_enabled = !user.email_verified && !model.account_pending
+      let email_text = if user.email != "" {
+        user.email
+      } else {
+        "Verified GitHub account"
+      }
       @html.div(
         style=[
           "position: absolute", "right: 0", "top: calc(100% + 10px)", "width: min(380px, calc(100vw - 32px))",
@@ -409,7 +412,7 @@ fn render_account_panel(
                       "font-size: 11px", "color: var(--text-3)", "white-space: nowrap",
                       "overflow: hidden", "text-overflow: ellipsis",
                     ],
-                  user.email,
+                  email_text,
                 ),
               ],
             ),
@@ -420,27 +423,11 @@ fn render_account_panel(
                   "border: 1px solid var(--border-soft)", "border-radius: 999px",
                   "background: var(--surface-2)", "white-space: nowrap",
                 ],
-              verification_text,
+              provider_text,
             ),
           ],
         ),
         render_notice_card(model.account_notice, "var(--warning-soft)"),
-        if user.email_verified {
-          @html.nothing
-        } else {
-          @html.button(
-            type_="button",
-            disabled=!resend_enabled,
-            on_click=dispatch(ResendEmailVerification),
-            style=secondary_button_style(resend_enabled) +
-              ["padding: 9px 10px", "font-size: 12px"],
-            if model.account_pending {
-              "Queueing..."
-            } else {
-              "Resend Verification"
-            },
-          )
-        },
         @html.div(
           style=[
             "display: flex", "align-items: center", "justify-content: space-between",
@@ -483,53 +470,6 @@ fn render_account_panel(
             ),
           ],
         ),
-        @html.button(
-          type_="button",
-          on_click=dispatch(TogglePasswordPanel),
-          style=secondary_button_style(true) +
-            ["justify-content: space-between"],
-          if model.password_panel_open {
-            "Hide Password Form"
-          } else {
-            "Change Password"
-          },
-        ),
-        if model.password_panel_open {
-          @html.div(
-            style=[
-              "display: flex", "flex-direction: column", "gap: 8px", "padding: 10px",
-              "border: 1px solid var(--border-soft)", "border-radius: 6px", "background: var(--surface-2)",
-            ],
-            [
-              account_password_input(
-                model.account_current_password,
-                "Current password",
-                fn(value) { AccountCurrentPasswordChanged(value) },
-                dispatch,
-              ),
-              account_password_input(
-                model.account_new_password,
-                "New password",
-                fn(value) { AccountNewPasswordChanged(value) },
-                dispatch,
-              ),
-              @html.button(
-                type_="button",
-                disabled=!can_change_password(model),
-                on_click=dispatch(ChangePassword),
-                style=primary_button_style(can_change_password(model)) +
-                  ["padding: 9px 10px", "font-size: 12px"],
-                if model.account_pending {
-                  "Updating..."
-                } else {
-                  "Save Password"
-                },
-              ),
-            ],
-          )
-        } else {
-          @html.nothing
-        },
         @html.button(
           type_="button",
           disabled=model.logout_pending,

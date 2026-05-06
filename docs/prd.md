@@ -28,8 +28,8 @@ When I describe an app in natural language, I want the platform to generate and 
 Included:
 
 - one desktop-first app-develop page
-- email/password auth
-- optional GitHub OAuth
+- GitHub OAuth sign-in
+- cookie sessions
 - projects rail
 - chat workspace
 - live preview panel

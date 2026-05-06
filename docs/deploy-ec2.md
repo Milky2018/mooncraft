@@ -63,7 +63,7 @@ Required fix:
 The repo now includes two deployment-oriented fixes:
 
 - preview URLs are same-origin paths like `/p/<preview_public_id>/`, and the control plane reverse-proxies them to the private preview port
-- cookie-session auth is available for platform users, with optional GitHub OAuth on top of email/password
+- cookie-session auth is available for platform users through GitHub OAuth
 
 This is enough for a first staged multi-user demo, but not enough for hardened production auth.
 
@@ -95,7 +95,7 @@ Why this is the right first hosted shape:
 ### Phase 1: Make the app internet-correct
 
 1. Set `MOONCRAFT_PUBLIC_BASE_URL` for the first hosted environment.
-2. Optionally set `MOONCRAFT_GITHUB_CLIENT_ID` and `MOONCRAFT_GITHUB_CLIENT_SECRET` if GitHub OAuth should be live.
+2. Set `MOONCRAFT_GITHUB_CLIENT_ID` and `MOONCRAFT_GITHUB_CLIENT_SECRET`; GitHub OAuth is the only supported sign-in provider.
 3. Decide whether the first hosted target is staging-only or true production.
 4. Keep the deployment single-instance until the real agent runtime and preview supervision are stronger.
 

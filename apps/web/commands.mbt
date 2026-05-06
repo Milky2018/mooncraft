@@ -120,62 +120,8 @@ fn load_run_events_cmd(
 }
 
 ///|
-fn submit_auth_cmd(
-  dispatch : @rabbita.Dispatch[Msg],
-  model : Model,
-) -> @rabbita.Cmd {
-  match model.auth_mode {
-    Login => {
-      let payload : @sdk.LoginRequest = {
-        email: model.auth_email,
-        password: model.auth_password,
-      }
-      post_json(@sdk.login_path(), payload, fn(result) {
-        dispatch(AuthCompleted(result))
-      })
-    }
-    Signup => {
-      let payload : @sdk.SignupRequest = {
-        email: model.auth_email,
-        password: model.auth_password,
-        display_name: if model.auth_display_name == "" {
-          None
-        } else {
-          Some(model.auth_display_name)
-        },
-      }
-      post_json(@sdk.signup_path(), payload, fn(result) {
-        dispatch(AuthCompleted(result))
-      })
-    }
-    ForgotPassword => {
-      let payload : @sdk.RequestPasswordResetRequest = {
-        email: model.auth_email,
-      }
-      post_json(@sdk.request_password_reset_path(), payload, fn(result) {
-        dispatch(RequestPasswordResetCompleted(result))
-      })
-    }
-  }
-}
-
-///|
 fn logout_cmd(dispatch : @rabbita.Dispatch[Msg]) -> @rabbita.Cmd {
   post_empty(@sdk.logout_path(), fn(result) { dispatch(LoggedOut(result)) })
-}
-
-///|
-fn change_password_cmd(
-  dispatch : @rabbita.Dispatch[Msg],
-  model : Model,
-) -> @rabbita.Cmd {
-  let payload : @sdk.ChangePasswordRequest = {
-    current_password: model.account_current_password,
-    new_password: model.account_new_password,
-  }
-  post_json(@sdk.change_password_path(), payload, fn(result) {
-    dispatch(PasswordChanged(result))
-  })
 }
 
 ///|
@@ -200,14 +146,5 @@ fn load_model_options_cmd(
 ) -> @rabbita.Cmd {
   get_json(@sdk.ai_model_options_path(provider), fn(result) {
     dispatch(ModelOptionsLoaded(provider, result))
-  })
-}
-
-///|
-fn resend_email_verification_cmd(
-  dispatch : @rabbita.Dispatch[Msg],
-) -> @rabbita.Cmd {
-  post_empty_json(@sdk.resend_email_verification_path(), fn(result) {
-    dispatch(EmailVerificationResent(result))
   })
 }

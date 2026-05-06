@@ -85,6 +85,7 @@ wait_for_ok() {
 trap cleanup EXIT
 
 MOONCRAFT_CODEX_FAKE_MODE= \
+  MOONCRAFT_ENABLE_DEV_AUTH=1 \
   MOONCRAFT_PORT="$port" \
   moon -C . run --target native services/control-plane >"$log_file" 2>&1 &
 server_pid=$!
@@ -98,12 +99,11 @@ done
 curl -fsS "$base_url/api/health" | grep -q '"ok":true' || fail "The control plane did not become healthy on port $port."
 
 user_email="codex-smoke-$(date +%s)-$$@example.com"
-password="password123"
 curl -fsS -c "$user_cookie" -b "$user_cookie" \
-  -X POST "$base_url/api/auth/signup" \
+  -X POST "$base_url/api/dev/auth/session" \
   -H 'Content-Type: application/json' \
-  -d "{\"email\":\"$user_email\",\"password\":\"$password\",\"display_name\":\"Codex Smoke\"}" \
-  | grep -q "\"email\":\"$user_email\"" || fail "Signup failed."
+  -d "{\"email\":\"$user_email\",\"display_name\":\"Codex Smoke\"}" \
+  | grep -q "\"email\":\"$user_email\"" || fail "Development sign-in failed."
 
 settings_payload="{\"provider\":\"$codex_provider\",\"model\":\"$codex_model\",\"api_key\":\"$codex_api_key\"}"
 curl -fsS -c "$user_cookie" -b "$user_cookie" \

@@ -25,7 +25,7 @@ The page should feel consumer-friendly, calm, and obvious to use. It should not 
 
 The main user loop is:
 
-1. sign up or log in
+1. sign in with GitHub
 2. create or select a project
 3. type a request
 4. wait on a spinner
@@ -38,8 +38,8 @@ The signed-out state should feel like the same product, not a separate admin too
 
 ### Signed-Out State
 
-- shows email/password auth first
-- may offer GitHub sign-in when configured
+- shows GitHub sign-in only
+- explains that GitHub OAuth must be configured when unavailable
 - should hand off into the same workspace shell after session creation
 
 ### Left Rail

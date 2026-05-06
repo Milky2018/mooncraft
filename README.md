@@ -16,8 +16,8 @@ This slice is intentionally narrow:
 
 - desktop-first
 - local single-instance only
-- email/password auth
-- optional GitHub OAuth
+- GitHub OAuth sign-in
+- cookie sessions
 - no deploy
 - no code viewer
 - one project rail, one chat workspace, one live preview panel

@@ -53,23 +53,6 @@ fn can_send(model : Model) -> Bool {
 }
 
 ///|
-fn can_submit_auth(model : Model) -> Bool {
-  let has_required_fields = if model.auth_mode is ForgotPassword {
-    true
-  } else {
-    model.auth_password != ""
-  }
-  model.auth_email.trim() != "" && !model.auth_pending && has_required_fields
-}
-
-///|
-fn can_change_password(model : Model) -> Bool {
-  model.account_current_password != "" &&
-  model.account_new_password != "" &&
-  !model.account_pending
-}
-
-///|
 fn can_save_ai_settings(model : Model) -> Bool {
   let has_key = match model.current_user {
     Some(user) => user.ai_api_key_configured || model.account_ai_api_key != ""
@@ -169,7 +152,6 @@ fn apply_session(model : Model, session : @sdk.SessionResponse) -> Model {
     },
     github_enabled: session.github_enabled,
     app_mode: session.app_mode,
-    auth_pending: false,
     logout_pending: false,
     account_pending: false,
     account_ai_provider: match session.user {
@@ -203,17 +185,13 @@ fn auth_recovery(
     {
       ..clear_workspace(model),
       current_user: None,
-      auth_pending: false,
       logout_pending: false,
-      account_current_password: "",
-      account_new_password: "",
       account_ai_provider: "openai",
       account_ai_model: "gpt-5.5",
       account_ai_api_key: "",
       account_pending: false,
       account_notice: None,
       account_panel_open: false,
-      password_panel_open: false,
       active_page: AppWorkspace,
       auth_notice: Some(message),
     },

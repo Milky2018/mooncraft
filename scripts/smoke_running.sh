@@ -26,15 +26,16 @@ user1_cookie="$tmpdir/user1.cookies"
 user2_cookie="$tmpdir/user2.cookies"
 user1_email="owner-$(date +%s)@example.com"
 user2_email="viewer-$(date +%s)@example.com"
-password="password123"
-outbox="data/control-plane/account-emails.log"
 
-extract_outbox_token() {
-  local email="$1"
-  local path_fragment="$2"
-  { grep -A8 "to: $email" "$outbox" || true; } \
-    | sed -n "s#.*$path_fragment?token=\([^[:space:]]*\).*#\1#p" \
-    | tail -n1
+dev_sign_in() {
+  local cookie_file="$1"
+  local email="$2"
+  local display_name="$3"
+  curl -fsS -c "$cookie_file" -b "$cookie_file" \
+    -X POST "$base_url/api/dev/auth/session" \
+    -H 'Content-Type: application/json' \
+    -d "{\"email\":\"$email\",\"display_name\":\"$display_name\"}" \
+    | grep -q "\"email\":\"$email\""
 }
 
 curl -fsS "$base_url/api/health" | grep -q '"ok":true'
@@ -48,23 +49,7 @@ if [[ "$unauth_status" != "401" ]]; then
   exit 1
 fi
 
-user1_signup="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" \
-  -X POST "$base_url/api/auth/signup" \
-  -H 'Content-Type: application/json' \
-  -d "{\"email\":\"$user1_email\",\"password\":\"$password\",\"display_name\":\"Owner\"}")"
-printf '%s' "$user1_signup" | grep -q "\"email\":\"$user1_email\""
-printf '%s' "$user1_signup" | grep -q '"email_verified":false'
-
-verify_token="$(extract_outbox_token "$user1_email" "/auth/email/verify")"
-if [[ -z "$verify_token" ]]; then
-  echo "Failed to parse verification token for $user1_email from $outbox" >&2
-  exit 1
-fi
-
-curl -fsS -X POST "$base_url/api/auth/email/verification/confirm" \
-  -H 'Content-Type: application/json' \
-  -d "{\"token\":\"$verify_token\"}" \
-  | grep -q 'Email address verified'
+dev_sign_in "$user1_cookie" "$user1_email" "Owner"
 curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/session" | grep -q '"email_verified":true'
 curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/account/ai-settings" | grep -q '"api_key_configured":false'
 curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/account/ai-model-options/openrouter" | grep -q '"provider":"openrouter"'
@@ -75,15 +60,7 @@ curl -fsS -c "$user1_cookie" -b "$user1_cookie" \
   | grep -q '"api_key_configured":true'
 curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/session" | grep -q '"ai_provider":"openrouter"'
 
-curl -fsS -c "$user2_cookie" -b "$user2_cookie" \
-  -X POST "$base_url/api/auth/signup" \
-  -H 'Content-Type: application/json' \
-  -d "{\"email\":\"$user2_email\",\"password\":\"$password\",\"display_name\":\"Viewer\"}" \
-  | grep -q "\"email\":\"$user2_email\""
-curl -fsS -c "$user2_cookie" -b "$user2_cookie" \
-  -X POST "$base_url/api/auth/email/verification/resend" \
-  -d '' \
-  | grep -q 'Verification link has been queued'
+dev_sign_in "$user2_cookie" "$user2_email" "Viewer"
 
 create_response="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X POST "$base_url/api/projects" -H 'Content-Type: application/json' -d '{"display_name":"Smoke Running"}')"
 project_id="$(printf '%s' "$create_response" | sed -n 's/.*"project":{"id":"\([^"]*\)".*/\1/p')"
@@ -185,25 +162,13 @@ fi
 grep -q 'Add recovery badge' "$runtime_project_dir/workspace/README.md"
 wait_for_ok "$base_url${preview_url_2}api/health"
 
-changed_password="password456"
-curl -fsS -c "$user1_cookie" -b "$user1_cookie" \
-  -X POST "$base_url/api/auth/password/change" \
-  -H 'Content-Type: application/json' \
-  -d "{\"current_password\":\"$password\",\"new_password\":\"$changed_password\"}" \
-  | grep -q 'Password changed'
-password="$changed_password"
-
 curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X POST "$base_url/api/auth/logout" -d '' >/dev/null
 logged_out_status="$(curl -sS -o /dev/null -w '%{http_code}' -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects" || true)"
 if [[ "$logged_out_status" != "401" ]]; then
   echo "Expected logged out session to lose project access, got $logged_out_status" >&2
   exit 1
 fi
-curl -fsS -c "$user1_cookie" -b "$user1_cookie" \
-  -X POST "$base_url/api/auth/login" \
-  -H 'Content-Type: application/json' \
-  -d "{\"email\":\"$user1_email\",\"password\":\"$password\"}" \
-  | grep -q "\"email\":\"$user1_email\""
+dev_sign_in "$user1_cookie" "$user1_email" "Owner"
 curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects" | grep -q "\"id\":\"$project_id\""
 
 curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X DELETE "$base_url/api/projects/$project_id" -d '' >/dev/null
@@ -226,23 +191,3 @@ if [[ -d "data/runtime/projects/$project_id" || -d "data/projects/$project_id" ]
   echo "Project runtime scratch still exists after deletion: $project_id" >&2
   exit 1
 fi
-
-reset_password="password789"
-curl -fsS -X POST "$base_url/api/auth/password-reset/request" \
-  -H 'Content-Type: application/json' \
-  -d "{\"email\":\"$user1_email\"}" \
-  | grep -q 'reset link has been queued'
-reset_token="$(extract_outbox_token "$user1_email" "/auth/password/reset")"
-if [[ -z "$reset_token" ]]; then
-  echo "Failed to parse password reset token for $user1_email from $outbox" >&2
-  exit 1
-fi
-curl -fsS -X POST "$base_url/api/auth/password-reset/confirm" \
-  -H 'Content-Type: application/json' \
-  -d "{\"token\":\"$reset_token\",\"password\":\"$reset_password\"}" \
-  | grep -q 'Password updated'
-curl -fsS -c "$user1_cookie" -b "$user1_cookie" \
-  -X POST "$base_url/api/auth/login" \
-  -H 'Content-Type: application/json' \
-  -d "{\"email\":\"$user1_email\",\"password\":\"$reset_password\"}" \
-  | grep -q "\"email\":\"$user1_email\""

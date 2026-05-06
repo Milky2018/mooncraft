@@ -1,11 +1,4 @@
 ///|
-enum AuthMode {
-  Login
-  Signup
-  ForgotPassword
-} derive(Eq)
-
-///|
 enum ThemeMode {
   Light
   System
@@ -27,15 +20,8 @@ struct Model {
   app_mode : String
   current_user : @sdk.UserSummary?
   github_enabled : Bool
-  auth_mode : AuthMode
-  auth_email : String
-  auth_password : String
-  auth_display_name : String
-  auth_pending : Bool
   logout_pending : Bool
   auth_notice : String?
-  account_current_password : String
-  account_new_password : String
   account_ai_provider : String
   account_ai_model : String
   account_ai_api_key : String
@@ -44,7 +30,6 @@ struct Model {
   account_pending : Bool
   account_notice : String?
   account_panel_open : Bool
-  password_panel_open : Bool
   active_page : ShellPage
   projects : Array[@sdk.ProjectSummary]
   selected_project_id : String?
@@ -68,20 +53,10 @@ enum Msg {
   ThemeModeLoaded(ThemeMode, ThemeMode)
   ToggleTheme
   SessionLoaded(Result[@sdk.SessionResponse, @sdk.ApiError])
-  AuthModeSelected(AuthMode)
-  AuthEmailChanged(String)
-  AuthPasswordChanged(String)
-  AuthDisplayNameChanged(String)
-  SubmitAuth
-  AuthCompleted(Result[@sdk.AuthResponse, @sdk.ApiError])
-  RequestPasswordResetCompleted(Result[@sdk.AuthActionResponse, @sdk.ApiError])
   Logout
   LoggedOut(Result[Unit, @sdk.ApiError])
   ToggleAccountPanel
-  TogglePasswordPanel
   OpenLlmConfig
-  AccountCurrentPasswordChanged(String)
-  AccountNewPasswordChanged(String)
   AccountAiProviderChanged(String)
   AccountAiModelChanged(String)
   AccountAiApiKeyChanged(String)
@@ -92,10 +67,6 @@ enum Msg {
   )
   SaveAiSettings
   AiSettingsSaved(Result[@sdk.AiSettingsResponse, @sdk.ApiError])
-  ChangePassword
-  PasswordChanged(Result[@sdk.AuthActionResponse, @sdk.ApiError])
-  ResendEmailVerification
-  EmailVerificationResent(Result[@sdk.AuthActionResponse, @sdk.ApiError])
   ProjectsLoaded(Result[@sdk.ListProjectsResponse, @sdk.ApiError])
   SelectProject(String)
   ProjectLoaded(Result[@sdk.ProjectDetail, @sdk.ApiError])
@@ -188,15 +159,8 @@ fn initial_model() -> Model {
     app_mode: "production",
     current_user: None,
     github_enabled: false,
-    auth_mode: Signup,
-    auth_email: "",
-    auth_password: "",
-    auth_display_name: "",
-    auth_pending: false,
     logout_pending: false,
     auth_notice: None,
-    account_current_password: "",
-    account_new_password: "",
     account_ai_provider: "openai",
     account_ai_model: "gpt-5.5",
     account_ai_api_key: "",
@@ -205,7 +169,6 @@ fn initial_model() -> Model {
     account_pending: false,
     account_notice: None,
     account_panel_open: false,
-    password_panel_open: false,
     active_page: AppWorkspace,
     projects: [],
     selected_project_id: None,

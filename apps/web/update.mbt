@@ -42,67 +42,10 @@ fn update(
           ..clear_workspace(model),
           session_ready: true,
           current_user: None,
-          auth_pending: false,
           auth_notice: Some(
             error_notice("Session state could not be loaded.", error),
           ),
         },
-      )
-    AuthModeSelected(mode) =>
-      (
-        @rabbita.none,
-        { ..model, auth_mode: mode, auth_notice: None, auth_password: "" },
-      )
-    AuthEmailChanged(value) => (@rabbita.none, { ..model, auth_email: value })
-    AuthPasswordChanged(value) =>
-      (@rabbita.none, { ..model, auth_password: value })
-    AuthDisplayNameChanged(value) =>
-      (@rabbita.none, { ..model, auth_display_name: value })
-    SubmitAuth =>
-      if !can_submit_auth(model) {
-        (@rabbita.none, model)
-      } else {
-        (
-          submit_auth_cmd(dispatch, model),
-          { ..model, auth_pending: true, auth_notice: None },
-        )
-      }
-    AuthCompleted(Ok(_)) =>
-      (
-        load_session_cmd(dispatch),
-        {
-          ..model,
-          auth_pending: false,
-          auth_password: "",
-          auth_notice: None,
-          account_notice: if model.auth_mode is Signup {
-            Some("Verification link queued in the local account email outbox.")
-          } else {
-            model.account_notice
-          },
-          account_panel_open: false,
-          password_panel_open: false,
-        },
-      )
-    AuthCompleted(Err(error)) =>
-      (
-        @rabbita.none,
-        { ..model, auth_pending: false, auth_notice: Some(error.message) },
-      )
-    RequestPasswordResetCompleted(Ok(response)) =>
-      (
-        @rabbita.none,
-        {
-          ..model,
-          auth_pending: false,
-          auth_password: "",
-          auth_notice: Some(response.message),
-        },
-      )
-    RequestPasswordResetCompleted(Err(error)) =>
-      (
-        @rabbita.none,
-        { ..model, auth_pending: false, auth_notice: Some(error.message) },
       )
     Logout =>
       if model.logout_pending {
@@ -119,13 +62,7 @@ fn update(
         {
           ..clear_workspace(model),
           current_user: None,
-          auth_mode: Login,
-          auth_email: "",
-          auth_password: "",
-          auth_display_name: "",
           logout_pending: false,
-          account_current_password: "",
-          account_new_password: "",
           account_ai_provider: "openai",
           account_ai_model: "gpt-5.5",
           account_ai_api_key: "",
@@ -134,7 +71,6 @@ fn update(
           account_pending: false,
           account_notice: None,
           account_panel_open: false,
-          password_panel_open: false,
           auth_notice: None,
         },
       )
@@ -151,20 +87,7 @@ fn update(
     ToggleAccountPanel =>
       (
         @rabbita.none,
-        {
-          ..model,
-          account_panel_open: !model.account_panel_open,
-          password_panel_open: if model.account_panel_open {
-            false
-          } else {
-            model.password_panel_open
-          },
-        },
-      )
-    TogglePasswordPanel =>
-      (
-        @rabbita.none,
-        { ..model, password_panel_open: !model.password_panel_open },
+        { ..model, account_panel_open: !model.account_panel_open },
       )
     OpenLlmConfig =>
       (
@@ -173,17 +96,12 @@ fn update(
           ..model,
           active_page: LlmConfig,
           account_panel_open: false,
-          password_panel_open: false,
           account_model_options: [],
           account_model_options_pending: true,
           account_notice: None,
           notice: None,
         },
       )
-    AccountCurrentPasswordChanged(value) =>
-      (@rabbita.none, { ..model, account_current_password: value })
-    AccountNewPasswordChanged(value) =>
-      (@rabbita.none, { ..model, account_new_password: value })
     AccountAiProviderChanged(value) =>
       (
         load_model_options_cmd(dispatch, value),
@@ -292,72 +210,6 @@ fn update(
       )
     }
     AiSettingsSaved(Err(error)) =>
-      if is_unauthorized_error(error) {
-        auth_recovery(dispatch, model, "Your session expired. Sign in again.")
-      } else {
-        (
-          @rabbita.none,
-          {
-            ..model,
-            account_pending: false,
-            account_notice: Some(error.message),
-          },
-        )
-      }
-    ChangePassword =>
-      if !can_change_password(model) {
-        (@rabbita.none, model)
-      } else {
-        (
-          change_password_cmd(dispatch, model),
-          { ..model, account_pending: true, account_notice: None },
-        )
-      }
-    PasswordChanged(Ok(response)) =>
-      (
-        @rabbita.none,
-        {
-          ..model,
-          account_current_password: "",
-          account_new_password: "",
-          account_ai_api_key: "",
-          account_pending: false,
-          account_notice: Some(response.message),
-          password_panel_open: false,
-        },
-      )
-    PasswordChanged(Err(error)) =>
-      if is_unauthorized_error(error) {
-        auth_recovery(dispatch, model, "Your session expired. Sign in again.")
-      } else {
-        (
-          @rabbita.none,
-          {
-            ..model,
-            account_pending: false,
-            account_notice: Some(error.message),
-          },
-        )
-      }
-    ResendEmailVerification =>
-      if model.account_pending {
-        (@rabbita.none, model)
-      } else {
-        (
-          resend_email_verification_cmd(dispatch),
-          { ..model, account_pending: true, account_notice: None },
-        )
-      }
-    EmailVerificationResent(Ok(response)) =>
-      (
-        @rabbita.none,
-        {
-          ..model,
-          account_pending: false,
-          account_notice: Some(response.message),
-        },
-      )
-    EmailVerificationResent(Err(error)) =>
       if is_unauthorized_error(error) {
         auth_recovery(dispatch, model, "Your session expired. Sign in again.")
       } else {

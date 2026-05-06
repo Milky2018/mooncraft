@@ -13,6 +13,7 @@ tmpdir="$(mktemp -d)"
 log_file="$tmpdir/control-plane.log"
 
 MOONCRAFT_CODEX_FAKE_MODE=smoke \
+  MOONCRAFT_ENABLE_DEV_AUTH=1 \
   MOONCRAFT_PORT="$port" \
   MOONCRAFT_PUBLIC_BASE_URL="$base_url" \
   moon -C . run --target native services/control-plane >"$log_file" 2>&1 &
