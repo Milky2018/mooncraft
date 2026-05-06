@@ -57,7 +57,7 @@ test "public run status hides failure diagnostics outside development mode" {
     run_id: "run-1",
     project_id: "project-1",
     state: @sdk.Failed,
-    summary: Some("I couldn't finish that update."),
+    summary: Some("The update failed before the preview could be refreshed."),
     error_message: Some("raw command output and private log paths"),
     failure_debug: Some(@sdk.RunFailureDebug::{
       stage: "Codex session startup",
@@ -74,7 +74,7 @@ test "public run status hides failure diagnostics outside development mode" {
   let public = public_run_status(run)
   debug_inspect(
     public.error_message,
-    content="Some(\"I couldn't finish that update.\")",
+    content="Some(\"The update failed before the preview could be refreshed.\")",
   )
   debug_inspect(public.failure_debug, content="None")
 }

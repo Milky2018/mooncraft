@@ -209,7 +209,7 @@ async function main() {
     const failureRun = await failureRunResponse.json()
     await waitForRunState(page, projectId, failureRun.run.run_id, "Failed")
     await page.reload({ waitUntil: "domcontentloaded" })
-    await page.getByText("I couldn't finish that update. The run failed before the preview could be refreshed.").waitFor()
+    await page.getByText("The update failed before the preview could be refreshed.").waitFor()
     const failedDetail = await projectDetail(page, projectId)
     if (!failedDetail.preview || failedDetail.preview.url !== firstDetail.preview.url) {
       throw new Error("Expected the last successful preview to remain available after a failed run")

@@ -740,7 +740,7 @@ fn main {
         ctx.store.finish_run_failure(
           project_id,
           run.run_id,
-          "I couldn't start the background worker for that update.",
+          "The background worker could not be started for that update.",
           message,
           None,
         )

@@ -2115,7 +2115,7 @@ async fn Store::finish_run_failure_with_debug(
     None => ignore(())
   }
   let message_text = if assistant_message == "" {
-    "I couldn't complete that change. The last working preview is still available."
+    "The change could not be completed. The last working preview is still available."
   } else {
     assistant_message
   }

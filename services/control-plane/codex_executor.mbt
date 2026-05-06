@@ -267,7 +267,7 @@ fn successful_preview_assistant_message() -> String {
 
 ///|
 fn default_failure_assistant_message() -> String {
-  "I couldn't finish that update. The run failed before the preview could be refreshed."
+  "The update failed before the preview could be refreshed."
 }
 
 ///|
@@ -289,7 +289,7 @@ fn dependency_fetch_failure_assistant_message(
   fallback : String,
 ) -> String {
   if moonbit_registry_fetch_failed(output) {
-    "I couldn't fetch MoonBit packages from Mooncakes, so the preview could not be validated or refreshed. This is usually a temporary network or package-registry issue. Please retry; if it keeps happening, the platform operator should refresh the builder image cache and check Mooncakes connectivity."
+    "MoonBit packages could not be fetched from Mooncakes, so the preview could not be validated or refreshed. This is usually a temporary network or package-registry issue. Retry the update; if it keeps happening, the platform operator should refresh the builder image cache and check Mooncakes connectivity."
   } else {
     fallback
   }
@@ -1072,7 +1072,7 @@ async fn run_codex_turn(
     Err(message) =>
       return Err(
         codex_failure_with_debug(
-          "I couldn't start the AI builder for that update.",
+          "The AI builder could not be started for that update.",
           message,
           thread_id_before,
           Some(
@@ -1146,7 +1146,7 @@ async fn run_codex_turn(
       Err(message) =>
         return Err(
           codex_failure_with_debug(
-            "I couldn't recover the builder session for that update.",
+            "The builder session could not be recovered for that update.",
             message,
             thread_id_before,
             Some(
@@ -1292,7 +1292,7 @@ async fn run_validation_command(
       Err(message) =>
         return Err(
           codex_failure_with_debug(
-            "I updated the workspace, but validation could not be started.",
+            "The workspace was updated, but validation could not be started.",
             message,
             Some(thread_id),
             Some(failure_debug(label, Some(command), None, Some(artifacts))),
@@ -1315,7 +1315,7 @@ async fn run_validation_command(
           Err(message) =>
             return Err(
               codex_failure_with_debug(
-                "I updated the workspace, but validation could not be started.",
+                "The workspace was updated, but validation could not be started.",
                 message,
                 Some(thread_id),
                 Some(failure_debug(label, Some(command), None, Some(artifacts))),
@@ -1325,7 +1325,7 @@ async fn run_validation_command(
       None =>
         return Err(
           codex_failure_with_debug(
-            "I updated the workspace, but validation could not be started.",
+            "The workspace was updated, but validation could not be started.",
             "The app validator is not configured.",
             Some(thread_id),
             Some(failure_debug(label, Some(command), None, Some(artifacts))),
@@ -1345,7 +1345,7 @@ async fn run_validation_command(
     return Err(
       codex_failure_with_debug(
         dependency_fetch_failure_assistant_message(
-          output, "I updated the workspace, but validation failed before the preview could be refreshed.",
+          output, "The workspace was updated, but validation failed before the preview could be refreshed.",
         ),
         stage_failure_message(
           label,
@@ -1409,7 +1409,7 @@ async fn run_docker_validation_sequence(
         Err(message) =>
           return Err(
             codex_failure_with_debug(
-              "I updated the workspace, but validation could not be started.",
+              "The workspace was updated, but validation could not be started.",
               message,
               Some(thread_id),
               Some(
@@ -1426,7 +1426,7 @@ async fn run_docker_validation_sequence(
     None =>
       return Err(
         codex_failure_with_debug(
-          "I updated the workspace, but validation could not be started.",
+          "The workspace was updated, but validation could not be started.",
           "The app validator is not configured.",
           Some(thread_id),
           Some(
@@ -1452,7 +1452,7 @@ async fn run_docker_validation_sequence(
     return Err(
       codex_failure_with_debug(
         dependency_fetch_failure_assistant_message(
-          output, "I updated the workspace, but validation failed before the preview could be refreshed.",
+          output, "The workspace was updated, but validation failed before the preview could be refreshed.",
         ),
         stage_failure_message(
           "MoonBit validation",
@@ -1574,7 +1574,7 @@ async fn AgentGateway::run_turn(
       Err(message) =>
         return Err(
           codex_failure(
-            "I couldn't start the AI builder for that update.",
+            "The AI builder could not be started for that update.",
             message,
             project.codex_thread_id,
           ),
@@ -1602,7 +1602,7 @@ async fn AgentGateway::run_turn(
       Err(message) =>
         Err(
           codex_failure_with_debug(
-            "I updated the workspace, but saving the latest project snapshot failed.",
+            "The workspace was updated, but saving the latest project snapshot failed.",
             message,
             Some(codex_result.thread_id),
             Some(
