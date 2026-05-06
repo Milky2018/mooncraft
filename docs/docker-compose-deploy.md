@@ -37,6 +37,13 @@ Make sure the Codex runtime image is available:
 docker pull docker.io/moonbitcloud/codex:codex-0.125.0-node24
 ```
 
+Mooncraft detects the Docker daemon architecture before each real builder run and starts the Codex runtime with an explicit container platform:
+
+- `amd64` / `x86_64` -> `linux/amd64`
+- `arm64` / `aarch64` -> `linux/arm64`
+
+Any other Docker host architecture fails before the builder starts. The Codex runtime image must therefore be available for both `linux/amd64` and `linux/arm64`.
+
 If you are publishing your own Codex runtime image, push it first and set `MOONCRAFT_CODEX_DOCKER_IMAGE` when starting Compose.
 
 ## Environment Files
@@ -145,6 +152,14 @@ curl -fsS http://127.0.0.1:8080/api/health
 If the Codex runtime image changes:
 
 ```bash
+docker pull docker.io/moonbitcloud/codex:codex-0.125.0-node24
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate
+```
+
+If a host previously cached the wrong-architecture runtime image, remove and repull it after upgrading:
+
+```bash
+docker image rm docker.io/moonbitcloud/codex:codex-0.125.0-node24 || true
 docker pull docker.io/moonbitcloud/codex:codex-0.125.0-node24
 docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate
 ```

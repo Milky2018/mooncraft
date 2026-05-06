@@ -256,6 +256,7 @@ test "github oauth helpers build token request and parse access token" {
 test "docker command receives user scoped AI settings" {
   let config : CodexDockerConfig = {
     image: "codex:test",
+    platform: "linux/amd64",
     provider: "openrouter",
     model: "openai/gpt-5.5",
     api_key: "user-key",
@@ -275,6 +276,8 @@ test "docker command receives user scoped AI settings" {
     artifacts,
     ["codex", "exec", "Build an app"],
   )
+  assert_true(args.contains("--platform"))
+  assert_true(args.contains("linux/amd64"))
   assert_true(args.contains("--env-file"))
   assert_true(args.contains("/tmp/artifacts/codex.env"))
   assert_false(args.contains("MOONCRAFT_AI_PROVIDER=openrouter"))
@@ -288,6 +291,24 @@ test "docker command receives user scoped AI settings" {
   assert_true(env_file.contains("MOONCRAFT_AI_MODEL=openai/gpt-5.5"))
   assert_true(env_file.contains("MOONCRAFT_AI_API_KEY=user-key"))
   assert_true(env_file.contains("CODEX_HOME=/root/.codex"))
+}
+
+///|
+test "docker host architecture maps to supported container platforms" {
+  inspect(
+    normalize_docker_architecture("amd64\n"),
+    content="Ok(\"linux/amd64\")",
+  )
+  inspect(
+    normalize_docker_architecture("x86_64"),
+    content="Ok(\"linux/amd64\")",
+  )
+  inspect(normalize_docker_architecture("arm64"), content="Ok(\"linux/arm64\")")
+  inspect(
+    normalize_docker_architecture("aarch64"),
+    content="Ok(\"linux/arm64\")",
+  )
+  assert_true(normalize_docker_architecture("riscv64") is Err(_))
 }
 
 ///|

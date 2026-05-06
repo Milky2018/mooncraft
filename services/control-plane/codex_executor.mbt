@@ -15,6 +15,7 @@ struct AgentTurnFailure {
 ///|
 struct CodexDockerConfig {
   image : String
+  platform : String
   provider : String
   model : String
   api_key : String
@@ -128,9 +129,51 @@ fn remove_docker_env_file(path : String) -> Unit {
 }
 
 ///|
-fn CodexDockerConfig::load(
+fn normalize_docker_architecture(
+  architecture : String,
+) -> Result[String, String] {
+  let normalized = architecture.trim().to_lower()
+  if normalized == "amd64" || normalized == "x86_64" {
+    Ok("linux/amd64")
+  } else if normalized == "arm64" || normalized == "aarch64" {
+    Ok("linux/arm64")
+  } else {
+    Err(
+      "Unsupported Docker host architecture '\{architecture.trim()}'. Mooncraft supports only linux/amd64 and linux/arm64 Codex runtime containers.",
+    )
+  }
+}
+
+///|
+async fn detect_docker_platform(
+  root : String,
+) -> Result[String, String] noraise {
+  let result = try
+    @process.collect_output_merged(
+      "docker",
+      ["info", "--format", "{{.Architecture}}"],
+      cwd=root,
+    )
+  catch {
+    err => return Err("Docker host architecture could not be detected: \{err}")
+  } noraise {
+    value => value
+  }
+  let (exit_code, output) = result
+  let text = output.text() catch { _ => "" }
+  if exit_code != 0 {
+    return Err(
+      "Docker host architecture could not be detected. `docker info` exited with code \{exit_code}: \{tail_text(text, 600)}",
+    )
+  }
+  normalize_docker_architecture(text)
+}
+
+///|
+async fn CodexDockerConfig::load(
+  root : String,
   settings : AiRuntimeSettings,
-) -> Result[CodexDockerConfig, String] {
+) -> Result[CodexDockerConfig, String] noraise {
   let image = match @env.get_env_var("MOONCRAFT_CODEX_DOCKER_IMAGE") {
     Some(value) if value.trim() != "" => value.trim().to_owned()
     _ => default_codex_docker_image
@@ -146,8 +189,13 @@ fn CodexDockerConfig::load(
     Some(value) if value.trim() != "" => value
     _ => "/root"
   }
+  let platform = match detect_docker_platform(root) {
+    Ok(platform) => platform
+    Err(message) => return Err(message)
+  }
   Ok({
     image,
+    platform,
     provider: settings.provider,
     model: settings.model,
     api_key: settings.api_key,
@@ -775,6 +823,8 @@ fn docker_command_args(
   container_command : Array[String],
 ) -> Array[String] {
   let args : Array[String] = ["run", "--rm"]
+  args.push("--platform")
+  args.push(config.platform)
   args.push("--env-file")
   args.push(env_file_path)
   match codex_home_path {
@@ -1569,7 +1619,7 @@ async fn AgentGateway::run_turn(
           ),
         )
     }
-    match CodexDockerConfig::load(settings) {
+    match CodexDockerConfig::load(self.root, settings) {
       Ok(config) => Some(config)
       Err(message) =>
         return Err(
