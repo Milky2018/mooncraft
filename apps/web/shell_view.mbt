@@ -375,13 +375,14 @@ fn render_account_panel(
       }
       let resend_enabled = !user.email_verified && !model.account_pending
       @html.div(
-        style=panel_style() +
-          [
-            "position: absolute", "right: 0", "top: calc(100% + 10px)", "width: min(380px, calc(100vw - 32px))",
-            "padding: 14px", "display: flex", "flex-direction: column", "gap: 12px",
-            "z-index: 10", "max-height: calc(100vh - 90px)", "overflow-y: auto",
-            "background: var(--surface-raised)", "backdrop-filter: none",
-          ],
+        style=[
+          "position: absolute", "right: 0", "top: calc(100% + 10px)", "width: min(380px, calc(100vw - 32px))",
+          "padding: 14px", "display: flex", "flex-direction: column", "gap: 12px",
+          "z-index: 100", "max-height: calc(100vh - 90px)", "overflow-y: auto", "background: var(--surface-raised)",
+          "background-color: var(--surface-raised)", "background-image: none", "border: 1px solid var(--border-soft)",
+          "border-radius: 18px", "box-shadow: 0 28px 80px rgba(15, 23, 42, 0.18)",
+          "backdrop-filter: none", "isolation: isolate",
+        ],
       ) <| [
         @html.div(
           style=[
