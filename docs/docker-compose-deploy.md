@@ -39,6 +39,28 @@ docker pull docker.io/moonbitcloud/codex:codex-0.125.0-node24
 
 If you are publishing your own Codex runtime image, push it first and set `MOONCRAFT_CODEX_DOCKER_IMAGE` when starting Compose.
 
+## Environment Files
+
+Do not repeatedly export deployment variables in the shell. Keep environment-specific values in local env files and pass them to Docker Compose with `--env-file`.
+
+Copy the examples once on the server:
+
+```bash
+cp .env.test.example .env.test
+cp .env.prod.example .env.prod
+```
+
+Then edit `.env.test` and `.env.prod` with real domains, ports, passwords, admin tokens, and optional GitHub OAuth credentials.
+
+Real env files are ignored by Git:
+
+```text
+.env
+.env.*
+```
+
+Only the example files are committed.
+
 ## Test Deployment
 
 The test environment uses [docker-compose.test.yml](../docker-compose.test.yml).
@@ -46,20 +68,14 @@ The test environment uses [docker-compose.test.yml](../docker-compose.test.yml).
 Default host port: `18080`
 
 ```bash
-export MOONCRAFT_IMAGE=mooncraft:local
-export MOONCRAFT_PUBLIC_BASE_URL=https://test.your-domain.com
-export MOONCRAFT_TEST_HTTP_PORT=18080
-export MOONCRAFT_ADMIN_TOKEN='replace-with-test-admin-token'
-
-docker compose -f docker-compose.test.yml up -d
+docker compose --env-file .env.test -f docker-compose.test.yml up -d
 curl -fsS http://127.0.0.1:18080/api/health
 ```
 
-If GitHub login should work in test:
+If `.env.test` binds to a different port, use that port in the health check. For example, the committed example uses `127.0.0.1:18089`:
 
 ```bash
-export MOONCRAFT_GITHUB_CLIENT_ID='github-client-id'
-export MOONCRAFT_GITHUB_CLIENT_SECRET='github-client-secret'
+curl -fsS http://127.0.0.1:18089/api/health
 ```
 
 ## Production Deployment
@@ -69,21 +85,14 @@ The production environment uses [docker-compose.prod.yml](../docker-compose.prod
 Default host port: `8080`
 
 ```bash
-export MOONCRAFT_IMAGE=mooncraft:local
-export MOONCRAFT_PUBLIC_BASE_URL=https://your-domain.com
-export MOONCRAFT_PROD_HTTP_PORT=8080
-export MOONCRAFT_POSTGRES_PASSWORD='replace-with-prod-password'
-export MOONCRAFT_ADMIN_TOKEN='replace-with-prod-admin-token'
-
-docker compose -f docker-compose.prod.yml up -d
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
 curl -fsS http://127.0.0.1:8080/api/health
 ```
 
-If GitHub login should work in production:
+If `.env.prod` binds to a different port, use that port in the health check. For example, the committed example uses `127.0.0.1:8089`:
 
 ```bash
-export MOONCRAFT_GITHUB_CLIENT_ID='github-client-id'
-export MOONCRAFT_GITHUB_CLIENT_SECRET='github-client-secret'
+curl -fsS http://127.0.0.1:8089/api/health
 ```
 
 ## User LLM Keys
@@ -98,13 +107,13 @@ Put Caddy, Nginx, or an AWS load balancer in front of the host ports.
 
 Typical routing:
 
-- `https://test.your-domain.com` -> `127.0.0.1:18080`
-- `https://your-domain.com` -> `127.0.0.1:8080`
+- `https://test.craft.moonbitlang.com` -> `127.0.0.1:18089`
+- `https://craft.moonbitlang.com` -> `127.0.0.1:8089`
 
 The public base URL must match the external URL:
 
-```bash
-export MOONCRAFT_PUBLIC_BASE_URL=https://your-domain.com
+```dotenv
+MOONCRAFT_PUBLIC_BASE_URL=https://your-domain.com
 ```
 
 This matters for OAuth callback URLs, account action links, cookies, and preview URLs.
@@ -119,13 +128,7 @@ Upgrade test:
 git pull
 just build-mooncraft-image mooncraft:local linux/amd64
 
-export MOONCRAFT_IMAGE=mooncraft:local
-export MOONCRAFT_PUBLIC_BASE_URL=https://test.your-domain.com
-export MOONCRAFT_TEST_HTTP_PORT=127.0.0.1:18080
-export MOONCRAFT_POSTGRES_PASSWORD='your-existing-test-password'
-export MOONCRAFT_ADMIN_TOKEN='your-test-admin-token'
-
-docker compose -f docker-compose.test.yml up -d --force-recreate
+docker compose --env-file .env.test -f docker-compose.test.yml up -d --force-recreate
 curl -fsS http://127.0.0.1:18080/api/health
 ```
 
@@ -135,13 +138,7 @@ Upgrade production:
 git pull
 just build-mooncraft-image mooncraft:local linux/amd64
 
-export MOONCRAFT_IMAGE=mooncraft:local
-export MOONCRAFT_PUBLIC_BASE_URL=https://your-domain.com
-export MOONCRAFT_PROD_HTTP_PORT=127.0.0.1:8080
-export MOONCRAFT_POSTGRES_PASSWORD='your-existing-prod-password'
-export MOONCRAFT_ADMIN_TOKEN='your-prod-admin-token'
-
-docker compose -f docker-compose.prod.yml up -d --force-recreate
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate
 curl -fsS http://127.0.0.1:8080/api/health
 ```
 
@@ -149,7 +146,7 @@ If the Codex runtime image changes:
 
 ```bash
 docker pull docker.io/moonbitcloud/codex:codex-0.125.0-node24
-docker compose -f docker-compose.prod.yml up -d --force-recreate
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate
 ```
 
 Plain `docker compose down` preserves named volumes but creates extra downtime. Use it only when intentionally stopping a stack. Never use `docker compose down -v` unless you intentionally want to delete the PostgreSQL and Mooncraft runtime volumes.
@@ -159,6 +156,17 @@ Plain `docker compose down` preserves named volumes but creates extra downtime. 
 User-facing test and production errors are intentionally sanitized. Operators can fetch structured diagnostics for a run through the admin endpoint when `MOONCRAFT_ADMIN_TOKEN` is configured:
 
 ```bash
+curl -fsS \
+  -H "Authorization: Bearer $MOONCRAFT_ADMIN_TOKEN" \
+  https://your-domain.com/api/admin/runs/<run-id>/logs
+```
+
+If the admin token is only stored in `.env.prod`, load it for one command without exporting it globally:
+
+```bash
+set -a
+. ./.env.prod
+set +a
 curl -fsS \
   -H "Authorization: Bearer $MOONCRAFT_ADMIN_TOKEN" \
   https://your-domain.com/api/admin/runs/<run-id>/logs
