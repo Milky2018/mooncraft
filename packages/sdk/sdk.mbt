@@ -133,6 +133,40 @@ pub(all) struct ListRunEventsResponse {
 } derive(Debug, ToJson, FromJson)
 
 ///|
+pub(all) struct AdminRunLogFile {
+  label : String
+  path : String?
+  exists : Bool
+  truncated : Bool
+  content : String?
+  error : String?
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct AdminRunLogsResponse {
+  run : RunStatusResponse
+  events : Array[RunEvent]
+  logs : Array[AdminRunLogFile]
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct AdminListRunsResponse {
+  items : Array[RunStatusResponse]
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct AdminProjectDiagnosticsResponse {
+  project : ProjectDetail
+  messages : Array[ChatMessage]
+  runs : Array[RunStatusResponse]
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct AdminListProjectsResponse {
+  items : Array[ProjectDetail]
+} derive(Debug, ToJson, FromJson)
+
+///|
 pub(all) struct CreateRunRequest {
   content : String
 } derive(Debug, ToJson, FromJson)

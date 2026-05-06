@@ -7,6 +7,30 @@ import {
 }
 
 // Values
+pub fn admin_project_path(String) -> String
+
+pub fn admin_project_route() -> RouteSpec
+
+pub fn admin_recent_projects_path(Int) -> String
+
+pub fn admin_recent_projects_route() -> RouteSpec
+
+pub fn admin_recent_runs_path(Int) -> String
+
+pub fn admin_recent_runs_route() -> RouteSpec
+
+pub fn admin_run_events_path(String, Int) -> String
+
+pub fn admin_run_events_route() -> RouteSpec
+
+pub fn admin_run_logs_path(String) -> String
+
+pub fn admin_run_logs_route() -> RouteSpec
+
+pub fn admin_run_path(String) -> String
+
+pub fn admin_run_route() -> RouteSpec
+
 pub fn ai_model_options_path(String) -> String
 
 pub fn ai_model_options_route() -> RouteSpec
@@ -92,6 +116,35 @@ pub fn verify_email_route() -> RouteSpec
 // Errors
 
 // Types and methods
+pub(all) struct AdminListProjectsResponse {
+  items : Array[ProjectDetail]
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct AdminListRunsResponse {
+  items : Array[RunStatusResponse]
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct AdminProjectDiagnosticsResponse {
+  project : ProjectDetail
+  messages : Array[ChatMessage]
+  runs : Array[RunStatusResponse]
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct AdminRunLogFile {
+  label : String
+  path : String?
+  exists : Bool
+  truncated : Bool
+  content : String?
+  error : String?
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct AdminRunLogsResponse {
+  run : RunStatusResponse
+  events : Array[RunEvent]
+  logs : Array[AdminRunLogFile]
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
 pub(all) struct AiSettingsResponse {
   provider : String
   model : String

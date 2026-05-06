@@ -77,6 +77,70 @@ fn unauthorized_response() -> @mocket.HttpResponse {
 }
 
 ///|
+fn admin_token() -> String? {
+  match @env.get_env_var("MOONCRAFT_ADMIN_TOKEN") {
+    Some(value) if value.trim() != "" => Some(value.trim().to_owned())
+    _ => None
+  }
+}
+
+///|
+fn request_header(event : @mocket.MocketEvent, name : String) -> String? {
+  match event.req.headers.get(name) {
+    Some(value) => Some(value.to_owned())
+    None =>
+      event.req.headers.get(name.to_lower()).map(fn(value) { value.to_owned() })
+  }
+}
+
+///|
+fn bearer_token(value : String) -> String? {
+  match value.strip_prefix("Bearer ") {
+    Some(token) if token.trim() != "" => Some(token.trim().to_owned())
+    _ => None
+  }
+}
+
+///|
+fn request_admin_token(event : @mocket.MocketEvent) -> String? {
+  match request_header(event, "Authorization").bind(bearer_token) {
+    Some(token) => Some(token)
+    None =>
+      request_header(event, "X-Mooncraft-Admin-Token").map(fn(value) {
+        value.trim().to_owned()
+      })
+  }
+}
+
+///|
+fn require_admin_token(
+  event : @mocket.MocketEvent,
+) -> Result[Unit, @mocket.HttpResponse] {
+  let expected = match admin_token() {
+    Some(value) => value
+    None =>
+      return Err(
+        api_error_response(
+          ServiceUnavailable,
+          @sdk.ServiceUnavailable,
+          "Admin diagnostics are not configured.",
+        ),
+      )
+  }
+  match request_admin_token(event) {
+    Some(value) if value == expected => Ok(())
+    _ =>
+      Err(
+        api_error_response(
+          Unauthorized,
+          @sdk.Unauthorized,
+          "A valid admin token is required.",
+        ),
+      )
+  }
+}
+
+///|
 fn public_run_error_message(run : @sdk.RunStatusResponse) -> String? {
   if !(run.state is @sdk.Failed) {
     run.error_message
@@ -98,6 +162,103 @@ fn public_run_status(run : @sdk.RunStatusResponse) -> @sdk.RunStatusResponse {
       error_message: public_run_error_message(run),
       failure_debug: None,
     }
+  }
+}
+
+///|
+let admin_log_content_limit = 200_000
+
+///|
+fn limit_admin_log_content(content : String) -> (String, Bool) {
+  if content.length() <= admin_log_content_limit {
+    (content, false)
+  } else {
+    (
+      content.unsafe_substring(
+        start=content.length() - admin_log_content_limit,
+        end=content.length(),
+      ),
+      true,
+    )
+  }
+}
+
+///|
+fn read_admin_log_file(label : String, path : String?) -> @sdk.AdminRunLogFile {
+  match path {
+    None =>
+      @sdk.AdminRunLogFile::{
+        label,
+        path: None,
+        exists: false,
+        truncated: false,
+        content: None,
+        error: Some("No log path was recorded for this run."),
+      }
+    Some(path) =>
+      if !@fs.path_exists(path) {
+        @sdk.AdminRunLogFile::{
+          label,
+          path: Some(path),
+          exists: false,
+          truncated: false,
+          content: None,
+          error: Some("The log file does not exist on this node."),
+        }
+      } else {
+        let content = @fs.read_file_to_string(path) catch {
+          _ =>
+            return @sdk.AdminRunLogFile::{
+              label,
+              path: Some(path),
+              exists: true,
+              truncated: false,
+              content: None,
+              error: Some("The log file could not be read."),
+            }
+        }
+        let (content, truncated) = limit_admin_log_content(content)
+        @sdk.AdminRunLogFile::{
+          label,
+          path: Some(path),
+          exists: true,
+          truncated,
+          content: Some(content),
+          error: None,
+        }
+      }
+  }
+}
+
+///|
+async fn admin_run_logs_response(
+  ctx : AppContext,
+  run : @sdk.RunStatusResponse,
+) -> @sdk.AdminRunLogsResponse noraise {
+  let debug = run.failure_debug
+  let logs : Array[@sdk.AdminRunLogFile] = []
+  logs.push(
+    read_admin_log_file(
+      "builder",
+      debug.bind(fn(debug) { debug.codex_log_path }),
+    ),
+  )
+  logs.push(
+    read_admin_log_file(
+      "validation",
+      debug.bind(fn(debug) { debug.validation_log_path }),
+    ),
+  )
+  logs.push(
+    read_admin_log_file(
+      "final_summary",
+      debug.bind(fn(debug) { debug.final_summary_path }),
+    ),
+  )
+  @sdk.AdminRunLogsResponse::{
+    run,
+    events: ctx.store.list_run_events(run.project_id, run.run_id, 0),
+    logs,
   }
 }
 
@@ -149,6 +310,33 @@ fn path_param(
           "Missing route parameter: \{name}.",
         ),
       )
+  }
+}
+
+///|
+fn admin_limit_param(event : @mocket.MocketEvent) -> Int {
+  let raw = match path_param(event, "limit") {
+    Ok(value) => @string.parse_int(value) catch { _ => 50 }
+    Err(_) => 50
+  }
+  if raw < 1 {
+    1
+  } else if raw > 200 {
+    200
+  } else {
+    raw
+  }
+}
+
+///|
+async fn admin_project_diagnostics_response(
+  ctx : AppContext,
+  project : @sdk.ProjectDetail,
+) -> @sdk.AdminProjectDiagnosticsResponse noraise {
+  @sdk.AdminProjectDiagnosticsResponse::{
+    project,
+    messages: ctx.store.list_messages(project.id),
+    runs: ctx.store.list_project_runs(project.id, 50),
   }
 }
 
@@ -458,6 +646,88 @@ fn main {
   })
   app.get(@sdk.session_path(), async fn(event) noraise {
     json_ok(session_status_response(ctx, event))
+  })
+  app.get(@sdk.admin_run_logs_route().path_pattern, async fn(event) noraise {
+    match require_admin_token(event) {
+      Ok(_) => ignore(())
+      Err(response) => return response
+    }
+    let run_id = match path_param(event, "run_id") {
+      Ok(value) => value
+      Err(response) => return response
+    }
+    match ctx.store.get_run_by_id(run_id) {
+      Some(run) => json_ok(admin_run_logs_response(ctx, run))
+      None => api_error_response(NotFound, @sdk.NotFound, "Run not found.")
+    }
+  })
+  app.get(@sdk.admin_recent_runs_route().path_pattern, event => {
+    match require_admin_token(event) {
+      Ok(_) => ignore(())
+      Err(response) => return response
+    }
+    json_ok(@sdk.AdminListRunsResponse::{
+      items: ctx.store.list_recent_runs(admin_limit_param(event)),
+    })
+  })
+  app.get(@sdk.admin_run_route().path_pattern, event => {
+    match require_admin_token(event) {
+      Ok(_) => ignore(())
+      Err(response) => return response
+    }
+    let run_id = match path_param(event, "run_id") {
+      Ok(value) => value
+      Err(response) => return response
+    }
+    match ctx.store.get_run_by_id(run_id) {
+      Some(run) => json_ok(run)
+      None => api_error_response(NotFound, @sdk.NotFound, "Run not found.")
+    }
+  })
+  app.get(@sdk.admin_run_events_route().path_pattern, event => {
+    match require_admin_token(event) {
+      Ok(_) => ignore(())
+      Err(response) => return response
+    }
+    let run_id = match path_param(event, "run_id") {
+      Ok(value) => value
+      Err(response) => return response
+    }
+    let run = match ctx.store.get_run_by_id(run_id) {
+      Some(run) => run
+      None =>
+        return api_error_response(NotFound, @sdk.NotFound, "Run not found.")
+    }
+    let after_seq = match path_param(event, "after_seq") {
+      Ok(value) => @string.parse_int(value) catch { _ => 0 }
+      Err(_) => 0
+    }
+    json_ok(@sdk.ListRunEventsResponse::{
+      items: ctx.store.list_run_events(run.project_id, run.run_id, after_seq),
+    })
+  })
+  app.get(@sdk.admin_recent_projects_route().path_pattern, event => {
+    match require_admin_token(event) {
+      Ok(_) => ignore(())
+      Err(response) => return response
+    }
+    json_ok(@sdk.AdminListProjectsResponse::{
+      items: ctx.store.list_recent_projects(admin_limit_param(event)),
+    })
+  })
+  app.get(@sdk.admin_project_route().path_pattern, async fn(event) noraise {
+    match require_admin_token(event) {
+      Ok(_) => ignore(())
+      Err(response) => return response
+    }
+    let project_id = match path_param(event, "project_id") {
+      Ok(value) => value
+      Err(response) => return response
+    }
+    match ctx.store.get_project_detail(project_id) {
+      Some(project) => json_ok(admin_project_diagnostics_response(ctx, project))
+      None => api_error_response(NotFound, @sdk.NotFound, "Project not found.")
+    }
   })
   app.post(@sdk.signup_path(), async fn(event) noraise {
     let request : @sdk.SignupRequest = match decode_json_body(event) {

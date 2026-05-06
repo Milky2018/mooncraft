@@ -207,6 +207,66 @@ pub fn run_events_path(
 }
 
 ///|
+pub fn admin_run_logs_route() -> RouteSpec {
+  route(GET, "/api/admin/runs/:run_id/logs", Ok)
+}
+
+///|
+pub fn admin_run_logs_path(run_id : String) -> String {
+  "/api/admin/runs/\{run_id}/logs"
+}
+
+///|
+pub fn admin_recent_runs_route() -> RouteSpec {
+  route(GET, "/api/admin/runs/recent/:limit", Ok)
+}
+
+///|
+pub fn admin_recent_runs_path(limit : Int) -> String {
+  "/api/admin/runs/recent/\{limit}"
+}
+
+///|
+pub fn admin_run_route() -> RouteSpec {
+  route(GET, "/api/admin/runs/:run_id", Ok)
+}
+
+///|
+pub fn admin_run_path(run_id : String) -> String {
+  "/api/admin/runs/\{run_id}"
+}
+
+///|
+pub fn admin_run_events_route() -> RouteSpec {
+  route(GET, "/api/admin/runs/:run_id/events/:after_seq", Ok)
+}
+
+///|
+pub fn admin_run_events_path(run_id : String, after_seq : Int) -> String {
+  "/api/admin/runs/\{run_id}/events/\{after_seq}"
+}
+
+///|
+pub fn admin_recent_projects_route() -> RouteSpec {
+  route(GET, "/api/admin/projects/recent/:limit", Ok)
+}
+
+///|
+pub fn admin_recent_projects_path(limit : Int) -> String {
+  "/api/admin/projects/recent/\{limit}"
+}
+
+///|
+pub fn admin_project_route() -> RouteSpec {
+  route(GET, "/api/admin/projects/:project_id", Ok)
+}
+
+///|
+pub fn admin_project_path(project_id : String) -> String {
+  "/api/admin/projects/\{project_id}"
+}
+
+///|
 pub fn preview_route_pattern() -> String {
   "/p/:preview_public_id/**"
 }

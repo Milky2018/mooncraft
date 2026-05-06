@@ -49,7 +49,7 @@ Default host port: `18080`
 export MOONCRAFT_IMAGE=mooncraft:local
 export MOONCRAFT_PUBLIC_BASE_URL=https://test.your-domain.com
 export MOONCRAFT_TEST_HTTP_PORT=18080
-
+export MOONCRAFT_ADMIN_TOKEN='replace-with-test-admin-token'
 
 docker compose -f docker-compose.test.yml up -d
 curl -fsS http://127.0.0.1:18080/api/health
@@ -73,6 +73,7 @@ export MOONCRAFT_IMAGE=mooncraft:local
 export MOONCRAFT_PUBLIC_BASE_URL=https://your-domain.com
 export MOONCRAFT_PROD_HTTP_PORT=8080
 export MOONCRAFT_POSTGRES_PASSWORD='replace-with-prod-password'
+export MOONCRAFT_ADMIN_TOKEN='replace-with-prod-admin-token'
 
 docker compose -f docker-compose.prod.yml up -d
 curl -fsS http://127.0.0.1:8080/api/health
@@ -132,6 +133,29 @@ docker compose -f docker-compose.prod.yml up -d
 ```
 
 ## Logs And Operations
+
+User-facing test and production errors are intentionally sanitized. Operators can fetch structured diagnostics for a run through the admin endpoint when `MOONCRAFT_ADMIN_TOKEN` is configured:
+
+```bash
+curl -fsS \
+  -H "Authorization: Bearer $MOONCRAFT_ADMIN_TOKEN" \
+  https://your-domain.com/api/admin/runs/<run-id>/logs
+```
+
+The response contains the full internal run metadata, run events, and saved builder, validation, and final-summary log contents. Large log files are tailed and marked with `"truncated": true`.
+
+Other admin diagnostics endpoints use the same bearer token:
+
+```text
+GET /api/admin/runs/recent/<limit>
+GET /api/admin/runs/<run-id>
+GET /api/admin/runs/<run-id>/events/<after-seq>
+GET /api/admin/runs/<run-id>/logs
+GET /api/admin/projects/recent/<limit>
+GET /api/admin/projects/<project-id>
+```
+
+`<limit>` is clamped to `1..200`. These endpoints are for operators only; do not expose the admin token to browsers or normal users.
 
 Show service status:
 

@@ -80,6 +80,45 @@ test "public run status hides failure diagnostics outside development mode" {
 }
 
 ///|
+test "admin bearer token parser accepts standard authorization header" {
+  debug_inspect(
+    bearer_token("Bearer operator-secret"),
+    content="Some(\"operator-secret\")",
+  )
+  debug_inspect(bearer_token("operator-secret"), content="None")
+}
+
+///|
+test "admin log reader returns structured file content" {
+  let root = @env.current_dir().unwrap_or(".") +
+    "/data/test-admin-logs/" +
+    next_id("admin-log")
+  let log_path = root + "/builder.log"
+  safe_remove_tree(root)
+  ensure_dir(root)
+  safe_write_string(log_path, "builder output")
+  let file = read_admin_log_file("builder", Some(log_path))
+  inspect(file.label, content="builder")
+  inspect(file.exists, content="true")
+  inspect(file.truncated, content="false")
+  debug_inspect(file.content, content="Some(\"builder output\")")
+  debug_inspect(file.error, content="None")
+  safe_remove_tree(root)
+}
+
+///|
+test "admin log reader reports missing paths without failing" {
+  let file = read_admin_log_file("validation", None)
+  inspect(file.label, content="validation")
+  inspect(file.exists, content="false")
+  debug_inspect(file.content, content="None")
+  debug_inspect(
+    file.error,
+    content="Some(\"No log path was recorded for this run.\")",
+  )
+}
+
+///|
 test "fake codex forced failure is disabled unless configured" {
   debug_inspect(fake_codex_forced_failure("Force fake failure"), content="None")
 }
@@ -483,6 +522,41 @@ async test "run events append and list after sequence" {
   let second_page = store.list_run_events(project_id, run.run_id, 1)
   inspect(second_page.length(), content="1")
   inspect(second_page[0].content, content="{\"type\":\"turn.started\"}")
+  cleanup_test_db(db_path)
+}
+
+///|
+async test "admin run and project listings are project agnostic" {
+  let root = @env.current_dir().unwrap_or(".")
+  let (store, db_path) = new_test_store(root, "admin-listings")
+  let project_id = next_id("project")
+  ignore(
+    store.create_project(
+      project_id,
+      "user-1",
+      "preview-" + project_id,
+      Some("Admin Listings"),
+      project_workspace(root, project_id),
+    ),
+  )
+  let run = store.start_run(project_id, "Build a todo app").unwrap()
+  store.finish_run_failure(
+    project_id,
+    run.run_id,
+    "The update failed before the preview could be refreshed.",
+    "raw internal failure",
+    None,
+  )
+
+  let recent_runs = store.list_recent_runs(10)
+  inspect(recent_runs.length(), content="1")
+  inspect(recent_runs[0].run_id, content=run.run_id)
+  let project_runs = store.list_project_runs(project_id, 10)
+  inspect(project_runs.length(), content="1")
+  inspect(project_runs[0].project_id, content=project_id)
+  let recent_projects = store.list_recent_projects(10)
+  inspect(recent_projects.length(), content="1")
+  inspect(recent_projects[0].id, content=project_id)
   cleanup_test_db(db_path)
 }
 

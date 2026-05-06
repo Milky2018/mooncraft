@@ -1490,6 +1490,40 @@ async fn Store::get_project_detail(
 }
 
 ///|
+async fn Store::list_recent_projects(
+  self : Store,
+  limit : Int,
+) -> Array[@sdk.ProjectDetail] noraise {
+  let rows = self.query_rows(
+    (
+      #|SELECT
+      #|  id,
+      #|  preview_public_id,
+      #|  display_name,
+      #|  workspace_path,
+      #|  COALESCE(codex_thread_id, '') AS codex_thread_id,
+      #|  status,
+      #|  COALESCE(preview_url, '') AS preview_url,
+      #|  COALESCE(preview_port, 0) AS preview_port,
+      #|  preview_healthy,
+      #|  COALESCE(last_error, '') AS last_error,
+      #|  COALESCE(current_run_id, '') AS current_run_id,
+      #|  created_at,
+      #|  updated_at
+      #|FROM projects
+      #|ORDER BY updated_at DESC
+      #|LIMIT ?;
+    ),
+    params=[@db.Int(limit)],
+  )
+  let items : Array[@sdk.ProjectDetail] = []
+  for row in rows {
+    items.push(project_detail_from_row(row))
+  }
+  items
+}
+
+///|
 async fn Store::list_messages(
   self : Store,
   project_id : String,
@@ -1553,6 +1587,126 @@ async fn Store::get_run(
     Some(row) => Some(run_status_from_row(row))
     None => None
   }
+}
+
+///|
+async fn Store::get_run_by_id(
+  self : Store,
+  run_id : String,
+) -> @sdk.RunStatusResponse? noraise {
+  self.recover_interrupted_runs()
+  match
+    self.query_one(
+      (
+        #|SELECT
+        #|  r.id,
+        #|  r.project_id,
+        #|  r.state,
+        #|  COALESCE(r.summary, '') AS summary,
+        #|  COALESCE(r.error_message, '') AS error_message,
+        #|  COALESCE(r.failure_stage, '') AS failure_stage,
+        #|  COALESCE(r.failure_command, '') AS failure_command,
+        #|  COALESCE(r.failure_exit_code, -1) AS failure_exit_code,
+        #|  COALESCE(r.codex_log_path, '') AS codex_log_path,
+        #|  COALESCE(r.validation_log_path, '') AS validation_log_path,
+        #|  COALESCE(r.final_summary_path, '') AS final_summary_path,
+        #|  COALESCE(r.preview_url, '') AS preview_url,
+        #|  COALESCE(r.preview_port, 0) AS preview_port,
+        #|  r.preview_healthy,
+        #|  r.started_at,
+        #|  COALESCE(r.finished_at, '') AS finished_at,
+        #|  p.preview_public_id
+        #|FROM runs r
+        #|JOIN projects p ON p.id = r.project_id
+        #|WHERE r.id = ?;
+      ),
+      params=[@db.String(run_id)],
+    ) {
+    Some(row) => Some(run_status_from_row(row))
+    None => None
+  }
+}
+
+///|
+async fn Store::list_recent_runs(
+  self : Store,
+  limit : Int,
+) -> Array[@sdk.RunStatusResponse] noraise {
+  self.recover_interrupted_runs()
+  let rows = self.query_rows(
+    (
+      #|SELECT
+      #|  r.id,
+      #|  r.project_id,
+      #|  r.state,
+      #|  COALESCE(r.summary, '') AS summary,
+      #|  COALESCE(r.error_message, '') AS error_message,
+      #|  COALESCE(r.failure_stage, '') AS failure_stage,
+      #|  COALESCE(r.failure_command, '') AS failure_command,
+      #|  COALESCE(r.failure_exit_code, -1) AS failure_exit_code,
+      #|  COALESCE(r.codex_log_path, '') AS codex_log_path,
+      #|  COALESCE(r.validation_log_path, '') AS validation_log_path,
+      #|  COALESCE(r.final_summary_path, '') AS final_summary_path,
+      #|  COALESCE(r.preview_url, '') AS preview_url,
+      #|  COALESCE(r.preview_port, 0) AS preview_port,
+      #|  r.preview_healthy,
+      #|  r.started_at,
+      #|  COALESCE(r.finished_at, '') AS finished_at,
+      #|  p.preview_public_id
+      #|FROM runs r
+      #|JOIN projects p ON p.id = r.project_id
+      #|ORDER BY r.started_at DESC
+      #|LIMIT ?;
+    ),
+    params=[@db.Int(limit)],
+  )
+  let items : Array[@sdk.RunStatusResponse] = []
+  for row in rows {
+    items.push(run_status_from_row(row))
+  }
+  items
+}
+
+///|
+async fn Store::list_project_runs(
+  self : Store,
+  project_id : String,
+  limit : Int,
+) -> Array[@sdk.RunStatusResponse] noraise {
+  self.recover_interrupted_runs()
+  let rows = self.query_rows(
+    (
+      #|SELECT
+      #|  r.id,
+      #|  r.project_id,
+      #|  r.state,
+      #|  COALESCE(r.summary, '') AS summary,
+      #|  COALESCE(r.error_message, '') AS error_message,
+      #|  COALESCE(r.failure_stage, '') AS failure_stage,
+      #|  COALESCE(r.failure_command, '') AS failure_command,
+      #|  COALESCE(r.failure_exit_code, -1) AS failure_exit_code,
+      #|  COALESCE(r.codex_log_path, '') AS codex_log_path,
+      #|  COALESCE(r.validation_log_path, '') AS validation_log_path,
+      #|  COALESCE(r.final_summary_path, '') AS final_summary_path,
+      #|  COALESCE(r.preview_url, '') AS preview_url,
+      #|  COALESCE(r.preview_port, 0) AS preview_port,
+      #|  r.preview_healthy,
+      #|  r.started_at,
+      #|  COALESCE(r.finished_at, '') AS finished_at,
+      #|  p.preview_public_id
+      #|FROM runs r
+      #|JOIN projects p ON p.id = r.project_id
+      #|WHERE r.project_id = ?
+      #|ORDER BY r.started_at DESC
+      #|LIMIT ?;
+    ),
+    params=[@db.String(project_id), @db.Int(limit)],
+  )
+  let items : Array[@sdk.RunStatusResponse] = []
+  for row in rows {
+    items.push(run_status_from_row(row))
+  }
+  items
 }
 
 ///|
