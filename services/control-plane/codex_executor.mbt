@@ -289,7 +289,7 @@ fn dependency_fetch_failure_assistant_message(
   fallback : String,
 ) -> String {
   if moonbit_registry_fetch_failed(output) {
-    "I couldn't fetch MoonBit packages from Mooncakes, so the preview could not be validated or refreshed. This is usually a temporary network or package-registry issue. Please retry; if it keeps happening, the platform operator should refresh the Codex image cache and check Mooncakes connectivity."
+    "I couldn't fetch MoonBit packages from Mooncakes, so the preview could not be validated or refreshed. This is usually a temporary network or package-registry issue. Please retry; if it keeps happening, the platform operator should refresh the builder image cache and check Mooncakes connectivity."
   } else {
     fallback
   }
@@ -353,7 +353,7 @@ fn fake_codex_forced_failure(prompt : String) -> String? {
     Some(value) if value.trim() != "" => {
       let needle = value.trim().to_owned()
       if fake_codex_user_request(prompt).contains(needle) {
-        Some("Fake Codex forced failure for Playwright coverage.")
+        Some("Local builder forced failure for Playwright coverage.")
       } else {
         None
       }
@@ -423,13 +423,13 @@ fn codex_display_event(line : String) -> (String, String)? {
     return None
   }
   if trimmed.contains("\"type\":\"thread.started\"") {
-    Some(("status", "Started Codex session."))
+    Some(("status", "Started the builder session."))
   } else if trimmed.contains("\"type\":\"turn.started\"") {
     Some(("status", "Planning the change."))
   } else if trimmed.contains("\"type\":\"turn.completed\"") {
-    Some(("status", "Codex finished the update."))
+    Some(("status", "Finished the app update."))
   } else if trimmed.contains("\"type\":\"turn.failed\"") {
-    Some(("status", "Codex reported a failure."))
+    Some(("status", "The app update failed."))
   } else if trimmed.contains("\"type\":\"agent_message\"") {
     match extract_json_string_field(trimmed, "text") {
       Some(text) if text.trim() != "" => Some(("progress", text))
@@ -443,7 +443,7 @@ fn codex_display_event(line : String) -> (String, String)? {
     }
   } else if trimmed.contains("\"type\":\"command_execution\"") {
     if trimmed.contains("\"status\":\"failed\"") {
-      Some(("status", "A workspace command failed; Codex is handling it."))
+      Some(("status", "A workspace check failed; the builder is fixing it."))
     } else {
       match codex_command_progress_message(trimmed) {
         Some(message) => Some(("status", message))
@@ -667,7 +667,7 @@ fn collect_fake_codex_output(
   command : Array[String],
 ) -> Result[(Int, String, String?), String] {
   if command.length() < 2 {
-    return Err("The fake Codex command was malformed.")
+    return Err("The local builder command was malformed.")
   }
   let is_resume = codex_command_is_resume(command)
   let prompt = command[command.length() - 1]
@@ -837,7 +837,7 @@ async fn collect_docker_output(
   catch {
     err => {
       remove_docker_env_file(env_file_path)
-      return Err("The Docker-backed Codex command could not be started: \{err}")
+      return Err("The AI builder command could not be started: \{err}")
     }
   } noraise {
     value => value
@@ -867,16 +867,14 @@ async fn stream_docker_output(
   let pipe = @process.read_from_process() catch {
     err => {
       remove_docker_env_file(env_file_path)
-      return Err(
-        "The Docker-backed Codex output pipe could not be opened: \{err}",
-      )
+      return Err("The AI builder output pipe could not be opened: \{err}")
     }
   }
   let (reader, writer) = pipe
   let chunks : Array[String] = []
   let exit_code_ref : Ref[Int] = @ref.new(-1)
   store.append_run_event(
-    project_id, run_id, "status", "Starting Codex session.",
+    project_id, run_id, "status", "Starting the builder session.",
   )
   let group_result = try
     @async.with_task_group(async fn(group) {
@@ -910,9 +908,7 @@ async fn stream_docker_output(
   catch {
     err => {
       remove_docker_env_file(env_file_path)
-      return Err(
-        "The Docker-backed Codex command failed while streaming output: \{err}",
-      )
+      return Err("The AI builder command failed while streaming output: \{err}")
     }
   } noraise {
     value => value
@@ -943,7 +939,7 @@ async fn collect_codex_command_output(
       project.id,
       run_id,
       "status",
-      "Running fake Codex executor.",
+      "Running local builder.",
     )
     for raw_line in result.1.replace_all(old="\r\n", new="\n").split("\n") {
       let line = raw_line.to_owned()
@@ -973,7 +969,7 @@ async fn collect_codex_command_output(
         }
         Ok((result.0, result.1, None))
       }
-      None => Err("The Docker-backed Codex command is not configured.")
+      None => Err("The AI builder runtime is not configured.")
     }
   }
 }
@@ -1076,12 +1072,12 @@ async fn run_codex_turn(
     Err(message) =>
       return Err(
         codex_failure_with_debug(
-          "I couldn't start the Codex worker for that update.",
+          "I couldn't start the AI builder for that update.",
           message,
           thread_id_before,
           Some(
             failure_debug(
-              "Codex command startup",
+              "AI builder startup",
               Some(command),
               None,
               Some(artifacts),
@@ -1117,7 +1113,7 @@ async fn run_codex_turn(
               default_failure_assistant_message(),
             ),
             stage_failure_message(
-              "Codex session startup",
+              "AI builder session startup",
               exit_code,
               artifacts.codex_log_path,
               output,
@@ -1125,7 +1121,7 @@ async fn run_codex_turn(
             None,
             Some(
               failure_debug(
-                "Codex session startup",
+                "AI builder session startup",
                 Some(active_command),
                 Some(exit_code),
                 Some(artifacts),
@@ -1150,12 +1146,12 @@ async fn run_codex_turn(
       Err(message) =>
         return Err(
           codex_failure_with_debug(
-            "I couldn't recover the missing Codex session for that update.",
+            "I couldn't recover the builder session for that update.",
             message,
             thread_id_before,
             Some(
               failure_debug(
-                "Codex session recovery startup",
+                "AI builder session recovery startup",
                 Some(recovery_command),
                 None,
                 Some(artifacts),
@@ -1183,7 +1179,7 @@ async fn run_codex_turn(
               default_failure_assistant_message(),
             ),
             stage_failure_message(
-              "Codex session recovery",
+              "AI builder session recovery",
               recovery_exit_code,
               artifacts.codex_log_path,
               recovery_output,
@@ -1191,7 +1187,7 @@ async fn run_codex_turn(
             None,
             Some(
               failure_debug(
-                "Codex session recovery",
+                "AI builder session recovery",
                 Some(active_command),
                 Some(recovery_exit_code),
                 Some(artifacts),
@@ -1211,11 +1207,11 @@ async fn run_codex_turn(
       return Err(
         codex_failure_with_debug(
           default_failure_assistant_message(),
-          "The Codex thread id could not be determined for this run.",
+          "The builder session could not be restored for this run.",
           None,
           Some(
             failure_debug(
-              "Codex session startup",
+              "AI builder session startup",
               Some(active_command),
               Some(exit_code),
               Some(artifacts),
@@ -1259,7 +1255,7 @@ async fn run_codex_turn(
           default_failure_assistant_message(),
         ),
         stage_failure_message(
-          "Codex execution",
+          "AI builder execution",
           exit_code,
           artifacts.codex_log_path,
           output,
@@ -1267,7 +1263,7 @@ async fn run_codex_turn(
         Some(thread_id),
         Some(
           failure_debug(
-            "Codex execution",
+            "AI builder execution",
             Some(active_command),
             Some(exit_code),
             Some(artifacts),
@@ -1330,7 +1326,7 @@ async fn run_validation_command(
         return Err(
           codex_failure_with_debug(
             "I updated the workspace, but validation could not be started.",
-            "The Docker-backed validator is not configured.",
+            "The app validator is not configured.",
             Some(thread_id),
             Some(failure_debug(label, Some(command), None, Some(artifacts))),
           ),
@@ -1431,7 +1427,7 @@ async fn run_docker_validation_sequence(
       return Err(
         codex_failure_with_debug(
           "I updated the workspace, but validation could not be started.",
-          "The Docker-backed validator is not configured.",
+          "The app validator is not configured.",
           Some(thread_id),
           Some(
             failure_debug(
@@ -1567,7 +1563,7 @@ async fn AgentGateway::run_turn(
       Err(message) =>
         return Err(
           codex_failure(
-            "Configure your AI provider and API key in Account before running Codex.",
+            "Configure your AI provider and API key in Account before building apps.",
             message,
             project.codex_thread_id,
           ),
@@ -1578,7 +1574,7 @@ async fn AgentGateway::run_turn(
       Err(message) =>
         return Err(
           codex_failure(
-            "I couldn't start the Codex worker for that update.",
+            "I couldn't start the AI builder for that update.",
             message,
             project.codex_thread_id,
           ),
@@ -1763,7 +1759,7 @@ async fn AppContext::run_project_turn(
             project_id,
             run_id,
             default_failure_assistant_message(),
-            "The updated project workspace could not be loaded after Codex finished.",
+            "The updated project workspace could not be loaded after the builder finished.",
             result.thread_id,
           )
           return

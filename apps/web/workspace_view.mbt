@@ -70,9 +70,10 @@ fn friendly_run_event_text(text : String) -> String {
     "Refreshing the MoonBit package index."
   } else if text.contains("Updated project files") {
     "Updated the app files."
-  } else if text.contains("Started Codex session") || text.contains("Planning") {
+  } else if text.contains("Started the builder session") ||
+    text.contains("Planning") {
     "Planning the next version."
-  } else if text.contains("Running fake Codex executor") {
+  } else if text.contains("Running local builder") {
     "Drafting the app locally."
   } else {
     text
@@ -210,7 +211,7 @@ fn render_run_failure_debug(run : @sdk.RunStatusResponse) -> @rabbita.Html {
         debug_value_row("Stage", ui_empty_to_none(debug.stage)),
         debug_value_row("Exit Code", optional_int_text(debug.exit_code)),
         debug_value_row("Command", debug.command),
-        debug_value_row("Codex Log", debug.codex_log_path),
+        debug_value_row("Builder Log", debug.codex_log_path),
         debug_value_row("Validation Log", debug.validation_log_path),
         debug_value_row("Final Summary", debug.final_summary_path),
       ]

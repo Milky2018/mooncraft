@@ -43,12 +43,17 @@ let model_options_cache_ttl_millis : UInt64 = 60UL * 60UL * 1000UL
 
 ///|
 fn openai_recommended_model_ids() -> Array[String] {
-  ["gpt-5.5", "gpt-5.3-codex", "gpt-5.2"]
+  ["gpt-5.5", "gpt-5.2", "gpt-4.1"]
 }
 
 ///|
 fn openrouter_recommended_model_ids() -> Array[String] {
-  ["openai/gpt-5.5", "openai/gpt-5.3-codex", "anthropic/claude-sonnet-4.5"]
+  ["openai/gpt-5.5", "anthropic/claude-sonnet-4.5", "google/gemini-2.5-pro"]
+}
+
+///|
+fn model_id_is_internal_backend(id : String) -> Bool {
+  id.to_lower().contains("codex")
 }
 
 ///|
@@ -66,11 +71,16 @@ fn model_id_is_non_text(id : String) -> Bool {
 
 ///|
 fn model_id_is_openai_agent_candidate(id : String) -> Bool {
-  !model_id_is_non_text(id) && (id.has_prefix("gpt-") || id.has_prefix("o"))
+  !model_id_is_internal_backend(id) &&
+  !model_id_is_non_text(id) &&
+  (id.has_prefix("gpt-") || id.has_prefix("o"))
 }
 
 ///|
 fn openrouter_model_is_text_candidate(model : OpenRouterModel) -> Bool {
+  if model_id_is_internal_backend(model.id) {
+    return false
+  }
   if model_id_is_non_text(model.id) {
     return false
   }

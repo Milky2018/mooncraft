@@ -320,7 +320,7 @@ test "codex display events hide protocol noise" {
     codex_display_event(
       "{\"type\":\"thread.started\",\"thread_id\":\"local-thread\"}",
     ),
-    content="Some((\"status\", \"Started Codex session.\"))",
+    content="Some((\"status\", \"Started the builder session.\"))",
   )
   debug_inspect(
     codex_display_event("{\"type\":\"turn.started\"}"),

@@ -141,7 +141,7 @@ async fn Store::update_ai_settings(
     api_key_input.trim().to_owned()
   }
   if api_key == "" {
-    return Err("API key is required before running real Codex jobs.")
+    return Err("API key is required before building apps with AI.")
   }
   match
     self.exec_or_error(
@@ -197,7 +197,7 @@ async fn Store::get_ai_runtime_settings_for_project(
       let api_key = row_text(row, "ai_api_key").trim().to_owned()
       if api_key == "" {
         return Err(
-          "Configure your AI provider and API key in Account before running Codex.",
+          "Configure your AI provider and API key in Account before building apps.",
         )
       }
       Ok({
