@@ -52,6 +52,25 @@ test "success summary copy is shared across run completion paths" {
 }
 
 ///|
+test "preview startup failures use user-safe copy" {
+  inspect(
+    preview_error_is_missing_startup_script(
+      preview_startup_script_missing_message(),
+    ),
+    content="true",
+  )
+  assert_true(preview_setup_repair_prompt().contains("mooncraft-preview.sh"))
+  assert_false(
+    preview_refresh_failed_assistant_message().contains("mooncraft-preview.sh"),
+  )
+  assert_false(
+    preview_setup_repair_failed_assistant_message().contains(
+      "mooncraft-preview.sh",
+    ),
+  )
+}
+
+///|
 test "public run status hides failure diagnostics outside development mode" {
   let run : @sdk.RunStatusResponse = {
     run_id: "run-1",

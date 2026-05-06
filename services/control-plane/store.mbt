@@ -396,6 +396,16 @@ fn project_workspace(root : String, project_id : String) -> String {
 }
 
 ///|
+fn preview_startup_script_missing_message() -> String {
+  "The app did not provide `mooncraft-preview.sh`, so Mooncraft does not know how to start the live preview."
+}
+
+///|
+fn preview_error_is_missing_startup_script(message : String) -> Bool {
+  message == preview_startup_script_missing_message()
+}
+
+///|
 fn project_codex_session_root(root : String, project_id : String) -> String {
   root + "/data/codex-sessions/" + project_id
 }
@@ -2511,9 +2521,7 @@ fn PreviewManager::rebuild_and_restart(
   }
   let script_path = preview_script_path(workspace_path)
   if !@fs.path_exists(script_path) {
-    return Err(
-      "The app did not provide `mooncraft-preview.sh`, so Mooncraft does not know how to start the live preview.",
-    )
+    return Err(preview_startup_script_missing_message())
   }
   let preferred_port = project.preview.map(fn(target) { target.port })
   let port = self.allocate_port(

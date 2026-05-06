@@ -304,6 +304,20 @@ fn recovery_prompt(
 }
 
 ///|
+fn preview_setup_repair_prompt() -> String {
+  (
+    #|The app builds, but Mooncraft cannot start the live preview because the preview startup configuration is missing.
+    #|
+    #|Repair only the preview startup path:
+    #|- Add or fix `mooncraft-preview.sh` at the workspace root.
+    #|- The script must accept `<port> <build-profile>`, start the generated app server, serve the user-facing app at `/`, and return success from `/api/health`.
+    #|- Do not change the app's user-facing behavior unless it is required to make the existing app previewable.
+    #|- Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working.
+    #|- Finish with a brief summary that says the preview startup was repaired.
+  )
+}
+
+///|
 fn default_success_summary() -> String {
   successful_preview_assistant_message()
 }
@@ -311,6 +325,16 @@ fn default_success_summary() -> String {
 ///|
 fn successful_preview_assistant_message() -> String {
   "The app is updated and the preview is ready."
+}
+
+///|
+fn preview_refresh_failed_assistant_message() -> String {
+  "The app was updated, but the live preview could not be refreshed. Send another message to retry the preview."
+}
+
+///|
+fn preview_setup_repair_failed_assistant_message() -> String {
+  "The app was generated, but the live preview could not be started. Mooncraft tried to repair the preview setup but could not finish it. Send another message to retry the preview."
 }
 
 ///|
@@ -1813,6 +1837,11 @@ async fn AppContext::run_project_turn(
           return
         }
       }
+      match result.thread_id {
+        Some(thread_id) =>
+          self.store.set_project_thread_id(project_id, thread_id)
+        None => ignore(())
+      }
       let preview_result = self.previews.rebuild_and_restart(updated_project)
       match preview_result {
         Ok(preview) =>
@@ -1824,13 +1853,137 @@ async fn AppContext::run_project_turn(
             preview,
           )
         Err(message) =>
-          self.store.finish_run_failure(
-            project_id,
-            run_id,
-            result.summary + "\n\nPreview status: " + message,
-            message,
-            result.thread_id,
-          )
+          if preview_error_is_missing_startup_script(message) {
+            self.store.append_run_event(
+              project_id, run_id, "status", "Preparing the live preview.",
+            )
+            let repair_project = match
+              self.store.get_project_detail(project_id) {
+              Some(project) => project
+              None => {
+                self.store.finish_run_failure(
+                  project_id,
+                  run_id,
+                  preview_setup_repair_failed_assistant_message(),
+                  "The updated project workspace could not be loaded before preview repair.",
+                  result.thread_id,
+                )
+                return
+              }
+            }
+            let repair_result = self.agent_gateway.run_turn(
+              self.store,
+              repair_project,
+              initial_project_prompt,
+              workspace_path,
+              run_id,
+              preview_setup_repair_prompt(),
+            )
+            match repair_result {
+              Ok(repair) => {
+                let repair_restore_result = restore_workspace_snapshot(
+                  self.store,
+                  self.root,
+                  project_id,
+                  workspace_path,
+                )
+                match repair_restore_result {
+                  Ok(_) => ignore(())
+                  Err(restore_message) => {
+                    self.store.finish_run_failure(
+                      project_id,
+                      run_id,
+                      preview_setup_repair_failed_assistant_message(),
+                      restore_message,
+                      repair.thread_id,
+                    )
+                    return
+                  }
+                }
+                match repair.thread_id {
+                  Some(thread_id) =>
+                    self.store.set_project_thread_id(project_id, thread_id)
+                  None => ignore(())
+                }
+                let repaired_project = match
+                  self.store.get_project_detail(project_id) {
+                  Some(project) => project
+                  None => {
+                    self.store.finish_run_failure(
+                      project_id,
+                      run_id,
+                      preview_setup_repair_failed_assistant_message(),
+                      "The repaired project workspace could not be loaded.",
+                      repair.thread_id,
+                    )
+                    return
+                  }
+                }
+                match self.previews.rebuild_and_restart(repaired_project) {
+                  Ok(preview) =>
+                    self.store.finish_run_success(
+                      project_id,
+                      run_id,
+                      successful_preview_assistant_message(),
+                      repair.thread_id,
+                      preview,
+                    )
+                  Err(repair_preview_message) =>
+                    self.store.finish_run_failure(
+                      project_id,
+                      run_id,
+                      preview_setup_repair_failed_assistant_message(),
+                      message +
+                      "\n\nPreview repair did not produce a usable preview: " +
+                      repair_preview_message,
+                      repair.thread_id,
+                    )
+                }
+              }
+              Err(failure) => {
+                let repair_restore_result = restore_workspace_snapshot(
+                  self.store,
+                  self.root,
+                  project_id,
+                  workspace_path,
+                )
+                match repair_restore_result {
+                  Ok(_) => ignore(())
+                  Err(restore_message) =>
+                    return self.store.finish_run_failure_with_debug(
+                      project_id,
+                      run_id,
+                      preview_setup_repair_failed_assistant_message(),
+                      message +
+                      "\n\nPreview repair failed: " +
+                      failure.error_message +
+                      "\n\nWorkspace restore failed: " +
+                      restore_message,
+                      failure.thread_id,
+                      failure.failure_debug,
+                    )
+                }
+                self.store.finish_run_failure_with_debug(
+                  project_id,
+                  run_id,
+                  preview_setup_repair_failed_assistant_message(),
+                  message +
+                  "\n\nPreview repair failed: " +
+                  failure.error_message,
+                  failure.thread_id,
+                  failure.failure_debug,
+                )
+              }
+            }
+          } else {
+            self.store.finish_run_failure(
+              project_id,
+              run_id,
+              preview_refresh_failed_assistant_message(),
+              message,
+              result.thread_id,
+            )
+          }
       }
     }
     Err(failure) => {
