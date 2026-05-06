@@ -111,26 +111,48 @@ This matters for OAuth callback URLs, account action links, cookies, and preview
 
 ## Upgrade
 
-For either environment:
+Normal upgrades should recreate the app container from the freshly built image without deleting volumes. Do not use `down -v` for upgrades because it deletes PostgreSQL and runtime data.
+
+Upgrade test:
 
 ```bash
 git pull
 just build-mooncraft-image mooncraft:local linux/amd64
-docker compose -f docker-compose.test.yml up -d
+
+export MOONCRAFT_IMAGE=mooncraft:local
+export MOONCRAFT_PUBLIC_BASE_URL=https://test.your-domain.com
+export MOONCRAFT_TEST_HTTP_PORT=127.0.0.1:18080
+export MOONCRAFT_POSTGRES_PASSWORD='your-existing-test-password'
+export MOONCRAFT_ADMIN_TOKEN='your-test-admin-token'
+
+docker compose -f docker-compose.test.yml up -d --force-recreate
+curl -fsS http://127.0.0.1:18080/api/health
 ```
 
-For production, replace the compose file:
+Upgrade production:
 
 ```bash
-docker compose -f docker-compose.prod.yml up -d
+git pull
+just build-mooncraft-image mooncraft:local linux/amd64
+
+export MOONCRAFT_IMAGE=mooncraft:local
+export MOONCRAFT_PUBLIC_BASE_URL=https://your-domain.com
+export MOONCRAFT_PROD_HTTP_PORT=127.0.0.1:8080
+export MOONCRAFT_POSTGRES_PASSWORD='your-existing-prod-password'
+export MOONCRAFT_ADMIN_TOKEN='your-prod-admin-token'
+
+docker compose -f docker-compose.prod.yml up -d --force-recreate
+curl -fsS http://127.0.0.1:8080/api/health
 ```
 
 If the Codex runtime image changes:
 
 ```bash
 docker pull docker.io/moonbitcloud/codex:codex-0.125.0-node24
-docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml up -d --force-recreate
 ```
+
+Plain `docker compose down` preserves named volumes but creates extra downtime. Use it only when intentionally stopping a stack. Never use `docker compose down -v` unless you intentionally want to delete the PostgreSQL and Mooncraft runtime volumes.
 
 ## Logs And Operations
 
