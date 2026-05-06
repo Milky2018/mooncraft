@@ -380,6 +380,7 @@ fn render_account_panel(
             "position: absolute", "right: 0", "top: calc(100% + 10px)", "width: min(380px, calc(100vw - 32px))",
             "padding: 14px", "display: flex", "flex-direction: column", "gap: 12px",
             "z-index: 10", "max-height: calc(100vh - 90px)", "overflow-y: auto",
+            "background: var(--surface-raised)", "backdrop-filter: none",
           ],
       ) <| [
         @html.div(
