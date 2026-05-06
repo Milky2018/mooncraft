@@ -49,7 +49,7 @@ Default host port: `18080`
 export MOONCRAFT_IMAGE=mooncraft:local
 export MOONCRAFT_PUBLIC_BASE_URL=https://test.your-domain.com
 export MOONCRAFT_TEST_HTTP_PORT=18080
-export MOONCRAFT_POSTGRES_PASSWORD='replace-with-test-password'
+
 
 docker compose -f docker-compose.test.yml up -d
 curl -fsS http://127.0.0.1:18080/api/health
