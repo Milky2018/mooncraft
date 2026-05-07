@@ -92,6 +92,50 @@ fn github_callback_url() -> String {
 }
 
 ///|
+fn github_client_id_hint(client_id : String) -> String {
+  if client_id.length() <= 8 {
+    client_id
+  } else {
+    client_id[:8].to_owned() + "..."
+  }
+}
+
+///|
+fn log_github_token_exchange_failure(
+  stage : String,
+  client_id : String,
+  status : @mocket.StatusCode?,
+  response_body : String?,
+) -> Unit {
+  let status_text = match status {
+    Some(code) => code.to_int().to_string()
+    None => "no-response"
+  }
+  let body_text = match response_body {
+    Some(body) if body != "" => body
+    _ => "<empty>"
+  }
+  println(
+    "warning: GitHub OAuth token exchange failed\n" +
+    "  stage: " +
+    stage +
+    "\n" +
+    "  status: " +
+    status_text +
+    "\n" +
+    "  callback_url: " +
+    github_callback_url() +
+    "\n" +
+    "  client_id: " +
+    github_client_id_hint(client_id) +
+    "\n" +
+    "  client_secret: <redacted>\n" +
+    "  response_body: " +
+    body_text,
+  )
+}
+
+///|
 fn github_credentials() -> (String, String)? {
   match
     (
@@ -389,14 +433,22 @@ async fn AppContext::complete_github_sign_in(
       headers~,
     )
   catch {
-    _ =>
+    _ => {
+      log_github_token_exchange_failure("request", client_id, None, None)
       return Err(
         "GitHub sign-in failed while exchanging the authorization code.",
       )
+    }
   } noraise {
     response => response
   }
   if token_response.status_code != OK {
+    log_github_token_exchange_failure(
+      "response",
+      client_id,
+      Some(token_response.status_code),
+      Some(bytes_to_string(token_response.raw_body)),
+    )
     return Err("GitHub sign-in failed while exchanging the authorization code.")
   }
   let access_token = match
