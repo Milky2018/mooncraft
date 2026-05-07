@@ -44,11 +44,11 @@ struct DevAuthRequest {
 
 ///|
 struct GitHubUserProfile {
-  id : Int
+  id : String
   login : String
   email : String?
   name : String?
-} derive(Debug, FromJson)
+} derive(Debug)
 
 ///|
 struct GitHubUserEmail {
@@ -363,6 +363,73 @@ fn[T : FromJson] decode_json_text(text : String) -> Result[T, String] {
 }
 
 ///|
+fn github_required_string_field(
+  fields : Map[String, Json],
+  name : String,
+) -> Result[String, String] {
+  match fields.get(name) {
+    Some(String(value)) if value != "" => Ok(value)
+    _ => Err("The upstream response did not match the expected shape.")
+  }
+}
+
+///|
+fn github_optional_string_field(
+  fields : Map[String, Json],
+  name : String,
+) -> Result[String?, String] {
+  match fields.get(name) {
+    Some(String(value)) => Ok(Some(value))
+    Some(Null) | None => Ok(None)
+    _ => Err("The upstream response did not match the expected shape.")
+  }
+}
+
+///|
+fn github_id_field(fields : Map[String, Json]) -> Result[String, String] {
+  match fields.get("id") {
+    Some(value) =>
+      match value {
+        Number(_, ..) => Ok(value.stringify())
+        String(text) if text != "" => Ok(text)
+        _ => Err("The upstream response did not match the expected shape.")
+      }
+    _ => Err("The upstream response did not match the expected shape.")
+  }
+}
+
+///|
+fn github_user_profile_from_response(
+  body : String,
+) -> Result[GitHubUserProfile, String] {
+  let parsed = @json.parse(body) catch {
+    _ => return Err("The upstream response was not valid JSON.")
+  }
+  match parsed {
+    Object(fields) => {
+      let id = match github_id_field(fields) {
+        Ok(value) => value
+        Err(message) => return Err(message)
+      }
+      let login = match github_required_string_field(fields, "login") {
+        Ok(value) => value
+        Err(message) => return Err(message)
+      }
+      let email = match github_optional_string_field(fields, "email") {
+        Ok(value) => value
+        Err(message) => return Err(message)
+      }
+      let name = match github_optional_string_field(fields, "name") {
+        Ok(value) => value
+        Err(message) => return Err(message)
+      }
+      Ok({ id, login, email, name })
+    }
+    _ => Err("The upstream response did not match the expected shape.")
+  }
+}
+
+///|
 async fn github_fetch_profile(
   access_token : String,
 ) -> Result[GitHubUserProfile, String] noraise {
@@ -377,7 +444,7 @@ async fn github_fetch_profile(
   if !http_status_success(response.status_code) {
     return Err("GitHub user details could not be loaded.")
   }
-  decode_json_text(bytes_to_string(response.raw_body))
+  github_user_profile_from_response(bytes_to_string(response.raw_body))
 }
 
 ///|
@@ -493,7 +560,7 @@ async fn AppContext::complete_github_sign_in(
     Ok(email) => email
     Err(message) => return Err(message)
   }
-  let provider_user_id = profile.id.to_string()
+  let provider_user_id = profile.id
   match
     self.store.find_user_by_oauth_account(
       github_provider_name(),

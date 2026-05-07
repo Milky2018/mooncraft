@@ -35,7 +35,7 @@ type GitHubCallbackPayload derive(@debug.Debug, @json.FromJson)
 
 type GitHubUserEmail derive(@debug.Debug, @json.FromJson)
 
-type GitHubUserProfile derive(@debug.Debug, @json.FromJson)
+type GitHubUserProfile derive(@debug.Debug)
 
 type ModelOptionsCacheEntry
 

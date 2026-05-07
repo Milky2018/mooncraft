@@ -316,6 +316,38 @@ test "github oauth status handling accepts custom 200" {
 }
 
 ///|
+test "github user profile parser accepts large ids" {
+  let profile = github_user_profile_from_response(
+    (
+      #|{"id":1234567890123,"login":"octo","email":null,"name":null}
+    ),
+  )
+  inspect(
+    match profile {
+      Ok(profile) => "\{profile.id}:\{profile.login}"
+      Err(message) => message
+    },
+    content="1234567890123:octo",
+  )
+}
+
+///|
+test "github user profile parser accepts optional strings" {
+  inspect(
+    match
+      github_user_profile_from_response(
+        (
+          #|{"id":123,"login":"octo","email":"octo@example.com","name":"Octo"}
+        ),
+      ) {
+      Ok(profile) => "\{profile.id}:\{profile.login}"
+      Err(message) => message
+    },
+    content="123:octo",
+  )
+}
+
+///|
 test "docker command receives user scoped AI settings" {
   let config : CodexDockerConfig = {
     image: "codex:test",
