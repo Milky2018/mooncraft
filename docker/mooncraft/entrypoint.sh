@@ -7,4 +7,4 @@ if [[ $# -gt 0 ]]; then
   exec "$@"
 fi
 
-exec moon -C /app run --target native --release services/control-plane
+exec stdbuf -oL -eL moon -C /app run --target native --release services/control-plane
