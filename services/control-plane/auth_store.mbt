@@ -429,7 +429,7 @@ async fn Store::create_project_for_user(
   self : Store,
   user_id : String,
   project_id : String,
-  display_name : String?,
+  display_name : String,
   workspace_path : String,
 ) -> @sdk.ProjectDetail noraise {
   self.create_project(
@@ -439,6 +439,19 @@ async fn Store::create_project_for_user(
     display_name,
     workspace_path,
   )
+}
+
+///|
+async fn Store::rename_project_for_user(
+  self : Store,
+  user_id : String,
+  project_id : String,
+  display_name : String,
+) -> @sdk.ProjectDetail? noraise {
+  if !self.project_owned_by_user(project_id, user_id) {
+    return None
+  }
+  self.rename_project(project_id, display_name)
 }
 
 ///|

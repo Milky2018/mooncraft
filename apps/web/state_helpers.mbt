@@ -65,6 +65,26 @@ fn can_save_ai_settings(model : Model) -> Bool {
 }
 
 ///|
+fn can_create_project(model : Model) -> Bool {
+  model.current_user is Some(_) &&
+  model.new_project_name.trim() != "" &&
+  !model.create_project_pending
+}
+
+///|
+fn can_rename_project(model : Model) -> Bool {
+  match model.project_detail {
+    Some(project) => {
+      let name = model.rename_project_name.trim().to_owned()
+      name != "" &&
+      name != project.display_name &&
+      !model.rename_project_pending
+    }
+    None => false
+  }
+}
+
+///|
 fn model_options_include(
   items : Array[@sdk.ModelOption],
   model_id : String,
@@ -93,6 +113,41 @@ fn append_local_user_message(
     created_at: "now",
   })
   messages
+}
+
+///|
+fn project_summary_from_detail(
+  project : @sdk.ProjectDetail,
+) -> @sdk.ProjectSummary {
+  {
+    id: project.id,
+    display_name: project.display_name,
+    status: project.status,
+    preview: project.preview,
+    current_run_id: project.current_run_id,
+    updated_at: project.updated_at,
+  }
+}
+
+///|
+fn replace_project_summary(
+  projects : Array[@sdk.ProjectSummary],
+  replacement : @sdk.ProjectSummary,
+) -> Array[@sdk.ProjectSummary] {
+  let items : Array[@sdk.ProjectSummary] = []
+  let mut found = false
+  for item in projects {
+    if item.id == replacement.id {
+      items.push(replacement)
+      found = true
+    } else {
+      items.push(item)
+    }
+  }
+  if !found {
+    items.push(replacement)
+  }
+  items
 }
 
 ///|
@@ -131,7 +186,10 @@ fn clear_workspace(model : Model) -> Model {
     run_spinner_tick: 0,
     active_page: AppWorkspace,
     draft: "",
+    new_project_name: "",
     create_project_pending: false,
+    rename_project_name: "",
+    rename_project_pending: false,
     delete_project_confirming: None,
     delete_project_pending: None,
     sending_message: false,

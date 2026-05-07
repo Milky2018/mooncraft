@@ -109,11 +109,21 @@ pub(all) struct RunEvent {
 
 ///|
 pub(all) struct CreateProjectRequest {
-  display_name : String?
+  display_name : String
 } derive(Debug, ToJson, FromJson)
 
 ///|
 pub(all) struct CreateProjectResponse {
+  project : ProjectDetail
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct UpdateProjectRequest {
+  display_name : String
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct UpdateProjectResponse {
   project : ProjectDetail
 } derive(Debug, ToJson, FromJson)
 

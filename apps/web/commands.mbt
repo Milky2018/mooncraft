@@ -67,10 +67,25 @@ fn load_project_cmd(
 }
 
 ///|
-fn create_project_cmd(dispatch : @rabbita.Dispatch[Msg]) -> @rabbita.Cmd {
-  let payload : @sdk.CreateProjectRequest = { display_name: None }
+fn create_project_cmd(
+  dispatch : @rabbita.Dispatch[Msg],
+  display_name : String,
+) -> @rabbita.Cmd {
+  let payload : @sdk.CreateProjectRequest = { display_name, }
   post_json(@sdk.projects_path(), payload, fn(result) {
     dispatch(ProjectCreated(result))
+  })
+}
+
+///|
+fn rename_project_cmd(
+  dispatch : @rabbita.Dispatch[Msg],
+  project_id : String,
+  display_name : String,
+) -> @rabbita.Cmd {
+  let payload : @sdk.UpdateProjectRequest = { display_name, }
+  put_json(@sdk.project_path(project_id), payload, fn(result) {
+    dispatch(ProjectRenamed(result))
   })
 }
 

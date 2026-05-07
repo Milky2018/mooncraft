@@ -241,6 +241,8 @@ fn update(
           run_events: [],
           last_run_event_seq: 0,
           run_spinner_tick: 0,
+          rename_project_name: "",
+          rename_project_pending: false,
         }
       } else {
         { ..model, projects, selected_project_id }
@@ -272,6 +274,8 @@ fn update(
           last_run_event_seq: 0,
           run_spinner_tick: 0,
           delete_project_confirming: None,
+          rename_project_name: "",
+          rename_project_pending: false,
           notice: None,
         },
       )
@@ -284,7 +288,16 @@ fn update(
           ])
         _ => @rabbita.none
       }
-      (cmd, { ..model, project_detail: Some(project), notice: None })
+      (
+        cmd,
+        {
+          ..model,
+          project_detail: Some(project),
+          rename_project_name: project.display_name,
+          rename_project_pending: false,
+          notice: None,
+        },
+      )
     }
     ProjectLoaded(Err(error)) =>
       if is_unauthorized_error(error) {
@@ -317,12 +330,15 @@ fn update(
         )
       }
     DraftChanged(value) => (@rabbita.none, { ..model, draft: value })
+    NewProjectNameChanged(value) =>
+      (@rabbita.none, { ..model, new_project_name: value })
     CreateProject =>
-      if model.create_project_pending || model.current_user is None {
+      if !can_create_project(model) {
         (@rabbita.none, model)
       } else {
+        let display_name = model.new_project_name.trim().to_owned()
         (
-          create_project_cmd(dispatch),
+          create_project_cmd(dispatch, display_name),
           {
             ..model,
             active_page: AppWorkspace,
@@ -331,6 +347,19 @@ fn update(
             notice: None,
           },
         )
+      }
+    RenameProjectNameChanged(value) =>
+      (@rabbita.none, { ..model, rename_project_name: value })
+    SaveProjectRename =>
+      match model.project_detail {
+        Some(project) if can_rename_project(model) => {
+          let display_name = model.rename_project_name.trim().to_owned()
+          (
+            rename_project_cmd(dispatch, project.id, display_name),
+            { ..model, rename_project_pending: true, notice: None },
+          )
+        }
+        _ => (@rabbita.none, model)
       }
     RequestDeleteProject(project_id) =>
       if model.delete_project_pending is Some(_) {
@@ -369,8 +398,11 @@ fn update(
           ..model,
           active_page: AppWorkspace,
           create_project_pending: false,
+          new_project_name: "",
           selected_project_id: Some(project.id),
           project_detail: Some(project),
+          rename_project_name: project.display_name,
+          rename_project_pending: false,
           messages: [],
           run_status: None,
           run_events: [],
@@ -389,6 +421,7 @@ fn update(
           {
             ..model,
             create_project_pending: false,
+            rename_project_pending: false,
             delete_project_confirming: None,
             notice: Some(
               error_notice("A new project could not be created.", error),
@@ -408,6 +441,8 @@ fn update(
           last_run_event_seq: 0,
           run_spinner_tick: 0,
           draft: "",
+          rename_project_name: "",
+          rename_project_pending: false,
           delete_project_confirming: None,
           delete_project_pending: None,
         }
@@ -420,6 +455,40 @@ fn update(
       }
       (load_projects_cmd(dispatch), next_model)
     }
+    ProjectRenamed(Ok(response)) => {
+      let project = response.project
+      let project_summary = project_summary_from_detail(project)
+      (
+        @rabbita.none,
+        {
+          ..model,
+          projects: replace_project_summary(model.projects, project_summary),
+          project_detail: if model.selected_project_id == Some(project.id) {
+            Some(project)
+          } else {
+            model.project_detail
+          },
+          rename_project_name: project.display_name,
+          rename_project_pending: false,
+          notice: None,
+        },
+      )
+    }
+    ProjectRenamed(Err(error)) =>
+      if is_unauthorized_error(error) {
+        auth_recovery(dispatch, model, "Your session expired. Sign in again.")
+      } else {
+        (
+          @rabbita.none,
+          {
+            ..model,
+            rename_project_pending: false,
+            notice: Some(
+              error_notice("The project could not be renamed.", error),
+            ),
+          },
+        )
+      }
     ProjectDeleted(_, Err(error)) =>
       if is_unauthorized_error(error) {
         auth_recovery(dispatch, model, "Your session expired. Sign in again.")

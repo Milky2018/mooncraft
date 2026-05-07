@@ -675,18 +675,7 @@ fn render_project_sidebar(
         ],
       ),
     ]),
-    @html.button(
-      type_="button",
-      disabled=model.create_project_pending,
-      on_click=dispatch(CreateProject),
-      style=primary_button_style(!model.create_project_pending) +
-        ["width: 100%", "padding: 12px 14px"],
-      if model.create_project_pending {
-        "Creating..."
-      } else {
-        "+ New Project"
-      },
-    ),
+    render_new_project_form(dispatch, model, true),
     match model.current_user {
       Some(user) => sidebar_llm_config_button(dispatch, model, user)
       None => @html.nothing

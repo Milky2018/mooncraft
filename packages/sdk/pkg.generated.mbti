@@ -85,6 +85,8 @@ pub fn session_route() -> RouteSpec
 
 pub fn update_ai_settings_route() -> RouteSpec
 
+pub fn update_project_route() -> RouteSpec
+
 // Errors
 
 // Types and methods
@@ -166,7 +168,7 @@ pub(all) enum ChatRole {
 pub fn ChatRole::label(Self) -> String
 
 pub(all) struct CreateProjectRequest {
-  display_name : String?
+  display_name : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct CreateProjectResponse {
@@ -313,6 +315,14 @@ pub(all) struct UpdateAiSettingsRequest {
   provider : String
   model : String
   api_key : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct UpdateProjectRequest {
+  display_name : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct UpdateProjectResponse {
+  project : ProjectDetail
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct UserSummary {

@@ -427,7 +427,7 @@ async test "delete project removes the persisted Codex home" {
       project_id,
       "user-1",
       "preview-" + project_id,
-      Some("Codex Home Delete Test"),
+      "Codex Home Delete Test",
       project_workspace(root, project_id),
     ),
   )
@@ -565,7 +565,7 @@ async test "start_run persists the initial project prompt once" {
       project_id,
       "user-1",
       "preview-" + project_id,
-      Some("Prompt Test"),
+      "Prompt Test",
       project_workspace(root, project_id),
     ),
   )
@@ -602,7 +602,7 @@ async test "run events append and list after sequence" {
       project_id,
       "user-1",
       "preview-" + project_id,
-      Some("Events Test"),
+      "Events Test",
       project_workspace(root, project_id),
     ),
   )
@@ -640,7 +640,7 @@ async test "admin run and project listings are project agnostic" {
       project_id,
       "user-1",
       "preview-" + project_id,
-      Some("Admin Listings"),
+      "Admin Listings",
       project_workspace(root, project_id),
     ),
   )
@@ -675,7 +675,7 @@ async test "startup recovery makes stale running runs retryable" {
       project_id,
       "user-1",
       "preview-" + project_id,
-      Some("Recovery Test"),
+      "Recovery Test",
       project_workspace(root, project_id),
     ),
   )

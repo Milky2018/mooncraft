@@ -40,7 +40,10 @@ struct Model {
   last_run_event_seq : Int
   run_spinner_tick : Int
   draft : String
+  new_project_name : String
   create_project_pending : Bool
+  rename_project_name : String
+  rename_project_pending : Bool
   delete_project_confirming : String?
   delete_project_pending : String?
   sending_message : Bool
@@ -72,7 +75,11 @@ enum Msg {
   ProjectLoaded(Result[@sdk.ProjectDetail, @sdk.ApiError])
   MessagesLoaded(Result[@sdk.ListMessagesResponse, @sdk.ApiError])
   DraftChanged(String)
+  NewProjectNameChanged(String)
   CreateProject
+  RenameProjectNameChanged(String)
+  SaveProjectRename
+  ProjectRenamed(Result[@sdk.UpdateProjectResponse, @sdk.ApiError])
   RequestDeleteProject(String)
   ConfirmDeleteProject(String)
   ProjectCreated(Result[@sdk.CreateProjectResponse, @sdk.ApiError])
@@ -179,7 +186,10 @@ fn initial_model() -> Model {
     last_run_event_seq: 0,
     run_spinner_tick: 0,
     draft: "",
+    new_project_name: "",
     create_project_pending: false,
+    rename_project_name: "",
+    rename_project_pending: false,
     delete_project_confirming: None,
     delete_project_pending: None,
     sending_message: false,

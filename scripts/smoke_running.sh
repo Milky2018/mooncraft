@@ -62,10 +62,26 @@ curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/session" | grep -
 
 dev_sign_in "$user2_cookie" "$user2_email" "Viewer"
 
+empty_project_status="$(curl -sS -o /dev/null -w '%{http_code}' -c "$user1_cookie" -b "$user1_cookie" -X POST "$base_url/api/projects" -H 'Content-Type: application/json' -d '{"display_name":"   "}' || true)"
+if [[ "$empty_project_status" != "422" ]]; then
+  echo "Expected blank project names to return 422, got $empty_project_status" >&2
+  exit 1
+fi
+
 create_response="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X POST "$base_url/api/projects" -H 'Content-Type: application/json' -d '{"display_name":"Smoke Running"}')"
 project_id="$(printf '%s' "$create_response" | sed -n 's/.*"project":{"id":"\([^"]*\)".*/\1/p')"
 if [[ -z "$project_id" ]]; then
   echo "Failed to parse project id from create response: $create_response" >&2
+  exit 1
+fi
+printf '%s' "$create_response" | grep -q '"display_name":"Smoke Running"'
+
+rename_response="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X PUT "$base_url/api/projects/$project_id" -H 'Content-Type: application/json' -d '{"display_name":"Renamed Smoke Project"}')"
+printf '%s' "$rename_response" | grep -q '"display_name":"Renamed Smoke Project"'
+
+user2_rename_status="$(curl -sS -o /dev/null -w '%{http_code}' -c "$user2_cookie" -b "$user2_cookie" -X PUT "$base_url/api/projects/$project_id" -H 'Content-Type: application/json' -d '{"display_name":"Leaked Rename"}' || true)"
+if [[ "$user2_rename_status" != "404" ]]; then
+  echo "Expected another user to receive 404 for project rename, got $user2_rename_status" >&2
   exit 1
 fi
 

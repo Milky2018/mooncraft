@@ -131,8 +131,22 @@ async function main() {
     screenshots.push(screenshot("01-empty-workspace.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
 
-    await page.getByRole("button", { name: "+ New Project" }).click()
-    await page.getByPlaceholder("Describe the change you want.").fill(prompt)
+    await page.getByPlaceholder("Project name").first().fill("Simple Story Project")
+    await page.getByRole("button", { name: "Create Project" }).first().click()
+    await page.getByPlaceholder("Tell Mooncraft what to build or change...").waitFor()
+    await page.getByPlaceholder("Project name").nth(1).fill("Renamed Story Project")
+    const renameResponsePromise = page.waitForResponse((response) => {
+      return response.url().includes("/api/projects/") &&
+        response.request().method() === "PUT"
+    })
+    await page.getByRole("button", { name: "Rename" }).click()
+    const renameResponse = await renameResponsePromise
+    if (!renameResponse.ok()) throw new Error(`Project rename failed with HTTP ${renameResponse.status()}`)
+    await page.getByText("Renamed Story Project").first().waitFor()
+    screenshots.push(screenshot("02-project-renamed.png"))
+    await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
+
+    await page.getByPlaceholder("Tell Mooncraft what to build or change...").fill(prompt)
     screenshots.push(screenshot("03-project-prompt.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
 
@@ -141,7 +155,7 @@ async function main() {
         response.url().includes("/runs") &&
         response.request().method() === "POST"
     })
-    await page.getByRole("button", { name: "Send Request" }).click()
+    await page.getByRole("button", { name: "Build With Mooncraft" }).click()
     screenshots.push(screenshot("04-run-started.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
 
@@ -167,12 +181,12 @@ async function main() {
     screenshots.push(screenshot("05-completed-preview.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
 
-    await page.getByPlaceholder("Describe the change you want.").fill(secondPrompt)
+    await page.getByPlaceholder("Tell Mooncraft what to build or change...").fill(secondPrompt)
     const secondRunResponsePromise = page.waitForResponse((response) => {
       return response.url().includes(`/api/projects/${projectId}/runs`) &&
         response.request().method() === "POST"
     })
-    await page.getByRole("button", { name: "Send Request" }).click()
+    await page.getByRole("button", { name: "Build With Mooncraft" }).click()
     const secondRunResponse = await secondRunResponsePromise
     if (!secondRunResponse.ok()) {
       throw new Error(`Second run creation failed with HTTP ${secondRunResponse.status()}`)
@@ -199,12 +213,12 @@ async function main() {
     screenshots.push(screenshot("07-refresh-persistence.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
 
-    await page.getByPlaceholder("Describe the change you want.").fill(failurePrompt)
+    await page.getByPlaceholder("Tell Mooncraft what to build or change...").fill(failurePrompt)
     const failureRunResponsePromise = page.waitForResponse((response) => {
       return response.url().includes(`/api/projects/${projectId}/runs`) &&
         response.request().method() === "POST"
     })
-    await page.getByRole("button", { name: "Send Request" }).click()
+    await page.getByRole("button", { name: "Build With Mooncraft" }).click()
     const failureRunResponse = await failureRunResponsePromise
     if (!failureRunResponse.ok()) {
       throw new Error(`Failure run creation failed with HTTP ${failureRunResponse.status()}`)
@@ -239,7 +253,8 @@ async function main() {
 ## Assertions
 
 - Development sign-in opens an empty authenticated workspace.
-- New project creation starts from the chat composer.
+- New project creation requires a project name.
+- The selected project can be renamed before the first build.
 - First prompt creates one project run and reaches \`Succeeded\`.
 - The project API exposes a healthy preview target.
 - The preview iframe loads the generated app.

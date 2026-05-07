@@ -83,6 +83,11 @@ pub fn project_route() -> RouteSpec {
 }
 
 ///|
+pub fn update_project_route() -> RouteSpec {
+  route(PUT, "/api/projects/:id", Ok)
+}
+
+///|
 pub fn delete_project_route() -> RouteSpec {
   route(DELETE, "/api/projects/:id", NoContent)
 }

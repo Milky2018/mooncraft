@@ -1345,14 +1345,6 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
 }
 
 ///|
-async fn Store::count_projects(self : Store) -> Int noraise {
-  match self.query_one("SELECT COUNT(*) AS count FROM projects;") {
-    Some(row) => row_int(row, "count")
-    None => 0
-  }
-}
-
-///|
 fn project_detail_from_row(row : Map[String, @db.Param]) -> @sdk.ProjectDetail {
   let preview = preview_from_columns(
     row_text(row, "preview_public_id"),
@@ -1871,14 +1863,10 @@ async fn Store::create_project(
   project_id : String,
   owner_user_id : String,
   preview_public_id : String,
-  display_name : String?,
+  display_name : String,
   workspace_path : String,
 ) -> @sdk.ProjectDetail noraise {
   let now = now_string()
-  let name = match display_name {
-    Some(value) if value != "" => value
-    _ => "Project \{self.count_projects() + 1}"
-  }
   ignore(
     self.exec_or_error(
       (
@@ -1898,7 +1886,7 @@ async fn Store::create_project(
         String(project_id),
         String(owner_user_id),
         String(preview_public_id),
-        String(name),
+        String(display_name),
         String(workspace_path),
         String(run_state_to_db(Idle)),
         String(now),
@@ -1907,6 +1895,27 @@ async fn Store::create_project(
     ),
   )
   self.get_project_detail(project_id).unwrap()
+}
+
+///|
+async fn Store::rename_project(
+  self : Store,
+  project_id : String,
+  display_name : String,
+) -> @sdk.ProjectDetail? noraise {
+  let now = now_string()
+  ignore(
+    self.exec_or_error(
+      (
+        #|UPDATE projects
+        #|SET display_name = ?, updated_at = ?
+        #|WHERE id = ?;
+      ),
+      "rename project",
+      params=[String(display_name), String(now), String(project_id)],
+    ),
+  )
+  self.get_project_detail(project_id)
 }
 
 ///|

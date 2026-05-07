@@ -281,6 +281,49 @@ fn render_run_failure_card(model : Model) -> @rabbita.Html {
 }
 
 ///|
+fn render_new_project_form(
+  dispatch : @rabbita.Dispatch[Msg],
+  model : Model,
+  compact : Bool,
+) -> @rabbita.Html {
+  let enabled = can_create_project(model)
+  let direction = if compact { "column" } else { "row" }
+  let button_width = if compact { "100%" } else { "auto" }
+  @html.div(
+    style=[
+      "display: flex",
+      "flex-direction: " + direction,
+      "gap: 10px",
+      "align-items: stretch",
+      "width: 100%",
+    ],
+  ) <| [
+    @html.input(
+      input_type=Text,
+      value=model.new_project_name,
+      placeholder="Project name",
+      read_only=model.create_project_pending,
+      on_input=fn(value) { dispatch(NewProjectNameChanged(value)) },
+      style=input_style(model.create_project_pending) +
+        ["min-width: 0", "flex: 1", "font-size: 14px", "padding: 11px 12px"],
+      "",
+    ),
+    @html.button(
+      type_="button",
+      disabled=!enabled,
+      on_click=dispatch(CreateProject),
+      style=primary_button_style(enabled) +
+        ["width: " + button_width, "padding: 11px 14px"],
+      if model.create_project_pending {
+        "Creating..."
+      } else {
+        "Create Project"
+      },
+    ),
+  ]
+}
+
+///|
 fn render_workspace_empty(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
@@ -304,19 +347,9 @@ fn render_workspace_empty(
           style=[
             "font-size: 15px", "line-height: 1.65", "color: var(--text-2)", "max-width: 560px",
           ],
-          "Create a project, describe the app in plain English, and watch the live preview appear beside the chat.",
+          "Name the project first, then describe the app in plain English and watch the live preview appear beside the chat.",
         ),
-        @html.button(
-          type_="button",
-          disabled=model.create_project_pending,
-          on_click=dispatch(CreateProject),
-          style=primary_button_style(!model.create_project_pending),
-          if model.create_project_pending {
-            "Creating..."
-          } else {
-            "Create Project"
-          },
-        ),
+        render_new_project_form(dispatch, model, false),
       ]
     Some(_) =>
       @html.div(
@@ -339,6 +372,49 @@ fn render_workspace_empty(
           "Try: \"Build a simple CRM for indie founders\", \"Create a habit tracker\", or \"Make a landing page with signup\".",
         ),
       ]
+  }
+}
+
+///|
+fn render_project_rename_form(
+  dispatch : @rabbita.Dispatch[Msg],
+  model : Model,
+) -> @rabbita.Html {
+  match model.project_detail {
+    Some(_) =>
+      @html.div(
+        style=[
+          "display: flex", "gap: 8px", "align-items: center", "max-width: 520px",
+        ],
+      ) <| [
+        @html.input(
+          input_type=Text,
+          value=model.rename_project_name,
+          placeholder="Project name",
+          read_only=model.rename_project_pending,
+          on_input=fn(value) { dispatch(RenameProjectNameChanged(value)) },
+          style=input_style(model.rename_project_pending) +
+            ["min-width: 0", "flex: 1", "font-size: 13px", "padding: 9px 10px"],
+          "",
+        ),
+        @html.button(
+          type_="button",
+          disabled=!can_rename_project(model),
+          on_click=dispatch(SaveProjectRename),
+          style=button_style(
+              "var(--surface-2)",
+              "var(--text-1)",
+              can_rename_project(model),
+            ) +
+            ["padding: 9px 12px", "font-size: 13px", "white-space: nowrap"],
+          if model.rename_project_pending {
+            "Saving..."
+          } else {
+            "Rename"
+          },
+        ),
+      ]
+    None => @html.nothing
   }
 }
 
@@ -391,6 +467,7 @@ fn render_workspace_panel(
               ],
               "Chat with the builder. The generated app stays hidden behind the live preview.",
             ),
+            render_project_rename_form(dispatch, model),
           ],
         ),
         status_badge(active_project_status(model)),

@@ -152,7 +152,8 @@ async function main() {
     screenshots.push(screenshot("02-ai-settings-configured.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
 
-    await page.getByRole("button", { name: "+ New Project" }).click()
+    await page.getByPlaceholder("Project name").first().fill("Snake Game")
+    await page.getByRole("button", { name: "Create Project" }).first().click()
     await page.locator("textarea").fill(prompt)
     screenshots.push(screenshot("03-real-agent-prompt.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })

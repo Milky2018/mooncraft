@@ -31,6 +31,18 @@ fn api_error_response(
 }
 
 ///|
+fn validated_project_display_name(value : String) -> Result[String, String] {
+  let name = value.trim().to_owned()
+  if name == "" {
+    Err("Project name is required.")
+  } else if name.length() > 80 {
+    Err("Project name must be 80 characters or fewer.")
+  } else {
+    Ok(name)
+  }
+}
+
+///|
 fn text_response(
   code : @mocket.StatusCode,
   message : String,
@@ -826,12 +838,22 @@ fn main {
       Ok(request) => request
       Err(response) => return response
     }
+    let display_name = match
+      validated_project_display_name(request.display_name) {
+      Ok(name) => name
+      Err(message) =>
+        return api_error_response(
+          UnprocessableEntity,
+          ValidationFailed,
+          message,
+        )
+    }
     let project_id = next_id("project")
     let workspace_path = project_workspace(ctx.root, project_id)
     let project = ctx.store.create_project_for_user(
       user.id,
       project_id,
-      request.display_name,
+      display_name,
       workspace_path,
     )
     match ctx.materialize_project_workspace(project) {
@@ -841,6 +863,34 @@ fn main {
         ignore(ctx.store.delete_project(project_id))
         api_error_response(ServiceUnavailable, ServiceUnavailable, message)
       }
+    }
+  })
+  app.put(@sdk.update_project_route().path_pattern, async fn(event) noraise {
+    let user = match require_session_user(ctx, event) {
+      Ok(user) => user
+      Err(response) => return response
+    }
+    let project_id = match path_param(event, "id") {
+      Ok(value) => value
+      Err(response) => return response
+    }
+    let request : @sdk.UpdateProjectRequest = match decode_json_body(event) {
+      Ok(request) => request
+      Err(response) => return response
+    }
+    let display_name = match
+      validated_project_display_name(request.display_name) {
+      Ok(name) => name
+      Err(message) =>
+        return api_error_response(
+          UnprocessableEntity,
+          ValidationFailed,
+          message,
+        )
+    }
+    match ctx.store.rename_project_for_user(user.id, project_id, display_name) {
+      Some(project) => json_ok(@sdk.UpdateProjectResponse::{ project, })
+      None => api_error_response(NotFound, NotFound, "Project not found.")
     }
   })
   app.delete(@sdk.delete_project_route().path_pattern, async fn(event) noraise {
