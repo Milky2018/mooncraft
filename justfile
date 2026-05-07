@@ -85,11 +85,11 @@ check-user-project-deps-codex image=codex_image:
 
 # Start the test Compose environment
 deploy-test:
-  docker compose -f docker-compose.test.yml up -d
+  docker compose --env-file .env.test -f docker-compose.test.yml up -d --wait
 
 # Start the production Compose environment
 deploy-prod:
-  docker compose -f docker-compose.prod.yml up -d
+  docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --wait
 
 # Follow test logs
 logs-test:

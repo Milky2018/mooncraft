@@ -75,9 +75,10 @@ The test environment uses [docker-compose.test.yml](../docker-compose.test.yml).
 Default host port: `18080`
 
 ```bash
-docker compose --env-file .env.test -f docker-compose.test.yml up -d
-curl -fsS http://127.0.0.1:18080/api/health
+docker compose --env-file .env.test -f docker-compose.test.yml up -d --wait
 ```
+
+`--wait` returns only after PostgreSQL and Mooncraft report healthy, or fails if either service cannot become healthy.
 
 If `.env.test` binds to a different port, use that port in the health check. For example, the committed example uses `127.0.0.1:18089`:
 
@@ -92,9 +93,10 @@ The production environment uses [docker-compose.prod.yml](../docker-compose.prod
 Default host port: `8080`
 
 ```bash
-docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
-curl -fsS http://127.0.0.1:8080/api/health
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --wait
 ```
+
+`--wait` returns only after PostgreSQL and Mooncraft report healthy, or fails if either service cannot become healthy.
 
 If `.env.prod` binds to a different port, use that port in the health check. For example, the committed example uses `127.0.0.1:8089`:
 
@@ -135,8 +137,7 @@ Upgrade test:
 git pull
 just build-mooncraft-image mooncraft:local linux/amd64
 
-docker compose --env-file .env.test -f docker-compose.test.yml up -d --force-recreate
-curl -fsS http://127.0.0.1:18080/api/health
+docker compose --env-file .env.test -f docker-compose.test.yml up -d --wait --force-recreate
 ```
 
 Upgrade production:
@@ -145,15 +146,14 @@ Upgrade production:
 git pull
 just build-mooncraft-image mooncraft:local linux/amd64
 
-docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate
-curl -fsS http://127.0.0.1:8080/api/health
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --wait --force-recreate
 ```
 
 If the Codex runtime image changes:
 
 ```bash
 docker pull docker.io/moonbitcloud/codex:codex-0.125.0-node24
-docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --wait --force-recreate
 ```
 
 If a host previously cached the wrong-architecture runtime image, remove and repull it after upgrading:
@@ -161,7 +161,7 @@ If a host previously cached the wrong-architecture runtime image, remove and rep
 ```bash
 docker image rm docker.io/moonbitcloud/codex:codex-0.125.0-node24 || true
 docker pull docker.io/moonbitcloud/codex:codex-0.125.0-node24
-docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --wait --force-recreate
 ```
 
 Plain `docker compose down` preserves named volumes but creates extra downtime. Use it only when intentionally stopping a stack. Never use `docker compose down -v` unless you intentionally want to delete the PostgreSQL and Mooncraft runtime volumes.
