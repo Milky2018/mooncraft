@@ -310,6 +310,12 @@ test "github oauth helpers build token request and parse access token" {
 }
 
 ///|
+test "github oauth status handling accepts custom 200" {
+  assert_true(http_status_success(@mocket.Custom(200)))
+  assert_false(http_status_success(@mocket.Custom(400)))
+}
+
+///|
 test "docker command receives user scoped AI settings" {
   let config : CodexDockerConfig = {
     image: "codex:test",

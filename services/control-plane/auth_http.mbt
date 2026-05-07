@@ -92,6 +92,12 @@ fn github_callback_url() -> String {
 }
 
 ///|
+fn http_status_success(status : @mocket.StatusCode) -> Bool {
+  let code = status.to_int()
+  code >= 200 && code < 300
+}
+
+///|
 fn github_client_id_hint(client_id : String) -> String {
   if client_id.length() <= 8 {
     client_id
@@ -112,6 +118,8 @@ fn log_github_token_exchange_failure(
     None => "no-response"
   }
   let body_text = match response_body {
+    Some(body) if body.contains("\"access_token\"") =>
+      "<redacted GitHub token response>"
     Some(body) if body != "" => body
     _ => "<empty>"
   }
@@ -366,7 +374,7 @@ async fn github_fetch_profile(
   } noraise {
     value => value
   }
-  if response.status_code != OK {
+  if !http_status_success(response.status_code) {
     return Err("GitHub user details could not be loaded.")
   }
   decode_json_text(bytes_to_string(response.raw_body))
@@ -384,7 +392,7 @@ async fn github_fetch_email(
   } noraise {
     value => value
   }
-  if response.status_code != OK {
+  if !http_status_success(response.status_code) {
     return Err("GitHub email addresses could not be loaded.")
   }
   let emails : Array[GitHubUserEmail] = match
@@ -460,7 +468,7 @@ async fn AppContext::complete_github_sign_in(
   } noraise {
     response => response
   }
-  if token_response.status_code != OK {
+  if !http_status_success(token_response.status_code) {
     log_github_token_exchange_failure(
       "response",
       client_id,
