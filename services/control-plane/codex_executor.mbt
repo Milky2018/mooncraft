@@ -20,6 +20,8 @@ struct CodexDockerConfig {
   model : String
   api_key : String
   container_home : String
+  container_data_dir : String
+  host_data_dir : String?
 }
 
 ///|
@@ -80,6 +82,62 @@ fn codex_container_workspace_dir() -> String {
 ///|
 fn codex_container_artifacts_dir() -> String {
   "/artifacts"
+}
+
+///|
+fn trim_mount_path(path : String) -> String {
+  let mut value = path.trim().to_owned()
+  while value.length() > 1 && value.has_suffix("/") {
+    value = value[:value.length() - 1].to_owned()
+  }
+  value
+}
+
+///|
+fn configured_host_data_dir(root : String) -> Result[String?, String] {
+  let host_data_dir = match @env.get_env_var("MOONCRAFT_HOST_DATA_DIR") {
+    Some(value) if value.trim() != "" => Some(trim_mount_path(value))
+    _ => None
+  }
+  match host_data_dir {
+    Some(path) =>
+      if !path.has_prefix("/") {
+        Err(
+          "MOONCRAFT_HOST_DATA_DIR must be an absolute host path so Docker bind mounts resolve correctly.",
+        )
+      } else {
+        Ok(Some(path))
+      }
+    None =>
+      if trim_mount_path(root) == "/app" {
+        Err(
+          "MOONCRAFT_HOST_DATA_DIR must be set when Mooncraft runs in Docker. It must point to the host directory bind-mounted as /app/data.",
+        )
+      } else {
+        Ok(None)
+      }
+  }
+}
+
+///|
+fn docker_bind_source(config : CodexDockerConfig, path : String) -> String {
+  match config.host_data_dir {
+    Some(host_data_dir) => {
+      let container_data_dir = trim_mount_path(config.container_data_dir)
+      let source = trim_mount_path(path)
+      if source == container_data_dir {
+        host_data_dir
+      } else {
+        let prefix = container_data_dir + "/"
+        if source.has_prefix(prefix) {
+          host_data_dir + source[container_data_dir.length():].to_owned()
+        } else {
+          source
+        }
+      }
+    }
+    None => path
+  }
 }
 
 ///|
@@ -193,6 +251,10 @@ async fn CodexDockerConfig::load(
     Ok(platform) => platform
     Err(message) => return Err(message)
   }
+  let host_data_dir = match configured_host_data_dir(root) {
+    Ok(value) => value
+    Err(message) => return Err(message)
+  }
   Ok({
     image,
     platform,
@@ -200,6 +262,8 @@ async fn CodexDockerConfig::load(
     model: settings.model,
     api_key: settings.api_key,
     container_home,
+    container_data_dir: trim_mount_path(root) + "/data",
+    host_data_dir,
   })
 }
 
@@ -212,9 +276,10 @@ fn bootstrap_prompt(user_message : String) -> String {
     #|- Default to MoonBit unless the user explicitly asks for another technology.
     #|- Complete the job in one turn without asking follow-up questions.
     #|- Use subagents only for concrete, bounded implementation tasks.
+    #|- Do not spend the turn reading broad skill docs or dependency internals unless a build error requires it.
     #|- This workspace intentionally starts without an app scaffold. Do not assume `frontend/`, `backend/`, or `shared/` directories exist.
     #|- The current workspace root is the generated app root. Do not leave the only MoonBit module inside a child directory.
-    #|- Use `moon new` only as a scaffold helper. If it creates a child directory, move or adapt the generated files so the workspace root contains the runnable MoonBit project before finishing.
+    #|- Use `moon new` only as a scaffold helper. If it creates a child directory, immediately move or adapt the generated files so the workspace root contains the runnable MoonBit project before finishing.
     #|- Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working from the current workspace root.
     #|
   ) +
@@ -224,6 +289,7 @@ fn bootstrap_prompt(user_message : String) -> String {
     #|- Create or maintain `mooncraft-preview.sh` at the workspace root. It receives `<port> <build-profile>`, starts the generated app server, serves the user-facing app at `/`, and returns success from `/api/health`.
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
     #|- You may run shell commands as needed.
+    #|- Before finishing, verify that the workspace root contains `moon.mod.json`, `moon.mod`, or `moon.work`, and also contains `mooncraft-preview.sh`.
     #|- Before finishing, run `moon fmt`, `moon check`, `moon test`, and `moon build`.
     #|- Do not stop with a progress-only final answer. Your final response must be brief and must summarize the completed app, validation status, and any blocking failure.
     #|
@@ -243,6 +309,7 @@ fn followup_prompt(user_message : String) -> String {
     #|- Default to MoonBit unless the user explicitly asks for another technology.
     #|- Complete the job in one turn without asking follow-up questions.
     #|- Use subagents only for concrete, bounded implementation tasks.
+    #|- Do not spend the turn reading broad skill docs or dependency internals unless a build error requires it.
     #|- Do not assume a fixed project layout. Preserve the existing app structure unless a change is needed.
     #|- The current workspace root is the generated app root. Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working from that root.
     #|
@@ -253,6 +320,7 @@ fn followup_prompt(user_message : String) -> String {
     #|- Maintain `mooncraft-preview.sh` at the workspace root. It receives `<port> <build-profile>`, starts the generated app server, serves the user-facing app at `/`, and returns success from `/api/health`.
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
     #|- You may run shell commands as needed.
+    #|- Before finishing, verify that the workspace root contains `moon.mod.json`, `moon.mod`, or `moon.work`, and also contains `mooncraft-preview.sh`.
     #|- Before finishing, run `moon fmt`, `moon check`, `moon test`, and `moon build`.
     #|- Do not stop with a progress-only final answer. Your final response must be brief and must summarize the completed app, validation status, and any blocking failure.
     #|
@@ -275,6 +343,7 @@ fn recovery_prompt(
     #|- Default to MoonBit unless the user explicitly asks for another technology.
     #|- Complete the job in one turn without asking follow-up questions.
     #|- Use subagents only for concrete, bounded implementation tasks.
+    #|- Do not spend the turn reading broad skill docs or dependency internals unless a build error requires it.
     #|- The current workspace already contains the latest saved project state.
     #|- Do not assume a fixed project layout. Preserve the existing app structure unless a change is needed.
     #|- The current workspace root is the generated app root. Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working from that root.
@@ -286,6 +355,7 @@ fn recovery_prompt(
     #|- Maintain `mooncraft-preview.sh` at the workspace root. It receives `<port> <build-profile>`, starts the generated app server, serves the user-facing app at `/`, and returns success from `/api/health`.
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
     #|- You may run shell commands as needed.
+    #|- Before finishing, verify that the workspace root contains `moon.mod.json`, `moon.mod`, or `moon.work`, and also contains `mooncraft-preview.sh`.
     #|- Before finishing, run `moon fmt`, `moon check`, `moon test`, and `moon build`.
     #|- Do not stop with a progress-only final answer. Your final response must be brief and must summarize the completed app, validation status, and any blocking failure.
     #|
@@ -315,6 +385,34 @@ fn preview_setup_repair_prompt() -> String {
     #|- Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working.
     #|- Finish with a brief summary that says the preview startup was repaired.
   )
+}
+
+///|
+fn workspace_contract_repair_prompt(contract_error : String) -> String {
+  (
+    #|Mooncraft could not validate the generated workspace structure.
+    #|
+    #|Problem:
+    #|
+  ) +
+  contract_error +
+  (
+    #|
+    #|
+    #|Repair only the workspace structure needed by Mooncraft:
+    #|- Ensure the workspace root contains a MoonBit project manifest: `moon.mod.json`, `moon.mod`, or `moon.work`.
+    #|- If `moon new` creates a child directory, move or adapt the generated files so the workspace root is the runnable project root.
+    #|- Ensure `mooncraft-preview.sh` exists at the workspace root.
+    #|- The preview script must accept `<port> <build-profile>`, start the generated app server, serve `/`, and return success from `/api/health`.
+    #|- Keep root-level `moon fmt`, `moon check`, `moon build`, and `moon test` working.
+    #|- Do not change the app's user-facing behavior unless it is required to make the app valid and previewable.
+    #|- Finish with a brief summary that says the workspace structure was repaired.
+  )
+}
+
+///|
+fn workspace_contract_failed_assistant_message() -> String {
+  "The builder did not finish creating a valid app workspace. Send another message to retry."
 }
 
 ///|
@@ -374,6 +472,26 @@ fn trim_or_default(text : String, fallback : String) -> String {
     fallback
   } else {
     normalized
+  }
+}
+
+///|
+fn workspace_has_root_moon_project(workspace_path : String) -> Bool {
+  @fs.path_exists(workspace_path + "/moon.mod.json") ||
+  @fs.path_exists(workspace_path + "/moon.mod") ||
+  @fs.path_exists(workspace_path + "/moon.work")
+}
+
+///|
+fn workspace_contract_error(workspace_path : String) -> String? {
+  if !workspace_has_root_moon_project(workspace_path) {
+    Some(
+      "The builder did not create a MoonBit project at the workspace root. Expected `moon.mod.json`, `moon.mod`, or `moon.work` directly under \{workspace_path}.",
+    )
+  } else if !@fs.path_exists(preview_script_path(workspace_path)) {
+    Some(preview_startup_script_missing_message())
+  } else {
+    None
   }
 }
 
@@ -499,7 +617,7 @@ fn codex_display_event(line : String) -> (String, String)? {
   } else if trimmed.contains("\"type\":\"turn.started\"") {
     Some(("status", "Planning the change."))
   } else if trimmed.contains("\"type\":\"turn.completed\"") {
-    Some(("status", "Finished the app update."))
+    Some(("status", "Builder session ended."))
   } else if trimmed.contains("\"type\":\"turn.failed\"") {
     Some(("status", "The app update failed."))
   } else if trimmed.contains("\"type\":\"agent_message\"") {
@@ -855,14 +973,24 @@ fn docker_command_args(
     Some(path) => {
       ensure_dir(path)
       args.push("-v")
-      args.push(path + ":" + config.container_codex_home())
+      args.push(
+        docker_bind_source(config, path) + ":" + config.container_codex_home(),
+      )
     }
     None => ()
   }
   args.push("-v")
-  args.push(workspace_path + ":" + codex_container_workspace_dir())
+  args.push(
+    docker_bind_source(config, workspace_path) +
+    ":" +
+    codex_container_workspace_dir(),
+  )
   args.push("-v")
-  args.push(artifacts.dir + ":" + codex_container_artifacts_dir())
+  args.push(
+    docker_bind_source(config, artifacts.dir) +
+    ":" +
+    codex_container_artifacts_dir(),
+  )
   args.push("-w")
   args.push(codex_container_workspace_dir())
   args.push(config.image)
@@ -1294,25 +1422,6 @@ async fn run_codex_turn(
         ),
       )
   }
-  match snapshot_workspace(store, root, project.id, workspace_path) {
-    Ok(_) => ignore(())
-    Err(message) =>
-      return Err(
-        codex_failure_with_debug(
-          default_failure_assistant_message(),
-          message,
-          Some(thread_id),
-          Some(
-            failure_debug(
-              "Workspace snapshot",
-              Some(active_command),
-              None,
-              Some(artifacts),
-            ),
-          ),
-        ),
-      )
-  }
   let summary = match fake_summary {
     Some(summary) => trim_or_default(summary, default_success_summary())
     None =>
@@ -1655,7 +1764,7 @@ async fn AgentGateway::run_turn(
         )
     }
   }
-  let codex_result = match
+  let mut codex_result = match
     run_codex_turn(
       store,
       self.root,
@@ -1668,6 +1777,55 @@ async fn AgentGateway::run_turn(
     ) {
     Ok(result) => result
     Err(failure) => return Err(failure)
+  }
+  match workspace_contract_error(workspace_path) {
+    Some(contract_error) => {
+      store.append_run_event(
+        project.id,
+        run_id,
+        "status",
+        "Repairing the project workspace.",
+      )
+      let repair_project = {
+        ..project,
+        codex_thread_id: Some(codex_result.thread_id),
+      }
+      let repair_result = match
+        run_codex_turn(
+          store,
+          self.root,
+          config,
+          repair_project,
+          initial_project_prompt,
+          workspace_path,
+          run_id,
+          workspace_contract_repair_prompt(contract_error),
+        ) {
+        Ok(result) => result
+        Err(failure) => return Err(failure)
+      }
+      codex_result = repair_result
+      match workspace_contract_error(workspace_path) {
+        Some(repair_error) =>
+          return Err(
+            codex_failure_with_debug(
+              workspace_contract_failed_assistant_message(),
+              repair_error,
+              Some(codex_result.thread_id),
+              Some(
+                failure_debug(
+                  "Workspace contract",
+                  None,
+                  None,
+                  Some(codex_result.artifacts),
+                ),
+              ),
+            ),
+          )
+        None => ignore(())
+      }
+    }
+    None => ignore(())
   }
   let artifacts = codex_result.artifacts
   let persist_validated_workspace = async fn() noraise {

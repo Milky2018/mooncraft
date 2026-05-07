@@ -14,6 +14,16 @@ test "bootstrap prompt includes the core execution rules" {
   assert_true(
     prompt.contains("The current workspace root is the generated app root."),
   )
+  assert_true(
+    prompt.contains(
+      "Do not spend the turn reading broad skill docs or dependency internals",
+    ),
+  )
+  assert_true(
+    prompt.contains(
+      "verify that the workspace root contains `moon.mod.json`, `moon.mod`, or `moon.work`",
+    ),
+  )
   assert_true(prompt.contains("Do not stop with a progress-only final answer."))
   assert_true(prompt.contains("moon fmt"))
   assert_true(prompt.contains("Build a todo app"))
@@ -68,6 +78,34 @@ test "preview startup failures use user-safe copy" {
       "mooncraft-preview.sh",
     ),
   )
+}
+
+///|
+test "workspace contract requires root MoonBit project and preview script" {
+  let root = @env.current_dir().unwrap_or(".") +
+    "/data/control-plane-test-roots/" +
+    next_id("workspace-contract")
+  let workspace = root + "/workspace"
+  safe_remove_tree(root)
+  ensure_dir(workspace)
+
+  let missing_project = workspace_contract_error(workspace)
+  debug_inspect(
+    missing_project.map(fn(message) {
+      message.contains("MoonBit project at the workspace root")
+    }),
+    content="Some(true)",
+  )
+
+  safe_write_string(workspace + "/moon.mod.json", "{\"name\":\"test/app\"}\n")
+  debug_inspect(
+    workspace_contract_error(workspace),
+    content="Some(\"The app did not provide `mooncraft-preview.sh`, so Mooncraft does not know how to start the live preview.\")",
+  )
+
+  safe_write_string(workspace + "/mooncraft-preview.sh", "#!/usr/bin/env sh\n")
+  debug_inspect(workspace_contract_error(workspace), content="None")
+  safe_remove_tree(root)
 }
 
 ///|
@@ -280,30 +318,53 @@ test "docker command receives user scoped AI settings" {
     model: "openai/gpt-5.5",
     api_key: "user-key",
     container_home: "/root",
+    container_data_dir: "/app/data",
+    host_data_dir: Some("/srv/mooncraft/test/data"),
   }
   let artifacts : RunArtifacts = {
-    dir: "/tmp/artifacts",
-    last_message_path: "/tmp/artifacts/last_message.txt",
-    codex_log_path: "/tmp/artifacts/codex.log",
-    validation_log_path: "/tmp/artifacts/validation.log",
+    dir: "/app/data/runtime/projects/project-1/artifacts/runs/run-1",
+    last_message_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/last_message.txt",
+    codex_log_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/codex.log",
+    validation_log_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/validation.log",
   }
   let args = docker_command_args(
     config,
-    "/tmp/artifacts/codex.env",
-    "/tmp/workspace",
-    Some("/tmp/mooncraft-codex-home"),
+    "/app/data/runtime/projects/project-1/artifacts/runs/run-1/codex.env",
+    "/app/data/runtime/projects/project-1/workspace",
+    Some("/app/data/codex-sessions/project-1/.codex"),
     artifacts,
     ["codex", "exec", "Build an app"],
   )
   assert_true(args.contains("--platform"))
   assert_true(args.contains("linux/amd64"))
   assert_true(args.contains("--env-file"))
-  assert_true(args.contains("/tmp/artifacts/codex.env"))
+  assert_true(
+    args.contains(
+      "/app/data/runtime/projects/project-1/artifacts/runs/run-1/codex.env",
+    ),
+  )
   assert_false(args.contains("MOONCRAFT_AI_PROVIDER=openrouter"))
   assert_false(args.contains("MOONCRAFT_AI_MODEL=openai/gpt-5.5"))
   assert_false(args.contains("MOONCRAFT_AI_API_KEY=user-key"))
   assert_false(args.contains("CODEX_HOME=/root/.codex"))
-  assert_true(args.contains("/tmp/mooncraft-codex-home:/root/.codex"))
+  assert_true(
+    args.contains(
+      "/srv/mooncraft/test/data/codex-sessions/project-1/.codex:/root/.codex",
+    ),
+  )
+  assert_true(
+    args.contains(
+      "/srv/mooncraft/test/data/runtime/projects/project-1/workspace:/workspace",
+    ),
+  )
+  assert_true(
+    args.contains(
+      "/srv/mooncraft/test/data/runtime/projects/project-1/artifacts/runs/run-1:/artifacts",
+    ),
+  )
+  assert_false(
+    args.contains("/app/data/runtime/projects/project-1/workspace:/workspace"),
+  )
   assert_false(args.contains("OPENAI_API_KEY"))
   let env_file = docker_env_file_content(config)
   assert_true(env_file.contains("MOONCRAFT_AI_PROVIDER=openrouter"))
@@ -404,6 +465,10 @@ test "codex display events hide protocol noise" {
   debug_inspect(
     codex_display_event("{\"type\":\"turn.started\"}"),
     content="Some((\"status\", \"Planning the change.\"))",
+  )
+  debug_inspect(
+    codex_display_event("{\"type\":\"turn.completed\"}"),
+    content="Some((\"status\", \"Builder session ended.\"))",
   )
   debug_inspect(
     codex_display_event(

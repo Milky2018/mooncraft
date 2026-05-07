@@ -29,6 +29,8 @@ type CodexDockerConfig
 
 type CodexExecutionResult
 
+type DevAuthRequest derive(@debug.Debug, @json.FromJson)
+
 type GitHubCallbackPayload derive(@debug.Debug, @json.FromJson)
 
 type GitHubUserEmail derive(@debug.Debug, @json.FromJson)

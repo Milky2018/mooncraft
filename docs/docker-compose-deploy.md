@@ -7,7 +7,7 @@ The two environments intentionally use the same runtime shape:
 - the same locally built Mooncraft app image
 - the same real Docker-backed Codex mode
 - the same mounted Docker socket
-- the same persistent app and PostgreSQL volume pattern
+- the same host-mounted app data directory pattern and PostgreSQL volume pattern
 - different compose project names and host ports
 
 ## Runtime Model
@@ -21,6 +21,8 @@ This means the host must have Docker installed and the Mooncraft service contain
 ```
 
 The Mooncraft app image installs `docker-ce-cli`; it does not run a Docker daemon inside the container.
+
+Because the Docker daemon is on the host, every source path in `docker run -v ...` is resolved on the host, not inside the Mooncraft container. Mooncraft therefore requires `MOONCRAFT_HOST_DATA_DIR`: an absolute host path mounted into the app container as `/app/data`. The app stores runtime workspaces under `/app/data/...` and translates those paths back to `${MOONCRAFT_HOST_DATA_DIR}/...` before starting Codex containers.
 
 ## Images
 
@@ -57,7 +59,30 @@ cp .env.test.example .env.test
 cp .env.prod.example .env.prod
 ```
 
-Then edit `.env.test` and `.env.prod` with real domains, ports, passwords, admin tokens, and GitHub OAuth credentials. GitHub OAuth is required because it is the only supported sign-in provider.
+Then edit `.env.test` and `.env.prod` with real domains, ports, passwords, admin tokens, GitHub OAuth credentials, and an absolute `MOONCRAFT_HOST_DATA_DIR`. GitHub OAuth is required because it is the only supported sign-in provider.
+
+Create the data directories before starting Compose:
+
+```bash
+sudo mkdir -p /srv/mooncraft/test/data /srv/mooncraft/prod/data
+sudo chown -R "$USER:$USER" /srv/mooncraft/test /srv/mooncraft/prod
+```
+
+If you previously deployed a version that used the old `mooncraft-runtime` named volume, copy it once into the new host data directory before recreating the app container:
+
+```bash
+docker run --rm \
+  -v mooncraft-test_mooncraft-runtime:/from:ro \
+  -v /srv/mooncraft/test/data:/to \
+  alpine sh -c 'cp -a /from/. /to/'
+
+docker run --rm \
+  -v mooncraft-prod_mooncraft-runtime:/from:ro \
+  -v /srv/mooncraft/prod/data:/to \
+  alpine sh -c 'cp -a /from/. /to/'
+```
+
+Skip the matching command if that environment has no old runtime volume.
 
 Real env files are ignored by Git:
 
@@ -164,7 +189,7 @@ docker pull docker.io/moonbitcloud/codex:codex-0.125.0-node24
 docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --wait --force-recreate
 ```
 
-Plain `docker compose down` preserves named volumes but creates extra downtime. Use it only when intentionally stopping a stack. Never use `docker compose down -v` unless you intentionally want to delete the PostgreSQL and Mooncraft runtime volumes.
+Plain `docker compose down` preserves named volumes and host bind-mounted data, but creates extra downtime. Use it only when intentionally stopping a stack. Never use `docker compose down -v` unless you intentionally want to delete PostgreSQL volumes. Remove `${MOONCRAFT_HOST_DATA_DIR}` only when you intentionally want to delete Mooncraft runtime caches and Codex session homes.
 
 ## Logs And Operations
 
@@ -226,18 +251,19 @@ Stop an environment:
 docker compose -f docker-compose.prod.yml down
 ```
 
-Do not use `down -v` unless you intentionally want to delete PostgreSQL and Mooncraft runtime volumes.
+Do not use `down -v` unless you intentionally want to delete PostgreSQL volumes. Do not remove `${MOONCRAFT_HOST_DATA_DIR}` unless you intentionally want to delete Mooncraft runtime caches and Codex session homes.
 
 ## Data
 
 Compose creates named volumes:
 
 - `mooncraft-postgres` for PostgreSQL data
-- `mooncraft-runtime` for app runtime data
 
-For the current single-node deployment, preserve both volumes. PostgreSQL stores users, projects, messages, runs, and workspace snapshots. Mooncraft runtime data stores local runtime caches and per-project Codex session homes.
+Compose also bind-mounts `${MOONCRAFT_HOST_DATA_DIR}` to `/app/data`.
 
-Before treating this as hardened production, define backup and restore for PostgreSQL and the Mooncraft runtime volume.
+For the current single-node deployment, preserve both the PostgreSQL volume and the host data directory. PostgreSQL stores users, projects, messages, runs, and workspace snapshots. The host data directory stores local runtime caches and per-project Codex session homes, and it must be visible to sibling Codex containers through host bind mounts.
+
+Before treating this as hardened production, define backup and restore for PostgreSQL and the Mooncraft host data directory.
 
 ## Validation
 
@@ -272,6 +298,6 @@ Known limits:
 
 - the app container has access to the host Docker socket
 - generated previews run on the same host
-- Codex session homes are file-backed under the Mooncraft runtime volume
-- runtime volume backups are still operator-managed
+- Codex session homes are file-backed under the Mooncraft host data directory
+- host data directory backups are still operator-managed
 - no hard per-user resource quotas are enforced yet

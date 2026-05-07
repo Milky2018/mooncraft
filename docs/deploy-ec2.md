@@ -28,7 +28,7 @@ Required fix:
 
 ### 2. Persistence is production-database backed, but not HA
 
-Local durable state defaults to SQLite. Production should set `MOONCRAFT_DATABASE_URL` and use PostgreSQL. Generated project directories under `data/runtime/` are scratch caches hydrated from database snapshots. Codex session state is file-backed under `data/codex-sessions/` and must be preserved with the app data volume on the current single-node deployment.
+Local durable state defaults to SQLite. Production should set `MOONCRAFT_DATABASE_URL` and use PostgreSQL. Generated project directories under `data/runtime/` are scratch caches hydrated from database snapshots. Codex session state is file-backed under `data/codex-sessions/` and must be preserved through `MOONCRAFT_HOST_DATA_DIR` on the current single-node deployment.
 
 Why this matters:
 
