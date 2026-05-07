@@ -24,6 +24,7 @@ test "bootstrap prompt includes the core execution rules" {
       "verify that the workspace root contains `moon.mod.json`, `moon.mod`, or `moon.work`",
     ),
   )
+  assert_true(prompt.contains(".mooncraft/implementation-required"))
   assert_true(prompt.contains("Do not stop with a progress-only final answer."))
   assert_true(prompt.contains("moon fmt"))
   assert_true(prompt.contains("Build a todo app"))
@@ -104,8 +105,33 @@ test "workspace contract requires root MoonBit project and preview script" {
   )
 
   safe_write_string(workspace + "/mooncraft-preview.sh", "#!/usr/bin/env sh\n")
+  ensure_dir(workspace + "/.mooncraft")
+  safe_write_string(
+    implementation_required_marker_path(workspace),
+    "replace placeholder\n",
+  )
+  debug_inspect(
+    workspace_contract_error(workspace).map(fn(message) {
+      message.contains("placeholder implementation marker")
+    }),
+    content="Some(true)",
+  )
+  safe_remove_tree(implementation_required_marker_path(workspace))
   debug_inspect(workspace_contract_error(workspace), content="None")
   safe_remove_tree(root)
+}
+
+///|
+test "workspace contract repair prompt is self-contained" {
+  let prompt = workspace_contract_repair_prompt(
+    "The builder left the placeholder marker.", "Build a Snake game", "Make it browser-playable",
+  )
+  assert_true(prompt.contains("The builder left the placeholder marker."))
+  assert_true(prompt.contains("Original project requirement"))
+  assert_true(prompt.contains("Build a Snake game"))
+  assert_true(prompt.contains("Latest user request"))
+  assert_true(prompt.contains("Make it browser-playable"))
+  assert_true(prompt.contains("You must edit files in this workspace"))
 }
 
 ///|
@@ -823,6 +849,49 @@ async test "restore project workspace for run uses the stable project workspace 
   inspect(
     safe_read_string_or(workspace_path + "/README.md", ""),
     content="from snapshot\n",
+  )
+  safe_remove_tree(project_root(root, project_id))
+  cleanup_test_db(db_path)
+}
+
+///|
+async test "builder snapshot persistence saves invalid contract workspaces" {
+  let root = @env.current_dir().unwrap_or(".")
+  let (store, db_path) = new_test_store(root, "snapshot-contract-failure-db")
+  let project_id = next_id("snapshot-contract-failure")
+  let workspace_path = project_workspace(root, project_id)
+  safe_remove_tree(project_root(root, project_id))
+  ensure_dir(workspace_path + "/cmd/main")
+  safe_write_string(
+    workspace_path + "/moon.mod.json",
+    "{\"name\":\"test/app\"}\n",
+  )
+  safe_write_string(
+    workspace_path + "/cmd/main/main.mbt",
+    "fn main { println(\"Hello\") }\n",
+  )
+  let artifacts = RunArtifacts::new(root, project_id, "run-contract-failure")
+
+  let result = persist_builder_workspace_snapshot(
+    store, root, project_id, workspace_path, "thread-contract-failure", artifacts,
+  )
+  safe_write_string(workspace_path + "/cmd/main/main.mbt", "changed\n")
+  ignore(restore_project_workspace_for_run(store, root, project_id).unwrap())
+
+  inspect(
+    match result {
+      Ok(_) => true
+      Err(_) => false
+    },
+    content="true",
+  )
+  inspect(
+    safe_read_string_or(workspace_path + "/cmd/main/main.mbt", ""),
+    content="fn main { println(\"Hello\") }\n",
+  )
+  debug_inspect(
+    workspace_contract_error(workspace_path),
+    content="Some(\"The app did not provide `mooncraft-preview.sh`, so Mooncraft does not know how to start the live preview.\")",
   )
   safe_remove_tree(project_root(root, project_id))
   cleanup_test_db(db_path)

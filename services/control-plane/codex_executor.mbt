@@ -277,7 +277,8 @@ fn bootstrap_prompt(user_message : String) -> String {
     #|- Complete the job in one turn without asking follow-up questions.
     #|- Use subagents only for concrete, bounded implementation tasks.
     #|- Do not spend the turn reading broad skill docs or dependency internals unless a build error requires it.
-    #|- This workspace intentionally starts without an app scaffold. Do not assume `frontend/`, `backend/`, or `shared/` directories exist.
+    #|- This workspace starts with Mooncraft's minimal MoonBit preview shell. Replace the placeholder app with the user's requested app.
+    #|- Do not assume `frontend/`, `backend/`, or `shared/` directories exist.
     #|- The current workspace root is the generated app root. Do not leave the only MoonBit module inside a child directory.
     #|- Use `moon new` only as a scaffold helper. If it creates a child directory, immediately move or adapt the generated files so the workspace root contains the runnable MoonBit project before finishing.
     #|- Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working from the current workspace root.
@@ -287,9 +288,10 @@ fn bootstrap_prompt(user_message : String) -> String {
   (
     #|
     #|- Create or maintain `mooncraft-preview.sh` at the workspace root. It receives `<port> <build-profile>`, starts the generated app server, serves the user-facing app at `/`, and returns success from `/api/health`.
+    #|- Delete `.mooncraft/implementation-required` after replacing the placeholder shell with the user's requested app.
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
     #|- You may run shell commands as needed.
-    #|- Before finishing, verify that the workspace root contains `moon.mod.json`, `moon.mod`, or `moon.work`, and also contains `mooncraft-preview.sh`.
+    #|- Before finishing, verify that the workspace root contains `moon.mod.json`, `moon.mod`, or `moon.work`, contains `mooncraft-preview.sh`, and no longer contains `.mooncraft/implementation-required`.
     #|- Before finishing, run `moon fmt`, `moon check`, `moon test`, and `moon build`.
     #|- Do not stop with a progress-only final answer. Your final response must be brief and must summarize the completed app, validation status, and any blocking failure.
     #|
@@ -318,9 +320,10 @@ fn followup_prompt(user_message : String) -> String {
   (
     #|
     #|- Maintain `mooncraft-preview.sh` at the workspace root. It receives `<port> <build-profile>`, starts the generated app server, serves the user-facing app at `/`, and returns success from `/api/health`.
+    #|- If `.mooncraft/implementation-required` exists, delete it only after replacing the placeholder shell with the user's requested app.
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
     #|- You may run shell commands as needed.
-    #|- Before finishing, verify that the workspace root contains `moon.mod.json`, `moon.mod`, or `moon.work`, and also contains `mooncraft-preview.sh`.
+    #|- Before finishing, verify that the workspace root contains `moon.mod.json`, `moon.mod`, or `moon.work`, contains `mooncraft-preview.sh`, and does not contain `.mooncraft/implementation-required`.
     #|- Before finishing, run `moon fmt`, `moon check`, `moon test`, and `moon build`.
     #|- Do not stop with a progress-only final answer. Your final response must be brief and must summarize the completed app, validation status, and any blocking failure.
     #|
@@ -353,9 +356,10 @@ fn recovery_prompt(
   (
     #|
     #|- Maintain `mooncraft-preview.sh` at the workspace root. It receives `<port> <build-profile>`, starts the generated app server, serves the user-facing app at `/`, and returns success from `/api/health`.
+    #|- If `.mooncraft/implementation-required` exists, delete it only after replacing the placeholder shell with the user's requested app.
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
     #|- You may run shell commands as needed.
-    #|- Before finishing, verify that the workspace root contains `moon.mod.json`, `moon.mod`, or `moon.work`, and also contains `mooncraft-preview.sh`.
+    #|- Before finishing, verify that the workspace root contains `moon.mod.json`, `moon.mod`, or `moon.work`, contains `mooncraft-preview.sh`, and does not contain `.mooncraft/implementation-required`.
     #|- Before finishing, run `moon fmt`, `moon check`, `moon test`, and `moon build`.
     #|- Do not stop with a progress-only final answer. Your final response must be brief and must summarize the completed app, validation status, and any blocking failure.
     #|
@@ -388,7 +392,11 @@ fn preview_setup_repair_prompt() -> String {
 }
 
 ///|
-fn workspace_contract_repair_prompt(contract_error : String) -> String {
+fn workspace_contract_repair_prompt(
+  contract_error : String,
+  initial_project_prompt : String,
+  user_prompt : String,
+) -> String {
   (
     #|Mooncraft could not validate the generated workspace structure.
     #|
@@ -399,11 +407,27 @@ fn workspace_contract_repair_prompt(contract_error : String) -> String {
   (
     #|
     #|
+    #|Original project requirement:
+    #|
+  ) +
+  initial_project_prompt +
+  (
+    #|
+    #|
+    #|Latest user request:
+    #|
+  ) +
+  user_prompt +
+  (
+    #|
+    #|
     #|Repair only the workspace structure needed by Mooncraft:
     #|- Ensure the workspace root contains a MoonBit project manifest: `moon.mod.json`, `moon.mod`, or `moon.work`.
     #|- If `moon new` creates a child directory, move or adapt the generated files so the workspace root is the runnable project root.
     #|- Ensure `mooncraft-preview.sh` exists at the workspace root.
     #|- The preview script must accept `<port> <build-profile>`, start the generated app server, serve `/`, and return success from `/api/health`.
+    #|- If `.mooncraft/implementation-required` exists, replace the placeholder shell with the app requested above and delete that marker.
+    #|- Do not finish after only describing what you will change. You must edit files in this workspace before your final answer.
     #|- Keep root-level `moon fmt`, `moon check`, `moon build`, and `moon test` working.
     #|- Do not change the app's user-facing behavior unless it is required to make the app valid and previewable.
     #|- Finish with a brief summary that says the workspace structure was repaired.
@@ -490,6 +514,10 @@ fn workspace_contract_error(workspace_path : String) -> String? {
     )
   } else if !@fs.path_exists(preview_script_path(workspace_path)) {
     Some(preview_startup_script_missing_message())
+  } else if @fs.path_exists(implementation_required_marker_path(workspace_path)) {
+    Some(
+      "The builder left Mooncraft's placeholder implementation marker in the workspace. Replace the placeholder app with the user's requested app and delete `\{implementation_required_marker_relative_path()}` before finishing.",
+    )
   } else {
     None
   }
@@ -678,16 +706,6 @@ fn append_command_log(
 }
 
 ///|
-fn moonbit_string_literal(value : String) -> String {
-  "\"" +
-  value
-  .replace_all(old="\\", new="\\\\")
-  .replace_all(old="\"", new="\\\"")
-  .replace_all(old="\n", new="\\n") +
-  "\""
-}
-
-///|
 fn fake_codex_state_dir(root : String, project_id : String) -> String {
   project_root(root, project_id) + "/fake-codex"
 }
@@ -706,110 +724,23 @@ fn fake_codex_update_workspace(
     fake_codex_user_request(prompt),
     "Mooncraft update",
   )
-  let async_version = required_reference_module_version("moonbitlang/async")
-  let mocket_version = required_reference_module_version("oboard/mocket")
-  let x_version = required_reference_module_version("moonbitlang/x")
   let title = if normalized.length() > 48 {
     normalized.unsafe_substring(start=0, end=48)
   } else {
     normalized
   }
   let subtitle = "Smoke mode applied: " + normalized
-  safe_write_string(
-    workspace_path + "/moon.mod.json",
-    (
-      #|{
-      #|  "name": "mooncraft/generated-app",
-      #|  "version": "0.1.0",
-      #|  "preferred-target": "native",
-      #|  "deps": {
-    ) +
-    "    \"moonbitlang/async\": \"" +
-    async_version +
-    "\",\n" +
-    "    \"oboard/mocket\": \"" +
-    mocket_version +
-    "\",\n" +
-    "    \"moonbitlang/x\": \"" +
-    x_version +
-    "\"\n" +
-    (
-      #|  },
-      #|  "readme": "README.md",
-      #|  "repository": "",
-      #|  "license": "Apache-2.0",
-      #|  "keywords": ["moonbit", "mooncraft", "generated"],
-      #|  "description": "Smoke-mode generated Mooncraft app."
-      #|}
-    ),
-  )
-  safe_write_string(
-    workspace_path + "/moon.pkg",
-    (
-      #|import {
-      #|  "moonbitlang/async",
-      #|  "oboard/mocket",
-      #|  "moonbitlang/core/env",
-      #|  "moonbitlang/core/string",
-      #|}
-      #|
-      #|options(
-      #|  "is-main": true,
-      #|)
-      #|
-      #|supported_targets = "native"
-    ),
-  )
-  safe_write_string(
-    workspace_path + "/main.mbt",
-    (
-      #|///|
-      #|async fn main {
-      #|  let args = @env.args()
-      #|  let port = if args.length() > 1 {
-      #|    @string.parse_int(args[1]) catch {
-      #|      _ => 4300
-      #|    }
-      #|  } else {
-      #|    4300
-      #|  }
-      #|  let title = 
-    ) +
-    moonbit_string_literal(title) +
-    (
-      #|
-      #|  let subtitle = 
-    ) +
-    moonbit_string_literal(subtitle) +
-    (
-      #|
-      #|  let app = @mocket.new()
-      #|  app.get("/api/health", _ => @mocket.HttpResponse::new(OK, headers={ "Content-Type": "application/json" }).body("{\"ok\":true}"))
-      #|  app.get("/", _ => @mocket.HttpResponse::new(OK, headers={ "Content-Type": "text/html; charset=utf-8" }).body("<!doctype html><html><head><meta charset='utf-8'><title>" + title + "</title><style>body{font-family:sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;background:#f6fbf8;color:#10231b}.card{max-width:680px;padding:40px;border-radius:28px;background:white;box-shadow:0 30px 90px #d7e4dc}p{color:#52645b;line-height:1.6}</style></head><body><main class='card'><p>Mooncraft smoke preview</p><h1>" + title + "</h1><p>" + subtitle + "</p></main></body></html>"))
-      #|  app.listen("0.0.0.0:\{port}")
-      #|}
-    ),
-  )
-  safe_write_string(
-    workspace_path + "/" + preview_script_relative_path(),
-    (
-      #|#!/usr/bin/env bash
-      #|set -euo pipefail
-      #|port="${1:-4300}"
-      #|profile="${2:-debug}"
-      #|exe="$(find "_build/native/${profile}/build" -name '*.exe' -type f | head -n 1)"
-      #|if [ -z "${exe}" ]; then
-      #|  echo "No native MoonBit executable was found for profile ${profile}." >&2
-      #|  exit 1
-      #|fi
-      #|exec "${exe}" "${port}"
-    ),
-  )
-  safe_write_string(
-    workspace_path + "/README.md",
-    "# Smoke Mode\n\nLatest request: " + normalized + "\n",
-  )
-  Ok(successful_preview_assistant_message())
+  match
+    scaffold_write_mocket_preview_app(
+      workspace_path,
+      title,
+      subtitle,
+      "Smoke-mode generated Mooncraft app.",
+      require_implementation=false,
+    ) {
+    Ok(_) => Ok(successful_preview_assistant_message())
+    Err(message) => Err(message)
+  }
 }
 
 ///|
@@ -1252,10 +1183,13 @@ async fn run_codex_turn(
   workspace_path : String,
   run_id : String,
   user_prompt : String,
+  reset_logs? : Bool = true,
 ) -> Result[CodexExecutionResult, AgentTurnFailure] noraise {
   let artifacts = RunArtifacts::new(root, project.id, run_id)
   safe_write_string(artifacts.last_message_path, "")
-  safe_write_string(artifacts.codex_log_path, "")
+  if reset_logs {
+    safe_write_string(artifacts.codex_log_path, "")
+  }
   let thread_id_before = project.codex_thread_id
   let model = match config {
     Some(config) => config.model
@@ -1729,6 +1663,29 @@ async fn run_validation_sequence(
 }
 
 ///|
+async fn persist_builder_workspace_snapshot(
+  store : Store,
+  root : String,
+  project_id : String,
+  workspace_path : String,
+  thread_id : String,
+  artifacts : RunArtifacts,
+) -> Result[Unit, AgentTurnFailure] noraise {
+  match snapshot_workspace(store, root, project_id, workspace_path) {
+    Ok(_) => Ok(())
+    Err(message) =>
+      Err(
+        codex_failure_with_debug(
+          "The workspace was updated, but saving the latest project snapshot failed.",
+          message,
+          Some(thread_id),
+          Some(failure_debug("Workspace snapshot", None, None, Some(artifacts))),
+        ),
+      )
+  }
+}
+
+///|
 async fn AgentGateway::run_turn(
   self : AgentGateway,
   store : Store,
@@ -1780,6 +1737,18 @@ async fn AgentGateway::run_turn(
   }
   match workspace_contract_error(workspace_path) {
     Some(contract_error) => {
+      match
+        persist_builder_workspace_snapshot(
+          store,
+          self.root,
+          project.id,
+          workspace_path,
+          codex_result.thread_id,
+          codex_result.artifacts,
+        ) {
+        Ok(_) => ignore(())
+        Err(failure) => return Err(failure)
+      }
       store.append_run_event(
         project.id,
         run_id,
@@ -1799,12 +1768,27 @@ async fn AgentGateway::run_turn(
           initial_project_prompt,
           workspace_path,
           run_id,
-          workspace_contract_repair_prompt(contract_error),
+          workspace_contract_repair_prompt(
+            contract_error, initial_project_prompt, user_prompt,
+          ),
+          reset_logs=false,
         ) {
         Ok(result) => result
         Err(failure) => return Err(failure)
       }
       codex_result = repair_result
+      match
+        persist_builder_workspace_snapshot(
+          store,
+          self.root,
+          project.id,
+          workspace_path,
+          codex_result.thread_id,
+          codex_result.artifacts,
+        ) {
+        Ok(_) => ignore(())
+        Err(failure) => return Err(failure)
+      }
       match workspace_contract_error(workspace_path) {
         Some(repair_error) =>
           return Err(
@@ -1829,19 +1813,17 @@ async fn AgentGateway::run_turn(
   }
   let artifacts = codex_result.artifacts
   let persist_validated_workspace = async fn() noraise {
-    match snapshot_workspace(store, self.root, project.id, workspace_path) {
+    match
+      persist_builder_workspace_snapshot(
+        store,
+        self.root,
+        project.id,
+        workspace_path,
+        codex_result.thread_id,
+        artifacts,
+      ) {
       Ok(_) => Ok(())
-      Err(message) =>
-        Err(
-          codex_failure_with_debug(
-            "The workspace was updated, but saving the latest project snapshot failed.",
-            message,
-            Some(codex_result.thread_id),
-            Some(
-              failure_debug("Workspace snapshot", None, None, Some(artifacts)),
-            ),
-          ),
-        )
+      Err(failure) => Err(failure)
     }
   }
   safe_write_string(artifacts.validation_log_path, "")

@@ -48,7 +48,7 @@ fn openai_recommended_model_ids() -> Array[String] {
 
 ///|
 fn openrouter_recommended_model_ids() -> Array[String] {
-  ["openai/gpt-5.5", "anthropic/claude-sonnet-4.5", "google/gemini-2.5-pro"]
+  ["anthropic/claude-sonnet-4.5", "google/gemini-2.5-pro", "openai/gpt-5.5"]
 }
 
 ///|

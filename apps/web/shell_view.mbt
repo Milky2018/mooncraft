@@ -793,6 +793,9 @@ fn render_llm_config_page(
                       "OpenRouter model IDs should include the provider prefix, for example openai/gpt-5.5.",
                     ),
                     @html.div(
+                      "For OpenRouter, Mooncraft recommends anthropic/claude-sonnet-4.5 for agentic app-building runs.",
+                    ),
+                    @html.div(
                       "Leave the API key field blank when a key is already saved and you only want to change the model.",
                     ),
                   ],

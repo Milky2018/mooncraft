@@ -23,7 +23,7 @@ fn default_openai_model() -> String {
 
 ///|
 fn default_openrouter_model() -> String {
-  "openai/gpt-5.5"
+  "anthropic/claude-sonnet-4.5"
 }
 
 ///|

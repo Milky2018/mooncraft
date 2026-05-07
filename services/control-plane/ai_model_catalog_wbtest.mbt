@@ -3,7 +3,14 @@ test "curated model options include provider defaults" {
   let openai = curated_model_options("openai")
   let openrouter = curated_model_options("openrouter")
   assert_true(model_option_ids(openai).contains("gpt-5.5"))
+  debug_inspect(
+    model_option_ids(openrouter).get(0),
+    content="Some(\"anthropic/claude-sonnet-4.5\")",
+  )
   assert_true(model_option_ids(openrouter).contains("openai/gpt-5.5"))
+  assert_true(
+    model_option_ids(openrouter).contains("anthropic/claude-sonnet-4.5"),
+  )
 }
 
 ///|

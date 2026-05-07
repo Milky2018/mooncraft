@@ -283,7 +283,7 @@ For an opt-in real Codex smoke test from the repo root:
 
 ```bash
 export MOONCRAFT_CODEX_SMOKE_PROVIDER=openrouter
-export MOONCRAFT_CODEX_SMOKE_MODEL=openai/gpt-5.5
+export MOONCRAFT_CODEX_SMOKE_MODEL=anthropic/claude-sonnet-4.5
 export MOONCRAFT_CODEX_SMOKE_API_KEY='your-test-key'
 just codex-smoke
 ```
