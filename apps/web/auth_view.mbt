@@ -123,7 +123,7 @@ fn render_auth_screen(
       render_notice_card(model.auth_notice, "var(--danger-soft)"),
       if model.github_enabled {
         @html.a(
-          href="/auth/github/start",
+          href=@sdk.github_login_path(),
           style=primary_button_style(true) +
             [
               "text-decoration: none", "justify-content: center", "padding: 13px 16px",

@@ -18,6 +18,16 @@ pub fn health_path() -> String {
 }
 
 ///|
+pub fn login_path() -> String {
+  "/login"
+}
+
+///|
+pub fn github_login_path() -> String {
+  "/login/github"
+}
+
+///|
 pub fn session_route() -> RouteSpec {
   route(GET, "/api/session", Ok)
 }

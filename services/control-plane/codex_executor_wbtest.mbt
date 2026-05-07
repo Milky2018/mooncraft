@@ -282,6 +282,7 @@ test "github oauth helpers build pkce authorization url" {
     url.contains("code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"),
   )
   assert_true(url.contains("code_challenge_method=S256"))
+  assert_true(url.contains("prompt=select_account"))
 }
 
 ///|

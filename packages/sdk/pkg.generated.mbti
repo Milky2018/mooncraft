@@ -49,6 +49,8 @@ pub fn delete_project_route() -> RouteSpec
 
 pub fn get_run_route() -> RouteSpec
 
+pub fn github_login_path() -> String
+
 pub fn health_path() -> String
 
 pub fn health_route() -> RouteSpec
@@ -58,6 +60,8 @@ pub fn list_messages_route() -> RouteSpec
 pub fn list_projects_route() -> RouteSpec
 
 pub fn list_run_events_route() -> RouteSpec
+
+pub fn login_path() -> String
 
 pub fn logout_path() -> String
 

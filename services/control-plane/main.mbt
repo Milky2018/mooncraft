@@ -629,7 +629,13 @@ fn main {
 
   let app = @mocket.new()
 
-  app.get("/", _ => html_response(workspace_page_html(ctx.root)))
+  app.get("/", async fn(event) noraise {
+    match session_user_from_event(ctx, event) {
+      Some(_) => html_response(workspace_page_html(ctx.root))
+      None => redirect_response(@sdk.login_path())
+    }
+  })
+  app.get(@sdk.login_path(), _ => html_response(workspace_page_html(ctx.root)))
   app.get("/control-plane-assets/**", event => {
     let remainder = event.params
       .get("_")
@@ -803,9 +809,10 @@ fn main {
         api_error_response(UnprocessableEntity, ValidationFailed, message)
     }
   })
-  app.get("/auth/github/start", async fn(_) noraise {
+  app.get(@sdk.github_login_path(), async fn(_) noraise {
     github_authorization_response(ctx)
   })
+  app.get("/auth/github/start", _ => redirect_response(@sdk.github_login_path()))
   app.get("/auth/github/callback", _ => {
     html_response(github_callback_page_html(ctx.root))
   })
