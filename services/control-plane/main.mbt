@@ -811,8 +811,14 @@ fn main {
   })
   app.post("/api/auth/github/callback", async fn(event) noraise {
     let payload : GitHubCallbackPayload = match decode_json_body(event) {
-      Ok(payload) => payload
-      Err(response) => return response
+      Ok(payload) => {
+        println("info: GitHub OAuth callback payload accepted")
+        payload
+      }
+      Err(response) => {
+        log_github_callback_failure("invalid callback JSON payload")
+        return response
+      }
     }
     match ctx.complete_github_sign_in(payload) {
       Ok(user) => authenticated_response(ctx, event, user)

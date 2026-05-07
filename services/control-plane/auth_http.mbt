@@ -136,6 +136,18 @@ fn log_github_token_exchange_failure(
 }
 
 ///|
+fn log_github_callback_failure(reason : String) -> Unit {
+  println(
+    "warning: GitHub OAuth callback failed\n" +
+    "  reason: " +
+    reason +
+    "\n" +
+    "  callback_url: " +
+    github_callback_url(),
+  )
+}
+
+///|
 fn github_credentials() -> (String, String)? {
   match
     (
@@ -408,12 +420,18 @@ async fn AppContext::complete_github_sign_in(
 ) -> Result[@sdk.UserSummary, String] noraise {
   let (client_id, client_secret) = match github_credentials() {
     Some(creds) => creds
-    None => return Err("GitHub sign-in is not configured on this server.")
+    None => {
+      log_github_callback_failure("missing server credentials")
+      return Err("GitHub sign-in is not configured on this server.")
+    }
   }
   let pkce_verifier = match
     self.store.consume_oauth_state(github_provider_name(), payload.state) {
     Some(value) => value
-    None => return Err("This GitHub sign-in link is invalid or has expired.")
+    None => {
+      log_github_callback_failure("state missing or expired")
+      return Err("This GitHub sign-in link is invalid or has expired.")
+    }
   }
   let headers : Map[String, String] = {
     "Accept": "application/json",

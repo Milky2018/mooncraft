@@ -48,7 +48,7 @@ RUN chmod +x /app/docker/mooncraft/entrypoint.sh \
     if [ "$attempt" = "5" ]; then exit 1; fi; \
     sleep $((attempt * 5)); \
   done \
-  && moon -C /app build
+  && moon -C /app build --release
 
 EXPOSE 8080
 
