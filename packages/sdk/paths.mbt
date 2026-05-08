@@ -103,6 +103,16 @@ pub fn admin_ai_models_path() -> String {
 }
 
 ///|
+pub fn ai_models_route() -> RouteSpec {
+  route(GET, "/api/ai/models", Ok)
+}
+
+///|
+pub fn ai_models_path() -> String {
+  ai_models_route().path_pattern
+}
+
+///|
 pub fn list_projects_route() -> RouteSpec {
   route(GET, "/api/projects", Ok)
 }

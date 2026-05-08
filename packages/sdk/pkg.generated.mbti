@@ -51,6 +51,10 @@ pub fn admin_run_path(String) -> String
 
 pub fn admin_run_route() -> RouteSpec
 
+pub fn ai_models_path() -> String
+
+pub fn ai_models_route() -> RouteSpec
+
 pub fn create_admin_ai_key_route() -> RouteSpec
 
 pub fn create_project_route() -> RouteSpec
@@ -188,6 +192,14 @@ pub(all) struct AdminRunLogsResponse {
   logs : Array[AdminRunLogFile]
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
+pub(all) struct AiModelSummary {
+  id : String
+  name : String
+  context_length : Int
+  prompt_price : String
+  completion_price : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
 pub(all) struct ApiError {
   code : ApiErrorCode
   message : String
@@ -238,6 +250,7 @@ pub(all) struct CreateAdminAiKeyRequest {
 
 pub(all) struct CreateProjectRequest {
   display_name : String
+  model : String?
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct CreateProjectResponse {
@@ -265,6 +278,12 @@ pub(all) enum HttpMethod {
   DELETE
 } derive(Eq, @debug.Debug)
 
+pub(all) struct ListAiModelsResponse {
+  default_model : String
+  items : Array[AiModelSummary]
+  fetched_at : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
 pub(all) struct ListMessagesResponse {
   items : Array[ChatMessage]
 } derive(ToJson, @debug.Debug, @json.FromJson)
@@ -287,6 +306,7 @@ pub(all) struct ProjectDetail {
   id : String
   preview_public_id : String
   display_name : String
+  model : String
   workspace_path : String
   codex_thread_id : String?
   status : RunState
@@ -300,6 +320,7 @@ pub(all) struct ProjectDetail {
 pub(all) struct ProjectSummary {
   id : String
   display_name : String
+  model : String
   status : RunState
   preview : PreviewTarget?
   current_run_id : String?

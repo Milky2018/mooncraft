@@ -43,6 +43,30 @@ fn validated_project_display_name(value : String) -> Result[String, String] {
 }
 
 ///|
+fn ai_model_summary_from_admin(
+  model : @sdk.AdminAiModelSummary,
+) -> @sdk.AiModelSummary {
+  {
+    id: model.id,
+    name: model.name,
+    context_length: model.context_length,
+    prompt_price: model.prompt_price,
+    completion_price: model.completion_price,
+  }
+}
+
+///|
+fn selected_project_model(
+  request_model : String?,
+  default_model : String,
+) -> String {
+  match request_model {
+    Some(model) => normalize_openrouter_model(model)
+    None => normalize_openrouter_model(default_model)
+  }
+}
+
+///|
 fn text_response(
   code : @mocket.StatusCode,
   message : String,
@@ -994,6 +1018,28 @@ fn main {
         api_error_response(UnprocessableEntity, ValidationFailed, message)
     }
   })
+  app.get(@sdk.ai_models_path(), async fn(event) noraise {
+    match require_session_user(ctx, event) {
+      Ok(_) => ignore(())
+      Err(response) => return response
+    }
+    let config = ctx.store.get_admin_ai_config()
+    match ctx.fetch_openrouter_models() {
+      Ok(response) => {
+        let items : Array[@sdk.AiModelSummary] = []
+        for model in response.items {
+          items.push(ai_model_summary_from_admin(model))
+        }
+        json_ok(@sdk.ListAiModelsResponse::{
+          default_model: config.default_model,
+          items,
+          fetched_at: response.fetched_at,
+        })
+      }
+      Err(message) =>
+        api_error_response(UnprocessableEntity, ValidationFailed, message)
+    }
+  })
   app.put(@sdk.admin_ai_config_path(), async fn(event) noraise {
     match require_admin_token(event) {
       Ok(_) => ignore(())
@@ -1066,12 +1112,25 @@ fn main {
           message,
         )
     }
+    let config = ctx.store.get_admin_ai_config()
+    let selected_model = selected_project_model(
+      request.model,
+      config.default_model,
+    )
+    if selected_model.length() > 160 {
+      return api_error_response(
+        UnprocessableEntity,
+        ValidationFailed,
+        "Model id must be 160 characters or fewer.",
+      )
+    }
     let project_id = next_id("project")
     let workspace_path = project_workspace(ctx.root, project_id)
     let project = ctx.store.create_project_for_user(
       user.id,
       project_id,
       display_name,
+      selected_model,
       workspace_path,
     )
     match ctx.materialize_project_workspace(project) {

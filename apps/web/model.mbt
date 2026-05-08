@@ -29,6 +29,12 @@ struct Model {
   draft : String
   new_project_modal_open : Bool
   new_project_name : String
+  new_project_more_open : Bool
+  new_project_model : String
+  ai_models : Array[@sdk.AiModelSummary]
+  ai_models_default_model : String
+  ai_models_loading : Bool
+  ai_models_error : String?
   create_project_pending : Bool
   rename_project_editing : Bool
   rename_project_name : String
@@ -56,6 +62,9 @@ enum Msg {
   OpenNewProjectDialog
   CloseNewProjectDialog
   NewProjectNameChanged(String)
+  ToggleNewProjectMore
+  NewProjectModelChanged(String)
+  AiModelsLoaded(Result[@sdk.ListAiModelsResponse, @sdk.ApiError])
   CreateProject
   StartProjectRename(String)
   CancelProjectRename
@@ -163,6 +172,12 @@ fn initial_model() -> Model {
     draft: "",
     new_project_modal_open: false,
     new_project_name: "",
+    new_project_more_open: false,
+    new_project_model: "",
+    ai_models: [],
+    ai_models_default_model: "",
+    ai_models_loading: false,
+    ai_models_error: None,
     create_project_pending: false,
     rename_project_editing: false,
     rename_project_name: "",

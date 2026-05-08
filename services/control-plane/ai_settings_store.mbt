@@ -520,7 +520,9 @@ async fn Store::lease_ai_runtime_settings_for_project(
   let project = match
     self.query_one(
       (
-        #|SELECT owner_user_id
+        #|SELECT
+        #|  owner_user_id,
+        #|  COALESCE(ai_model, '') AS ai_model
         #|FROM projects
         #|WHERE id = ?;
       ),
@@ -546,6 +548,12 @@ async fn Store::lease_ai_runtime_settings_for_project(
     ) {
     Some(row) => row
     None => return Err("Mooncraft's app builder is temporarily unavailable.")
+  }
+  let project_model = row_text(project, "ai_model").trim().to_owned()
+  let selected_model = if project_model == "" {
+    config.default_model
+  } else {
+    project_model
   }
   let key_id = row_text(row, "id")
   let api_key = row_text(row, "key_secret").trim().to_owned()
@@ -576,7 +584,7 @@ async fn Store::lease_ai_runtime_settings_for_project(
         String(run_id),
         String(project_id),
         String(row_text(project, "owner_user_id")),
-        String(config.default_model),
+        String(selected_model),
         String("started"),
         String(now),
       ],
@@ -595,7 +603,7 @@ async fn Store::lease_ai_runtime_settings_for_project(
       params=[String(now), String(now), String(key_id)],
     ),
   )
-  Ok({ provider: "openrouter", model: config.default_model, api_key })
+  Ok({ provider: "openrouter", model: selected_model, api_key })
 }
 
 ///|

@@ -294,6 +294,143 @@ fn render_open_project_button(
 }
 
 ///|
+fn model_display_label(
+  item : @sdk.AiModelSummary,
+  default_model : String,
+) -> String {
+  let name = if item.name.trim() == "" { item.id } else { item.name }
+  let label = if name == item.id { item.id } else { name + " - " + item.id }
+  if item.id == default_model {
+    label + " (default)"
+  } else {
+    label
+  }
+}
+
+///|
+fn model_list_contains(
+  items : Array[@sdk.AiModelSummary],
+  model_id : String,
+) -> Bool {
+  for item in items {
+    if item.id == model_id {
+      return true
+    }
+  }
+  false
+}
+
+///|
+fn render_disclosure_icon(open : Bool) -> @rabbita.Html {
+  @svg.svg(
+    width=15,
+    height=15,
+    view_box="0 0 24 24",
+    style=["display: block"],
+    [
+      @svg.path(
+        d=if open { "M6 9l6 6 6-6" } else { "M9 6l6 6-6 6" },
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+    ],
+  )
+}
+
+///|
+fn render_model_select_options(model : Model) -> Array[@rabbita.Html] {
+  let selected_model = model.new_project_model
+  let items : Array[@rabbita.Html] = []
+  if model.ai_models_loading && model.ai_models.length() == 0 {
+    items.push(
+      @html.option(value="", selected=true, "Loading OpenRouter models..."),
+    )
+  } else {
+    if selected_model != "" &&
+      !model_list_contains(model.ai_models, selected_model) {
+      items.push(
+        @html.option(value=selected_model, selected=true, selected_model),
+      )
+    }
+    for item in model.ai_models {
+      items.push(
+        @html.option(
+          value=item.id,
+          selected=item.id == selected_model,
+          model_display_label(item, model.ai_models_default_model),
+        ),
+      )
+    }
+    if items.length() == 0 {
+      items.push(@html.option(value="", selected=true, "Use admin default"))
+    }
+  }
+  items
+}
+
+///|
+fn render_new_project_more(
+  dispatch : @rabbita.Dispatch[Msg],
+  model : Model,
+) -> @rabbita.Html {
+  @html.div(
+    style=[
+      "border: 1px solid var(--border-soft)", "border-radius: 16px", "background: var(--surface-2)",
+      "overflow: hidden",
+    ],
+  ) <| [
+    @html.button(
+      type_="button",
+      disabled=model.create_project_pending,
+      on_click=dispatch(ToggleNewProjectMore),
+      style=[
+        "width: 100%", "border: 0", "background: transparent", "color: var(--text-1)",
+        "padding: 12px 14px", "display: flex", "align-items: center", "justify-content: space-between",
+        "gap: 12px", "font-size: 14px", "font-weight: 700", "cursor: pointer",
+      ],
+    ) <| [
+      @html.span("More options"),
+      render_disclosure_icon(model.new_project_more_open),
+    ],
+    if model.new_project_more_open {
+      @html.div(
+        style=[
+          "border-top: 1px solid var(--border-soft)", "padding: 14px", "display: flex",
+          "flex-direction: column", "gap: 10px",
+        ],
+      ) <| [
+        @html.div(style=section_label_style(), "Model"),
+        @html.select(
+          disabled=model.create_project_pending ||
+            (model.ai_models_loading && model.ai_models.length() == 0),
+          on_change=fn(value) { dispatch(NewProjectModelChanged(value)) },
+          style=input_style(
+              model.create_project_pending ||
+              (model.ai_models_loading && model.ai_models.length() == 0),
+            ) +
+            ["font-size: 14px"],
+          render_model_select_options(model),
+        ),
+        @html.div(
+          style=["font-size: 12px", "line-height: 1.55", "color: var(--text-3)"],
+          if model.ai_models_error is Some(message) {
+            "Model list could not be loaded. Creation will use the admin default. " +
+            message
+          } else if model.ai_models_default_model != "" {
+            "Default model: " + model.ai_models_default_model
+          } else {
+            "Default model is managed by the admin."
+          },
+        ),
+      ]
+    } else {
+      @html.nothing
+    },
+  ]
+}
+
+///|
 fn render_new_project_dialog(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
@@ -359,6 +496,7 @@ fn render_new_project_dialog(
             ["font-size: 16px", "padding: 13px 14px"],
           "",
         ),
+        render_new_project_more(dispatch, model),
         @html.div(
           style=[
             "display: flex", "justify-content: flex-end", "gap: 10px", "padding-top: 4px",

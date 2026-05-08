@@ -516,6 +516,7 @@ async test "delete project removes the persisted Codex home" {
       "user-1",
       "preview-" + project_id,
       "Codex Home Delete Test",
+      default_openrouter_model(),
       project_workspace(root, project_id),
     ),
   )
@@ -654,6 +655,7 @@ async test "start_run persists the initial project prompt once" {
       "user-1",
       "preview-" + project_id,
       "Prompt Test",
+      default_openrouter_model(),
       project_workspace(root, project_id),
     ),
   )
@@ -691,6 +693,7 @@ async test "run events append and list after sequence" {
       "user-1",
       "preview-" + project_id,
       "Events Test",
+      default_openrouter_model(),
       project_workspace(root, project_id),
     ),
   )
@@ -729,6 +732,7 @@ async test "admin run and project listings are project agnostic" {
       "user-1",
       "preview-" + project_id,
       "Admin Listings",
+      default_openrouter_model(),
       project_workspace(root, project_id),
     ),
   )
@@ -764,6 +768,7 @@ async test "OpenRouter key pool leases and finishes usage per run" {
       "user-1",
       "preview-" + project_id,
       "AI Pool",
+      "openrouter/project-model",
       project_workspace(root, project_id),
     ),
   )
@@ -780,7 +785,7 @@ async test "OpenRouter key pool leases and finishes usage per run" {
     .lease_ai_runtime_settings_for_project(project_id, run.run_id)
     .unwrap()
   inspect(settings.provider, content="openrouter")
-  inspect(settings.model, content="openrouter/test-model")
+  inspect(settings.model, content="openrouter/project-model")
   inspect(settings.api_key, content="sk-test-secret")
   let usages = store.list_recent_ai_key_usages(10)
   inspect(usages.length(), content="1")
@@ -809,6 +814,7 @@ async test "startup recovery makes stale running runs retryable" {
       "user-1",
       "preview-" + project_id,
       "Recovery Test",
+      default_openrouter_model(),
       project_workspace(root, project_id),
     ),
   )

@@ -195,11 +195,15 @@ fn update(
     DraftChanged(value) => (@rabbita.none, { ..model, draft: value })
     OpenNewProjectDialog =>
       (
-        @rabbita.none,
+        load_ai_models_cmd(dispatch),
         {
           ..model,
           new_project_modal_open: true,
           new_project_name: "",
+          new_project_more_open: false,
+          new_project_model: model.ai_models_default_model,
+          ai_models_loading: true,
+          ai_models_error: None,
           delete_project_confirming: None,
           notice: None,
         },
@@ -210,18 +214,65 @@ fn update(
       } else {
         (
           @rabbita.none,
-          { ..model, new_project_modal_open: false, new_project_name: "" },
+          {
+            ..model,
+            new_project_modal_open: false,
+            new_project_name: "",
+            new_project_more_open: false,
+          },
         )
       }
     NewProjectNameChanged(value) =>
       (@rabbita.none, { ..model, new_project_name: value })
+    ToggleNewProjectMore =>
+      (
+        @rabbita.none,
+        { ..model, new_project_more_open: !model.new_project_more_open },
+      )
+    NewProjectModelChanged(value) =>
+      (@rabbita.none, { ..model, new_project_model: value })
+    AiModelsLoaded(Ok(response)) => {
+      let selected_model = if model.new_project_model.trim() == "" {
+        response.default_model
+      } else {
+        model.new_project_model
+      }
+      (
+        @rabbita.none,
+        {
+          ..model,
+          ai_models: response.items,
+          ai_models_default_model: response.default_model,
+          new_project_model: selected_model,
+          ai_models_loading: false,
+          ai_models_error: None,
+        },
+      )
+    }
+    AiModelsLoaded(Err(error)) =>
+      if is_unauthorized_error(error) {
+        auth_recovery(dispatch, model, "Your session expired. Sign in again.")
+      } else {
+        (
+          @rabbita.none,
+          {
+            ..model,
+            ai_models_loading: false,
+            ai_models_error: Some(error.message),
+          },
+        )
+      }
     CreateProject =>
       if !can_create_project(model) {
         (@rabbita.none, model)
       } else {
         let display_name = model.new_project_name.trim().to_owned()
         (
-          create_project_cmd(dispatch, display_name),
+          create_project_cmd(
+            dispatch,
+            display_name,
+            ui_empty_to_none(model.new_project_model),
+          ),
           {
             ..model,
             create_project_pending: true,
@@ -321,6 +372,7 @@ fn update(
           create_project_pending: false,
           new_project_modal_open: false,
           new_project_name: "",
+          new_project_more_open: false,
           selected_project_id: Some(project.id),
           project_detail: Some(project),
           rename_project_editing: false,

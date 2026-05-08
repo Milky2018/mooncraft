@@ -1145,6 +1145,7 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
         #|  owner_user_id TEXT NOT NULL,
         #|  preview_public_id TEXT NOT NULL UNIQUE,
         #|  display_name TEXT NOT NULL,
+        #|  ai_model TEXT NOT NULL DEFAULT '',
         #|  workspace_path TEXT NOT NULL,
         #|  initial_project_prompt TEXT,
         #|  codex_thread_id TEXT,
@@ -1202,6 +1203,10 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
     Err(message) => return Err(message)
   }
   match self.ensure_column("projects", "initial_project_prompt", "TEXT") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match self.ensure_column("projects", "ai_model", "TEXT NOT NULL DEFAULT ''") {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
@@ -1448,6 +1453,7 @@ fn project_detail_from_row(row : Map[String, @db.Param]) -> @sdk.ProjectDetail {
     id: row_text(row, "id"),
     preview_public_id: row_text(row, "preview_public_id"),
     display_name: row_text(row, "display_name"),
+    model: row_text(row, "ai_model"),
     workspace_path: row_text(row, "workspace_path"),
     codex_thread_id: empty_to_none(row_text(row, "codex_thread_id")),
     status: run_state_from_db(row_text(row, "status")),
@@ -1553,6 +1559,7 @@ async fn Store::get_project_detail(
         #|  id,
         #|  preview_public_id,
         #|  display_name,
+        #|  COALESCE(ai_model, '') AS ai_model,
         #|  workspace_path,
         #|  COALESCE(codex_thread_id, '') AS codex_thread_id,
         #|  status,
@@ -1584,6 +1591,7 @@ async fn Store::list_recent_projects(
       #|  id,
       #|  preview_public_id,
       #|  display_name,
+      #|  COALESCE(ai_model, '') AS ai_model,
       #|  workspace_path,
       #|  COALESCE(codex_thread_id, '') AS codex_thread_id,
       #|  status,
@@ -1956,6 +1964,7 @@ async fn Store::create_project(
   owner_user_id : String,
   preview_public_id : String,
   display_name : String,
+  model : String,
   workspace_path : String,
 ) -> @sdk.ProjectDetail noraise {
   let now = now_string()
@@ -1967,11 +1976,12 @@ async fn Store::create_project(
         #|  owner_user_id,
         #|  preview_public_id,
         #|  display_name,
+        #|  ai_model,
         #|  workspace_path,
         #|  status,
         #|  created_at,
         #|  updated_at
-        #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+        #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
       ),
       "create project",
       params=[
@@ -1979,6 +1989,7 @@ async fn Store::create_project(
         String(owner_user_id),
         String(preview_public_id),
         String(display_name),
+        String(model),
         String(workspace_path),
         String(run_state_to_db(Idle)),
         String(now),

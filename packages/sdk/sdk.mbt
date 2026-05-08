@@ -42,6 +42,7 @@ pub(all) struct PreviewTarget {
 pub(all) struct ProjectSummary {
   id : String
   display_name : String
+  model : String
   status : RunState
   preview : PreviewTarget?
   current_run_id : String?
@@ -53,6 +54,7 @@ pub(all) struct ProjectDetail {
   id : String
   preview_public_id : String
   display_name : String
+  model : String
   workspace_path : String
   codex_thread_id : String?
   status : RunState
@@ -107,6 +109,7 @@ pub(all) struct RunEvent {
 ///|
 pub(all) struct CreateProjectRequest {
   display_name : String
+  model : String?
 } derive(Debug, ToJson, FromJson)
 
 ///|
@@ -240,6 +243,22 @@ pub(all) struct AdminAiModelSummary {
   context_length : Int
   prompt_price : String
   completion_price : String
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct AiModelSummary {
+  id : String
+  name : String
+  context_length : Int
+  prompt_price : String
+  completion_price : String
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct ListAiModelsResponse {
+  default_model : String
+  items : Array[AiModelSummary]
+  fetched_at : String
 } derive(Debug, ToJson, FromJson)
 
 ///|

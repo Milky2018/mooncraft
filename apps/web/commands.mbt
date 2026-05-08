@@ -44,6 +44,13 @@ fn load_projects_cmd(dispatch : @rabbita.Dispatch[Msg]) -> @rabbita.Cmd {
 }
 
 ///|
+fn load_ai_models_cmd(dispatch : @rabbita.Dispatch[Msg]) -> @rabbita.Cmd {
+  get_json(@sdk.ai_models_path(), fn(result) {
+    dispatch(AiModelsLoaded(result))
+  })
+}
+
+///|
 fn load_messages_cmd(
   dispatch : @rabbita.Dispatch[Msg],
   project_id : String,
@@ -70,8 +77,9 @@ fn load_project_cmd(
 fn create_project_cmd(
   dispatch : @rabbita.Dispatch[Msg],
   display_name : String,
+  model : String?,
 ) -> @rabbita.Cmd {
-  let payload : @sdk.CreateProjectRequest = { display_name, }
+  let payload : @sdk.CreateProjectRequest = { display_name, model }
   post_json(@sdk.projects_path(), payload, fn(result) {
     dispatch(ProjectCreated(result))
   })
