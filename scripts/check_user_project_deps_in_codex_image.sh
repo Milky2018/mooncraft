@@ -32,6 +32,9 @@ docker run --rm \
       echo "No user-project reference modules configured." >&2
       exit 1
     fi
+    command -v rg >/dev/null
+    command -v jq >/dev/null
+    command -v sort >/dev/null
     for module in "${modules[@]}"; do
       echo "==> Fetching required module: $module"
       moon fetch --no-update "$module"

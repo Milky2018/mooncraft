@@ -396,13 +396,16 @@ fn project_workspace(root : String, project_id : String) -> String {
 }
 
 ///|
-fn preview_startup_script_missing_message() -> String {
-  "The app did not provide `mooncraft-preview.sh`, so Mooncraft does not know how to start the live preview."
+fn preview_executable_missing_message() -> String {
+  "The app compiled, but Mooncraft could not find a native executable to run for the live preview."
 }
 
 ///|
-fn preview_error_is_missing_startup_script(message : String) -> Bool {
-  message == preview_startup_script_missing_message()
+fn preview_error_needs_startup_repair(message : String) -> Bool {
+  message == preview_executable_missing_message() ||
+  message == "The preview process could not be started." ||
+  message ==
+  "The preview process started, but it did not become healthy in time."
 }
 
 ///|
@@ -2521,16 +2524,27 @@ fn PreviewManager::rebuild_and_restart(
     Err(message) => return Err(message)
   }
   let build_code = shell_status(
-    "cd '\{workspace_path}' && moon build \{self.build_profile.cli_flag()}>/dev/null 2>&1",
+    "cd " +
+    shell_quote(workspace_path) +
+    " && moon build \{self.build_profile.cli_flag()}>/dev/null 2>&1",
   )
   if build_code != 0 {
     return Err(
       "The updated app did not compile yet, so the preview could not be refreshed.",
     )
   }
-  let script_path = preview_script_path(workspace_path)
-  if !@fs.path_exists(script_path) {
-    return Err(preview_startup_script_missing_message())
+  let executable_dir = "_build/native/" +
+    self.build_profile.build_dir() +
+    "/build"
+  let executable_probe_code = shell_status(
+    "cd " +
+    shell_quote(workspace_path) +
+    " && test -n \"$(find " +
+    shell_quote(executable_dir) +
+    " -name '*.exe' -type f | head -n 1)\"",
+  )
+  if executable_probe_code != 0 {
+    return Err(preview_executable_missing_message())
   }
   let preferred_port = project.preview.map(fn(target) { target.port })
   let port = self.allocate_port(
@@ -2538,14 +2552,16 @@ fn PreviewManager::rebuild_and_restart(
     preferred=preferred_port.unwrap_or(0),
   )
   self.stop_port(port)
-  let pid = shell_status(
+  let start_code = shell_status(
     "cd " +
     shell_quote(workspace_path) +
-    " && chmod +x ./mooncraft-preview.sh && nohup ./mooncraft-preview.sh \{port} " +
-    shell_quote(self.build_profile.build_dir()) +
+    " && exe=\"$(find " +
+    shell_quote(executable_dir) +
+    " -name '*.exe' -type f | head -n 1)\"" +
+    " && nohup \"$exe\" \{port} " +
     " >/tmp/mooncraft-preview-\{project.id}.log 2>&1 &",
   )
-  if pid != 0 {
+  if start_code != 0 {
     return Err("The preview process could not be started.")
   }
   if !self.wait_until_healthy(
@@ -2557,7 +2573,7 @@ fn PreviewManager::rebuild_and_restart(
       "The preview process started, but it did not become healthy in time.",
     )
   }
-  self.runtimes[project.id] = { port, pid }
+  self.runtimes[project.id] = { port, pid: 0 }
   Ok({ url: public_preview_url(project.preview_public_id), port, healthy: true })
 }
 

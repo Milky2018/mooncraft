@@ -6,25 +6,29 @@ test "bootstrap prompt includes the core execution rules" {
       "Default to MoonBit unless the user explicitly asks for another technology.",
     ),
   )
-  assert_true(
-    prompt.contains(
-      "Use subagents only for concrete, bounded implementation tasks.",
-    ),
-  )
+  assert_true(prompt.contains("Work directly in this Codex CLI container."))
+  assert_false(prompt.contains("Use subagents"))
+  assert_true(prompt.contains("Use the bundled MoonBit skills"))
   assert_true(
     prompt.contains("The current workspace root is the generated app root."),
   )
   assert_true(
-    prompt.contains(
-      "Do not spend the turn reading broad skill docs or dependency internals",
-    ),
+    prompt.contains("Do not spend the turn reading broad dependency internals"),
   )
   assert_true(
     prompt.contains(
       "verify that the workspace root contains `moon.mod.json`, `moon.mod`, or `moon.work`",
     ),
   )
-  assert_true(prompt.contains(".mooncraft/implementation-required"))
+  assert_true(
+    prompt.contains("read the first CLI argument as the preview port"),
+  )
+  assert_true(
+    prompt.contains("return a successful response from `/api/health`"),
+  )
+  assert_false(prompt.contains(".mooncraft/implementation-required"))
+  assert_false(prompt.contains("mooncraft-preview.sh"))
+  assert_false(prompt.contains("placeholder"))
   assert_true(prompt.contains("Do not stop with a progress-only final answer."))
   assert_true(prompt.contains("moon fmt"))
   assert_true(prompt.contains("Build a todo app"))
@@ -65,12 +69,15 @@ test "success summary copy is shared across run completion paths" {
 ///|
 test "preview startup failures use user-safe copy" {
   inspect(
-    preview_error_is_missing_startup_script(
-      preview_startup_script_missing_message(),
-    ),
+    preview_error_needs_startup_repair(preview_executable_missing_message()),
     content="true",
   )
-  assert_true(preview_setup_repair_prompt().contains("mooncraft-preview.sh"))
+  assert_true(
+    preview_setup_repair_prompt().contains(
+      "built native executable starts the server",
+    ),
+  )
+  assert_false(preview_setup_repair_prompt().contains("mooncraft-preview.sh"))
   assert_false(
     preview_refresh_failed_assistant_message().contains("mooncraft-preview.sh"),
   )
@@ -82,7 +89,7 @@ test "preview startup failures use user-safe copy" {
 }
 
 ///|
-test "workspace contract requires root MoonBit project and preview script" {
+test "workspace contract requires root MoonBit project" {
   let root = @env.current_dir().unwrap_or(".") +
     "/data/control-plane-test-roots/" +
     next_id("workspace-contract")
@@ -99,24 +106,6 @@ test "workspace contract requires root MoonBit project and preview script" {
   )
 
   safe_write_string(workspace + "/moon.mod.json", "{\"name\":\"test/app\"}\n")
-  debug_inspect(
-    workspace_contract_error(workspace),
-    content="Some(\"The app did not provide `mooncraft-preview.sh`, so Mooncraft does not know how to start the live preview.\")",
-  )
-
-  safe_write_string(workspace + "/mooncraft-preview.sh", "#!/usr/bin/env sh\n")
-  ensure_dir(workspace + "/.mooncraft")
-  safe_write_string(
-    implementation_required_marker_path(workspace),
-    "replace placeholder\n",
-  )
-  debug_inspect(
-    workspace_contract_error(workspace).map(fn(message) {
-      message.contains("placeholder implementation marker")
-    }),
-    content="Some(true)",
-  )
-  safe_remove_tree(implementation_required_marker_path(workspace))
   debug_inspect(workspace_contract_error(workspace), content="None")
   safe_remove_tree(root)
 }
@@ -124,14 +113,16 @@ test "workspace contract requires root MoonBit project and preview script" {
 ///|
 test "workspace contract repair prompt is self-contained" {
   let prompt = workspace_contract_repair_prompt(
-    "The builder left the placeholder marker.", "Build a Snake game", "Make it browser-playable",
+    "The root MoonBit project is missing.", "Build a Snake game", "Make it browser-playable",
   )
-  assert_true(prompt.contains("The builder left the placeholder marker."))
+  assert_true(prompt.contains("The root MoonBit project is missing."))
   assert_true(prompt.contains("Original project requirement"))
   assert_true(prompt.contains("Build a Snake game"))
   assert_true(prompt.contains("Latest user request"))
   assert_true(prompt.contains("Make it browser-playable"))
   assert_true(prompt.contains("You must edit files in this workspace"))
+  assert_false(prompt.contains("mooncraft-preview.sh"))
+  assert_false(prompt.contains("implementation-required"))
 }
 
 ///|
@@ -889,10 +880,7 @@ async test "builder snapshot persistence saves invalid contract workspaces" {
     safe_read_string_or(workspace_path + "/cmd/main/main.mbt", ""),
     content="fn main { println(\"Hello\") }\n",
   )
-  debug_inspect(
-    workspace_contract_error(workspace_path),
-    content="Some(\"The app did not provide `mooncraft-preview.sh`, so Mooncraft does not know how to start the live preview.\")",
-  )
+  debug_inspect(workspace_contract_error(workspace_path), content="None")
   safe_remove_tree(project_root(root, project_id))
   cleanup_test_db(db_path)
 }

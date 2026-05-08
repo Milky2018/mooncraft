@@ -275,9 +275,10 @@ fn bootstrap_prompt(user_message : String) -> String {
     #|Working rules:
     #|- Default to MoonBit unless the user explicitly asks for another technology.
     #|- Complete the job in one turn without asking follow-up questions.
-    #|- Use subagents only for concrete, bounded implementation tasks.
-    #|- Do not spend the turn reading broad skill docs or dependency internals unless a build error requires it.
-    #|- This workspace starts with Mooncraft's minimal MoonBit preview shell. Replace the placeholder app with the user's requested app.
+    #|- Work directly in this Codex CLI container. Do not assume subagent or desktop-only tools are available.
+    #|- Use the bundled MoonBit skills for MoonBit syntax, package, API, or toolchain questions, but keep skill reading bounded to the relevant instructions.
+    #|- Do not spend the turn reading broad dependency internals unless a build error requires it.
+    #|- This workspace starts empty except for ignore rules. Create the real app requested by the user.
     #|- Do not assume `frontend/`, `backend/`, or `shared/` directories exist.
     #|- The current workspace root is the generated app root. Do not leave the only MoonBit module inside a child directory.
     #|- Use `moon new` only as a scaffold helper. If it creates a child directory, immediately move or adapt the generated files so the workspace root contains the runnable MoonBit project before finishing.
@@ -287,11 +288,12 @@ fn bootstrap_prompt(user_message : String) -> String {
   reference_modules_prompt_rule() +
   (
     #|
-    #|- Create or maintain `mooncraft-preview.sh` at the workspace root. It receives `<port> <build-profile>`, starts the generated app server, serves the user-facing app at `/`, and returns success from `/api/health`.
-    #|- Delete `.mooncraft/implementation-required` after replacing the placeholder shell with the user's requested app.
+    #|- Produce one native runnable app. Mooncraft will run the built executable directly.
+    #|- The app must read the first CLI argument as the preview port and default to `4300`.
+    #|- The app must serve the user-facing app at `/` and return a successful response from `/api/health`.
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
     #|- You may run shell commands as needed.
-    #|- Before finishing, verify that the workspace root contains `moon.mod.json`, `moon.mod`, or `moon.work`, contains `mooncraft-preview.sh`, and no longer contains `.mooncraft/implementation-required`.
+    #|- Before finishing, verify that the workspace root contains `moon.mod.json`, `moon.mod`, or `moon.work`.
     #|- Before finishing, run `moon fmt`, `moon check`, `moon test`, and `moon build`.
     #|- Do not stop with a progress-only final answer. Your final response must be brief and must summarize the completed app, validation status, and any blocking failure.
     #|
@@ -310,8 +312,9 @@ fn followup_prompt(user_message : String) -> String {
     #|Working rules:
     #|- Default to MoonBit unless the user explicitly asks for another technology.
     #|- Complete the job in one turn without asking follow-up questions.
-    #|- Use subagents only for concrete, bounded implementation tasks.
-    #|- Do not spend the turn reading broad skill docs or dependency internals unless a build error requires it.
+    #|- Work directly in this Codex CLI container. Do not assume subagent or desktop-only tools are available.
+    #|- Use the bundled MoonBit skills for MoonBit syntax, package, API, or toolchain questions, but keep skill reading bounded to the relevant instructions.
+    #|- Do not spend the turn reading broad dependency internals unless a build error requires it.
     #|- Do not assume a fixed project layout. Preserve the existing app structure unless a change is needed.
     #|- The current workspace root is the generated app root. Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working from that root.
     #|
@@ -319,11 +322,12 @@ fn followup_prompt(user_message : String) -> String {
   reference_modules_prompt_rule() +
   (
     #|
-    #|- Maintain `mooncraft-preview.sh` at the workspace root. It receives `<port> <build-profile>`, starts the generated app server, serves the user-facing app at `/`, and returns success from `/api/health`.
-    #|- If `.mooncraft/implementation-required` exists, delete it only after replacing the placeholder shell with the user's requested app.
+    #|- Keep one native runnable app. Mooncraft will run the built executable directly.
+    #|- The app must read the first CLI argument as the preview port and default to `4300`.
+    #|- The app must serve the user-facing app at `/` and return a successful response from `/api/health`.
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
     #|- You may run shell commands as needed.
-    #|- Before finishing, verify that the workspace root contains `moon.mod.json`, `moon.mod`, or `moon.work`, contains `mooncraft-preview.sh`, and does not contain `.mooncraft/implementation-required`.
+    #|- Before finishing, verify that the workspace root contains `moon.mod.json`, `moon.mod`, or `moon.work`.
     #|- Before finishing, run `moon fmt`, `moon check`, `moon test`, and `moon build`.
     #|- Do not stop with a progress-only final answer. Your final response must be brief and must summarize the completed app, validation status, and any blocking failure.
     #|
@@ -345,8 +349,9 @@ fn recovery_prompt(
     #|Working rules:
     #|- Default to MoonBit unless the user explicitly asks for another technology.
     #|- Complete the job in one turn without asking follow-up questions.
-    #|- Use subagents only for concrete, bounded implementation tasks.
-    #|- Do not spend the turn reading broad skill docs or dependency internals unless a build error requires it.
+    #|- Work directly in this Codex CLI container. Do not assume subagent or desktop-only tools are available.
+    #|- Use the bundled MoonBit skills for MoonBit syntax, package, API, or toolchain questions, but keep skill reading bounded to the relevant instructions.
+    #|- Do not spend the turn reading broad dependency internals unless a build error requires it.
     #|- The current workspace already contains the latest saved project state.
     #|- Do not assume a fixed project layout. Preserve the existing app structure unless a change is needed.
     #|- The current workspace root is the generated app root. Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working from that root.
@@ -355,11 +360,12 @@ fn recovery_prompt(
   reference_modules_prompt_rule() +
   (
     #|
-    #|- Maintain `mooncraft-preview.sh` at the workspace root. It receives `<port> <build-profile>`, starts the generated app server, serves the user-facing app at `/`, and returns success from `/api/health`.
-    #|- If `.mooncraft/implementation-required` exists, delete it only after replacing the placeholder shell with the user's requested app.
+    #|- Keep one native runnable app. Mooncraft will run the built executable directly.
+    #|- The app must read the first CLI argument as the preview port and default to `4300`.
+    #|- The app must serve the user-facing app at `/` and return a successful response from `/api/health`.
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
     #|- You may run shell commands as needed.
-    #|- Before finishing, verify that the workspace root contains `moon.mod.json`, `moon.mod`, or `moon.work`, contains `mooncraft-preview.sh`, and does not contain `.mooncraft/implementation-required`.
+    #|- Before finishing, verify that the workspace root contains `moon.mod.json`, `moon.mod`, or `moon.work`.
     #|- Before finishing, run `moon fmt`, `moon check`, `moon test`, and `moon build`.
     #|- Do not stop with a progress-only final answer. Your final response must be brief and must summarize the completed app, validation status, and any blocking failure.
     #|
@@ -380,11 +386,13 @@ fn recovery_prompt(
 ///|
 fn preview_setup_repair_prompt() -> String {
   (
-    #|The app builds, but Mooncraft cannot start the live preview because the preview startup configuration is missing.
+    #|The app builds, but Mooncraft cannot start or health-check the live preview.
     #|
-    #|Repair only the preview startup path:
-    #|- Add or fix `mooncraft-preview.sh` at the workspace root.
-    #|- The script must accept `<port> <build-profile>`, start the generated app server, serve the user-facing app at `/`, and return success from `/api/health`.
+    #|Repair only the native app startup path:
+    #|- Keep the app as a root-level MoonBit project.
+    #|- Ensure the built native executable starts the server when run directly.
+    #|- Read the first CLI argument as the preview port and default to `4300`.
+    #|- Serve the user-facing app at `/` and return a successful response from `/api/health`.
     #|- Do not change the app's user-facing behavior unless it is required to make the existing app previewable.
     #|- Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working.
     #|- Finish with a brief summary that says the preview startup was repaired.
@@ -424,9 +432,9 @@ fn workspace_contract_repair_prompt(
     #|Repair only the workspace structure needed by Mooncraft:
     #|- Ensure the workspace root contains a MoonBit project manifest: `moon.mod.json`, `moon.mod`, or `moon.work`.
     #|- If `moon new` creates a child directory, move or adapt the generated files so the workspace root is the runnable project root.
-    #|- Ensure `mooncraft-preview.sh` exists at the workspace root.
-    #|- The preview script must accept `<port> <build-profile>`, start the generated app server, serve `/`, and return success from `/api/health`.
-    #|- If `.mooncraft/implementation-required` exists, replace the placeholder shell with the app requested above and delete that marker.
+    #|- Ensure the built native executable starts the app server when run directly.
+    #|- Read the first CLI argument as the preview port and default to `4300`.
+    #|- Serve the user-facing app at `/` and return a successful response from `/api/health`.
     #|- Do not finish after only describing what you will change. You must edit files in this workspace before your final answer.
     #|- Keep root-level `moon fmt`, `moon check`, `moon build`, and `moon test` working.
     #|- Do not change the app's user-facing behavior unless it is required to make the app valid and previewable.
@@ -511,12 +519,6 @@ fn workspace_contract_error(workspace_path : String) -> String? {
   if !workspace_has_root_moon_project(workspace_path) {
     Some(
       "The builder did not create a MoonBit project at the workspace root. Expected `moon.mod.json`, `moon.mod`, or `moon.work` directly under \{workspace_path}.",
-    )
-  } else if !@fs.path_exists(preview_script_path(workspace_path)) {
-    Some(preview_startup_script_missing_message())
-  } else if @fs.path_exists(implementation_required_marker_path(workspace_path)) {
-    Some(
-      "The builder left Mooncraft's placeholder implementation marker in the workspace. Replace the placeholder app with the user's requested app and delete `\{implementation_required_marker_relative_path()}` before finishing.",
     )
   } else {
     None
@@ -724,23 +726,92 @@ fn fake_codex_update_workspace(
     fake_codex_user_request(prompt),
     "Mooncraft update",
   )
-  let title = if normalized.length() > 48 {
-    normalized.unsafe_substring(start=0, end=48)
-  } else {
-    normalized
+  let async_version = required_reference_module_version("moonbitlang/async")
+  let mocket_version = required_reference_module_version("oboard/mocket")
+  let x_version = required_reference_module_version("moonbitlang/x")
+  let files : Array[(String, String)] = [
+    (
+      "/moon.mod.json",
+      (
+        #|{
+        #|  "name": "mooncraft/smoke-app",
+        #|  "version": "0.1.0",
+        #|  "preferred-target": "native",
+        #|  "deps": {
+      ) +
+      "    \"moonbitlang/async\": \"\{async_version}\",\n" +
+      "    \"oboard/mocket\": \"\{mocket_version}\",\n" +
+      "    \"moonbitlang/x\": \"\{x_version}\"\n" +
+      (
+        #|  },
+        #|  "readme": "README.md",
+        #|  "repository": "",
+        #|  "license": "Apache-2.0",
+        #|  "keywords": [],
+        #|  "description": "Mooncraft smoke app"
+        #|}
+      ),
+    ),
+    (
+      "/moon.pkg",
+      (
+        #|import {
+        #|  "moonbitlang/async",
+        #|  "oboard/mocket",
+        #|  "moonbitlang/core/env",
+        #|  "moonbitlang/core/string",
+        #|}
+        #|
+        #|options(
+        #|  "is-main": true,
+        #|)
+        #|
+        #|supported_targets = "native"
+      ),
+    ),
+    (
+      "/main.mbt",
+      (
+        #|///|
+        #|fn app_page_html() -> String {
+        #|  "<!doctype html><html><head><meta charset='utf-8'><title>Mooncraft smoke preview</title></head><body><main><h1>Mooncraft smoke preview</h1><p>The fake builder generated a runnable preview.</p></main></body></html>"
+        #|}
+        #|
+        #|///|
+        #|async fn main {
+        #|  let args = @env.args()
+        #|  let port = if args.length() > 1 {
+        #|    @string.parse_int(args[1]) catch {
+        #|      _ => 4300
+        #|    }
+        #|  } else {
+        #|    4300
+        #|  }
+        #|  let app = @mocket.new()
+        #|  app.get("/api/health", _ => @mocket.HttpResponse::new(OK, headers={ "Content-Type": "application/json" }).body("{\"ok\":true}"))
+        #|  app.get("/", _ => @mocket.HttpResponse::new(OK, headers={ "Content-Type": "text/html; charset=utf-8" }).body(app_page_html()))
+        #|  app.listen("0.0.0.0:\{port}")
+        #|}
+      ),
+    ),
+    (
+      "/main_wbtest.mbt",
+      (
+        #|///|
+        #|test "page includes smoke title" {
+        #|  assert_true(app_page_html().contains("Mooncraft smoke preview"))
+        #|}
+      ),
+    ),
+    ("/README.md", "# Mooncraft Smoke App\n\n" + normalized + "\n"),
+  ]
+  for file in files {
+    match scaffold_write_file(workspace_path + file.0, file.1) {
+      Ok(_) => ignore(())
+      Err(message) => return Err(message)
+    }
   }
-  let subtitle = "Smoke mode applied: " + normalized
-  match
-    scaffold_write_mocket_preview_app(
-      workspace_path,
-      title,
-      subtitle,
-      "Smoke-mode generated Mooncraft app.",
-      require_implementation=false,
-    ) {
-    Ok(_) => Ok(successful_preview_assistant_message())
-    Err(message) => Err(message)
-  }
+  Ok(successful_preview_assistant_message())
 }
 
 ///|
@@ -1993,7 +2064,7 @@ async fn AppContext::run_project_turn(
             preview,
           )
         Err(message) =>
-          if preview_error_is_missing_startup_script(message) {
+          if preview_error_needs_startup_repair(message) {
             self.store.append_run_event(
               project_id, run_id, "status", "Preparing the live preview.",
             )

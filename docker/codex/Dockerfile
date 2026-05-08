@@ -8,7 +8,7 @@ ENV MOON_HOME=/opt/moon
 ENV PATH=/opt/moon/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates curl git bash \
+  && apt-get install -y --no-install-recommends ca-certificates curl git bash ripgrep jq coreutils \
   && rm -rf /var/lib/apt/lists/*
 
 RUN for attempt in 1 2 3 4 5; do \

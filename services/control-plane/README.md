@@ -15,7 +15,7 @@ Responsibilities:
 - rebuild and restart local previews
 - store preview URLs and last-known run state
 
-The platform no longer uses official app templates. Project rows do not carry template ids, and project creation writes only Mooncraft workspace metadata. The first user prompt decides what the app becomes; Codex is instructed to use `moon new` and choose the project shape.
+The platform no longer uses official app templates. Project rows do not carry template ids, and project creation writes only minimal workspace ignore rules. The first user prompt decides what the app becomes; Codex is instructed to use `moon new` and choose the project shape.
 
 The current `AgentGateway` uses Docker-backed Codex CLI runs. Each project keeps one persistent `codex_thread_id` in the database and one platform-owned Codex home under `data/codex-sessions/<project-id>/.codex`. Each new chat message starts a detached worker process through `moonbitlang/async/process` that mounts that Codex home into the disposable container, resumes the session, validates the workspace with dependency fetches plus `moon fmt`, `moon check`, `moon build`, and `moon test`, then refreshes the preview. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
 
@@ -55,9 +55,9 @@ Automated local tests can set `MOONCRAFT_ENABLE_DEV_AUTH=1` to enable `POST /api
 
 ## Preview Flow
 
-Generated previews are script-backed. The control plane builds the generated workspace, starts `./mooncraft-preview.sh <port> <build-profile>` on a private local port, and exposes it through `/p/<preview_public_id>/`.
+Generated previews are executable-backed. The control plane builds the generated workspace, starts the built native executable with `<port>` as its first argument on a private local port, and exposes it through `/p/<preview_public_id>/`.
 
-The preview script must keep `/api/health` available so the preview manager can verify readiness, and it must serve the user-facing app at `/`.
+The generated app must keep `/api/health` available so the preview manager can verify readiness, and it must serve the user-facing app at `/`.
 
 ## Validation
 
