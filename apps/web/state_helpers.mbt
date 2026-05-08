@@ -60,6 +60,38 @@ fn can_create_project(model : Model) -> Bool {
 }
 
 ///|
+fn model_id_compatible_with_agent(
+  agent_cli : String,
+  model_id : String,
+) -> Bool {
+  let value = model_id.trim().to_owned().to_lower()
+  match agent_cli {
+    "claude_code" => value.has_prefix("anthropic/")
+    "kimi_code" => value.has_prefix("moonshotai/") || value.contains("kimi")
+    _ => true
+  }
+}
+
+///|
+fn compatible_default_model(agent_cli : String, model : Model) -> String {
+  if model_id_compatible_with_agent(agent_cli, model.new_project_model) {
+    model.new_project_model
+  } else if model_id_compatible_with_agent(
+      agent_cli,
+      model.ai_models_default_model,
+    ) {
+    model.ai_models_default_model
+  } else {
+    for item in model.ai_models {
+      if model_id_compatible_with_agent(agent_cli, item.id) {
+        return item.id
+      }
+    }
+    ""
+  }
+}
+
+///|
 fn can_rename_project(model : Model) -> Bool {
   match model.project_detail {
     Some(project) => {
@@ -97,6 +129,7 @@ fn project_summary_from_detail(
   {
     id: project.id,
     display_name: project.display_name,
+    agent_cli: project.agent_cli,
     model: project.model,
     status: project.status,
     preview: project.preview,
@@ -163,6 +196,7 @@ fn clear_workspace(model : Model) -> Model {
     draft: "",
     new_project_modal_open: false,
     new_project_name: "",
+    new_project_agent_cli: "codex",
     new_project_more_open: false,
     new_project_model: "",
     ai_models: [],

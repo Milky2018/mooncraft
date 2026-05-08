@@ -5,7 +5,7 @@ This guide describes the current test and production deployment path for Mooncra
 The two environments intentionally use the same runtime shape:
 
 - the same locally built Mooncraft app image
-- the same real Docker-backed Codex mode
+- the same real Docker-backed agent runtime mode
 - the same mounted Docker socket
 - the same host-mounted app data directory pattern and PostgreSQL volume pattern
 - different compose project names and host ports
@@ -22,7 +22,7 @@ This means the host must have Docker installed and the Mooncraft service contain
 
 The Mooncraft app image installs `docker-ce-cli`; it does not run a Docker daemon inside the container.
 
-Because the Docker daemon is on the host, every source path in `docker run -v ...` is resolved on the host, not inside the Mooncraft container. Mooncraft therefore requires `MOONCRAFT_HOST_DATA_DIR`: an absolute host path mounted into the app container as `/app/data`. The app stores runtime workspaces under `/app/data/...` and translates those paths back to `${MOONCRAFT_HOST_DATA_DIR}/...` before starting Codex containers.
+Because the Docker daemon is on the host, every source path in `docker run -v ...` is resolved on the host, not inside the Mooncraft container. Mooncraft therefore requires `MOONCRAFT_HOST_DATA_DIR`: an absolute host path mounted into the app container as `/app/data`. The app stores runtime workspaces under `/app/data/...` and translates those paths back to `${MOONCRAFT_HOST_DATA_DIR}/...` before starting agent runtime containers.
 
 ## Images
 
@@ -135,7 +135,7 @@ curl -fsS http://127.0.0.1:8089/api/health
 
 Users do not configure LLM providers or API keys.
 
-Admins provide OpenRouter keys through the admin page at `/admin`. Browser access to `/admin` redirects to `/admin/login` until the operator enters `MOONCRAFT_ADMIN_TOKEN`; the server stores an HTTP-only admin session cookie after a successful login. The worker leases one active OpenRouter key from the database for each run and injects it into the isolated Codex container only for that run. Key values are accepted on create/update and are never returned by the API; list responses show only a masked hint.
+Admins provide OpenRouter keys through the admin page at `/admin`. Browser access to `/admin` redirects to `/admin/login` until the operator enters `MOONCRAFT_ADMIN_TOKEN`; the server stores an HTTP-only admin session cookie after a successful login. The worker leases one active OpenRouter key from the database for each run and injects it into the isolated agent runtime container only for that run. Key values are accepted on create/update and are never returned by the API; list responses show only a masked hint.
 
 Mooncraft only supports OpenRouter keys for generated-app runs. The runtime model picker loads the live OpenRouter text model catalog from `GET https://openrouter.ai/api/v1/models` using an active saved OpenRouter key, then saves the selected default model and allowed model list in SQLite.
 
@@ -207,7 +207,7 @@ docker image rm docker.io/moonbitcloud/mooncraft-agent-runtime:0.1.0 || true
 just deploy-prod
 ```
 
-Plain `docker compose down` preserves named volumes and host bind-mounted data, but creates extra downtime. Use it only when intentionally stopping a stack. Never use `docker compose down -v` unless you intentionally want to delete PostgreSQL volumes. Remove `${MOONCRAFT_HOST_DATA_DIR}` only when you intentionally want to delete Mooncraft runtime caches and Codex session homes.
+Plain `docker compose down` preserves named volumes and host bind-mounted data, but creates extra downtime. Use it only when intentionally stopping a stack. Never use `docker compose down -v` unless you intentionally want to delete PostgreSQL volumes. Remove `${MOONCRAFT_HOST_DATA_DIR}` only when you intentionally want to delete Mooncraft runtime caches and agent session homes.
 
 ## Logs And Operations
 
@@ -269,7 +269,7 @@ Stop an environment:
 docker compose -f docker-compose.prod.yml down
 ```
 
-Do not use `down -v` unless you intentionally want to delete PostgreSQL volumes. Do not remove `${MOONCRAFT_HOST_DATA_DIR}` unless you intentionally want to delete Mooncraft runtime caches and Codex session homes.
+Do not use `down -v` unless you intentionally want to delete PostgreSQL volumes. Do not remove `${MOONCRAFT_HOST_DATA_DIR}` unless you intentionally want to delete Mooncraft runtime caches and agent session homes.
 
 ## Data
 
@@ -279,7 +279,7 @@ Compose creates named volumes:
 
 Compose also bind-mounts `${MOONCRAFT_HOST_DATA_DIR}` to `/app/data`.
 
-For the current single-node deployment, preserve both the PostgreSQL volume and the host data directory. PostgreSQL stores users, projects, messages, runs, and workspace snapshots. The host data directory stores local runtime caches and per-project Codex session homes, and it must be visible to sibling Codex containers through host bind mounts.
+For the current single-node deployment, preserve both the PostgreSQL volume and the host data directory. PostgreSQL stores users, projects, messages, runs, and workspace snapshots. The host data directory stores local runtime caches and Codex session homes, and it must be visible to sibling agent runtime containers through host bind mounts.
 
 Before treating this as hardened production, define backup and restore for PostgreSQL and the Mooncraft host data directory.
 

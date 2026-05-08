@@ -1,13 +1,49 @@
 ///|
 struct AiRuntimeSettings {
+  agent_cli : String
   provider : String
   model : String
   api_key : String
 }
 
 ///|
+fn default_agent_cli() -> String {
+  "codex"
+}
+
+///|
 fn default_openrouter_model() -> String {
   "anthropic/claude-sonnet-4.5"
+}
+
+///|
+fn normalize_agent_cli(value : String) -> Result[String, String] {
+  match value.trim().to_owned().to_lower() {
+    "" => Ok(default_agent_cli())
+    "codex" => Ok("codex")
+    "claude_code" => Ok("claude_code")
+    "claude-code" => Ok("claude_code")
+    "claude" => Ok("claude_code")
+    "kimi_code" => Ok("kimi_code")
+    "kimi-code" => Ok("kimi_code")
+    "kimi" => Ok("kimi_code")
+    _ => Err("Agent must be Codex, Claude Code, or Kimi Code.")
+  }
+}
+
+///|
+fn openrouter_model_compatible_with_agent(
+  agent_cli : String,
+  model : String,
+) -> Bool {
+  let normalized_model = model.trim().to_owned().to_lower()
+  match agent_cli {
+    "claude_code" => normalized_model.has_prefix("anthropic/")
+    "kimi_code" =>
+      normalized_model.has_prefix("moonshotai/") ||
+      normalized_model.contains("kimi")
+    _ => true
+  }
 }
 
 ///|
@@ -522,6 +558,7 @@ async fn Store::lease_ai_runtime_settings_for_project(
       (
         #|SELECT
         #|  owner_user_id,
+        #|  COALESCE(agent_cli, '') AS agent_cli,
         #|  COALESCE(ai_model, '') AS ai_model
         #|FROM projects
         #|WHERE id = ?;
@@ -532,6 +569,10 @@ async fn Store::lease_ai_runtime_settings_for_project(
     None => return Err("The project owner could not be loaded for this run.")
   }
   let config = self.get_admin_ai_config()
+  let agent_cli = match normalize_agent_cli(row_text(project, "agent_cli")) {
+    Ok(agent_cli) => agent_cli
+    Err(_) => default_agent_cli()
+  }
   let row = match
     self.query_one(
       (
@@ -603,7 +644,7 @@ async fn Store::lease_ai_runtime_settings_for_project(
       params=[String(now), String(now), String(key_id)],
     ),
   )
-  Ok({ provider: "openrouter", model: selected_model, api_key })
+  Ok({ agent_cli, provider: "openrouter", model: selected_model, api_key })
 }
 
 ///|

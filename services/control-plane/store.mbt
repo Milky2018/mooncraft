@@ -419,6 +419,42 @@ fn project_codex_home(root : String, project_id : String) -> String {
 }
 
 ///|
+fn project_agent_session_root(root : String, project_id : String) -> String {
+  root + "/data/agent-sessions/" + project_id
+}
+
+///|
+fn project_agent_home(
+  root : String,
+  project_id : String,
+  agent_cli : String,
+) -> String {
+  let normalized = match normalize_agent_cli(agent_cli) {
+    Ok(value) => value
+    Err(_) => default_agent_cli()
+  }
+  project_agent_session_root(root, project_id) + "/" + normalized
+}
+
+///|
+fn project_runtime_agent_home(
+  root : String,
+  project_id : String,
+  agent_cli : String,
+) -> String {
+  let normalized = match normalize_agent_cli(agent_cli) {
+    Ok(value) => value
+    Err(_) => default_agent_cli()
+  }
+  if normalized == "codex" &&
+    @fs.path_exists(project_codex_home(root, project_id)) {
+    project_codex_session_root(root, project_id)
+  } else {
+    project_agent_home(root, project_id, normalized)
+  }
+}
+
+///|
 fn public_preview_url(preview_public_id : String) -> String {
   @sdk.preview_public_path(preview_public_id)
 }
@@ -1145,6 +1181,7 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
         #|  owner_user_id TEXT NOT NULL,
         #|  preview_public_id TEXT NOT NULL UNIQUE,
         #|  display_name TEXT NOT NULL,
+        #|  agent_cli TEXT NOT NULL DEFAULT 'codex',
         #|  ai_model TEXT NOT NULL DEFAULT '',
         #|  workspace_path TEXT NOT NULL,
         #|  initial_project_prompt TEXT,
@@ -1207,6 +1244,11 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
     Err(message) => return Err(message)
   }
   match self.ensure_column("projects", "ai_model", "TEXT NOT NULL DEFAULT ''") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.ensure_column("projects", "agent_cli", "TEXT NOT NULL DEFAULT 'codex'") {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
@@ -1453,6 +1495,7 @@ fn project_detail_from_row(row : Map[String, @db.Param]) -> @sdk.ProjectDetail {
     id: row_text(row, "id"),
     preview_public_id: row_text(row, "preview_public_id"),
     display_name: row_text(row, "display_name"),
+    agent_cli: row_text(row, "agent_cli"),
     model: row_text(row, "ai_model"),
     workspace_path: row_text(row, "workspace_path"),
     codex_thread_id: empty_to_none(row_text(row, "codex_thread_id")),
@@ -1559,6 +1602,7 @@ async fn Store::get_project_detail(
         #|  id,
         #|  preview_public_id,
         #|  display_name,
+        #|  COALESCE(agent_cli, 'codex') AS agent_cli,
         #|  COALESCE(ai_model, '') AS ai_model,
         #|  workspace_path,
         #|  COALESCE(codex_thread_id, '') AS codex_thread_id,
@@ -1591,6 +1635,7 @@ async fn Store::list_recent_projects(
       #|  id,
       #|  preview_public_id,
       #|  display_name,
+      #|  COALESCE(agent_cli, 'codex') AS agent_cli,
       #|  COALESCE(ai_model, '') AS ai_model,
       #|  workspace_path,
       #|  COALESCE(codex_thread_id, '') AS codex_thread_id,
@@ -1964,6 +2009,7 @@ async fn Store::create_project(
   owner_user_id : String,
   preview_public_id : String,
   display_name : String,
+  agent_cli : String,
   model : String,
   workspace_path : String,
 ) -> @sdk.ProjectDetail noraise {
@@ -1976,12 +2022,13 @@ async fn Store::create_project(
         #|  owner_user_id,
         #|  preview_public_id,
         #|  display_name,
+        #|  agent_cli,
         #|  ai_model,
         #|  workspace_path,
         #|  status,
         #|  created_at,
         #|  updated_at
-        #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+        #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
       ),
       "create project",
       params=[
@@ -1989,6 +2036,7 @@ async fn Store::create_project(
         String(owner_user_id),
         String(preview_public_id),
         String(display_name),
+        String(agent_cli),
         String(model),
         String(workspace_path),
         String(run_state_to_db(Idle)),
@@ -2755,5 +2803,6 @@ async fn AppContext::delete_project(
   self.previews.remove_project_runtime(project_id, project.preview)
   safe_remove_tree(project_root(self.root, project_id))
   safe_remove_tree(project_codex_session_root(self.root, project_id))
+  safe_remove_tree(project_agent_session_root(self.root, project_id))
   self.store.delete_project(project_id)
 }

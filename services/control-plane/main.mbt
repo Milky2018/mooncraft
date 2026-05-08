@@ -67,6 +67,16 @@ fn selected_project_model(
 }
 
 ///|
+fn selected_project_agent_cli(
+  request_agent_cli : String?,
+) -> Result[String, String] {
+  match request_agent_cli {
+    Some(agent_cli) => normalize_agent_cli(agent_cli)
+    None => Ok(default_agent_cli())
+  }
+}
+
+///|
 fn text_response(
   code : @mocket.StatusCode,
   message : String,
@@ -1031,6 +1041,7 @@ fn main {
           items.push(ai_model_summary_from_admin(model))
         }
         json_ok(@sdk.ListAiModelsResponse::{
+          default_agent_cli: default_agent_cli(),
           default_model: config.default_model,
           items,
           fetched_at: response.fetched_at,
@@ -1113,6 +1124,15 @@ fn main {
         )
     }
     let config = ctx.store.get_admin_ai_config()
+    let agent_cli = match selected_project_agent_cli(request.agent_cli) {
+      Ok(agent_cli) => agent_cli
+      Err(message) =>
+        return api_error_response(
+          UnprocessableEntity,
+          ValidationFailed,
+          message,
+        )
+    }
     let selected_model = selected_project_model(
       request.model,
       config.default_model,
@@ -1124,12 +1144,20 @@ fn main {
         "Model id must be 160 characters or fewer.",
       )
     }
+    if !openrouter_model_compatible_with_agent(agent_cli, selected_model) {
+      return api_error_response(
+        UnprocessableEntity,
+        ValidationFailed,
+        "That model is not compatible with the selected agent.",
+      )
+    }
     let project_id = next_id("project")
     let workspace_path = project_workspace(ctx.root, project_id)
     let project = ctx.store.create_project_for_user(
       user.id,
       project_id,
       display_name,
+      agent_cli,
       selected_model,
       workspace_path,
     )

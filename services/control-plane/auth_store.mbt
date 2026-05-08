@@ -350,6 +350,7 @@ fn project_summary_from_row(
   {
     id: row_text(row, "id"),
     display_name: row_text(row, "display_name"),
+    agent_cli: row_text(row, "agent_cli"),
     model: row_text(row, "ai_model"),
     status: run_state_from_db(row_text(row, "status")),
     preview,
@@ -369,6 +370,7 @@ async fn Store::list_projects_for_user(
       #|  id,
       #|  preview_public_id,
       #|  display_name,
+      #|  COALESCE(agent_cli, 'codex') AS agent_cli,
       #|  COALESCE(ai_model, '') AS ai_model,
       #|  status,
       #|  COALESCE(preview_url, '') AS preview_url,
@@ -426,6 +428,7 @@ async fn Store::create_project_for_user(
   user_id : String,
   project_id : String,
   display_name : String,
+  agent_cli : String,
   model : String,
   workspace_path : String,
 ) -> @sdk.ProjectDetail noraise {
@@ -434,6 +437,7 @@ async fn Store::create_project_for_user(
     user_id,
     new_preview_public_id(),
     display_name,
+    agent_cli,
     model,
     workspace_path,
   )

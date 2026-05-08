@@ -308,6 +308,30 @@ fn model_display_label(
 }
 
 ///|
+fn agent_cli_label(agent_cli : String) -> String {
+  match agent_cli {
+    "claude_code" => "Claude Code"
+    "kimi_code" => "Kimi Code"
+    _ => "Codex"
+  }
+}
+
+///|
+fn render_agent_select_options(model : Model) -> Array[@rabbita.Html] {
+  let items : Array[@rabbita.Html] = []
+  for agent_cli in ["codex", "claude_code", "kimi_code"] {
+    items.push(
+      @html.option(
+        value=agent_cli,
+        selected=agent_cli == model.new_project_agent_cli,
+        agent_cli_label(agent_cli),
+      ),
+    )
+  }
+  items
+}
+
+///|
 fn model_list_contains(
   items : Array[@sdk.AiModelSummary],
   model_id : String,
@@ -354,13 +378,15 @@ fn render_model_select_options(model : Model) -> Array[@rabbita.Html] {
       )
     }
     for item in model.ai_models {
-      items.push(
-        @html.option(
-          value=item.id,
-          selected=item.id == selected_model,
-          model_display_label(item, model.ai_models_default_model),
-        ),
-      )
+      if model_id_compatible_with_agent(model.new_project_agent_cli, item.id) {
+        items.push(
+          @html.option(
+            value=item.id,
+            selected=item.id == selected_model,
+            model_display_label(item, model.ai_models_default_model),
+          ),
+        )
+      }
     }
     if items.length() == 0 {
       items.push(@html.option(value="", selected=true, "Use admin default"))
@@ -400,6 +426,13 @@ fn render_new_project_more(
           "flex-direction: column", "gap: 10px",
         ],
       ) <| [
+        @html.div(style=section_label_style(), "Agent"),
+        @html.select(
+          disabled=model.create_project_pending,
+          on_change=fn(value) { dispatch(NewProjectAgentChanged(value)) },
+          style=input_style(model.create_project_pending) + ["font-size: 14px"],
+          render_agent_select_options(model),
+        ),
         @html.div(style=section_label_style(), "Model"),
         @html.select(
           disabled=model.create_project_pending ||
@@ -418,7 +451,8 @@ fn render_new_project_more(
             "Model list could not be loaded. Creation will use the admin default. " +
             message
           } else if model.ai_models_default_model != "" {
-            "Default model: " + model.ai_models_default_model
+            agent_cli_label(model.new_project_agent_cli) +
+            " will use compatible OpenRouter models only."
           } else {
             "Default model is managed by the admin."
           },

@@ -217,7 +217,7 @@ async function main() {
 ## Assertions
 
 - Development sign-in succeeds.
-- Browser prompt starts a real Docker-backed Codex run.
+- Browser prompt starts a real Docker-backed agent run.
 - The run reaches \`Succeeded\`.
 - The project persists a Codex thread ID.
 - The preview iframe loads the generated app.

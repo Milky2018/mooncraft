@@ -200,6 +200,7 @@ fn update(
           ..model,
           new_project_modal_open: true,
           new_project_name: "",
+          new_project_agent_cli: "codex",
           new_project_more_open: false,
           new_project_model: model.ai_models_default_model,
           ai_models_loading: true,
@@ -218,6 +219,7 @@ fn update(
             ..model,
             new_project_modal_open: false,
             new_project_name: "",
+            new_project_agent_cli: "codex",
             new_project_more_open: false,
           },
         )
@@ -229,19 +231,32 @@ fn update(
         @rabbita.none,
         { ..model, new_project_more_open: !model.new_project_more_open },
       )
-    NewProjectModelChanged(value) =>
-      (@rabbita.none, { ..model, new_project_model: value })
-    AiModelsLoaded(Ok(response)) => {
-      let selected_model = if model.new_project_model.trim() == "" {
-        response.default_model
-      } else {
-        model.new_project_model
-      }
+    NewProjectAgentChanged(value) =>
       (
         @rabbita.none,
         {
           ..model,
-          ai_models: response.items,
+          new_project_agent_cli: value,
+          new_project_model: compatible_default_model(value, model),
+        },
+      )
+    NewProjectModelChanged(value) =>
+      (@rabbita.none, { ..model, new_project_model: value })
+    AiModelsLoaded(Ok(response)) => {
+      let next_model = {
+        ..model,
+        ai_models: response.items,
+        ai_models_default_model: response.default_model,
+      }
+      let selected_model = compatible_default_model(
+        model.new_project_agent_cli,
+        next_model,
+      )
+      (
+        @rabbita.none,
+        {
+          ..model,
+          ai_models: next_model.ai_models,
           ai_models_default_model: response.default_model,
           new_project_model: selected_model,
           ai_models_loading: false,
@@ -271,6 +286,7 @@ fn update(
           create_project_cmd(
             dispatch,
             display_name,
+            ui_empty_to_none(model.new_project_agent_cli),
             ui_empty_to_none(model.new_project_model),
           ),
           {
@@ -372,6 +388,7 @@ fn update(
           create_project_pending: false,
           new_project_modal_open: false,
           new_project_name: "",
+          new_project_agent_cli: "codex",
           new_project_more_open: false,
           selected_project_id: Some(project.id),
           project_detail: Some(project),

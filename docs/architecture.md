@@ -24,7 +24,7 @@ Each user project is created under:
 
 `data/runtime/projects/<project-id>/workspace`
 
-That directory is runtime scratch, not durable storage. The control plane keeps the authoritative workspace source snapshot in SQLite and hydrates it into scratch paths for Codex runs and preview rebuilds.
+That directory is runtime scratch, not durable storage. The control plane keeps the authoritative workspace source snapshot in SQLite and hydrates it into scratch paths for agent runs and preview rebuilds.
 The old `data/projects` location is not a fallback source; startup removes that legacy scratch root instead of migrating or restoring from it.
 
 Each generated project chooses its own MoonBit structure. The control plane does not create or require `frontend/`, `backend/`, or `shared/` directories; it only requires valid root-level MoonBit commands and one native runnable app that accepts the preview port as its first CLI argument.
@@ -35,7 +35,7 @@ This keeps the live preview tied to a real generated app instead of a fake demo 
 
 1. `POST /api/projects` creates project metadata and writes only minimal workspace ignore rules.
 2. `POST /api/projects/:id/runs` stores the user message, opens a run, and locks the project.
-3. `AgentGateway` runs Codex in the project workspace. For the first app turn, Codex is instructed to create the real MoonBit project with `moon new`.
+3. `AgentGateway` runs the project's selected agent in the project workspace. For the first app turn, the agent is instructed to create the real MoonBit project with `moon new`.
 4. `PreviewManager` fetches approved MoonBit modules, rebuilds the generated app, and starts the built native executable on a stable local port.
 5. The control plane marks the run as succeeded or failed and stores the latest preview target.
 6. `apps/web` polls run status and refreshes project state.
@@ -67,18 +67,19 @@ Important persisted fields include:
 - current run id
 - preview URL and port
 - last error
-- Codex thread id
+- selected agent CLI
+- Codex thread id, for Codex projects only
 
 ## Generated Workspace Boundary
 
-The control plane owns only the runtime boundary, not the app's source layout. Codex continuity is split deliberately: the database stores the project's `codex_thread_id`, while the matching Codex CLI state lives in the app data volume under `data/codex-sessions/<project-id>/.codex` and is mounted into the disposable Docker container as `CODEX_HOME`.
+The control plane owns only the runtime boundary, not the app's source layout. Each project is bound to one agent CLI at creation time. Codex continuity is split deliberately: the database stores the project's `codex_thread_id`, while the matching Codex CLI state lives in the app data volume under `data/codex-sessions/<project-id>/.codex` and is mounted into the disposable Docker container as `CODEX_HOME`. Claude Code and Kimi Code do not persist CLI session state; each turn receives the hydrated workspace snapshot and the current prompt.
 
 - new projects start without a platform-owned app scaffold
-- Codex creates the real MoonBit project with `moon new`
+- the selected agent creates the real MoonBit project with `moon new`
 - root-level `moon fmt`, `moon check`, `moon test`, and `moon build` must remain valid
 - the generated app must build one native runnable executable
 - the executable receives the preview port as its first CLI argument, starts the app server, serves `/`, and returns success from `/api/health`
-- source snapshots are persisted after creation and after successful Codex edits
+- source snapshots are persisted after creation and after successful agent edits
 
 There are no official app templates, no template ids, and no template picker in this slice. Reusable examples should live in documentation or external MoonBit projects, not as platform-owned scaffold variants.
 
@@ -104,7 +105,9 @@ The agent layer is intentionally isolated behind `AgentGateway`.
 Current state:
 
 - the boundary is real
-- the implementation uses Docker-backed Codex CLI workers
+- the implementation uses Docker-backed agent CLI workers
+- supported agent CLIs are Codex, Claude Code, and Kimi Code
+- all agent CLIs receive OpenRouter credentials from the admin-managed key pool
 
 Future state:
 

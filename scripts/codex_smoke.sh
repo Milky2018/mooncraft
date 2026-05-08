@@ -59,7 +59,7 @@ show_artifacts() {
   if [[ -n "$project_id" && -n "$run_id" ]]; then
     artifact_dir="data/runtime/projects/$project_id/artifacts/runs/$run_id"
     echo "Run artifacts: $artifact_dir"
-    for artifact in codex.log validation.log last_message.txt; do
+    for artifact in agent.log validation.log last_message.txt; do
       artifact_path="$artifact_dir/$artifact"
       if [[ -f "$artifact_path" ]]; then
         echo

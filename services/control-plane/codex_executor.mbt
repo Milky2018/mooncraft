@@ -13,9 +13,10 @@ struct AgentTurnFailure {
 }
 
 ///|
-struct CodexDockerConfig {
+struct AgentRuntimeConfig {
   image : String
   platform : String
+  agent_cli : String
   provider : String
   model : String
   api_key : String
@@ -49,12 +50,12 @@ let default_codex_model = "gpt-5.5"
 struct RunArtifacts {
   dir : String
   last_message_path : String
-  codex_log_path : String
+  agent_log_path : String
   validation_log_path : String
 }
 
 ///|
-struct CodexExecutionResult {
+struct AgentExecutionResult {
   summary : String
   thread_id : String
   artifacts : RunArtifacts
@@ -79,23 +80,25 @@ fn RunArtifacts::new(
   {
     dir,
     last_message_path: dir + "/last_message.txt",
-    codex_log_path: dir + "/codex.log",
+    agent_log_path: dir + "/agent.log",
     validation_log_path: dir + "/validation.log",
   }
 }
 
 ///|
-fn CodexDockerConfig::container_codex_home(self : CodexDockerConfig) -> String {
+fn AgentRuntimeConfig::container_agent_home(
+  self : AgentRuntimeConfig,
+) -> String {
   self.container_home + "/.codex"
 }
 
 ///|
-fn codex_container_workspace_dir() -> String {
+fn agent_container_workspace_dir() -> String {
   "/workspace"
 }
 
 ///|
-fn codex_container_artifacts_dir() -> String {
+fn agent_container_artifacts_dir() -> String {
   "/artifacts"
 }
 
@@ -135,7 +138,7 @@ fn configured_host_data_dir(root : String) -> Result[String?, String] {
 }
 
 ///|
-fn docker_bind_source(config : CodexDockerConfig, path : String) -> String {
+fn docker_bind_source(config : AgentRuntimeConfig, path : String) -> String {
   match config.host_data_dir {
     Some(host_data_dir) => {
       let container_data_dir = trim_mount_path(config.container_data_dir)
@@ -162,19 +165,22 @@ fn docker_env_value(value : String) -> String {
 
 ///|
 fn docker_env_file_path(artifacts : RunArtifacts) -> String {
-  artifacts.dir + "/codex.env"
+  artifacts.dir + "/agent.env"
 }
 
 ///|
-fn docker_env_file_content(config : CodexDockerConfig) -> String {
+fn docker_env_file_content(config : AgentRuntimeConfig) -> String {
   "HOME=" +
   docker_env_value(config.container_home) +
   "\n" +
   "CODEX_HOME=" +
-  docker_env_value(config.container_codex_home()) +
+  docker_env_value(config.container_agent_home()) +
   "\n" +
   "MOONCRAFT_AI_PROVIDER=" +
   docker_env_value(config.provider) +
+  "\n" +
+  "MOONCRAFT_AGENT_CLI=" +
+  docker_env_value(config.agent_cli) +
   "\n" +
   "MOONCRAFT_AI_MODEL=" +
   docker_env_value(config.model) +
@@ -186,7 +192,7 @@ fn docker_env_file_content(config : CodexDockerConfig) -> String {
 
 ///|
 fn write_docker_env_file(
-  config : CodexDockerConfig,
+  config : AgentRuntimeConfig,
   artifacts : RunArtifacts,
 ) -> String {
   let path = docker_env_file_path(artifacts)
@@ -243,10 +249,10 @@ async fn detect_docker_platform(
 }
 
 ///|
-async fn CodexDockerConfig::load(
+async fn AgentRuntimeConfig::load(
   root : String,
   settings : AiRuntimeSettings,
-) -> Result[CodexDockerConfig, String] noraise {
+) -> Result[AgentRuntimeConfig, String] noraise {
   let image = match @env.get_env_var("MOONCRAFT_AGENT_RUNTIME_IMAGE") {
     Some(value) if value.trim() != "" => value.trim().to_owned()
     _ =>
@@ -277,6 +283,7 @@ async fn CodexDockerConfig::load(
   Ok({
     image,
     platform,
+    agent_cli: settings.agent_cli,
     provider: settings.provider,
     model: settings.model,
     api_key: settings.api_key,
@@ -950,6 +957,16 @@ fn command_display(command : Array[String]) -> String {
       command[0] == "codex" &&
       index == command.length() - 1 {
       "<prompt>"
+    } else if command.length() > 0 &&
+      command[0] == "claude" &&
+      index > 0 &&
+      command[index - 1] == "-p" {
+      "<prompt>"
+    } else if command.length() > 0 &&
+      command[0] == "kimi" &&
+      index > 0 &&
+      command[index - 1] == "--prompt" {
+      "<prompt>"
     } else {
       command[index]
     }
@@ -969,7 +986,7 @@ fn failure_debug(
     stage,
     command: command.map(command_display),
     exit_code,
-    codex_log_path: artifacts.map(fn(artifacts) { artifacts.codex_log_path }),
+    codex_log_path: artifacts.map(fn(artifacts) { artifacts.agent_log_path }),
     validation_log_path: artifacts.map(fn(artifacts) {
       artifacts.validation_log_path
     }),
@@ -981,10 +998,10 @@ fn failure_debug(
 
 ///|
 fn docker_command_args(
-  config : CodexDockerConfig,
+  config : AgentRuntimeConfig,
   env_file_path : String,
   workspace_path : String,
-  codex_home_path : String?,
+  agent_home_path : String?,
   artifacts : RunArtifacts,
   container_command : Array[String],
 ) -> Array[String] {
@@ -993,13 +1010,11 @@ fn docker_command_args(
   args.push(config.platform)
   args.push("--env-file")
   args.push(env_file_path)
-  match codex_home_path {
+  match agent_home_path {
     Some(path) => {
       ensure_dir(path)
       args.push("-v")
-      args.push(
-        docker_bind_source(config, path) + ":" + config.container_codex_home(),
-      )
+      args.push(docker_bind_source(config, path) + ":" + config.container_home)
     }
     None => ()
   }
@@ -1007,25 +1022,25 @@ fn docker_command_args(
   args.push(
     docker_bind_source(config, workspace_path) +
     ":" +
-    codex_container_workspace_dir(),
+    agent_container_workspace_dir(),
   )
   args.push("-v")
   args.push(
     docker_bind_source(config, artifacts.dir) +
     ":" +
-    codex_container_artifacts_dir(),
+    agent_container_artifacts_dir(),
   )
   args.push("-w")
-  args.push(codex_container_workspace_dir())
+  args.push(agent_container_workspace_dir())
   args.push(config.image)
-  for part in docker_codex_entry_command(container_command) {
+  for part in agent_runtime_entry_command(container_command) {
     args.push(part)
   }
   args
 }
 
 ///|
-fn docker_codex_entry_command(
+fn agent_runtime_entry_command(
   container_command : Array[String],
 ) -> Array[String] {
   let script_lines : Array[String] = ["set -e"]
@@ -1035,7 +1050,7 @@ fn docker_codex_entry_command(
   script_lines.push("exec \"$@\"")
   let wrapped : Array[String] = [
     "sh",
-    "-lc",
+    "-c",
     script_lines.join("\n"),
     "mooncraft-agent",
   ]
@@ -1048,15 +1063,15 @@ fn docker_codex_entry_command(
 ///|
 async fn collect_docker_output(
   root : String,
-  config : CodexDockerConfig,
+  config : AgentRuntimeConfig,
   workspace_path : String,
-  codex_home_path : String?,
+  agent_home_path : String?,
   artifacts : RunArtifacts,
   container_command : Array[String],
 ) -> Result[(Int, String), String] noraise {
   let env_file_path = write_docker_env_file(config, artifacts)
   let docker_args = docker_command_args(
-    config, env_file_path, workspace_path, codex_home_path, artifacts, container_command,
+    config, env_file_path, workspace_path, agent_home_path, artifacts, container_command,
   )
   let result = try
     @process.collect_output_merged("docker", docker_args, cwd=root)
@@ -1080,15 +1095,15 @@ async fn stream_docker_output(
   root : String,
   project_id : String,
   run_id : String,
-  config : CodexDockerConfig,
+  config : AgentRuntimeConfig,
   workspace_path : String,
-  codex_home_path : String?,
+  agent_home_path : String?,
   artifacts : RunArtifacts,
   container_command : Array[String],
 ) -> Result[(Int, String), String] noraise {
   let env_file_path = write_docker_env_file(config, artifacts)
   let docker_args = docker_command_args(
-    config, env_file_path, workspace_path, codex_home_path, artifacts, container_command,
+    config, env_file_path, workspace_path, agent_home_path, artifacts, container_command,
   )
   let pipe = @process.read_from_process() catch {
     err => {
@@ -1145,11 +1160,11 @@ async fn stream_docker_output(
 }
 
 ///|
-async fn collect_codex_command_output(
+async fn collect_agent_command_output(
   store : Store,
   run_id : String,
   root : String,
-  config : CodexDockerConfig?,
+  config : AgentRuntimeConfig?,
   project : @sdk.ProjectDetail,
   workspace_path : String,
   artifacts : RunArtifacts,
@@ -1177,7 +1192,9 @@ async fn collect_codex_command_output(
   } else {
     match config {
       Some(config) => {
-        let codex_home_path = project_codex_home(root, project.id)
+        let agent_home_path = Some(
+          project_runtime_agent_home(root, project.id, config.agent_cli),
+        )
         let result = match
           stream_docker_output(
             store,
@@ -1186,7 +1203,7 @@ async fn collect_codex_command_output(
             run_id,
             config,
             workspace_path,
-            Some(codex_home_path),
+            agent_home_path,
             artifacts,
             command,
           ) {
@@ -1210,7 +1227,7 @@ fn codex_exec_command(model : String, user_prompt : String) -> Array[String] {
     "--skip-git-repo-check",
     "--json",
     "--output-last-message",
-    codex_container_artifacts_dir() + "/last_message.txt",
+    agent_container_artifacts_dir() + "/last_message.txt",
     "--dangerously-bypass-approvals-and-sandbox",
     bootstrap_prompt(user_prompt),
   ]
@@ -1231,11 +1248,154 @@ fn codex_resume_command(
     "--skip-git-repo-check",
     "--json",
     "--output-last-message",
-    codex_container_artifacts_dir() + "/last_message.txt",
+    agent_container_artifacts_dir() + "/last_message.txt",
     "--dangerously-bypass-approvals-and-sandbox",
     thread_id,
     followup_prompt(user_prompt),
   ]
+}
+
+///|
+fn claude_code_command(model : String, prompt : String) -> Array[String] {
+  [
+    "claude", "--bare", "-p", prompt, "--model", model, "--output-format", "stream-json",
+    "--dangerously-skip-permissions", "--no-session-persistence",
+  ]
+}
+
+///|
+fn kimi_code_command(prompt : String) -> Array[String] {
+  [
+    "kimi",
+    "--model",
+    "mooncraft-openrouter",
+    "--work-dir",
+    agent_container_workspace_dir(),
+    "--prompt",
+    prompt,
+    "--print",
+    "--output-format",
+    "stream-json",
+    "--yolo",
+    "--afk",
+  ]
+}
+
+///|
+fn stateless_agent_prompt(
+  workspace_path : String,
+  user_prompt : String,
+) -> String {
+  if workspace_has_root_moon_project(workspace_path) {
+    followup_prompt(user_prompt)
+  } else {
+    bootstrap_prompt(user_prompt)
+  }
+}
+
+///|
+fn agent_cli_label(agent_cli : String) -> String {
+  match agent_cli {
+    "claude_code" => "claude code"
+    "kimi_code" => "kimi code"
+    _ => "codex"
+  }
+}
+
+///|
+async fn run_stateless_agent_turn(
+  store : Store,
+  root : String,
+  config : AgentRuntimeConfig?,
+  project : @sdk.ProjectDetail,
+  workspace_path : String,
+  run_id : String,
+  user_prompt : String,
+  reset_logs? : Bool = true,
+) -> Result[AgentExecutionResult, AgentTurnFailure] noraise {
+  let artifacts = RunArtifacts::new(root, project.id, run_id)
+  safe_write_string(artifacts.last_message_path, "")
+  if reset_logs {
+    safe_write_string(artifacts.agent_log_path, "")
+  }
+  let model = match config {
+    Some(config) => config.model
+    None => project.model
+  }
+  let agent_cli = match normalize_agent_cli(project.agent_cli) {
+    Ok(agent_cli) => agent_cli
+    Err(_) => default_agent_cli()
+  }
+  let prompt = stateless_agent_prompt(workspace_path, user_prompt)
+  let command = match agent_cli {
+    "claude_code" => claude_code_command(model, prompt)
+    "kimi_code" => kimi_code_command(prompt)
+    _ => codex_exec_command(model, user_prompt)
+  }
+  let result = match
+    collect_agent_command_output(
+      store, run_id, root, config, project, workspace_path, artifacts, command,
+    ) {
+    Ok(result) => result
+    Err(message) =>
+      return Err(
+        codex_failure_with_debug(
+          "The AI builder could not be started for that update.",
+          message,
+          None,
+          Some(
+            failure_debug(
+              "AI builder startup",
+              Some(command),
+              None,
+              Some(artifacts),
+            ),
+          ),
+        ),
+      )
+  }
+  let (exit_code, output, fake_summary) = result
+  append_command_log(
+    artifacts.agent_log_path,
+    agent_cli_label(agent_cli) + " execution",
+    command,
+    exit_code,
+    output,
+  )
+  let summary = match fake_summary {
+    Some(summary) => trim_or_default(summary, default_success_summary())
+    None =>
+      trim_or_default(
+        safe_read_string_or(artifacts.last_message_path, ""),
+        default_success_summary(),
+      )
+  }
+  if exit_code != 0 {
+    return Err(
+      codex_failure_with_debug(
+        dependency_fetch_failure_assistant_message(
+          output,
+          default_failure_assistant_message(),
+        ),
+        stage_failure_message(
+          "AI builder execution",
+          exit_code,
+          artifacts.agent_log_path,
+          output,
+        ),
+        None,
+        Some(
+          failure_debug(
+            "AI builder execution",
+            Some(command),
+            Some(exit_code),
+            Some(artifacts),
+          ),
+        ),
+      ),
+    )
+  }
+  Ok({ summary, thread_id: run_id, artifacts })
 }
 
 ///|
@@ -1270,18 +1430,18 @@ fn codex_failure_with_debug(
 async fn run_codex_turn(
   store : Store,
   root : String,
-  config : CodexDockerConfig?,
+  config : AgentRuntimeConfig?,
   project : @sdk.ProjectDetail,
   initial_project_prompt : String,
   workspace_path : String,
   run_id : String,
   user_prompt : String,
   reset_logs? : Bool = true,
-) -> Result[CodexExecutionResult, AgentTurnFailure] noraise {
+) -> Result[AgentExecutionResult, AgentTurnFailure] noraise {
   let artifacts = RunArtifacts::new(root, project.id, run_id)
   safe_write_string(artifacts.last_message_path, "")
   if reset_logs {
-    safe_write_string(artifacts.codex_log_path, "")
+    safe_write_string(artifacts.agent_log_path, "")
   }
   let thread_id_before = project.codex_thread_id
   let model = match config {
@@ -1294,7 +1454,7 @@ async fn run_codex_turn(
   }
   let mut active_command = command
   let codex_result = match
-    collect_codex_command_output(
+    collect_agent_command_output(
       store, run_id, root, config, project, workspace_path, artifacts, command,
     ) {
     Ok(result) => result
@@ -1320,7 +1480,7 @@ async fn run_codex_turn(
   let mut output = initial_output
   let mut fake_summary = initial_fake_summary
   append_command_log(
-    artifacts.codex_log_path,
+    artifacts.agent_log_path,
     if thread_id_before is Some(_) {
       "codex resume"
     } else {
@@ -1344,7 +1504,7 @@ async fn run_codex_turn(
             stage_failure_message(
               "AI builder session startup",
               exit_code,
-              artifacts.codex_log_path,
+              artifacts.agent_log_path,
               output,
             ),
             None,
@@ -1368,7 +1528,7 @@ async fn run_codex_turn(
       recovery_prompt(initial_project_prompt, user_prompt),
     )
     let recovery_result = match
-      collect_codex_command_output(
+      collect_agent_command_output(
         store, run_id, root, config, project, workspace_path, artifacts, recovery_command,
       ) {
       Ok(result) => result
@@ -1392,7 +1552,7 @@ async fn run_codex_turn(
     let (recovery_exit_code, recovery_output, recovery_fake_summary) = recovery_result
     active_command = recovery_command
     append_command_log(
-      artifacts.codex_log_path,
+      artifacts.agent_log_path,
       "codex session recovery",
       active_command,
       recovery_exit_code,
@@ -1410,7 +1570,7 @@ async fn run_codex_turn(
             stage_failure_message(
               "AI builder session recovery",
               recovery_exit_code,
-              artifacts.codex_log_path,
+              artifacts.agent_log_path,
               recovery_output,
             ),
             None,
@@ -1467,7 +1627,7 @@ async fn run_codex_turn(
         stage_failure_message(
           "AI builder execution",
           exit_code,
-          artifacts.codex_log_path,
+          artifacts.agent_log_path,
           output,
         ),
         Some(thread_id),
@@ -1488,7 +1648,7 @@ async fn run_codex_turn(
 ///|
 async fn run_validation_command(
   root : String,
-  config : CodexDockerConfig?,
+  config : AgentRuntimeConfig?,
   workspace_path : String,
   artifacts : RunArtifacts,
   label : String,
@@ -1598,7 +1758,7 @@ fn validation_shell_script(include_update~ : Bool) -> String {
 ///|
 async fn run_docker_validation_sequence(
   root : String,
-  config : CodexDockerConfig?,
+  config : AgentRuntimeConfig?,
   workspace_path : String,
   artifacts : RunArtifacts,
   thread_id : String,
@@ -1688,7 +1848,7 @@ async fn run_docker_validation_sequence(
 ///|
 async fn run_local_validation_sequence(
   root : String,
-  config : CodexDockerConfig?,
+  config : AgentRuntimeConfig?,
   workspace_path : String,
   artifacts : RunArtifacts,
   thread_id : String,
@@ -1739,7 +1899,7 @@ async fn run_local_validation_sequence(
 ///|
 async fn run_validation_sequence(
   root : String,
-  config : CodexDockerConfig?,
+  config : AgentRuntimeConfig?,
   workspace_path : String,
   artifacts : RunArtifacts,
   thread_id : String,
@@ -1803,7 +1963,7 @@ async fn AgentGateway::run_turn(
           ),
         )
     }
-    match CodexDockerConfig::load(self.root, settings) {
+    match AgentRuntimeConfig::load(self.root, settings) {
       Ok(config) => Some(config)
       Err(message) =>
         return Err(
@@ -1815,17 +1975,33 @@ async fn AgentGateway::run_turn(
         )
     }
   }
+  let agent_cli = match normalize_agent_cli(project.agent_cli) {
+    Ok(agent_cli) => agent_cli
+    Err(_) => default_agent_cli()
+  }
   let mut codex_result = match
-    run_codex_turn(
-      store,
-      self.root,
-      config,
-      project,
-      initial_project_prompt,
-      workspace_path,
-      run_id,
-      user_prompt,
-    ) {
+    (if agent_cli == "codex" {
+      run_codex_turn(
+        store,
+        self.root,
+        config,
+        project,
+        initial_project_prompt,
+        workspace_path,
+        run_id,
+        user_prompt,
+      )
+    } else {
+      run_stateless_agent_turn(
+        store,
+        self.root,
+        config,
+        project,
+        workspace_path,
+        run_id,
+        user_prompt,
+      )
+    }) {
     Ok(result) => result
     Err(failure) => return Err(failure)
   }
@@ -1849,24 +2025,40 @@ async fn AgentGateway::run_turn(
         "status",
         "Repairing the project workspace.",
       )
-      let repair_project = {
-        ..project,
-        codex_thread_id: Some(codex_result.thread_id),
+      let repair_project = if agent_cli == "codex" {
+        { ..project, codex_thread_id: Some(codex_result.thread_id) }
+      } else {
+        project
       }
       let repair_result = match
-        run_codex_turn(
-          store,
-          self.root,
-          config,
-          repair_project,
-          initial_project_prompt,
-          workspace_path,
-          run_id,
-          workspace_contract_repair_prompt(
-            contract_error, initial_project_prompt, user_prompt,
-          ),
-          reset_logs=false,
-        ) {
+        (if agent_cli == "codex" {
+          run_codex_turn(
+            store,
+            self.root,
+            config,
+            repair_project,
+            initial_project_prompt,
+            workspace_path,
+            run_id,
+            workspace_contract_repair_prompt(
+              contract_error, initial_project_prompt, user_prompt,
+            ),
+            reset_logs=false,
+          )
+        } else {
+          run_stateless_agent_turn(
+            store,
+            self.root,
+            config,
+            repair_project,
+            workspace_path,
+            run_id,
+            workspace_contract_repair_prompt(
+              contract_error, initial_project_prompt, user_prompt,
+            ),
+            reset_logs=false,
+          )
+        }) {
         Ok(result) => result
         Err(failure) => return Err(failure)
       }
@@ -1889,7 +2081,11 @@ async fn AgentGateway::run_turn(
             codex_failure_with_debug(
               workspace_contract_failed_assistant_message(),
               repair_error,
-              Some(codex_result.thread_id),
+              if agent_cli == "codex" {
+                Some(codex_result.thread_id)
+              } else {
+                None
+              },
               Some(
                 failure_debug(
                   "Workspace contract",
@@ -1939,7 +2135,14 @@ async fn AgentGateway::run_turn(
     Ok(_) => ignore(())
     Err(failure) => return Err(failure)
   }
-  Ok({ summary: codex_result.summary, thread_id: Some(codex_result.thread_id) })
+  Ok({
+    summary: codex_result.summary,
+    thread_id: if agent_cli == "codex" {
+      Some(codex_result.thread_id)
+    } else {
+      None
+    },
+  })
 }
 
 ///|
@@ -2071,10 +2274,12 @@ async fn AppContext::run_project_turn(
           return
         }
       }
-      match result.thread_id {
-        Some(thread_id) =>
-          self.store.set_project_thread_id(project_id, thread_id)
-        None => ignore(())
+      if updated_project.agent_cli == "codex" {
+        match result.thread_id {
+          Some(thread_id) =>
+            self.store.set_project_thread_id(project_id, thread_id)
+          None => ignore(())
+        }
       }
       let preview_result = self.previews.rebuild_and_restart(updated_project)
       match preview_result {

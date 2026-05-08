@@ -250,6 +250,7 @@ pub(all) struct CreateAdminAiKeyRequest {
 
 pub(all) struct CreateProjectRequest {
   display_name : String
+  agent_cli : String?
   model : String?
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
@@ -279,6 +280,7 @@ pub(all) enum HttpMethod {
 } derive(Eq, @debug.Debug)
 
 pub(all) struct ListAiModelsResponse {
+  default_agent_cli : String
   default_model : String
   items : Array[AiModelSummary]
   fetched_at : String
@@ -306,6 +308,7 @@ pub(all) struct ProjectDetail {
   id : String
   preview_public_id : String
   display_name : String
+  agent_cli : String
   model : String
   workspace_path : String
   codex_thread_id : String?
@@ -320,6 +323,7 @@ pub(all) struct ProjectDetail {
 pub(all) struct ProjectSummary {
   id : String
   display_name : String
+  agent_cli : String
   model : String
   status : RunState
   preview : PreviewTarget?

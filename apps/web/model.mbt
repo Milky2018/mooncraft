@@ -29,6 +29,7 @@ struct Model {
   draft : String
   new_project_modal_open : Bool
   new_project_name : String
+  new_project_agent_cli : String
   new_project_more_open : Bool
   new_project_model : String
   ai_models : Array[@sdk.AiModelSummary]
@@ -63,6 +64,7 @@ enum Msg {
   CloseNewProjectDialog
   NewProjectNameChanged(String)
   ToggleNewProjectMore
+  NewProjectAgentChanged(String)
   NewProjectModelChanged(String)
   AiModelsLoaded(Result[@sdk.ListAiModelsResponse, @sdk.ApiError])
   CreateProject
@@ -172,6 +174,7 @@ fn initial_model() -> Model {
     draft: "",
     new_project_modal_open: false,
     new_project_name: "",
+    new_project_agent_cli: "codex",
     new_project_more_open: false,
     new_project_model: "",
     ai_models: [],

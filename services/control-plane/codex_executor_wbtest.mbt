@@ -266,9 +266,9 @@ test "docker validation uses initialized image registry in one shell" {
 
 ///|
 test "docker codex command fetches reference modules before codex starts" {
-  let command = docker_codex_entry_command(["codex", "exec", "Build an app"])
+  let command = agent_runtime_entry_command(["codex", "exec", "Build an app"])
   inspect(command[0], content="sh")
-  inspect(command[1], content="-lc")
+  inspect(command[1], content="-c")
   assert_true(required_user_project_fetches().length() > 0)
   for module_name in required_user_project_fetches() {
     assert_true(command[2].contains("moon fetch --no-update " + module_name))
@@ -397,9 +397,10 @@ test "github user profile parser accepts optional strings" {
 
 ///|
 test "docker command receives leased platform AI settings" {
-  let config : CodexDockerConfig = {
+  let config : AgentRuntimeConfig = {
     image: "codex:test",
     platform: "linux/amd64",
+    agent_cli: "codex",
     provider: "openrouter",
     model: "anthropic/claude-sonnet-4.5",
     api_key: "leased-key",
@@ -410,14 +411,14 @@ test "docker command receives leased platform AI settings" {
   let artifacts : RunArtifacts = {
     dir: "/app/data/runtime/projects/project-1/artifacts/runs/run-1",
     last_message_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/last_message.txt",
-    codex_log_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/codex.log",
+    agent_log_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/agent.log",
     validation_log_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/validation.log",
   }
   let args = docker_command_args(
     config,
-    "/app/data/runtime/projects/project-1/artifacts/runs/run-1/codex.env",
+    "/app/data/runtime/projects/project-1/artifacts/runs/run-1/agent.env",
     "/app/data/runtime/projects/project-1/workspace",
-    Some("/app/data/codex-sessions/project-1/.codex"),
+    Some("/app/data/agent-sessions/project-1/codex"),
     artifacts,
     ["codex", "exec", "Build an app"],
   )
@@ -426,7 +427,7 @@ test "docker command receives leased platform AI settings" {
   assert_true(args.contains("--env-file"))
   assert_true(
     args.contains(
-      "/app/data/runtime/projects/project-1/artifacts/runs/run-1/codex.env",
+      "/app/data/runtime/projects/project-1/artifacts/runs/run-1/agent.env",
     ),
   )
   assert_false(args.contains("MOONCRAFT_AI_PROVIDER=openrouter"))
@@ -435,7 +436,7 @@ test "docker command receives leased platform AI settings" {
   assert_false(args.contains("CODEX_HOME=/root/.codex"))
   assert_true(
     args.contains(
-      "/srv/mooncraft/test/data/codex-sessions/project-1/.codex:/root/.codex",
+      "/srv/mooncraft/test/data/agent-sessions/project-1/codex:/root",
     ),
   )
   assert_true(
@@ -494,10 +495,33 @@ test "project Codex home is platform managed and outside the runtime workspace c
 }
 
 ///|
-async test "delete project removes the persisted Codex home" {
+test "project agent homes are platform managed and preserve Codex compatibility" {
   let root = @env.current_dir().unwrap_or(".") +
     "/data/control-plane-test-roots/" +
-    next_id("codex-home-delete")
+    next_id("agent-home-paths")
+  safe_remove_tree(root)
+  let project_id = "project-123"
+  inspect(
+    project_agent_home(root, project_id, "claude_code"),
+    content=root + "/data/agent-sessions/project-123/claude_code",
+  )
+  inspect(
+    project_runtime_agent_home(root, project_id, "codex"),
+    content=root + "/data/agent-sessions/project-123/codex",
+  )
+  ensure_dir(project_codex_home(root, project_id))
+  inspect(
+    project_runtime_agent_home(root, project_id, "codex"),
+    content=root + "/data/codex-sessions/project-123",
+  )
+  safe_remove_tree(root)
+}
+
+///|
+async test "delete project removes persisted agent homes" {
+  let root = @env.current_dir().unwrap_or(".") +
+    "/data/control-plane-test-roots/" +
+    next_id("agent-home-delete")
   safe_remove_tree(root)
   let db_path = root + "/data/control-plane/state-v2.sqlite"
   ensure_dir(parent_dir(db_path))
@@ -515,19 +539,28 @@ async test "delete project removes the persisted Codex home" {
       project_id,
       "user-1",
       "preview-" + project_id,
-      "Codex Home Delete Test",
+      "Agent Home Delete Test",
+      "codex",
       default_openrouter_model(),
       project_workspace(root, project_id),
     ),
   )
   let codex_home = project_codex_home(root, project_id)
+  let kimi_home = project_agent_home(root, project_id, "kimi_code")
   ensure_dir(codex_home)
+  ensure_dir(kimi_home)
   safe_write_string(codex_home + "/state.json", "{}")
+  safe_write_string(kimi_home + "/state.json", "{}")
 
   inspect(@fs.path_exists(codex_home + "/state.json"), content="true")
+  inspect(@fs.path_exists(kimi_home + "/state.json"), content="true")
   ctx.delete_project(project_id).unwrap()
   inspect(
     @fs.path_exists(project_codex_session_root(root, project_id)),
+    content="false",
+  )
+  inspect(
+    @fs.path_exists(project_agent_session_root(root, project_id)),
     content="false",
   )
   safe_remove_tree(root)
@@ -655,6 +688,7 @@ async test "start_run persists the initial project prompt once" {
       "user-1",
       "preview-" + project_id,
       "Prompt Test",
+      "codex",
       default_openrouter_model(),
       project_workspace(root, project_id),
     ),
@@ -693,6 +727,7 @@ async test "run events append and list after sequence" {
       "user-1",
       "preview-" + project_id,
       "Events Test",
+      "codex",
       default_openrouter_model(),
       project_workspace(root, project_id),
     ),
@@ -732,6 +767,7 @@ async test "admin run and project listings are project agnostic" {
       "user-1",
       "preview-" + project_id,
       "Admin Listings",
+      "codex",
       default_openrouter_model(),
       project_workspace(root, project_id),
     ),
@@ -768,6 +804,7 @@ async test "OpenRouter key pool leases and finishes usage per run" {
       "user-1",
       "preview-" + project_id,
       "AI Pool",
+      "codex",
       "openrouter/project-model",
       project_workspace(root, project_id),
     ),
@@ -814,6 +851,7 @@ async test "startup recovery makes stale running runs retryable" {
       "user-1",
       "preview-" + project_id,
       "Recovery Test",
+      "codex",
       default_openrouter_model(),
       project_workspace(root, project_id),
     ),

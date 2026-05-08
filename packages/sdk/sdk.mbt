@@ -42,6 +42,7 @@ pub(all) struct PreviewTarget {
 pub(all) struct ProjectSummary {
   id : String
   display_name : String
+  agent_cli : String
   model : String
   status : RunState
   preview : PreviewTarget?
@@ -54,6 +55,7 @@ pub(all) struct ProjectDetail {
   id : String
   preview_public_id : String
   display_name : String
+  agent_cli : String
   model : String
   workspace_path : String
   codex_thread_id : String?
@@ -109,6 +111,7 @@ pub(all) struct RunEvent {
 ///|
 pub(all) struct CreateProjectRequest {
   display_name : String
+  agent_cli : String?
   model : String?
 } derive(Debug, ToJson, FromJson)
 
@@ -256,6 +259,7 @@ pub(all) struct AiModelSummary {
 
 ///|
 pub(all) struct ListAiModelsResponse {
+  default_agent_cli : String
   default_model : String
   items : Array[AiModelSummary]
   fetched_at : String

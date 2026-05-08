@@ -4,6 +4,7 @@ fn preview_test_project(preview : @sdk.PreviewTarget?) -> @sdk.ProjectDetail {
     id: "project-1",
     preview_public_id: "preview-1",
     display_name: "Test project",
+    agent_cli: "codex",
     model: "openrouter/test-model",
     workspace_path: "/tmp/project-1",
     codex_thread_id: None,

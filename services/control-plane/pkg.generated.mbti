@@ -13,7 +13,11 @@ import {
 // Types and methods
 type AdminLoginRequest derive(@debug.Debug, @json.FromJson)
 
+type AgentExecutionResult
+
 type AgentGateway
+
+type AgentRuntimeConfig
 
 type AgentTurnFailure
 
@@ -24,10 +28,6 @@ type AiRuntimeSettings
 type AppContext
 
 type BuildProfile
-
-type CodexDockerConfig
-
-type CodexExecutionResult
 
 type DevAuthRequest derive(@debug.Debug, @json.FromJson)
 

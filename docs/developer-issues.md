@@ -11,7 +11,7 @@ Agents do not edit this. This file is maintainable by human developers.
 - [x] Add a real durability smoke test: first run, delete the canonical workspace/, send a follow-up message, and verify the run hydrates from workspace.tar, validates, and refreshes preview.
 - [ ] Real codex docker e2e
     - [x] Add a real just codex-smoke that uses `MOONCRAFT_AGENT_RUNTIME_IMAGE` and builds the Todo List App end-to-end with actual Codex CLI.
-  - [x] Save enough failure detail from real Codex runs to debug quickly: command, exit code, codex.log, validation.log, and final summary path are already close; make sure the UI exposes the failure summary cleanly.
+  - [x] Save enough failure detail from real agent runs to debug quickly: command, exit code, agent.log, validation.log, and final summary path are already close; make sure the UI exposes the failure summary cleanly.
   - [x] Persist the initial project prompt explicitly on the project record instead of deriving it from the first user message. The current recovery path works, but explicit persistence is safer for long-term session recovery.
   - [ ] Replace the nohup moon run ... run-worker worker launch with a small durable worker model: mark stale Running runs failed/retryable on startup, and prevent orphaned state after crashes.
   - [ ] Add Docker resource boundaries: container name prefix, timeout, memory/CPU limits, and cleanup policy. We are intentionally using --dangerously-bypass-approvals-and-sandbox, so Docker must become the real boundary.
@@ -31,7 +31,7 @@ Agents do not edit this. This file is maintainable by human developers.
 - [ ] Refactor, goal: Move Mooncraft from “single-node prototype” to “production-shaped platform” without adding product surface area. Keep the user flow simple: login, create project, chat, preview.
   - [ ] Phase 1: Runtime Boundary, Result: control plane stops directly knowing how to docker run, moon build, nohup, or kill ports.
     - [ ] Replace ad-hoc preview/process management with a RuntimeService abstraction.
-    - [ ] Move Codex runs and preview runs behind the same job/runner interface.
+    - [ ] Move agent runs and preview runs behind the same job/runner interface.
     - [ ] Define explicit states: queued, preparing, building, running_agent, validating, starting_preview, healthy, failed.
     - [ ] Store runtime events structurally, not only as logs.
     - [ ] Keep Docker as the first backend, but make it replaceable later by ECS/Kubernetes.

@@ -77,9 +77,10 @@ fn load_project_cmd(
 fn create_project_cmd(
   dispatch : @rabbita.Dispatch[Msg],
   display_name : String,
+  agent_cli : String?,
   model : String?,
 ) -> @rabbita.Cmd {
-  let payload : @sdk.CreateProjectRequest = { display_name, model }
+  let payload : @sdk.CreateProjectRequest = { display_name, agent_cli, model }
   post_json(@sdk.projects_path(), payload, fn(result) {
     dispatch(ProjectCreated(result))
   })
