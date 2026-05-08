@@ -71,7 +71,7 @@
 
       .grid {
         display: grid;
-        grid-template-columns: minmax(340px, 0.8fr) minmax(420px, 1.2fr);
+        grid-template-columns: minmax(0, 1fr);
         gap: 18px;
         margin-top: 18px;
       }
@@ -137,6 +137,51 @@
         color: #a3312b;
       }
 
+      .icon-actions {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex: 0 0 auto;
+      }
+
+      .icon-button {
+        width: 56px;
+        height: 56px;
+        padding: 0;
+        border-radius: 18px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: inset 0 0 0 1px rgba(23, 32, 51, 0.04);
+      }
+
+      .icon-button svg {
+        width: 24px;
+        height: 24px;
+      }
+
+      .icon-button.refresh {
+        background: #e8f8f1;
+        color: #17654f;
+      }
+
+      .icon-button.logout {
+        background: #fff1f0;
+        color: #a3312b;
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
       button:disabled {
         cursor: not-allowed;
         opacity: 0.55;
@@ -150,6 +195,32 @@
 
       .row > * {
         flex: 1;
+      }
+
+      .section-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: start;
+      }
+
+      .section-head .stack {
+        flex: 1;
+      }
+
+      .section-head button {
+        flex: 0 0 auto;
+      }
+
+      .drawer {
+        border: 1px solid rgba(33, 102, 93, 0.18);
+        border-radius: 18px;
+        background: #f6fbf9;
+        padding: 16px;
+      }
+
+      .drawer[hidden] {
+        display: none;
       }
 
       .notice {
@@ -166,17 +237,14 @@
         color: #a3312b;
       }
 
-      .key-list,
-      .usage-list,
-      .model-list {
+      .key-table,
+      .usage-list {
         display: flex;
         flex-direction: column;
         gap: 10px;
       }
 
-      .key-item,
-      .usage-item,
-      .model-item {
+      .usage-item {
         border: 1px solid rgba(23, 32, 51, 0.1);
         border-radius: 16px;
         background: #ffffff;
@@ -185,29 +253,73 @@
         gap: 10px;
       }
 
-      .key-head,
-      .usage-head,
-      .model-head {
+      .usage-head {
         display: flex;
         justify-content: space-between;
         gap: 12px;
         align-items: start;
       }
 
-      .model-list {
-        max-height: 360px;
-        overflow: auto;
-        padding-right: 4px;
+      .key-table-head,
+      .key-row {
+        display: grid;
+        grid-template-columns: 1.35fr 0.95fr 0.72fr 0.55fr 1fr;
+        gap: 12px;
+        align-items: center;
       }
 
-      .model-item {
-        grid-template-columns: auto 1fr;
-        align-items: start;
+      .key-table-head {
+        padding: 0 4px;
+        color: #7c8798;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
       }
 
-      .model-item input {
-        width: auto;
-        margin-top: 3px;
+      .key-item {
+        border: 1px solid rgba(23, 32, 51, 0.1);
+        border-radius: 16px;
+        background: #ffffff;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .key-row strong,
+      .key-row code {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .key-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+
+      .key-actions button {
+        padding: 9px 11px;
+      }
+
+      .key-edit {
+        border-top: 1px solid rgba(23, 32, 51, 0.08);
+        padding-top: 12px;
+      }
+
+      .key-edit[hidden] {
+        display: none;
+      }
+
+      .empty-state {
+        border: 1px dashed rgba(23, 32, 51, 0.18);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.72);
+        padding: 20px;
+        color: #5e6a7d;
+        line-height: 1.6;
       }
 
       .badge {
@@ -230,56 +342,71 @@
       <section class="hero">
         <div class="stack">
           <p class="muted">Mooncraft Admin</p>
-          <h1>OpenRouter Key Pool</h1>
-          <p>Manage the OpenRouter keys and model choices Mooncraft uses to build apps.</p>
+          <h1>OpenRouter Keys</h1>
+          <p>Manage the API keys Mooncraft uses to build apps. Users choose models in their own workspace.</p>
         </div>
-        <div class="row">
-          <button class="secondary" id="refresh">Refresh</button>
-          <button class="secondary" id="logout">Log Out</button>
+        <div class="icon-actions">
+          <button class="icon-button refresh" id="refresh" aria-label="Refresh admin data" title="Refresh">
+            <span class="sr-only">Refresh</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none">
+              <path d="M20 5v5h-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
+              <path d="M19 10a7 7 0 1 0 1.3 4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path>
+            </svg>
+          </button>
+          <button class="icon-button logout" id="logout" aria-label="Log out" title="Log out">
+            <span class="sr-only">Log Out</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none">
+              <path d="M10 6H6.5A2.5 2.5 0 0 0 4 8.5v7A2.5 2.5 0 0 0 6.5 18H10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path>
+              <path d="M14 8l4 4-4 4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
+              <path d="M18 12H9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path>
+            </svg>
+          </button>
         </div>
       </section>
 
       <section class="grid">
         <div class="stack">
-          <div class="card stack">
-            <h2>Builder Model</h2>
-            <p class="muted">Models are loaded directly from OpenRouter using an active saved key.</p>
-            <button id="load-models" class="secondary">Load OpenRouter Models</button>
-            <label>
-              Default model
-              <select id="default-model"></select>
-            </label>
-            <label>
-              Filter models
-              <input id="model-filter" placeholder="Search model id or name" />
-            </label>
-            <div id="models" class="model-list"></div>
-            <button id="save-config">Save Runtime Config</button>
-          </div>
-
-          <div class="card stack">
-            <h2>Add Key</h2>
-            <label>
-              Label
-              <input id="new-label" placeholder="OpenRouter API key" />
-            </label>
-            <label>
-              API key
-              <input id="new-key" type="password" autocomplete="off" placeholder="sk-or-v1-..." />
-            </label>
-            <label>
-              Priority
-              <input id="new-priority" type="number" value="100" />
-            </label>
-            <button id="create-key">Add Key</button>
-          </div>
-        </div>
-
-        <div class="stack">
           <div id="notice" class="notice" hidden></div>
           <div class="card stack">
-            <h2>Keys</h2>
-            <div id="keys" class="key-list"></div>
+            <div class="section-head">
+              <div class="stack">
+                <h2>OpenRouter Keys</h2>
+                <p class="muted">Mooncraft uses active keys when building apps.</p>
+              </div>
+              <button id="open-key-drawer">Add Key</button>
+            </div>
+            <div id="key-drawer" class="drawer stack" hidden>
+              <div class="section-head">
+                <div class="stack">
+                  <h2>Add OpenRouter Key</h2>
+                  <p class="muted">The key is stored privately and never returned by the API.</p>
+                </div>
+                <button class="secondary" id="cancel-create-key">Cancel</button>
+              </div>
+              <div class="row">
+                <label>
+                  Label
+                  <input id="new-label" placeholder="Production key" />
+                </label>
+                <label>
+                  Priority
+                  <input id="new-priority" type="number" value="100" />
+                </label>
+              </div>
+              <label>
+                API key
+                <input id="new-key" type="password" autocomplete="off" placeholder="sk-or-v1-..." />
+              </label>
+              <button id="create-key">Save Key</button>
+            </div>
+            <div class="key-table-head">
+              <span>Label</span>
+              <span>Hint</span>
+              <span>Status</span>
+              <span>Priority</span>
+              <span>Actions</span>
+            </div>
+            <div id="keys" class="key-table"></div>
           </div>
           <div class="card stack">
             <h2>Recent Usage</h2>
@@ -293,12 +420,7 @@
       const notice = document.querySelector("#notice")
       const keys = document.querySelector("#keys")
       const usages = document.querySelector("#usages")
-      const defaultModel = document.querySelector("#default-model")
-      const modelFilter = document.querySelector("#model-filter")
-      const models = document.querySelector("#models")
-      let runtimeConfig = { default_model: "", allowed_models: [] }
-      let openRouterModels = []
-      let selectedModelIds = new Set()
+      const keyDrawer = document.querySelector("#key-drawer")
 
       function showNotice(message, error = false) {
         notice.textContent = message
@@ -329,38 +451,73 @@
       function keyItem(key) {
         const node = document.createElement("div")
         node.className = "key-item"
+        const toggleStatus = key.status === "active" ? "disabled" : "active"
+        const toggleLabel = key.status === "active" ? "Disable" : "Enable"
         node.innerHTML = `
-          <div class="key-head">
-            <div>
-              <strong>${escapeHtml(key.label)}</strong>
-              <div class="muted"><code>${escapeHtml(key.key_hint || "saved key")}</code></div>
-            </div>
+          <div class="key-row">
+            <strong>${escapeHtml(key.label)}</strong>
+            <code>${escapeHtml(key.key_hint || "saved key")}</code>
             <span class="badge">${escapeHtml(key.status)}</span>
+            <span>${Number(key.priority || 0)}</span>
+            <div class="key-actions">
+              <button data-action="edit" class="secondary">Edit</button>
+              <button data-action="toggle" class="secondary">${toggleLabel}</button>
+              <button data-action="delete" class="danger">Delete</button>
+            </div>
           </div>
-          <div class="row">
-            <input data-field="label" value="${escapeAttr(key.label)}" />
-            <input data-field="priority" type="number" value="${key.priority}" />
-          </div>
-          <div class="row">
-            <input data-field="api_key" type="password" placeholder="New key, blank keeps current key" />
-            <select data-field="status">
-              ${["active", "disabled", "exhausted", "error"].map((status) => `
-                <option value="${status}" ${status === key.status ? "selected" : ""}>${status}</option>
-              `).join("")}
-            </select>
-          </div>
-          <div class="row">
-            <button data-action="save">Save</button>
-            <button data-action="delete" class="danger">Delete</button>
+          <div class="key-edit stack" hidden>
+            <div class="row">
+              <label>
+                Label
+                <input data-field="label" value="${escapeAttr(key.label)}" />
+              </label>
+              <label>
+                Priority
+                <input data-field="priority" type="number" value="${key.priority}" />
+              </label>
+            </div>
+            <div class="row">
+              <label>
+                New API key
+                <input data-field="api_key" type="password" placeholder="Leave blank to keep current key" />
+              </label>
+              <label>
+                Status
+                <select data-field="status">
+                  ${["active", "disabled", "exhausted", "error"].map((status) => `
+                    <option value="${status}" ${status === key.status ? "selected" : ""}>${status}</option>
+                  `).join("")}
+                </select>
+              </label>
+            </div>
+            <div class="row">
+              <button data-action="save">Save Changes</button>
+              <button data-action="cancel" class="secondary">Cancel</button>
+            </div>
           </div>
           ${key.last_error ? `<div class="notice error">${escapeHtml(key.last_error)}</div>` : ""}
         `
+        const editPanel = node.querySelector(".key-edit")
+        node.querySelector('[data-action="edit"]').addEventListener("click", () => {
+          editPanel.hidden = false
+        })
+        node.querySelector('[data-action="cancel"]').addEventListener("click", () => {
+          editPanel.hidden = true
+        })
         node.querySelector('[data-action="save"]').addEventListener("click", async () => {
           await updateKey(key.id, {
             label: node.querySelector('[data-field="label"]').value,
             api_key: node.querySelector('[data-field="api_key"]').value,
             status: node.querySelector('[data-field="status"]').value,
             priority: Number(node.querySelector('[data-field="priority"]').value || "0"),
+          })
+        })
+        node.querySelector('[data-action="toggle"]').addEventListener("click", async () => {
+          await updateKey(key.id, {
+            label: key.label,
+            api_key: "",
+            status: toggleStatus,
+            priority: key.priority,
           })
         })
         node.querySelector('[data-action="delete"]').addEventListener("click", async () => {
@@ -384,105 +541,16 @@
         return node
       }
 
-      function modelLabel(model) {
-        return `${model.name || model.id} (${model.id})`
-      }
-
-      function allowedModelIds() {
-        return Array.from(selectedModelIds)
-      }
-
-      function ensureDefaultModelOption(modelId) {
-        if (!modelId) return
-        if (!Array.from(defaultModel.options).some((option) => option.value === modelId)) {
-          const option = document.createElement("option")
-          option.value = modelId
-          option.textContent = modelId
-          defaultModel.append(option)
-        }
-      }
-
-      function renderModels() {
-        const filter = modelFilter.value.trim().toLowerCase()
-        const filtered = openRouterModels.filter((model) => {
-          const haystack = `${model.id} ${model.name}`.toLowerCase()
-          return !filter || haystack.includes(filter)
-        })
-        defaultModel.replaceChildren()
-        for (const model of openRouterModels) {
-          const option = document.createElement("option")
-          option.value = model.id
-          option.textContent = modelLabel(model)
-          defaultModel.append(option)
-        }
-        ensureDefaultModelOption(runtimeConfig.default_model)
-        defaultModel.value = runtimeConfig.default_model || (openRouterModels[0]?.id || "")
-        if (filtered.length === 0) {
-          models.replaceChildren(emptyModelState())
-          return
-        }
-        models.replaceChildren(...filtered.map((model) => modelItem(model, selectedModelIds.has(model.id))))
-      }
-
-      function emptyModelState() {
-        const node = document.createElement("div")
-        node.className = "model-item"
-        node.innerHTML = `<div></div><div class="muted">No OpenRouter models match the current filter.</div>`
-        return node
-      }
-
-      function modelItem(model, selected) {
-        const node = document.createElement("label")
-        node.className = "model-item"
-        node.innerHTML = `
-          <input data-model-id="${escapeAttr(model.id)}" type="checkbox" ${selected ? "checked" : ""} />
-          <div class="stack">
-            <div class="model-head">
-              <strong>${escapeHtml(model.name || model.id)}</strong>
-              <span class="badge">${escapeHtml(model.id)}</span>
-            </div>
-            <div class="muted">
-              Context ${Number(model.context_length || 0).toLocaleString()} · prompt ${escapeHtml(model.prompt_price || "n/a")} · completion ${escapeHtml(model.completion_price || "n/a")}
-            </div>
-          </div>
-        `
-        node.querySelector("input").addEventListener("change", (event) => {
-          if (event.target.checked) {
-            selectedModelIds.add(model.id)
-          } else {
-            selectedModelIds.delete(model.id)
-          }
-        })
-        return node
-      }
-
-      async function loadModels(showSuccess = true) {
-        const response = await api("/api/admin/ai/models")
-        openRouterModels = response.items || []
-        renderModels()
-        if (showSuccess) showNotice(`Loaded ${openRouterModels.length} OpenRouter models.`)
-      }
-
       async function refresh() {
         try {
-          const [config, keyList, usageList] = await Promise.all([
-            api("/api/admin/ai/config"),
+          const [keyList, usageList] = await Promise.all([
             api("/api/admin/ai/keys"),
             api("/api/admin/ai/usages/recent/20"),
           ])
-          runtimeConfig = config
-          selectedModelIds = new Set(config.allowed_models || [])
-          if (config.default_model) selectedModelIds.add(config.default_model)
-          keys.replaceChildren(...(keyList.items || []).map(keyItem))
-          usages.replaceChildren(...(usageList.items || []).map(usageItem))
-          try {
-            await loadModels(false)
-          } catch (error) {
-            openRouterModels = []
-            renderModels()
-            showNotice(error.message, true)
-            return
-          }
+          const keyItems = keyList.items || []
+          const usageItems = usageList.items || []
+          keys.replaceChildren(...(keyItems.length === 0 ? [emptyState("No keys yet. Add an OpenRouter key to enable app building.")] : keyItems.map(keyItem)))
+          usages.replaceChildren(...(usageItems.length === 0 ? [emptyState("No key usage has been recorded yet.")] : usageItems.map(usageItem)))
           showNotice("Admin data loaded.")
         } catch (error) {
           showNotice(error.message, true)
@@ -500,6 +568,9 @@
             }),
           })
           document.querySelector("#new-key").value = ""
+          document.querySelector("#new-label").value = ""
+          document.querySelector("#new-priority").value = "100"
+          keyDrawer.hidden = true
           showNotice("Key added.")
           await refresh()
         } catch (error) {
@@ -530,26 +601,6 @@
         }
       }
 
-      async function saveConfig() {
-        try {
-          const selectedModels = allowedModelIds()
-          const defaultModelId = defaultModel.value
-          if (!defaultModelId) throw new Error("Load OpenRouter models and choose a default model first.")
-          if (!selectedModels.includes(defaultModelId)) selectedModels.unshift(defaultModelId)
-          await api("/api/admin/ai/config", {
-            method: "PUT",
-            body: JSON.stringify({
-              default_model: defaultModelId,
-              allowed_models: selectedModels,
-            }),
-          })
-          showNotice("Builder model settings saved.")
-          await refresh()
-        } catch (error) {
-          showNotice(error.message, true)
-        }
-      }
-
       function escapeHtml(value) {
         return String(value ?? "").replace(/[&<>"']/g, (char) => ({
           "&": "&amp;",
@@ -564,22 +615,26 @@
         return escapeHtml(value)
       }
 
+      function emptyState(message) {
+        const node = document.createElement("div")
+        node.className = "empty-state"
+        node.textContent = message
+        return node
+      }
+
       document.querySelector("#refresh").addEventListener("click", refresh)
-      document.querySelector("#load-models").addEventListener("click", () => {
-        loadModels(true).catch((error) => showNotice(error.message, true))
-      })
-      modelFilter.addEventListener("input", renderModels)
-      defaultModel.addEventListener("change", () => {
-        const input = Array.from(models.querySelectorAll("input[data-model-id]")).find((node) => node.dataset.modelId === defaultModel.value)
-        selectedModelIds.add(defaultModel.value)
-        if (input) input.checked = true
-      })
       document.querySelector("#logout").addEventListener("click", async () => {
         await fetch("/api/admin/logout", { method: "POST" })
         window.location.assign("/admin/login")
       })
+      document.querySelector("#open-key-drawer").addEventListener("click", () => {
+        keyDrawer.hidden = false
+        document.querySelector("#new-label").focus()
+      })
+      document.querySelector("#cancel-create-key").addEventListener("click", () => {
+        keyDrawer.hidden = true
+      })
       document.querySelector("#create-key").addEventListener("click", createKey)
-      document.querySelector("#save-config").addEventListener("click", saveConfig)
       refresh()
     </script>
   </body>
