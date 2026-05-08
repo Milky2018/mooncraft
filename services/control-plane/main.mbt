@@ -87,6 +87,12 @@ fn unauthorized_response() -> @mocket.HttpResponse {
 }
 
 ///|
+let admin_session_cookie_name = "mooncraft_admin_session"
+
+///|
+let admin_session_max_age_seconds : Int = 60 * 60 * 12
+
+///|
 fn admin_token() -> String? {
   match @env.get_env_var("MOONCRAFT_ADMIN_TOKEN") {
     Some(value) if value.trim() != "" => Some(value.trim().to_owned())
@@ -123,6 +129,50 @@ fn request_admin_token(event : @mocket.MocketEvent) -> String? {
 }
 
 ///|
+fn admin_session_cookie_hash(event : @mocket.MocketEvent) -> String? {
+  match event.req.get_cookie(admin_session_cookie_name) {
+    Some(cookie) if cookie.value != "" => Some(cookie.value)
+    _ => None
+  }
+}
+
+///|
+fn admin_token_hash(token : String) -> String {
+  session_token_hash(token)
+}
+
+///|
+fn request_has_valid_admin_session(
+  event : @mocket.MocketEvent,
+  expected_token : String,
+) -> Bool {
+  match admin_session_cookie_hash(event) {
+    Some(value) => value == admin_token_hash(expected_token)
+    None => false
+  }
+}
+
+///|
+fn request_has_valid_admin_token(
+  event : @mocket.MocketEvent,
+  expected_token : String,
+) -> Bool {
+  match request_admin_token(event) {
+    Some(value) => value == expected_token
+    None => false
+  }
+}
+
+///|
+fn request_is_admin(
+  event : @mocket.MocketEvent,
+  expected_token : String,
+) -> Bool {
+  request_has_valid_admin_token(event, expected_token) ||
+  request_has_valid_admin_session(event, expected_token)
+}
+
+///|
 fn require_admin_token(
   event : @mocket.MocketEvent,
 ) -> Result[Unit, @mocket.HttpResponse] {
@@ -137,18 +187,58 @@ fn require_admin_token(
         ),
       )
   }
-  match request_admin_token(event) {
-    Some(value) if value == expected => Ok(())
-    _ =>
-      Err(
-        api_error_response(
-          Unauthorized,
-          Unauthorized,
-          "A valid admin token is required.",
-        ),
-      )
+  if request_is_admin(event, expected) {
+    Ok(())
+  } else {
+    Err(
+      api_error_response(
+        Unauthorized,
+        Unauthorized,
+        "A valid admin session or token is required.",
+      ),
+    )
   }
 }
+
+///|
+fn admin_page_authorized(event : @mocket.MocketEvent) -> Bool {
+  match admin_token() {
+    Some(expected) => request_has_valid_admin_session(event, expected)
+    None => false
+  }
+}
+
+///|
+fn set_admin_session_cookie(
+  response : @mocket.HttpResponse,
+  token : String,
+) -> Unit {
+  response.set_cookie(
+    admin_session_cookie_name,
+    admin_token_hash(token),
+    max_age=admin_session_max_age_seconds,
+    path="/",
+    http_only=true,
+    same_site=Lax,
+  )
+}
+
+///|
+fn clear_admin_session_cookie(response : @mocket.HttpResponse) -> Unit {
+  response.set_cookie(
+    admin_session_cookie_name,
+    "",
+    max_age=0,
+    path="/",
+    http_only=true,
+    same_site=Lax,
+  )
+}
+
+///|
+struct AdminLoginRequest {
+  token : String
+} derive(Debug, FromJson)
 
 ///|
 fn public_run_error_message(run : @sdk.RunStatusResponse) -> String? {
@@ -540,6 +630,11 @@ fn admin_page_html(root : String) -> String {
 }
 
 ///|
+fn admin_login_page_html(root : String) -> String {
+  control_plane_asset_string(root, "admin-login/index.html", "")
+}
+
+///|
 fn AppContext::serve_platform_bundle(self : AppContext) -> @mocket.HttpResponse {
   let bundle_path = platform_web_build_output_path(
     self.root,
@@ -619,8 +714,34 @@ fn main {
     }
   })
   app.get(@sdk.login_path(), _ => html_response(workspace_page_html(ctx.root)))
-  app.get("/admin", _ => html_response(admin_page_html(ctx.root)))
-  app.get("/admin/", _ => html_response(admin_page_html(ctx.root)))
+  app.get("/admin", event => {
+    if admin_page_authorized(event) {
+      html_response(admin_page_html(ctx.root))
+    } else {
+      redirect_response("/admin/login")
+    }
+  })
+  app.get("/admin/", event => {
+    if admin_page_authorized(event) {
+      html_response(admin_page_html(ctx.root))
+    } else {
+      redirect_response("/admin/login")
+    }
+  })
+  app.get("/admin/login", event => {
+    if admin_page_authorized(event) {
+      redirect_response("/admin")
+    } else {
+      html_response(admin_login_page_html(ctx.root))
+    }
+  })
+  app.get("/admin/login/", event => {
+    if admin_page_authorized(event) {
+      redirect_response("/admin")
+    } else {
+      html_response(admin_login_page_html(ctx.root))
+    }
+  })
   app.get("/control-plane-assets/**", event => {
     let remainder = event.params
       .get("_")
@@ -640,6 +761,35 @@ fn main {
         "The database is not available.",
       )
     }
+  })
+  app.post("/api/admin/session", fn(event) noraise {
+    let request : AdminLoginRequest = match decode_json_body(event) {
+      Ok(request) => request
+      Err(response) => return response
+    }
+    let expected = match admin_token() {
+      Some(value) => value
+      None =>
+        return api_error_response(
+          ServiceUnavailable,
+          ServiceUnavailable,
+          "Admin login is not configured on this server.",
+        )
+    }
+    if request.token.trim() == expected {
+      set_admin_session_cookie(event.res, expected)
+      json_no_content()
+    } else {
+      api_error_response(
+        Unauthorized,
+        InvalidCredentials,
+        "The admin token is invalid.",
+      )
+    }
+  })
+  app.post("/api/admin/logout", fn(event) noraise {
+    clear_admin_session_cookie(event.res)
+    json_no_content()
   })
   app.get(@sdk.session_path(), async fn(event) noraise {
     json_ok(session_status_response(ctx, event))

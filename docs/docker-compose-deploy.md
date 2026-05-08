@@ -133,7 +133,7 @@ curl -fsS http://127.0.0.1:8089/api/health
 
 Users do not configure LLM providers or API keys.
 
-Admins provide OpenRouter keys through the admin page at `/admin`. The worker leases one active key from the database for each run and injects it into the isolated Codex container only for that run. Key values are accepted on create/update and are never returned by the API; list responses show only a masked hint.
+Admins provide OpenRouter keys through the admin page at `/admin`. Browser access to `/admin` redirects to `/admin/login` until the operator enters `MOONCRAFT_ADMIN_TOKEN`; the server stores an HTTP-only admin session cookie after a successful login. The worker leases one active key from the database for each run and injects it into the isolated Codex container only for that run. Key values are accepted on create/update and are never returned by the API; list responses show only a masked hint.
 
 Open the admin page in a browser:
 
@@ -142,7 +142,7 @@ https://craft-test.moonbitlang.com/admin
 https://craft.moonbitlang.com/admin
 ```
 
-Use `MOONCRAFT_ADMIN_TOKEN` from the environment file as the admin token on that page.
+Use `MOONCRAFT_ADMIN_TOKEN` from the environment file on the `/admin/login` page.
 
 The admin API can inspect the configured pool:
 

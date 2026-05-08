@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mooncraft Admin Login</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "IBM Plex Sans", "Avenir Next", "Helvetica Neue", sans-serif;
+        background: #f4f6f8;
+        color: #172033;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 28px;
+        background:
+          radial-gradient(circle at top left, rgba(40, 124, 108, 0.16), transparent 34rem),
+          linear-gradient(135deg, #f7f8fa, #edf2f7);
+      }
+
+      main {
+        width: min(440px, 100%);
+        border: 1px solid rgba(23, 32, 51, 0.1);
+        border-radius: 26px;
+        background: rgba(255, 255, 255, 0.92);
+        box-shadow: 0 24px 80px rgba(23, 32, 51, 0.1);
+        padding: 28px;
+      }
+
+      h1,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        margin-top: 8px;
+        font-size: 36px;
+        letter-spacing: -0.05em;
+        line-height: 1;
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .muted {
+        color: #5e6a7d;
+        line-height: 1.6;
+      }
+
+      label {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #5e6a7d;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      input {
+        width: 100%;
+        border: 1px solid rgba(23, 32, 51, 0.14);
+        border-radius: 14px;
+        background: #ffffff;
+        color: #172033;
+        padding: 13px 14px;
+        font: inherit;
+        font-size: 15px;
+        outline: none;
+      }
+
+      button {
+        border: 0;
+        border-radius: 14px;
+        padding: 13px 15px;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+        background: #21665d;
+        color: #ffffff;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
+      .notice {
+        border-radius: 14px;
+        padding: 12px 13px;
+        background: #fff1f0;
+        color: #a3312b;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="stack">
+      <div class="stack">
+        <p class="muted">Mooncraft Admin</p>
+        <h1>Admin Login</h1>
+        <p class="muted">Enter the server admin token to manage the OpenRouter key pool.</p>
+      </div>
+      <form id="login-form" class="stack">
+        <label>
+          Admin token
+          <input id="admin-token" type="password" autocomplete="current-password" autofocus />
+        </label>
+        <button id="submit" type="submit">Continue</button>
+        <div id="notice" class="notice" hidden></div>
+      </form>
+    </main>
+
+    <script>
+      const form = document.querySelector("#login-form")
+      const tokenInput = document.querySelector("#admin-token")
+      const submit = document.querySelector("#submit")
+      const notice = document.querySelector("#notice")
+
+      function showError(message) {
+        notice.textContent = message
+        notice.hidden = false
+      }
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault()
+        notice.hidden = true
+        submit.disabled = true
+        try {
+          const response = await fetch("/api/admin/session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token: tokenInput.value }),
+          })
+          if (!response.ok) {
+            const payload = await response.json().catch(() => ({}))
+            throw new Error(payload.error?.message || `HTTP ${response.status}`)
+          }
+          window.location.assign("/admin")
+        } catch (error) {
+          showError(error.message)
+        } finally {
+          submit.disabled = false
+        }
+      })
+    </script>
+  </body>
+</html>

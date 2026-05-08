@@ -214,20 +214,14 @@
           <h1>OpenRouter Key Pool</h1>
           <p>Configure platform-owned AI keys here. Do not put OpenRouter keys in <code>.env</code> files.</p>
         </div>
-        <button class="secondary" id="refresh">Refresh</button>
+        <div class="row">
+          <button class="secondary" id="refresh">Refresh</button>
+          <button class="secondary" id="logout">Log Out</button>
+        </div>
       </section>
 
       <section class="grid">
         <div class="stack">
-          <div class="card stack">
-            <h2>Admin Token</h2>
-            <label>
-              Token
-              <input id="admin-token" type="password" autocomplete="off" placeholder="MOONCRAFT_ADMIN_TOKEN" />
-            </label>
-            <button id="save-token" class="secondary">Save Token In Browser</button>
-          </div>
-
           <div class="card stack">
             <h2>Runtime Model</h2>
             <label>
@@ -274,15 +268,11 @@
     </main>
 
     <script>
-      const tokenInput = document.querySelector("#admin-token")
       const notice = document.querySelector("#notice")
       const keys = document.querySelector("#keys")
       const usages = document.querySelector("#usages")
       const defaultModel = document.querySelector("#default-model")
       const allowedModels = document.querySelector("#allowed-models")
-      const storageKey = "mooncraft-admin-token"
-
-      tokenInput.value = localStorage.getItem(storageKey) || ""
 
       function showNotice(message, error = false) {
         notice.textContent = message
@@ -291,16 +281,17 @@
       }
 
       async function api(path, options = {}) {
-        const token = tokenInput.value.trim()
-        if (!token) throw new Error("Admin token is required.")
         const response = await fetch(path, {
           ...options,
           headers: {
-            "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json",
             ...(options.headers || {}),
           },
         })
+        if (response.status === 401) {
+          window.location.assign("/admin/login")
+          throw new Error("Admin login required.")
+        }
         if (response.status === 204) return null
         const payload = await response.json().catch(() => ({}))
         if (!response.ok) {
@@ -455,11 +446,11 @@
         return escapeHtml(value)
       }
 
-      document.querySelector("#save-token").addEventListener("click", () => {
-        localStorage.setItem(storageKey, tokenInput.value.trim())
-        showNotice("Token saved in this browser.")
-      })
       document.querySelector("#refresh").addEventListener("click", refresh)
+      document.querySelector("#logout").addEventListener("click", async () => {
+        await fetch("/api/admin/logout", { method: "POST" })
+        window.location.assign("/admin/login")
+      })
       document.querySelector("#create-key").addEventListener("click", createKey)
       document.querySelector("#save-config").addEventListener("click", saveConfig)
       refresh()

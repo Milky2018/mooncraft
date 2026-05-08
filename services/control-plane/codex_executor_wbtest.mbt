@@ -160,6 +160,7 @@ test "admin bearer token parser accepts standard authorization header" {
     content="Some(\"operator-secret\")",
   )
   debug_inspect(bearer_token("operator-secret"), content="None")
+  assert_true(admin_token_hash("operator-secret") != "operator-secret")
 }
 
 ///|
