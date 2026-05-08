@@ -540,6 +540,18 @@ fn preview_url_with_theme(url : String, theme_mode : ThemeMode) -> String {
 }
 
 ///|
+fn ready_preview(model : Model) -> @sdk.PreviewTarget? {
+  match model.project_detail {
+    Some(project) =>
+      match project.preview {
+        Some(target) => if target.healthy { Some(target) } else { None }
+        None => None
+      }
+    None => None
+  }
+}
+
+///|
 fn render_preview_panel(model : Model) -> @rabbita.Html {
   let preview = model.project_detail.bind(fn(project) { project.preview })
   let status = match preview {

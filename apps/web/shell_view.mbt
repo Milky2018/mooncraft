@@ -396,6 +396,11 @@ fn render_workspace_shell(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
 ) -> @rabbita.Html {
+  let workspace_body = match ready_preview(model) {
+    Some(_) =>
+      [render_workspace_panel(dispatch, model), render_preview_panel(model)]
+    None => [render_workspace_panel(dispatch, model)]
+  }
   @html.div(
     style=[
       "height: 100vh", "min-height: 0", "display: flex", "align-items: stretch",
@@ -415,7 +420,7 @@ fn render_workspace_shell(
             "flex: 1", "min-width: 0", "min-height: 0", "display: flex", "gap: 16px",
             "align-items: stretch", "overflow: hidden",
           ],
-          [render_workspace_panel(dispatch, model), render_preview_panel(model)],
+          workspace_body,
         ),
       ],
     ),
