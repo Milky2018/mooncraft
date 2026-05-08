@@ -274,7 +274,7 @@ test "docker codex command fetches reference modules before codex starts" {
     assert_true(command[2].contains("moon fetch --no-update " + module_name))
   }
   assert_true(command[2].contains("exec \"$@\""))
-  inspect(command[3], content="mooncraft-codex")
+  inspect(command[3], content="mooncraft-agent")
   inspect(command[4], content="codex")
   inspect(command[5], content="exec")
 }

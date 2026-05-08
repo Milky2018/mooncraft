@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-image="${MOONCRAFT_CODEX_DEPS_CHECK_DOCKER_IMAGE:-docker.io/moonbitcloud/codex:codex-0.125.0-node24}"
-platform="${MOONCRAFT_CODEX_DEPS_CHECK_DOCKER_PLATFORM:-linux/amd64}"
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+default_agent_runtime_image="$(cat "$repo_root/config/agent_runtime_image.txt")"
+image="${MOONCRAFT_AGENT_RUNTIME_DEPS_CHECK_IMAGE:-${MOONCRAFT_CODEX_DEPS_CHECK_DOCKER_IMAGE:-$default_agent_runtime_image}}"
+platform="${MOONCRAFT_AGENT_RUNTIME_DEPS_CHECK_PLATFORM:-${MOONCRAFT_CODEX_DEPS_CHECK_DOCKER_PLATFORM:-linux/amd64}}"
 modules_file="$repo_root/config/user_project_reference_modules.txt"
 tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/mooncraft-user-project-deps-docker.XXXXXX")"
 cleanup() {
@@ -40,5 +41,5 @@ docker run --rm \
       moon fetch --no-update "$module"
     done
     test -d "${CODEX_HOME:-${HOME:-/root}/.codex}/skills"
-    echo "Codex runtime dependency and skill seed check completed."
+    echo "Agent runtime dependency and skill seed check completed."
   '

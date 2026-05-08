@@ -1,8 +1,8 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-codex_repository := "docker.io/moonbitcloud/codex"
-codex_version := "codex-0.125.0-node24"
-codex_image := "docker.io/moonbitcloud/codex:codex-0.125.0-node24"
+agent_runtime_repository := "docker.io/moonbitcloud/mooncraft-agent-runtime"
+agent_runtime_version := `sed 's/.*://' config/agent_runtime_image.txt`
+agent_runtime_image := `cat config/agent_runtime_image.txt`
 
 # Show available recipes
 default:
@@ -55,23 +55,23 @@ playwright-real-agent-story:
 
 # Run an opt-in real Docker-backed Codex smoke test
 codex-smoke:
-  ./scripts/codex_smoke.sh "{{codex_image}}"
+  ./scripts/codex_smoke.sh "{{agent_runtime_image}}"
 
 # Build the Docker image used by the Mooncraft app runtime
 build-mooncraft-image tag='mooncraft:local' platform='linux/amd64':
   docker build --platform {{platform}} -f docker/mooncraft/Dockerfile -t {{tag}} .
 
-# Build the Docker image used by the Codex executor
-build-codex-image tag=codex_image platform='linux/amd64':
-  docker build --platform {{platform}} -f docker/codex/Dockerfile -t {{tag}} .
+# Build the Docker image used by Mooncraft agent workers
+build-agent-runtime-image tag=agent_runtime_image platform='linux/amd64':
+  docker build --platform {{platform}} -f docker/agent-runtime/Dockerfile -t {{tag}} .
 
-# Publish the Codex executor image to Docker Hub
-docker-codex-publish repository=codex_repository version=codex_version platforms='linux/amd64,linux/arm64':
-  ./scripts/docker_codex_publish.sh "{{repository}}" "{{version}}" "{{platforms}}"
+# Publish the agent runtime image to Docker Hub
+docker-agent-runtime-publish repository=agent_runtime_repository version=agent_runtime_version platforms='linux/amd64,linux/arm64':
+  ./scripts/docker_agent_runtime_publish.sh "{{repository}}" "{{version}}" "{{platforms}}"
 
-# Show the effective Codex runtime configuration
-codex-config:
-  @echo "MOONCRAFT_CODEX_DOCKER_IMAGE=${MOONCRAFT_CODEX_DOCKER_IMAGE:-{{codex_image}}}"
+# Show the effective agent runtime configuration
+agent-runtime-config:
+  @echo "MOONCRAFT_AGENT_RUNTIME_IMAGE=${MOONCRAFT_AGENT_RUNTIME_IMAGE:-${MOONCRAFT_CODEX_DOCKER_IMAGE:-{{agent_runtime_image}}}}"
   @echo "MOONCRAFT_CODEX_CONTAINER_HOME=${MOONCRAFT_CODEX_CONTAINER_HOME:-/root}"
   @echo "OpenRouter keys and model are configured by admins at /admin."
 
@@ -79,9 +79,9 @@ codex-config:
 check-user-project-deps:
   ./scripts/check_user_project_deps.sh
 
-# Check generated project dependencies inside the Codex runtime image
-check-user-project-deps-codex image=codex_image:
-  MOONCRAFT_CODEX_DEPS_CHECK_DOCKER_IMAGE="{{image}}" ./scripts/check_user_project_deps_in_codex_image.sh
+# Check generated project dependencies inside the agent runtime image
+check-user-project-deps-agent-runtime image=agent_runtime_image:
+  MOONCRAFT_AGENT_RUNTIME_DEPS_CHECK_IMAGE="{{image}}" ./scripts/check_user_project_deps_in_agent_runtime_image.sh
 
 # Start the test Compose environment
 deploy-test:

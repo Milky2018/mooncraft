@@ -7,6 +7,8 @@ playwright_version="${MOONCRAFT_PLAYWRIGHT_VERSION:-1.56.1}"
 artifact_root="${MOONCRAFT_PLAYWRIGHT_OUTPUT_DIR:-output/playwright/real-agent-story}"
 run_stamp="$(date +%Y%m%d-%H%M%S)"
 artifact_dir="${artifact_root}/${run_stamp}"
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+default_agent_runtime_image="$(cat "$repo_root/config/agent_runtime_image.txt")"
 model="${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_MODEL:-${MOONCRAFT_CODEX_SMOKE_MODEL:-anthropic/claude-sonnet-4.5}}"
 if [[ -n "${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_KEY_REF:-}" ]]; then
   key_ref="$MOONCRAFT_PLAYWRIGHT_REAL_AGENT_KEY_REF"
@@ -20,7 +22,7 @@ else
   key_ref="OPENROUTER_API_KEY"
 fi
 api_key="${!key_ref:-}"
-codex_image="${MOONCRAFT_CODEX_DOCKER_IMAGE:-docker.io/moonbitcloud/codex:codex-0.125.0-node24}"
+agent_runtime_image="${MOONCRAFT_AGENT_RUNTIME_IMAGE:-${MOONCRAFT_CODEX_DOCKER_IMAGE:-$default_agent_runtime_image}}"
 admin_token="${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_ADMIN_TOKEN:-playwright-real-agent-admin-token}"
 
 if [[ -z "$api_key" ]]; then
@@ -276,7 +278,7 @@ MOONCRAFT_BUILD_PROFILE=debug \
 MOONCRAFT_CODEX_FAKE_MODE= \
 MOONCRAFT_ENABLE_DEV_AUTH=1 \
 MOONCRAFT_ADMIN_TOKEN="$admin_token" \
-MOONCRAFT_CODEX_DOCKER_IMAGE="$codex_image" \
+MOONCRAFT_AGENT_RUNTIME_IMAGE="$agent_runtime_image" \
 ./_build/native/debug/build/mooncraft/control-plane/control-plane.exe >"$log_file" 2>&1 &
 server_pid=$!
 

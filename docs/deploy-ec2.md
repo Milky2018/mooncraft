@@ -4,27 +4,27 @@
 
 Do not treat the current repo state as production-ready. The correct next target is a public demo or staging deployment on one EC2 instance.
 
-The local product loop is real, but several parts are still intentionally local-only:
+The local product loop is real, but several parts are still single-node and need hardening:
 
-- the agent layer is still a local adapter, not real Codex integration
+- the agent layer uses a Docker-backed runtime, but resource and isolation boundaries still need production hardening
 - persistence now supports SQLite for dev/test and PostgreSQL for production, but the hosted topology is still single-instance
 - generated previews run as local child processes with light supervision
 
 ## Current Deployment Blockers
 
-### 1. The agent runtime is still fake
+### 1. The agent runtime is still single-node
 
-The current `AgentGateway` is a deterministic local adapter that rewrites the generated app in a narrow way.
+The current `AgentGateway` runs app-building work through a Docker-backed agent runtime on the same host.
 
 Why this matters:
 
 - the hosted product promise is agent-driven app building
-- without the real Codex path, the deployment is only a shell demo
+- the current runtime boundary is acceptable for staging, but not yet a hardened multi-tenant production boundary
 
 Required fix:
 
-- wire `AgentGateway` to the real Codex-backed execution path
-- preserve the one-thread-per-project model already assumed by the architecture
+- add stronger CPU, memory, timeout, network, and cleanup controls around agent runtime containers
+- preserve the one-session-per-project model already assumed by the architecture
 
 ### 2. Persistence is production-database backed, but not HA
 
@@ -97,13 +97,13 @@ Why this is the right first hosted shape:
 1. Set `MOONCRAFT_PUBLIC_BASE_URL` for the first hosted environment.
 2. Set `MOONCRAFT_GITHUB_CLIENT_ID` and `MOONCRAFT_GITHUB_CLIENT_SECRET`; GitHub OAuth is the only supported sign-in provider.
 3. Decide whether the first hosted target is staging-only or true production.
-4. Keep the deployment single-instance until the real agent runtime and preview supervision are stronger.
+4. Keep the deployment single-instance until agent runtime isolation and preview supervision are stronger.
 
 ### Phase 2: Prepare the host
 
 1. Create an EC2 instance role that supports Systems Manager.
 2. Install Docker and Docker Compose.
-3. Build or load the local `mooncraft:local` and Codex runtime images.
+3. Build or load the local `mooncraft:local` and agent runtime images.
 4. Set deployment environment variables in your service manager or shell: `MOONCRAFT_PUBLIC_BASE_URL` and `MOONCRAFT_POSTGRES_PASSWORD`.
 5. Run `docker compose --env-file .env.test -f docker-compose.test.yml up -d --wait` for the test route or `docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --wait` for the production route.
 

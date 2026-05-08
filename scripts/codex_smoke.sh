@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-default_codex_image="${1:-docker.io/moonbitcloud/codex:codex-0.125.0-node24}"
-codex_image="${MOONCRAFT_CODEX_DOCKER_IMAGE:-$default_codex_image}"
-export MOONCRAFT_CODEX_DOCKER_IMAGE="$codex_image"
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+default_agent_runtime_image="${1:-$(cat "$repo_root/config/agent_runtime_image.txt")}"
+agent_runtime_image="${MOONCRAFT_AGENT_RUNTIME_IMAGE:-${MOONCRAFT_CODEX_DOCKER_IMAGE:-$default_agent_runtime_image}}"
+export MOONCRAFT_AGENT_RUNTIME_IMAGE="$agent_runtime_image"
 codex_model="${MOONCRAFT_CODEX_SMOKE_MODEL:-anthropic/claude-sonnet-4.5}"
 if [[ -n "${MOONCRAFT_CODEX_SMOKE_KEY_REF:-}" ]]; then
   codex_key_ref="$MOONCRAFT_CODEX_SMOKE_KEY_REF"
@@ -15,7 +16,7 @@ fi
 codex_api_key="${!codex_key_ref:-}"
 admin_token="${MOONCRAFT_CODEX_SMOKE_ADMIN_TOKEN:-codex-smoke-admin-token}"
 
-echo "Using Codex Docker image: $codex_image"
+echo "Using agent runtime image: $agent_runtime_image"
 echo "Using OpenRouter model: $codex_model"
 echo "Loading OpenRouter key from local shell variable: $codex_key_ref"
 

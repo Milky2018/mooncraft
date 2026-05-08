@@ -25,7 +25,22 @@ struct CodexDockerConfig {
 }
 
 ///|
-let default_codex_docker_image = "docker.io/moonbitcloud/codex:codex-0.125.0-node24"
+let default_agent_runtime_image = "docker.io/moonbitcloud/mooncraft-agent-runtime:0.1.0"
+
+///|
+fn configured_default_agent_runtime_image(root : String) -> String {
+  let configured = safe_read_string_or(
+      root + "/config/agent_runtime_image.txt",
+      default_agent_runtime_image,
+    )
+    .trim()
+    .to_owned()
+  if configured == "" {
+    default_agent_runtime_image
+  } else {
+    configured
+  }
+}
 
 ///|
 let default_codex_model = "gpt-5.5"
@@ -197,7 +212,7 @@ fn normalize_docker_architecture(
     Ok("linux/arm64")
   } else {
     Err(
-      "Unsupported Docker host architecture '\{architecture.trim()}'. Mooncraft supports only linux/amd64 and linux/arm64 Codex runtime containers.",
+      "Unsupported Docker host architecture '\{architecture.trim()}'. Mooncraft supports only linux/amd64 and linux/arm64 agent runtime containers.",
     )
   }
 }
@@ -232,9 +247,13 @@ async fn CodexDockerConfig::load(
   root : String,
   settings : AiRuntimeSettings,
 ) -> Result[CodexDockerConfig, String] noraise {
-  let image = match @env.get_env_var("MOONCRAFT_CODEX_DOCKER_IMAGE") {
+  let image = match @env.get_env_var("MOONCRAFT_AGENT_RUNTIME_IMAGE") {
     Some(value) if value.trim() != "" => value.trim().to_owned()
-    _ => default_codex_docker_image
+    _ =>
+      match @env.get_env_var("MOONCRAFT_CODEX_DOCKER_IMAGE") {
+        Some(value) if value.trim() != "" => value.trim().to_owned()
+        _ => configured_default_agent_runtime_image(root)
+      }
   }
   if @env.get_env_var("MOONCRAFT_CODEX_HOME_HOST") is Some(value) &&
     value.trim() != "" {
@@ -1018,7 +1037,7 @@ fn docker_codex_entry_command(
     "sh",
     "-lc",
     script_lines.join("\n"),
-    "mooncraft-codex",
+    "mooncraft-agent",
   ]
   for part in container_command {
     wrapped.push(part)

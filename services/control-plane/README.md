@@ -31,7 +31,7 @@ SQLite is a required dependency for the control plane. If the database cannot be
 
 Before Codex runs, validation, and preview builds, generated user projects run `moon fetch --no-update` for the pinned modules listed in `config/user_project_reference_modules.txt`. That file is the single source of truth for user-project reference packages and versions.
 
-For real Docker-backed runs, the Codex runtime image initializes the MoonBit registry at image build time and seeds Codex skills from `https://github.com/moonbitlang/skills` into the container-local Codex home before every command. Runtime validation avoids `moon update` by default because MoonBit may fail while rotating its symbols directory across Docker mount boundaries.
+For real Docker-backed runs, the Mooncraft agent runtime image initializes the MoonBit registry at image build time and seeds Codex skills from `https://github.com/moonbitlang/skills` into the container-local Codex home before every command. Runtime validation avoids `moon update` by default because MoonBit may fail while rotating its symbols directory across Docker mount boundaries.
 
 If Mooncakes returns a transient network error such as a TLS handshake EOF during dependency fetch, the run fails cleanly, preserves the previous preview, records the artifact logs for operators, and returns a plain-English retry message to the user instead of exposing raw registry output as the main chat response.
 
@@ -64,18 +64,18 @@ The generated app must keep `/api/health` available so the preview manager can v
 Use these repository-level checks:
 
 - `just check-user-project-deps` verifies required registry fetches locally and reports optional unpublished modules.
-- `just check-user-project-deps-codex` runs the same fetch check inside the Codex runtime image and verifies that the image seeds Codex skills.
+- `just check-user-project-deps-agent-runtime` runs the same fetch check inside the agent runtime image and verifies that the image seeds Codex skills.
 - `just smoke` covers the default project creation, fake Codex update, preview rebuild, deletion, and persistence flow.
 
-Required Codex runtime configuration:
+Required agent runtime configuration:
 
-- `MOONCRAFT_CODEX_DOCKER_IMAGE`
+- `MOONCRAFT_AGENT_RUNTIME_IMAGE`
 - optional `MOONCRAFT_CODEX_CONTAINER_HOME` (defaults to `/root`)
 
-The default runtime image is `docker.io/moonbitcloud/codex:codex-0.125.0-node24`. Override it through `MOONCRAFT_CODEX_DOCKER_IMAGE` when testing local images, PR images, rollbacks, or digest-pinned production deployments.
+The default runtime image is stored in `config/agent_runtime_image.txt` and is currently `docker.io/moonbitcloud/mooncraft-agent-runtime:0.1.0`. Override it through `MOONCRAFT_AGENT_RUNTIME_IMAGE` when testing local images, PR images, rollbacks, or digest-pinned production deployments. `MOONCRAFT_CODEX_DOCKER_IMAGE` remains a temporary compatibility fallback for older deployments.
 
-The runtime intentionally does not mount a host Codex home and users do not configure provider keys. Admins log in at `/admin/login` with `MOONCRAFT_ADMIN_TOKEN` and configure OpenRouter keys through `/admin`; the API stores the key value, returns only a masked hint, and the worker passes one leased key into the isolated Codex container only for the active run. OpenRouter is the only supported AI provider for generated-app runs. The admin model picker fetches the live OpenRouter text model catalog from `/api/admin/ai/models`, which proxies OpenRouter's `/api/v1/models` endpoint through an active saved key.
+The runtime intentionally does not mount a host Codex home and users do not configure provider keys. Admins log in at `/admin/login` with `MOONCRAFT_ADMIN_TOKEN` and configure OpenRouter keys through `/admin`; the API stores the key value, returns only a masked hint, and the worker passes one leased key into the isolated agent runtime container only for the active run. OpenRouter is the only supported AI provider for generated-app runs.
 
-Use `just codex-config` to inspect the effective runtime configuration. Build the runtime image locally with `just build-codex-image` and publish the shared multi-arch runtime image with `just docker-codex-publish` after `docker login`.
+Use `just agent-runtime-config` to inspect the effective runtime configuration. Build the runtime image locally with `just build-agent-runtime-image` and publish the shared multi-arch runtime image with `just docker-agent-runtime-publish` after `docker login`.
 
 Use `OPENROUTER_API_KEY=... just codex-smoke` from the repository root only when you intentionally want to spend real OpenRouter quota on an end-to-end Docker-backed build. The smoke script writes the key through the admin API after startup; it does not configure Mooncraft through service environment variables. Optional smoke overrides are `MOONCRAFT_CODEX_SMOKE_KEY_REF` and `MOONCRAFT_CODEX_SMOKE_MODEL`.

@@ -12,7 +12,7 @@ The two environments intentionally use the same runtime shape:
 
 ## Runtime Model
 
-Mooncraft runs as one app container plus one PostgreSQL container. When a user sends a project message, the Mooncraft container starts a background worker process. That worker calls the Docker CLI inside the Mooncraft container, which talks to the host Docker daemon through `/var/run/docker.sock`, and starts a separate Codex runtime container for the user run.
+Mooncraft runs as one app container plus one PostgreSQL container. When a user sends a project message, the Mooncraft container starts a background worker process. That worker calls the Docker CLI inside the Mooncraft container, which talks to the host Docker daemon through `/var/run/docker.sock`, and starts a separate agent runtime container for the user run.
 
 This means the host must have Docker installed and the Mooncraft service container must mount:
 
@@ -33,20 +33,20 @@ git pull
 just build-mooncraft-image mooncraft:local linux/amd64
 ```
 
-Make sure the Codex runtime image is available:
+Make sure the agent runtime image is available:
 
 ```bash
-docker pull docker.io/moonbitcloud/codex:codex-0.125.0-node24
+docker pull docker.io/moonbitcloud/mooncraft-agent-runtime:0.1.0
 ```
 
-Mooncraft detects the Docker daemon architecture before each real builder run and starts the Codex runtime with an explicit container platform:
+Mooncraft detects the Docker daemon architecture before each real builder run and starts the agent runtime with an explicit container platform:
 
 - `amd64` / `x86_64` -> `linux/amd64`
 - `arm64` / `aarch64` -> `linux/arm64`
 
-Any other Docker host architecture fails before the builder starts. The Codex runtime image must therefore be available for both `linux/amd64` and `linux/arm64`.
+Any other Docker host architecture fails before the builder starts. The agent runtime image must therefore be available for both `linux/amd64` and `linux/arm64`.
 
-If you are publishing your own Codex runtime image, push it first and set `MOONCRAFT_CODEX_DOCKER_IMAGE` when starting Compose.
+If you are publishing your own agent runtime image, push it first and set `MOONCRAFT_AGENT_RUNTIME_IMAGE` when starting Compose.
 
 ## Environment Files
 
@@ -196,18 +196,18 @@ just build-mooncraft-image mooncraft:local linux/amd64
 docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --wait --force-recreate
 ```
 
-If the Codex runtime image changes:
+If the agent runtime image changes:
 
 ```bash
-docker pull docker.io/moonbitcloud/codex:codex-0.125.0-node24
+docker pull docker.io/moonbitcloud/mooncraft-agent-runtime:0.1.0
 docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --wait --force-recreate
 ```
 
 If a host previously cached the wrong-architecture runtime image, remove and repull it after upgrading:
 
 ```bash
-docker image rm docker.io/moonbitcloud/codex:codex-0.125.0-node24 || true
-docker pull docker.io/moonbitcloud/codex:codex-0.125.0-node24
+docker image rm docker.io/moonbitcloud/mooncraft-agent-runtime:0.1.0 || true
+docker pull docker.io/moonbitcloud/mooncraft-agent-runtime:0.1.0
 docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --wait --force-recreate
 ```
 

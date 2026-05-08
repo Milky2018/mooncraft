@@ -303,6 +303,7 @@ MOONCRAFT_BUILD_PROFILE=debug \
 MOONCRAFT_CODEX_FAKE_MODE=smoke \
 MOONCRAFT_ENABLE_DEV_AUTH=1 \
 MOONCRAFT_CODEX_FAKE_FAIL_CONTAINS="${MOONCRAFT_CODEX_FAKE_FAIL_CONTAINS:-Force fake failure}" \
+MOONCRAFT_AGENT_RUNTIME_IMAGE= \
 MOONCRAFT_CODEX_DOCKER_IMAGE= \
 ./_build/native/debug/build/mooncraft/control-plane/control-plane.exe >"$log_file" 2>&1 &
 server_pid=$!

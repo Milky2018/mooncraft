@@ -1,8 +1,16 @@
 FROM node:24-bookworm
 
 ARG DEBIAN_FRONTEND=noninteractive
+ARG MOONCRAFT_AGENT_RUNTIME_VERSION=0.1.0
 ARG MOONBIT_VERSION=latest
 ARG CODEX_CLI_VERSION=0.125.0
+
+LABEL org.opencontainers.image.title="Mooncraft Agent Runtime"
+LABEL org.opencontainers.image.description="Mooncraft runtime image for isolated app-building agents."
+LABEL mooncraft.agent_runtime.version="${MOONCRAFT_AGENT_RUNTIME_VERSION}"
+LABEL mooncraft.codex.version="${CODEX_CLI_VERSION}"
+LABEL mooncraft.node.version="24"
+LABEL mooncraft.moonbit.version="${MOONBIT_VERSION}"
 
 ENV MOON_HOME=/opt/moon
 ENV PATH=/opt/moon/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -48,12 +56,12 @@ RUN printf '%s\n' \
   'provider="${MOONCRAFT_AI_PROVIDER:-openrouter}"' \
   'api_key="${MOONCRAFT_AI_API_KEY:-}"' \
   'if [ -z "$api_key" ]; then' \
-  '  echo "MOONCRAFT_AI_API_KEY is required for OpenRouter-backed Codex runs." >&2' \
+  '  echo "MOONCRAFT_AI_API_KEY is required for OpenRouter-backed agent runs." >&2' \
   '  exit 64' \
   'fi' \
   'export OPENROUTER_API_KEY="$api_key"' \
   'if [ "$provider" != "openrouter" ]; then' \
-  '  echo "Only OpenRouter is supported by the Mooncraft Codex runtime." >&2' \
+  '  echo "Only OpenRouter is supported by the Mooncraft agent runtime." >&2' \
   '  exit 64' \
   'fi' \
   '  cat > "$codex_home/config.toml" <<EOF' \
@@ -67,11 +75,11 @@ RUN printf '%s\n' \
   'EOF' \
   'unset MOONCRAFT_AI_API_KEY' \
   'exec "$@"' \
-  > /usr/local/bin/mooncraft-codex-entrypoint \
-  && chmod +x /usr/local/bin/mooncraft-codex-entrypoint
+  > /usr/local/bin/mooncraft-agent-entrypoint \
+  && chmod +x /usr/local/bin/mooncraft-agent-entrypoint
 
 WORKDIR /workspace
 
-ENTRYPOINT ["mooncraft-codex-entrypoint"]
+ENTRYPOINT ["mooncraft-agent-entrypoint"]
 
 RUN moon version && codex --version
