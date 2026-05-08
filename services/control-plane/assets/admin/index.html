@@ -231,7 +231,7 @@
         <div class="stack">
           <p class="muted">Mooncraft Admin</p>
           <h1>OpenRouter Key Pool</h1>
-          <p>Configure platform-owned AI keys here. Do not put OpenRouter keys in <code>.env</code> files.</p>
+          <p>Manage the OpenRouter keys and model choices Mooncraft uses to build apps.</p>
         </div>
         <div class="row">
           <button class="secondary" id="refresh">Refresh</button>
@@ -242,7 +242,7 @@
       <section class="grid">
         <div class="stack">
           <div class="card stack">
-            <h2>Runtime Model</h2>
+            <h2>Builder Model</h2>
             <p class="muted">Models are loaded directly from OpenRouter using an active saved key.</p>
             <button id="load-models" class="secondary">Load OpenRouter Models</button>
             <label>
@@ -261,7 +261,7 @@
             <h2>Add Key</h2>
             <label>
               Label
-              <input id="new-label" placeholder="OpenRouter production key" />
+              <input id="new-label" placeholder="OpenRouter API key" />
             </label>
             <label>
               API key
@@ -543,7 +543,7 @@
               allowed_models: selectedModels,
             }),
           })
-          showNotice("Runtime config saved.")
+          showNotice("Builder model settings saved.")
           await refresh()
         } catch (error) {
           showNotice(error.message, true)

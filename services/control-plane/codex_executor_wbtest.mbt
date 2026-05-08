@@ -6,7 +6,8 @@ test "bootstrap prompt includes the core execution rules" {
       "Default to MoonBit unless the user explicitly asks for another technology.",
     ),
   )
-  assert_true(prompt.contains("Work directly in this Codex CLI container."))
+  assert_true(prompt.contains("Work directly in this builder container."))
+  assert_true(prompt.contains("Do not mention internal execution names"))
   assert_false(prompt.contains("Use subagents"))
   assert_true(prompt.contains("Use the bundled MoonBit skills"))
   assert_true(
@@ -303,7 +304,7 @@ test "mooncakes tls failures get a user friendly assistant message" {
   assert_true(moonbit_registry_fetch_failed(output))
   assert_true(
     dependency_fetch_failure_assistant_message(output, "fallback").contains(
-      "temporary network or package-registry issue",
+      "usually temporary",
     ),
   )
 }

@@ -183,7 +183,7 @@ fn require_admin_token(
         api_error_response(
           ServiceUnavailable,
           ServiceUnavailable,
-          "Admin diagnostics are not configured.",
+          "Admin access is temporarily unavailable.",
         ),
       )
   }
@@ -644,7 +644,7 @@ fn AppContext::serve_platform_bundle(self : AppContext) -> @mocket.HttpResponse 
   if bundle.length() == 0 {
     return text_response(
       ServiceUnavailable,
-      "The UI bundle is missing. Run `moon -C . build` before starting the control plane.",
+      "The Mooncraft interface is temporarily unavailable.",
     )
   }
   javascript_response(bundle)
@@ -773,7 +773,7 @@ fn main {
         return api_error_response(
           ServiceUnavailable,
           ServiceUnavailable,
-          "Admin login is not configured on this server.",
+          "Admin login is temporarily unavailable.",
         )
     }
     if request.token.trim() == expected {

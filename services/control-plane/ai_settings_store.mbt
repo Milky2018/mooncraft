@@ -545,16 +545,13 @@ async fn Store::lease_ai_runtime_settings_for_project(
       params=[String("openrouter"), String("active")],
     ) {
     Some(row) => row
-    None =>
-      return Err(
-        "Mooncraft's AI service is not configured with an active OpenRouter key.",
-      )
+    None => return Err("Mooncraft's app builder is temporarily unavailable.")
   }
   let key_id = row_text(row, "id")
   let api_key = row_text(row, "key_secret").trim().to_owned()
   if api_key == "" {
     ignore(self.mark_ai_key_error(key_id, "Stored OpenRouter key is missing."))
-    return Err("Mooncraft's AI service key is not available on this server.")
+    return Err("Mooncraft's app builder is temporarily unavailable.")
   }
   let usage_id = next_id("ai-usage")
   let now = now_string()

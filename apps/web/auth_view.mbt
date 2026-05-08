@@ -137,7 +137,7 @@ fn render_auth_screen(
             "border: 1px solid var(--border-soft)", "font-size: 14px", "line-height: 1.6",
             "color: var(--text-1)",
           ],
-        ) <| "GitHub sign-in is not configured on this server. Set the GitHub OAuth client ID and secret, then restart Mooncraft."
+        ) <| "Sign-in is temporarily unavailable. Please try again later."
       },
       @html.div(
         style=["font-size: 12px", "line-height: 1.55", "color: var(--text-3)"],

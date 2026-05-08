@@ -291,10 +291,7 @@ async fn github_authorization_response(
       )
     }
     None =>
-      text_response(
-        ServiceUnavailable,
-        "GitHub sign-in is not configured on this server.",
-      )
+      text_response(ServiceUnavailable, "Sign-in is temporarily unavailable.")
   }
 }
 
@@ -497,7 +494,7 @@ async fn AppContext::complete_github_sign_in(
     Some(creds) => creds
     None => {
       log_github_callback_failure("missing server credentials")
-      return Err("GitHub sign-in is not configured on this server.")
+      return Err("Sign-in is temporarily unavailable.")
     }
   }
   let pkce_verifier = match

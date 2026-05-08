@@ -275,9 +275,10 @@ fn bootstrap_prompt(user_message : String) -> String {
     #|Working rules:
     #|- Default to MoonBit unless the user explicitly asks for another technology.
     #|- Complete the job in one turn without asking follow-up questions.
-    #|- Work directly in this Codex CLI container. Do not assume subagent or desktop-only tools are available.
+    #|- Work directly in this builder container. Do not assume subagent or desktop-only tools are available.
     #|- Use the bundled MoonBit skills for MoonBit syntax, package, API, or toolchain questions, but keep skill reading bounded to the relevant instructions.
     #|- Do not spend the turn reading broad dependency internals unless a build error requires it.
+    #|- Do not mention internal execution names, runtime tools, provider keys, or container details in user-facing progress or final responses.
     #|- This workspace starts empty except for ignore rules. Create the real app requested by the user.
     #|- Do not assume `frontend/`, `backend/`, or `shared/` directories exist.
     #|- The current workspace root is the generated app root. Do not leave the only MoonBit module inside a child directory.
@@ -312,9 +313,10 @@ fn followup_prompt(user_message : String) -> String {
     #|Working rules:
     #|- Default to MoonBit unless the user explicitly asks for another technology.
     #|- Complete the job in one turn without asking follow-up questions.
-    #|- Work directly in this Codex CLI container. Do not assume subagent or desktop-only tools are available.
+    #|- Work directly in this builder container. Do not assume subagent or desktop-only tools are available.
     #|- Use the bundled MoonBit skills for MoonBit syntax, package, API, or toolchain questions, but keep skill reading bounded to the relevant instructions.
     #|- Do not spend the turn reading broad dependency internals unless a build error requires it.
+    #|- Do not mention internal execution names, runtime tools, provider keys, or container details in user-facing progress or final responses.
     #|- Do not assume a fixed project layout. Preserve the existing app structure unless a change is needed.
     #|- The current workspace root is the generated app root. Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working from that root.
     #|
@@ -349,9 +351,10 @@ fn recovery_prompt(
     #|Working rules:
     #|- Default to MoonBit unless the user explicitly asks for another technology.
     #|- Complete the job in one turn without asking follow-up questions.
-    #|- Work directly in this Codex CLI container. Do not assume subagent or desktop-only tools are available.
+    #|- Work directly in this builder container. Do not assume subagent or desktop-only tools are available.
     #|- Use the bundled MoonBit skills for MoonBit syntax, package, API, or toolchain questions, but keep skill reading bounded to the relevant instructions.
     #|- Do not spend the turn reading broad dependency internals unless a build error requires it.
+    #|- Do not mention internal execution names, runtime tools, provider keys, or container details in user-facing progress or final responses.
     #|- The current workspace already contains the latest saved project state.
     #|- Do not assume a fixed project layout. Preserve the existing app structure unless a change is needed.
     #|- The current workspace root is the generated app root. Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working from that root.
@@ -491,7 +494,7 @@ fn dependency_fetch_failure_assistant_message(
   fallback : String,
 ) -> String {
   if moonbit_registry_fetch_failed(output) {
-    "MoonBit packages could not be fetched from Mooncakes, so the preview could not be validated or refreshed. This is usually a temporary network or package-registry issue. Retry the update; if it keeps happening, the platform operator should refresh the builder image cache and check Mooncakes connectivity."
+    "Some required MoonBit packages could not be fetched right now, so the preview could not be refreshed. This is usually temporary. Retry the update in a few minutes."
   } else {
     fallback
   }
@@ -1173,7 +1176,7 @@ async fn collect_codex_command_output(
         }
         Ok((result.0, result.1, None))
       }
-      None => Err("The AI builder runtime is not configured.")
+      None => Err("Mooncraft's app builder is temporarily unavailable.")
     }
   }
 }
@@ -1514,7 +1517,7 @@ async fn run_validation_command(
         return Err(
           codex_failure_with_debug(
             "The workspace was updated, but validation could not be started.",
-            "The app validator is not configured.",
+            "The app validator is temporarily unavailable.",
             Some(thread_id),
             Some(failure_debug(label, Some(command), None, Some(artifacts))),
           ),
@@ -1615,7 +1618,7 @@ async fn run_docker_validation_sequence(
       return Err(
         codex_failure_with_debug(
           "The workspace was updated, but validation could not be started.",
-          "The app validator is not configured.",
+          "The app validator is temporarily unavailable.",
           Some(thread_id),
           Some(
             failure_debug(
@@ -1775,7 +1778,7 @@ async fn AgentGateway::run_turn(
       Err(message) =>
         return Err(
           codex_failure(
-            "Mooncraft's AI service is temporarily unavailable. Please retry later.",
+            "Mooncraft's app builder is temporarily unavailable. Please retry later.",
             message,
             project.codex_thread_id,
           ),
@@ -1786,7 +1789,7 @@ async fn AgentGateway::run_turn(
       Err(message) =>
         return Err(
           codex_failure(
-            "The AI builder could not be started for that update.",
+            "The app builder could not be started for that update.",
             message,
             project.codex_thread_id,
           ),
