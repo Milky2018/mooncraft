@@ -105,7 +105,7 @@ Why this is the right first hosted shape:
 2. Install Docker and Docker Compose.
 3. Build or load the local `mooncraft:local` and agent runtime images.
 4. Set deployment environment variables in your service manager or shell: `MOONCRAFT_PUBLIC_BASE_URL` and `MOONCRAFT_POSTGRES_PASSWORD`.
-5. Run `docker compose --env-file .env.test -f docker-compose.test.yml up -d --wait` for the test route or `docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --wait` for the production route.
+5. Run `just deploy-test` for the test route or `just deploy-prod` for the production route. These commands pull the configured agent runtime image before starting Compose.
 
 ### Phase 3: Run the app as a service
 

@@ -33,10 +33,12 @@ git pull
 just build-mooncraft-image mooncraft:local linux/amd64
 ```
 
-Make sure the agent runtime image is available:
+Make sure the agent runtime image is available. The `just deploy-*` commands below pull it automatically from the image configured in the matching env file.
 
 ```bash
-docker pull docker.io/moonbitcloud/mooncraft-agent-runtime:0.1.0
+just deploy-test
+# or
+just deploy-prod
 ```
 
 Mooncraft detects the Docker daemon architecture before each real builder run and starts the agent runtime with an explicit container platform:
@@ -100,10 +102,10 @@ The test environment uses [docker-compose.test.yml](../docker-compose.test.yml).
 Default host port: `18080`
 
 ```bash
-docker compose --env-file .env.test -f docker-compose.test.yml up -d --wait
+just deploy-test
 ```
 
-`--wait` returns only after PostgreSQL and Mooncraft report healthy, or fails if either service cannot become healthy.
+This pulls `MOONCRAFT_AGENT_RUNTIME_IMAGE` from `.env.test`, then starts Compose with `--wait`. It returns only after PostgreSQL and Mooncraft report healthy, or fails if either service cannot become healthy.
 
 If `.env.test` binds to a different port, use that port in the health check. For example, the committed example uses `127.0.0.1:18089`:
 
@@ -118,10 +120,10 @@ The production environment uses [docker-compose.prod.yml](../docker-compose.prod
 Default host port: `8080`
 
 ```bash
-docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --wait
+just deploy-prod
 ```
 
-`--wait` returns only after PostgreSQL and Mooncraft report healthy, or fails if either service cannot become healthy.
+This pulls `MOONCRAFT_AGENT_RUNTIME_IMAGE` from `.env.prod`, then starts Compose with `--wait`. It returns only after PostgreSQL and Mooncraft report healthy, or fails if either service cannot become healthy.
 
 If `.env.prod` binds to a different port, use that port in the health check. For example, the committed example uses `127.0.0.1:8089`:
 
@@ -184,7 +186,7 @@ Upgrade test:
 git pull
 just build-mooncraft-image mooncraft:local linux/amd64
 
-docker compose --env-file .env.test -f docker-compose.test.yml up -d --wait --force-recreate
+just deploy-test
 ```
 
 Upgrade production:
@@ -193,22 +195,16 @@ Upgrade production:
 git pull
 just build-mooncraft-image mooncraft:local linux/amd64
 
-docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --wait --force-recreate
+just deploy-prod
 ```
 
-If the agent runtime image changes:
-
-```bash
-docker pull docker.io/moonbitcloud/mooncraft-agent-runtime:0.1.0
-docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --wait --force-recreate
-```
+If the agent runtime image changes, update `MOONCRAFT_AGENT_RUNTIME_IMAGE` in `.env.test` or `.env.prod`, then run the matching deploy command. It pulls the new image before starting Compose.
 
 If a host previously cached the wrong-architecture runtime image, remove and repull it after upgrading:
 
 ```bash
 docker image rm docker.io/moonbitcloud/mooncraft-agent-runtime:0.1.0 || true
-docker pull docker.io/moonbitcloud/mooncraft-agent-runtime:0.1.0
-docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --wait --force-recreate
+just deploy-prod
 ```
 
 Plain `docker compose down` preserves named volumes and host bind-mounted data, but creates extra downtime. Use it only when intentionally stopping a stack. Never use `docker compose down -v` unless you intentionally want to delete PostgreSQL volumes. Remove `${MOONCRAFT_HOST_DATA_DIR}` only when you intentionally want to delete Mooncraft runtime caches and Codex session homes.

@@ -85,11 +85,11 @@ check-user-project-deps-agent-runtime image=agent_runtime_image:
 
 # Start the test Compose environment
 deploy-test:
-  docker compose --env-file .env.test -f docker-compose.test.yml up -d --wait
+  ./scripts/deploy_compose.sh .env.test docker-compose.test.yml
 
 # Start the production Compose environment
 deploy-prod:
-  docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --wait
+  ./scripts/deploy_compose.sh .env.prod docker-compose.prod.yml
 
 # Follow test logs
 logs-test:
