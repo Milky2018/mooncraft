@@ -36,10 +36,7 @@ fn render_message(message : @sdk.ChatMessage) -> @rabbita.Html {
         ],
       message.role.label(),
     ),
-    @html.div(
-      style=["font-size: 15px", "line-height: 1.7", "white-space: pre-wrap"],
-      message.content,
-    ),
+    render_markdown_message(message.content, is_user~),
   ])
 }
 
