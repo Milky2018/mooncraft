@@ -540,43 +540,16 @@ fn admin_page_html(root : String) -> String {
 }
 
 ///|
-fn AppContext::ensure_platform_web_bundle(self : AppContext) -> Unit {
-  ensure_dir(platform_web_dist_dir(self.root))
-  @fs.remove_file(platform_web_staged_bundle_path(self.root)) catch {
-    _ => ()
-  }
-  let code = shell_status(
-    "moon -C " +
-    shell_quote(self.root) +
-    " build " +
-    self.build_profile.cli_flag() +
-    " apps/web >/dev/null 2>&1",
-  )
-  if code != 0 {
-    println("warning: failed to build apps/web bundle")
-    return
-  }
-  let source = platform_web_build_output_path(self.root, self.build_profile)
-  if !@fs.path_exists(source) {
-    println("warning: apps/web bundle was built but the artifact was not found")
-    return
-  }
-  let bundle = safe_read_bytes_or(source, b"")
-  if bundle.length() == 0 {
-    println("warning: apps/web bundle was built but the artifact was empty")
-    return
-  }
-  safe_write_bytes(platform_web_staged_bundle_path(self.root), bundle)
-}
-
-///|
 fn AppContext::serve_platform_bundle(self : AppContext) -> @mocket.HttpResponse {
-  let bundle_path = platform_web_staged_bundle_path(self.root)
+  let bundle_path = platform_web_build_output_path(
+    self.root,
+    self.build_profile,
+  )
   let bundle = safe_read_bytes_or(bundle_path, b"")
   if bundle.length() == 0 {
     return text_response(
       ServiceUnavailable,
-      "The UI bundle has not been staged yet. Restart the control plane after building apps/web.",
+      "The UI bundle is missing. Run `moon -C . build` before starting the control plane.",
     )
   }
   javascript_response(bundle)
@@ -637,8 +610,6 @@ fn main {
       "Recovered \{stale_runs} stale running run(s); marked them failed so they can be retried.",
     )
   }
-  ctx.ensure_platform_web_bundle()
-
   let app = @mocket.new()
 
   app.get("/", async fn(event) noraise {

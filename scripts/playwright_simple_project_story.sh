@@ -295,6 +295,8 @@ main().catch((error) => {
 })
 EOF
 
+moon -C . build
+
 MOONCRAFT_PORT="$port" \
 MOONCRAFT_PUBLIC_BASE_URL="$base_url" \
 MOONCRAFT_BUILD_PROFILE=debug \
@@ -302,7 +304,7 @@ MOONCRAFT_CODEX_FAKE_MODE=smoke \
 MOONCRAFT_ENABLE_DEV_AUTH=1 \
 MOONCRAFT_CODEX_FAKE_FAIL_CONTAINS="${MOONCRAFT_CODEX_FAKE_FAIL_CONTAINS:-Force fake failure}" \
 MOONCRAFT_CODEX_DOCKER_IMAGE= \
-moon -C . run --target native services/control-plane >"$log_file" 2>&1 &
+./_build/native/debug/build/mooncraft/control-plane/control-plane.exe >"$log_file" 2>&1 &
 server_pid=$!
 
 for _ in {1..60}; do

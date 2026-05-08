@@ -91,12 +91,14 @@ wait_for_ok() {
 
 trap cleanup EXIT
 
+moon -C . build
+
 env \
   MOONCRAFT_CODEX_FAKE_MODE= \
   MOONCRAFT_ENABLE_DEV_AUTH=1 \
   MOONCRAFT_ADMIN_TOKEN="$admin_token" \
   MOONCRAFT_PORT="$port" \
-  moon -C . run --target native services/control-plane >"$log_file" 2>&1 &
+  ./_build/native/debug/build/mooncraft/control-plane/control-plane.exe >"$log_file" 2>&1 &
 server_pid=$!
 
 for _ in {1..60}; do

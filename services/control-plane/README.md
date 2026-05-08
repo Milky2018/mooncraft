@@ -43,7 +43,7 @@ Static control-plane shells live under `services/control-plane/assets` instead o
 - `auth/github-callback/index.html` for the OAuth callback handoff page
 - `preview-fallback/index.html` and `preview-fallback/styles.css` for generated previews that do not provide their own shell
 
-These files are runtime assets. `moon build` checks and builds the MoonBit code, but it does not embed this directory into the executable. The supported local walkthrough runs from the repository root through `just serve` or `moon -C . run --target native services/control-plane`, so the assets are available at `services/control-plane/assets`. The Docker walkthrough also includes them because the image uses `COPY . /app` before running the control plane from `/app`.
+These files are runtime assets. `moon build` builds both the Rabbita frontend bundle and the native control-plane executable through the workspace. The control plane does not run `moon` at startup; it serves the prebuilt frontend bundle from `_build/js/<profile>/build/mooncraft/web/web.js`. The supported local walkthrough runs from the repository root through `just serve`, which builds the workspace before starting the executable. The Docker image also builds the workspace at image build time before the entrypoint starts the prebuilt control-plane executable.
 
 If you run a compiled `control-plane.exe` from another directory, keep `services/control-plane/assets` available under that working directory or the file-backed HTML pages will not render.
 

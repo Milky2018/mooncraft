@@ -438,16 +438,6 @@ fn run_artifacts_dir(
 }
 
 ///|
-fn platform_web_dist_dir(root : String) -> String {
-  root + "/data/platform/web"
-}
-
-///|
-fn platform_web_staged_bundle_path(root : String) -> String {
-  platform_web_dist_dir(root) + "/app.js"
-}
-
-///|
 fn platform_web_build_output_path(
   root : String,
   build_profile : BuildProfile,

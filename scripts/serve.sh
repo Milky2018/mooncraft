@@ -16,15 +16,17 @@ public_base_url="${MOONCRAFT_PUBLIC_BASE_URL:-$base_url}"
 echo "Mooncraft: $base_url"
 
 if [[ "$profile" == "release" ]]; then
+  moon -C . build --release
   MOONCRAFT_APP_MODE="${MOONCRAFT_APP_MODE:-development}" \
     MOONCRAFT_PORT="$port" \
     MOONCRAFT_PUBLIC_BASE_URL="$public_base_url" \
     MOONCRAFT_BUILD_PROFILE=release \
-    moon -C . run --target native --release services/control-plane
+    ./_build/native/release/build/mooncraft/control-plane/control-plane.exe
 else
+  moon -C . build
   MOONCRAFT_APP_MODE="${MOONCRAFT_APP_MODE:-development}" \
     MOONCRAFT_PORT="$port" \
     MOONCRAFT_PUBLIC_BASE_URL="$public_base_url" \
     MOONCRAFT_BUILD_PROFILE=debug \
-    moon -C . run --target native services/control-plane
+    ./_build/native/debug/build/mooncraft/control-plane/control-plane.exe
 fi
