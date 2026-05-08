@@ -20,9 +20,6 @@ pub(all) struct UserSummary {
   email_verified : Bool
   display_name : String
   github_login : String?
-  ai_provider : String
-  ai_model : String
-  ai_api_key_configured : Bool
   created_at : String
 } derive(Debug, ToJson, FromJson)
 
@@ -177,6 +174,72 @@ pub(all) struct AdminListProjectsResponse {
 } derive(Debug, ToJson, FromJson)
 
 ///|
+pub(all) struct AdminAiKeySummary {
+  id : String
+  provider : String
+  label : String
+  key_hint : String
+  status : String
+  priority : Int
+  last_used_at : String?
+  last_error : String?
+  created_at : String
+  updated_at : String
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct AdminListAiKeysResponse {
+  items : Array[AdminAiKeySummary]
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct CreateAdminAiKeyRequest {
+  label : String
+  api_key : String
+  priority : Int
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct UpdateAdminAiKeyRequest {
+  label : String
+  api_key : String
+  status : String
+  priority : Int
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct AdminAiKeyUsageSummary {
+  id : String
+  key_id : String
+  run_id : String
+  project_id : String
+  user_id : String
+  model : String
+  state : String
+  error_code : String?
+  started_at : String
+  finished_at : String?
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct AdminListAiKeyUsagesResponse {
+  items : Array[AdminAiKeyUsageSummary]
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct AdminAiConfigResponse {
+  default_model : String
+  allowed_models : Array[String]
+  updated_at : String
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct UpdateAdminAiConfigRequest {
+  default_model : String
+  allowed_models : Array[String]
+} derive(Debug, ToJson, FromJson)
+
+///|
 pub(all) struct CreateRunRequest {
   content : String
 } derive(Debug, ToJson, FromJson)
@@ -190,39 +253,6 @@ pub(all) struct CreateRunResponse {
 ///|
 pub(all) struct AuthResponse {
   user : UserSummary
-} derive(Debug, ToJson, FromJson)
-
-///|
-pub(all) struct AiSettingsResponse {
-  provider : String
-  model : String
-  api_key_configured : Bool
-} derive(Debug, ToJson, FromJson)
-
-///|
-pub(all) struct UpdateAiSettingsRequest {
-  provider : String
-  model : String
-  api_key : String
-} derive(Debug, ToJson, FromJson)
-
-///|
-pub(all) struct ModelOption {
-  id : String
-  label : String
-  provider : String
-  recommended : Bool
-  context_length : Int?
-  description : String?
-} derive(Debug, ToJson, FromJson)
-
-///|
-pub(all) struct ListModelOptionsResponse {
-  provider : String
-  items : Array[ModelOption]
-  fetched_at : String
-  source : String
-  warning : String?
 } derive(Debug, ToJson, FromJson)
 
 ///|

@@ -73,7 +73,7 @@ docker-codex-publish repository=codex_repository version=codex_version platforms
 codex-config:
   @echo "MOONCRAFT_CODEX_DOCKER_IMAGE=${MOONCRAFT_CODEX_DOCKER_IMAGE:-{{codex_image}}}"
   @echo "MOONCRAFT_CODEX_CONTAINER_HOME=${MOONCRAFT_CODEX_CONTAINER_HOME:-/root}"
-  @echo "AI provider/API key/model are configured per user in Account settings."
+  @echo "OpenRouter keys and model are configured by admins at /admin."
 
 # Check registry modules fetched for generated user projects
 check-user-project-deps:

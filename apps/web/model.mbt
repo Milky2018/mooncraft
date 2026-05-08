@@ -6,12 +6,6 @@ enum ThemeMode {
 } derive(Eq)
 
 ///|
-enum ShellPage {
-  AppWorkspace
-  LlmConfig
-} derive(Eq)
-
-///|
 struct Model {
   boot_requested : Bool
   session_ready : Bool
@@ -22,15 +16,8 @@ struct Model {
   github_enabled : Bool
   logout_pending : Bool
   auth_notice : String?
-  account_ai_provider : String
-  account_ai_model : String
-  account_ai_api_key : String
-  account_model_options : Array[@sdk.ModelOption]
-  account_model_options_pending : Bool
-  account_pending : Bool
   account_notice : String?
   account_panel_open : Bool
-  active_page : ShellPage
   projects : Array[@sdk.ProjectSummary]
   selected_project_id : String?
   project_detail : @sdk.ProjectDetail?
@@ -59,17 +46,6 @@ enum Msg {
   Logout
   LoggedOut(Result[Unit, @sdk.ApiError])
   ToggleAccountPanel
-  OpenLlmConfig
-  AccountAiProviderChanged(String)
-  AccountAiModelChanged(String)
-  AccountAiApiKeyChanged(String)
-  RefreshModelOptions
-  ModelOptionsLoaded(
-    String,
-    Result[@sdk.ListModelOptionsResponse, @sdk.ApiError]
-  )
-  SaveAiSettings
-  AiSettingsSaved(Result[@sdk.AiSettingsResponse, @sdk.ApiError])
   ProjectsLoaded(Result[@sdk.ListProjectsResponse, @sdk.ApiError])
   SelectProject(String)
   ProjectLoaded(Result[@sdk.ProjectDetail, @sdk.ApiError])
@@ -168,15 +144,8 @@ fn initial_model() -> Model {
     github_enabled: false,
     logout_pending: false,
     auth_notice: None,
-    account_ai_provider: "openai",
-    account_ai_model: "gpt-5.5",
-    account_ai_api_key: "",
-    account_model_options: [],
-    account_model_options_pending: false,
-    account_pending: false,
     account_notice: None,
     account_panel_open: false,
-    active_page: AppWorkspace,
     projects: [],
     selected_project_id: None,
     project_detail: None,

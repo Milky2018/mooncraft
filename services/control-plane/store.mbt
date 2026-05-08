@@ -1065,9 +1065,6 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
         #|  password_hash TEXT,
         #|  display_name TEXT NOT NULL,
         #|  github_login TEXT,
-        #|  ai_provider TEXT NOT NULL DEFAULT 'openai',
-        #|  ai_model TEXT NOT NULL DEFAULT 'gpt-5.5',
-        #|  ai_api_key TEXT,
         #|  created_at TEXT NOT NULL,
         #|  updated_at TEXT NOT NULL
         #|);
@@ -1086,20 +1083,11 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
-  match
-    self.ensure_column("users", "ai_provider", "TEXT NOT NULL DEFAULT 'openai'") {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
-  }
-  match
-    self.ensure_column("users", "ai_model", "TEXT NOT NULL DEFAULT 'gpt-5.5'") {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
-  }
-  match self.ensure_column("users", "ai_api_key", "TEXT") {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
-  }
+  ignore(
+    self.exec_or_error(
+      "UPDATE users SET ai_api_key = NULL;", "clear legacy user AI keys",
+    ),
+  )
   match
     self.exec_or_error(
       (
@@ -1341,6 +1329,117 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
         #|ON account_action_tokens(user_id, purpose);
       ),
       "create account action token index",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE TABLE IF NOT EXISTS ai_keys (
+        #|  id TEXT PRIMARY KEY,
+        #|  provider TEXT NOT NULL,
+        #|  label TEXT NOT NULL,
+        #|  key_secret TEXT NOT NULL,
+        #|  key_hint TEXT NOT NULL,
+        #|  status TEXT NOT NULL,
+        #|  priority INTEGER NOT NULL DEFAULT 0,
+        #|  last_used_at TEXT,
+        #|  last_error TEXT,
+        #|  created_at TEXT NOT NULL,
+        #|  updated_at TEXT NOT NULL
+        #|);
+      ),
+      "create ai_keys table",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.ensure_column("ai_keys", "key_secret", "TEXT NOT NULL DEFAULT ''") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match self.ensure_column("ai_keys", "key_hint", "TEXT NOT NULL DEFAULT ''") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE INDEX IF NOT EXISTS ai_keys_provider_status_idx
+        #|ON ai_keys(provider, status, priority);
+      ),
+      "create AI key status index",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE TABLE IF NOT EXISTS ai_key_usages (
+        #|  id TEXT PRIMARY KEY,
+        #|  key_id TEXT NOT NULL,
+        #|  run_id TEXT NOT NULL,
+        #|  project_id TEXT NOT NULL,
+        #|  user_id TEXT NOT NULL,
+        #|  model TEXT NOT NULL,
+        #|  state TEXT NOT NULL,
+        #|  error_code TEXT,
+        #|  started_at TEXT NOT NULL,
+        #|  finished_at TEXT
+        #|);
+      ),
+      "create ai_key_usages table",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE INDEX IF NOT EXISTS ai_key_usages_run_idx
+        #|ON ai_key_usages(run_id);
+      ),
+      "create AI key usage run index",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE TABLE IF NOT EXISTS ai_runtime_config (
+        #|  id TEXT PRIMARY KEY,
+        #|  default_model TEXT NOT NULL,
+        #|  allowed_models TEXT NOT NULL,
+        #|  updated_at TEXT NOT NULL
+        #|);
+      ),
+      "create ai_runtime_config table",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
+        #|INSERT INTO ai_runtime_config (
+        #|  id,
+        #|  default_model,
+        #|  allowed_models,
+        #|  updated_at
+        #|) VALUES (?, ?, ?, ?)
+        #|ON CONFLICT(id) DO NOTHING;
+      ),
+      "seed default AI runtime config",
+      params=[
+        String("default"),
+        String(default_openrouter_model()),
+        String(default_openrouter_model()),
+        String(now_string()),
+      ],
     ) {
     Ok(_) => Ok(())
     Err(message) => Err(message)
@@ -2154,6 +2253,7 @@ async fn Store::finish_run_success(
   } else {
     summary
   }
+  self.finish_ai_key_usage(run_id, "succeeded", None)
   ignore(
     self.exec_or_error(
       (
@@ -2291,6 +2391,7 @@ async fn Store::finish_run_failure_with_debug(
   let final_summary_path = failure_debug.bind(fn(debug) {
     debug.final_summary_path
   })
+  self.finish_ai_key_usage(run_id, "failed", failure_stage)
   ignore(
     self.exec_or_error(
       (

@@ -63,12 +63,6 @@ fn update(
           ..clear_workspace(model),
           current_user: None,
           logout_pending: false,
-          account_ai_provider: "openai",
-          account_ai_model: "gpt-5.5",
-          account_ai_api_key: "",
-          account_model_options: [],
-          account_model_options_pending: false,
-          account_pending: false,
           account_notice: None,
           account_panel_open: false,
           auth_notice: None,
@@ -89,139 +83,6 @@ fn update(
         @rabbita.none,
         { ..model, account_panel_open: !model.account_panel_open },
       )
-    OpenLlmConfig =>
-      (
-        load_model_options_cmd(dispatch, model.account_ai_provider),
-        {
-          ..model,
-          active_page: LlmConfig,
-          account_panel_open: false,
-          account_model_options: [],
-          account_model_options_pending: true,
-          account_notice: None,
-          notice: None,
-        },
-      )
-    AccountAiProviderChanged(value) =>
-      (
-        load_model_options_cmd(dispatch, value),
-        {
-          ..model,
-          account_ai_provider: value,
-          account_model_options: [],
-          account_model_options_pending: true,
-          account_notice: None,
-        },
-      )
-    AccountAiModelChanged(value) =>
-      (@rabbita.none, { ..model, account_ai_model: value })
-    AccountAiApiKeyChanged(value) =>
-      (@rabbita.none, { ..model, account_ai_api_key: value })
-    RefreshModelOptions =>
-      (
-        load_model_options_cmd(dispatch, model.account_ai_provider),
-        {
-          ..model,
-          account_model_options: [],
-          account_model_options_pending: true,
-          account_notice: None,
-        },
-      )
-    ModelOptionsLoaded(provider, Ok(response)) =>
-      if provider != model.account_ai_provider {
-        (@rabbita.none, model)
-      } else {
-        let has_current_model = model_options_include(
-          response.items,
-          model.account_ai_model,
-        )
-        let selected_model = if model.account_ai_model != "" &&
-          (has_current_model || response.items.length() == 0) {
-          model.account_ai_model
-        } else {
-          match response.items.get(0) {
-            Some(item) => item.id
-            None => model.account_ai_model
-          }
-        }
-        (
-          @rabbita.none,
-          {
-            ..model,
-            account_ai_model: selected_model,
-            account_model_options: response.items,
-            account_model_options_pending: false,
-            account_notice: response.warning,
-          },
-        )
-      }
-    ModelOptionsLoaded(provider, Err(error)) =>
-      if provider != model.account_ai_provider {
-        (@rabbita.none, model)
-      } else if is_unauthorized_error(error) {
-        auth_recovery(dispatch, model, "Your session expired. Sign in again.")
-      } else {
-        (
-          @rabbita.none,
-          {
-            ..model,
-            account_model_options: [],
-            account_model_options_pending: false,
-            account_notice: Some(
-              "Model list could not be loaded. Your saved model is still available.",
-            ),
-          },
-        )
-      }
-    SaveAiSettings =>
-      if !can_save_ai_settings(model) {
-        (@rabbita.none, model)
-      } else {
-        (
-          save_ai_settings_cmd(dispatch, model),
-          { ..model, account_pending: true, account_notice: None },
-        )
-      }
-    AiSettingsSaved(Ok(settings)) => {
-      let current_user = model.current_user.map(fn(user) -> @sdk.UserSummary {
-        {
-          id: user.id,
-          email: user.email,
-          email_verified: user.email_verified,
-          display_name: user.display_name,
-          github_login: user.github_login,
-          ai_provider: settings.provider,
-          ai_model: settings.model,
-          ai_api_key_configured: settings.api_key_configured,
-          created_at: user.created_at,
-        }
-      })
-      (
-        @rabbita.none,
-        {
-          ..model,
-          current_user,
-          account_ai_provider: settings.provider,
-          account_ai_model: settings.model,
-          account_ai_api_key: "",
-          account_pending: false,
-          account_notice: Some("LLM config saved."),
-        },
-      )
-    }
-    AiSettingsSaved(Err(error)) =>
-      if is_unauthorized_error(error) {
-        auth_recovery(dispatch, model, "Your session expired. Sign in again.")
-      } else {
-        (
-          @rabbita.none,
-          {
-            ..model,
-            account_pending: false,
-            account_notice: Some(error.message),
-          },
-        )
-      }
     ProjectsLoaded(Ok(response)) => {
       let projects = response.items
       let selected_project_id = pick_selected_project_id(model, projects)
@@ -266,7 +127,6 @@ fn update(
         load_project_cmd(dispatch, project_id),
         {
           ..model,
-          active_page: AppWorkspace,
           selected_project_id: Some(project_id),
           project_detail: None,
           messages: [],
@@ -341,7 +201,6 @@ fn update(
           create_project_cmd(dispatch, display_name),
           {
             ..model,
-            active_page: AppWorkspace,
             create_project_pending: true,
             delete_project_confirming: None,
             notice: None,
@@ -396,7 +255,6 @@ fn update(
         ]),
         {
           ..model,
-          active_page: AppWorkspace,
           create_project_pending: false,
           new_project_name: "",
           selected_project_id: Some(project.id),

@@ -53,18 +53,6 @@ fn can_send(model : Model) -> Bool {
 }
 
 ///|
-fn can_save_ai_settings(model : Model) -> Bool {
-  let has_key = match model.current_user {
-    Some(user) => user.ai_api_key_configured || model.account_ai_api_key != ""
-    None => false
-  }
-  model.account_ai_provider != "" &&
-  model.account_ai_model.trim() != "" &&
-  has_key &&
-  !model.account_pending
-}
-
-///|
 fn can_create_project(model : Model) -> Bool {
   model.current_user is Some(_) &&
   model.new_project_name.trim() != "" &&
@@ -82,19 +70,6 @@ fn can_rename_project(model : Model) -> Bool {
     }
     None => false
   }
-}
-
-///|
-fn model_options_include(
-  items : Array[@sdk.ModelOption],
-  model_id : String,
-) -> Bool {
-  for item in items {
-    if item.id == model_id {
-      return true
-    }
-  }
-  false
 }
 
 ///|
@@ -184,7 +159,6 @@ fn clear_workspace(model : Model) -> Model {
     run_events: [],
     last_run_event_seq: 0,
     run_spinner_tick: 0,
-    active_page: AppWorkspace,
     draft: "",
     new_project_name: "",
     create_project_pending: false,
@@ -211,24 +185,7 @@ fn apply_session(model : Model, session : @sdk.SessionResponse) -> Model {
     github_enabled: session.github_enabled,
     app_mode: session.app_mode,
     logout_pending: false,
-    account_pending: false,
-    account_ai_provider: match session.user {
-      Some(user) => user.ai_provider
-      None => "openai"
-    },
-    account_ai_model: match session.user {
-      Some(user) => user.ai_model
-      None => "gpt-5.5"
-    },
-    account_ai_api_key: "",
-    account_model_options: [],
-    account_model_options_pending: false,
     auth_notice: None,
-    active_page: if session.authenticated {
-      model.active_page
-    } else {
-      AppWorkspace
-    },
   }
 }
 
@@ -244,13 +201,8 @@ fn auth_recovery(
       ..clear_workspace(model),
       current_user: None,
       logout_pending: false,
-      account_ai_provider: "openai",
-      account_ai_model: "gpt-5.5",
-      account_ai_api_key: "",
-      account_pending: false,
       account_notice: None,
       account_panel_open: false,
-      active_page: AppWorkspace,
       auth_notice: Some(message),
     },
   )

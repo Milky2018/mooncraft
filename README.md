@@ -10,7 +10,7 @@ Users describe what they want, Mooncraft updates the app, and the browser shows 
 - Build apps through a chat workspace.
 - Show the generated app in a live preview panel.
 - Keep project ownership separated between signed-in users.
-- Let each user configure their own LLM provider and API key.
+- Run project builds through an admin-managed OpenRouter key pool.
 
 ## Run Locally
 

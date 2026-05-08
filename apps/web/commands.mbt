@@ -138,28 +138,3 @@ fn load_run_events_cmd(
 fn logout_cmd(dispatch : @rabbita.Dispatch[Msg]) -> @rabbita.Cmd {
   post_empty(@sdk.logout_path(), fn(result) { dispatch(LoggedOut(result)) })
 }
-
-///|
-fn save_ai_settings_cmd(
-  dispatch : @rabbita.Dispatch[Msg],
-  model : Model,
-) -> @rabbita.Cmd {
-  let payload : @sdk.UpdateAiSettingsRequest = {
-    provider: model.account_ai_provider,
-    model: model.account_ai_model,
-    api_key: model.account_ai_api_key,
-  }
-  put_json(@sdk.ai_settings_path(), payload, fn(result) {
-    dispatch(AiSettingsSaved(result))
-  })
-}
-
-///|
-fn load_model_options_cmd(
-  dispatch : @rabbita.Dispatch[Msg],
-  provider : String,
-) -> @rabbita.Cmd {
-  get_json(@sdk.ai_model_options_path(provider), fn(result) {
-    dispatch(ModelOptionsLoaded(provider, result))
-  })
-}

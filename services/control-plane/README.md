@@ -21,7 +21,7 @@ The current `AgentGateway` uses Docker-backed Codex CLI runs. Each project keeps
 
 Workspace directories are no longer durable state. The control plane saves the latest source archive in SQLite after initial workspace generation and after Codex edits. Each run hydrates that database snapshot into an isolated runtime workspace before starting Codex, then restores the local preview cache from the saved snapshot.
 
-Codex session directories are durable app data, not host user state. Mooncraft does not mount a developer's local Codex home, and API keys are injected from encrypted user account settings instead of being read from `CODEX_HOME`. Deleting a project removes its workspace cache, artifacts, database rows, and `data/codex-sessions/<project-id>`.
+Codex session directories are durable app data, not host user state. Mooncraft does not mount a developer's local Codex home, and AI credentials are leased from the admin-managed OpenRouter key pool for one active run at a time. Deleting a project removes its workspace cache, artifacts, database rows, and `data/codex-sessions/<project-id>`.
 
 The legacy `data/projects` workspace root is cleaned at startup. It is not used as a restore fallback, because generated files must come from the database snapshot or be treated as unavailable.
 
@@ -74,8 +74,8 @@ Required Codex runtime configuration:
 
 The default runtime image is `docker.io/moonbitcloud/codex:codex-0.125.0-node24`. Override it through `MOONCRAFT_CODEX_DOCKER_IMAGE` when testing local images, PR images, rollbacks, or digest-pinned production deployments.
 
-The runtime intentionally does not mount a host Codex home and the platform no longer reads a deployment-level OpenAI key. Each platform user configures OpenAI or OpenRouter, model, and API key in Account settings. The worker passes that user's key into the isolated Codex container only for the active run.
+The runtime intentionally does not mount a host Codex home and users do not configure provider keys. Admins configure OpenRouter keys through `/admin`; the API stores the key value, returns only a masked hint, and the worker passes one leased key into the isolated Codex container only for the active run.
 
 Use `just codex-config` to inspect the effective runtime configuration. Build the runtime image locally with `just build-codex-image` and publish the shared multi-arch runtime image with `just docker-codex-publish` after `docker login`.
 
-Use `MOONCRAFT_CODEX_SMOKE_API_KEY=... just codex-smoke` from the repository root only when you intentionally want to spend real Codex quota on an end-to-end Docker-backed build. Optional smoke overrides are `MOONCRAFT_CODEX_SMOKE_PROVIDER` and `MOONCRAFT_CODEX_SMOKE_MODEL`.
+Use `OPENROUTER_API_KEY=... just codex-smoke` from the repository root only when you intentionally want to spend real OpenRouter quota on an end-to-end Docker-backed build. The smoke script writes the key through the admin API after startup; it does not configure Mooncraft through service environment variables. Optional smoke overrides are `MOONCRAFT_CODEX_SMOKE_KEY_REF` and `MOONCRAFT_CODEX_SMOKE_MODEL`.

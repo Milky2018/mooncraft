@@ -4,20 +4,27 @@ set -euo pipefail
 default_codex_image="${1:-docker.io/moonbitcloud/codex:codex-0.125.0-node24}"
 codex_image="${MOONCRAFT_CODEX_DOCKER_IMAGE:-$default_codex_image}"
 export MOONCRAFT_CODEX_DOCKER_IMAGE="$codex_image"
-codex_provider="${MOONCRAFT_CODEX_SMOKE_PROVIDER:-openai}"
-codex_model="${MOONCRAFT_CODEX_SMOKE_MODEL:-gpt-5.5}"
-codex_api_key="${MOONCRAFT_CODEX_SMOKE_API_KEY:-}"
+codex_model="${MOONCRAFT_CODEX_SMOKE_MODEL:-anthropic/claude-sonnet-4.5}"
+if [[ -n "${MOONCRAFT_CODEX_SMOKE_KEY_REF:-}" ]]; then
+  codex_key_ref="$MOONCRAFT_CODEX_SMOKE_KEY_REF"
+elif [[ -n "${MOONCRAFT_CODEX_SMOKE_API_KEY:-}" ]]; then
+  codex_key_ref="MOONCRAFT_CODEX_SMOKE_API_KEY"
+else
+  codex_key_ref="OPENROUTER_API_KEY"
+fi
+codex_api_key="${!codex_key_ref:-}"
+admin_token="${MOONCRAFT_CODEX_SMOKE_ADMIN_TOKEN:-codex-smoke-admin-token}"
 
 echo "Using Codex Docker image: $codex_image"
-echo "Using Codex provider: $codex_provider"
-echo "Using Codex model: $codex_model"
+echo "Using OpenRouter model: $codex_model"
+echo "Loading OpenRouter key from local shell variable: $codex_key_ref"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "docker is required for the real Codex smoke test." >&2
   exit 1
 fi
 if [[ -z "$codex_api_key" ]]; then
-  echo "MOONCRAFT_CODEX_SMOKE_API_KEY is required for the real Codex smoke test. The test stores it through the user AI settings API before starting a run." >&2
+  echo "Set $codex_key_ref or MOONCRAFT_CODEX_SMOKE_KEY_REF to an environment variable containing an OpenRouter API key." >&2
   exit 1
 fi
 
@@ -84,8 +91,10 @@ wait_for_ok() {
 
 trap cleanup EXIT
 
-MOONCRAFT_CODEX_FAKE_MODE= \
+env \
+  MOONCRAFT_CODEX_FAKE_MODE= \
   MOONCRAFT_ENABLE_DEV_AUTH=1 \
+  MOONCRAFT_ADMIN_TOKEN="$admin_token" \
   MOONCRAFT_PORT="$port" \
   moon -C . run --target native services/control-plane >"$log_file" 2>&1 &
 server_pid=$!
@@ -98,19 +107,22 @@ for _ in {1..60}; do
 done
 curl -fsS "$base_url/api/health" | grep -q '"ok":true' || fail "The control plane did not become healthy on port $port."
 
+admin_header=(-H "Authorization: Bearer $admin_token" -H 'Content-Type: application/json')
+curl -fsS "${admin_header[@]}" \
+  -X PUT "$base_url/api/admin/ai/config" \
+  --data-binary "{\"default_model\":\"$codex_model\",\"allowed_models\":[\"$codex_model\"]}" \
+  >/dev/null || fail "Saving admin AI runtime config failed."
+curl -fsS "${admin_header[@]}" \
+  -X POST "$base_url/api/admin/ai/keys" \
+  --data-binary "{\"label\":\"Codex smoke key\",\"api_key\":\"$codex_api_key\",\"priority\":100}" \
+  >/dev/null || fail "Saving admin OpenRouter key failed."
+
 user_email="codex-smoke-$(date +%s)-$$@example.com"
 curl -fsS -c "$user_cookie" -b "$user_cookie" \
   -X POST "$base_url/api/dev/auth/session" \
   -H 'Content-Type: application/json' \
   -d "{\"email\":\"$user_email\",\"display_name\":\"Codex Smoke\"}" \
   | grep -q "\"email\":\"$user_email\"" || fail "Development sign-in failed."
-
-settings_payload="{\"provider\":\"$codex_provider\",\"model\":\"$codex_model\",\"api_key\":\"$codex_api_key\"}"
-curl -fsS -c "$user_cookie" -b "$user_cookie" \
-  -X PUT "$base_url/api/account/ai-settings" \
-  -H 'Content-Type: application/json' \
-  --data-binary "$settings_payload" \
-  | grep -q '"api_key_configured":true' || fail "Saving user AI settings failed."
 
 create_response="$(curl -fsS -c "$user_cookie" -b "$user_cookie" -X POST "$base_url/api/projects" -H 'Content-Type: application/json' -d '{"display_name":"Codex Todo Smoke"}')"
 project_id="$(printf '%s' "$create_response" | sed -n 's/.*"project":{"id":"\([^"]*\)".*/\1/p')"

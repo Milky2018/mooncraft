@@ -6,206 +6,593 @@ struct AiRuntimeSettings {
 }
 
 ///|
-struct AiCredentialSettings {
-  provider : String
-  api_key : String
-}
-
-///|
-fn default_ai_provider() -> String {
-  "openai"
-}
-
-///|
-fn default_openai_model() -> String {
-  "gpt-5.5"
-}
-
-///|
 fn default_openrouter_model() -> String {
   "anthropic/claude-sonnet-4.5"
 }
 
 ///|
-fn normalize_ai_provider(provider : String) -> Result[String, String] {
-  match provider.trim().to_owned().to_lower() {
-    "openai" => Ok("openai")
-    "openrouter" => Ok("openrouter")
-    _ => Err("AI provider must be either openai or openrouter.")
+fn normalize_ai_key_status(status : String) -> Result[String, String] {
+  match status.trim().to_owned().to_lower() {
+    "active" => Ok("active")
+    "disabled" => Ok("disabled")
+    "exhausted" => Ok("exhausted")
+    "error" => Ok("error")
+    _ => Err("AI key status must be active, disabled, exhausted, or error.")
   }
 }
 
 ///|
-fn normalized_ai_model(provider : String, model : String) -> String {
+fn normalize_openrouter_model(model : String) -> String {
   let trimmed = model.trim().to_owned()
-  if trimmed != "" {
-    trimmed
-  } else if provider == "openrouter" {
+  if trimmed == "" {
     default_openrouter_model()
   } else {
-    default_openai_model()
+    trimmed
   }
 }
 
 ///|
-fn ai_settings_response_from_row(
-  row : Map[String, @db.Param],
-) -> @sdk.AiSettingsResponse {
-  let provider = normalize_ai_provider(row_text(row, "ai_provider")).unwrap_or(
-    default_ai_provider(),
+fn normalize_allowed_models(models : Array[String]) -> Array[String] {
+  let result : Array[String] = []
+  for model in models {
+    let normalized = model.trim().to_owned()
+    if normalized != "" && !result.contains(normalized) {
+      result.push(normalized)
+    }
+  }
+  result
+}
+
+///|
+fn allowed_models_to_db(models : Array[String]) -> String {
+  normalize_allowed_models(models).join("\n")
+}
+
+///|
+fn allowed_models_from_db(value : String) -> Array[String] {
+  normalize_allowed_models(
+    value.split("\n").to_array().map(fn(line) { line.to_owned() }),
   )
+}
+
+///|
+fn ai_key_hint(secret : String) -> String {
+  let trimmed = secret.trim().to_owned()
+  if trimmed.length() <= 4 {
+    "saved key"
+  } else {
+    "**** " + trimmed[trimmed.length() - 4:].to_owned()
+  }
+}
+
+///|
+fn admin_ai_key_from_row(
+  row : Map[String, @db.Param],
+) -> @sdk.AdminAiKeySummary {
   {
-    provider,
-    model: normalized_ai_model(provider, row_text(row, "ai_model")),
-    api_key_configured: row_text(row, "ai_api_key") != "",
+    id: row_text(row, "id"),
+    provider: row_text(row, "provider"),
+    label: row_text(row, "label"),
+    key_hint: row_text(row, "key_hint"),
+    status: row_text(row, "status"),
+    priority: row_int(row, "priority"),
+    last_used_at: empty_to_none(row_text(row, "last_used_at")),
+    last_error: empty_to_none(row_text(row, "last_error")),
+    created_at: row_text(row, "created_at"),
+    updated_at: row_text(row, "updated_at"),
   }
 }
 
 ///|
-async fn Store::get_ai_settings(
-  self : Store,
-  user_id : String,
-) -> @sdk.AiSettingsResponse? noraise {
-  match
-    self.query_one(
-      (
-        #|SELECT
-        #|  COALESCE(ai_provider, 'openai') AS ai_provider,
-        #|  COALESCE(ai_model, '') AS ai_model,
-        #|  COALESCE(ai_api_key, '') AS ai_api_key
-        #|FROM users
-        #|WHERE id = ?;
-      ),
-      params=[String(user_id)],
-    ) {
-    Some(row) => Some(ai_settings_response_from_row(row))
-    None => None
+fn admin_ai_key_usage_from_row(
+  row : Map[String, @db.Param],
+) -> @sdk.AdminAiKeyUsageSummary {
+  {
+    id: row_text(row, "id"),
+    key_id: row_text(row, "key_id"),
+    run_id: row_text(row, "run_id"),
+    project_id: row_text(row, "project_id"),
+    user_id: row_text(row, "user_id"),
+    model: row_text(row, "model"),
+    state: row_text(row, "state"),
+    error_code: empty_to_none(row_text(row, "error_code")),
+    started_at: row_text(row, "started_at"),
+    finished_at: empty_to_none(row_text(row, "finished_at")),
   }
 }
 
 ///|
-async fn Store::get_ai_credential_settings(
+async fn Store::get_admin_ai_config(
   self : Store,
-  user_id : String,
-) -> AiCredentialSettings? noraise {
+) -> @sdk.AdminAiConfigResponse noraise {
   match
     self.query_one(
       (
         #|SELECT
-        #|  COALESCE(ai_provider, 'openai') AS ai_provider,
-        #|  COALESCE(ai_model, '') AS ai_model,
-        #|  COALESCE(ai_api_key, '') AS ai_api_key
-        #|FROM users
+        #|  COALESCE(default_model, '') AS default_model,
+        #|  COALESCE(allowed_models, '') AS allowed_models,
+        #|  updated_at
+        #|FROM ai_runtime_config
         #|WHERE id = ?;
       ),
-      params=[String(user_id)],
+      params=[String("default")],
     ) {
     Some(row) => {
-      let provider = normalize_ai_provider(row_text(row, "ai_provider")).unwrap_or(
-        default_ai_provider(),
+      let default_model = normalize_openrouter_model(
+        row_text(row, "default_model"),
       )
-      Some({ provider, api_key: row_text(row, "ai_api_key") })
+      let allowed_models = allowed_models_from_db(
+        row_text(row, "allowed_models"),
+      )
+      {
+        default_model,
+        allowed_models: if allowed_models.length() == 0 {
+          [default_model]
+        } else {
+          allowed_models
+        },
+        updated_at: row_text(row, "updated_at"),
+      }
     }
-    None => None
+    None =>
+      {
+        default_model: default_openrouter_model(),
+        allowed_models: [default_openrouter_model()],
+        updated_at: now_string(),
+      }
   }
 }
 
 ///|
-async fn Store::update_ai_settings(
+async fn Store::update_admin_ai_config(
   self : Store,
-  user_id : String,
-  provider_input : String,
-  model_input : String,
-  api_key_input : String,
-) -> Result[@sdk.AiSettingsResponse, String] noraise {
-  let provider = match normalize_ai_provider(provider_input) {
-    Ok(provider) => provider
-    Err(message) => return Err(message)
-  }
-  let model = normalized_ai_model(provider, model_input)
-  let existing = match
-    self.query_one(
-      (
-        #|SELECT COALESCE(ai_api_key, '') AS ai_api_key
-        #|FROM users
-        #|WHERE id = ?;
-      ),
-      params=[String(user_id)],
-    ) {
-    Some(row) => row_text(row, "ai_api_key")
-    None => return Err("User not found.")
-  }
-  let api_key = if api_key_input.trim() == "" {
-    existing
+  default_model_input : String,
+  allowed_models_input : Array[String],
+) -> Result[@sdk.AdminAiConfigResponse, String] noraise {
+  let default_model = normalize_openrouter_model(default_model_input)
+  let allowed_models = normalize_allowed_models(allowed_models_input)
+  let persisted_allowed = if allowed_models.length() == 0 {
+    [default_model]
+  } else if allowed_models.contains(default_model) {
+    allowed_models
   } else {
-    api_key_input.trim().to_owned()
+    let next = [default_model]
+    for model in allowed_models {
+      next.push(model)
+    }
+    next
   }
-  if api_key == "" {
-    return Err("API key is required before building apps with AI.")
-  }
+  let now = now_string()
   match
     self.exec_or_error(
       (
-        #|UPDATE users
-        #|SET ai_provider = ?,
-        #|    ai_model = ?,
-        #|    ai_api_key = ?,
-        #|    updated_at = ?
-        #|WHERE id = ?;
+        #|INSERT INTO ai_runtime_config (
+        #|  id,
+        #|  default_model,
+        #|  allowed_models,
+        #|  updated_at
+        #|) VALUES (?, ?, ?, ?)
+        #|ON CONFLICT(id) DO UPDATE SET
+        #|  default_model = excluded.default_model,
+        #|  allowed_models = excluded.allowed_models,
+        #|  updated_at = excluded.updated_at;
       ),
-      "update user AI settings",
+      "update AI runtime config",
       params=[
-        String(provider),
-        String(model),
-        String(api_key),
-        String(now_string()),
-        String(user_id),
+        String("default"),
+        String(default_model),
+        String(allowed_models_to_db(persisted_allowed)),
+        String(now),
       ],
     ) {
     Ok(_) =>
-      match self.get_ai_settings(user_id) {
-        Some(settings) => Ok(settings)
-        None => Err("The AI settings were saved but could not be loaded.")
+      Ok({ default_model, allowed_models: persisted_allowed, updated_at: now })
+    Err(message) => Err(message)
+  }
+}
+
+///|
+async fn Store::list_admin_ai_keys(
+  self : Store,
+) -> Array[@sdk.AdminAiKeySummary] noraise {
+  let rows = self.query_rows(
+    (
+      #|SELECT
+      #|  id,
+      #|  provider,
+      #|  label,
+      #|  COALESCE(key_hint, '') AS key_hint,
+      #|  status,
+      #|  priority,
+      #|  COALESCE(last_used_at, '') AS last_used_at,
+      #|  COALESCE(last_error, '') AS last_error,
+      #|  created_at,
+      #|  updated_at
+      #|FROM ai_keys
+      #|ORDER BY priority DESC, created_at ASC;
+    ),
+  )
+  let items : Array[@sdk.AdminAiKeySummary] = []
+  for row in rows {
+    items.push(admin_ai_key_from_row(row))
+  }
+  items
+}
+
+///|
+async fn Store::create_admin_ai_key(
+  self : Store,
+  label_input : String,
+  api_key_input : String,
+  priority : Int,
+) -> Result[@sdk.AdminAiKeySummary, String] noraise {
+  let label = label_input.trim().to_owned()
+  let api_key = api_key_input.trim().to_owned()
+  if label == "" {
+    return Err("AI key label is required.")
+  }
+  if api_key == "" {
+    return Err("OpenRouter API key is required.")
+  }
+  let id = next_id("ai-key")
+  let now = now_string()
+  let insert_result = match self.column_exists("ai_keys", "key_env_ref") {
+    Ok(true) =>
+      self.exec_or_error(
+        (
+          #|INSERT INTO ai_keys (
+          #|  id,
+          #|  provider,
+          #|  label,
+          #|  key_secret,
+          #|  key_hint,
+          #|  key_env_ref,
+          #|  status,
+          #|  priority,
+          #|  created_at,
+          #|  updated_at
+          #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        ),
+        "create AI key",
+        params=[
+          String(id),
+          String("openrouter"),
+          String(label),
+          String(api_key),
+          String(ai_key_hint(api_key)),
+          String(id),
+          String("active"),
+          Int(priority),
+          String(now),
+          String(now),
+        ],
+      )
+    _ =>
+      self.exec_or_error(
+        (
+          #|INSERT INTO ai_keys (
+          #|  id,
+          #|  provider,
+          #|  label,
+          #|  key_secret,
+          #|  key_hint,
+          #|  status,
+          #|  priority,
+          #|  created_at,
+          #|  updated_at
+          #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+        ),
+        "create AI key",
+        params=[
+          String(id),
+          String("openrouter"),
+          String(label),
+          String(api_key),
+          String(ai_key_hint(api_key)),
+          String("active"),
+          Int(priority),
+          String(now),
+          String(now),
+        ],
+      )
+  }
+  match insert_result {
+    Ok(_) =>
+      match self.get_admin_ai_key(id) {
+        Some(key) => Ok(key)
+        None => Err("The AI key was saved but could not be loaded.")
       }
     Err(message) => Err(message)
   }
 }
 
 ///|
-async fn Store::get_ai_runtime_settings_for_project(
+async fn Store::get_admin_ai_key(
   self : Store,
-  project_id : String,
-) -> Result[AiRuntimeSettings, String] noraise {
+  id : String,
+) -> @sdk.AdminAiKeySummary? noraise {
   match
     self.query_one(
       (
         #|SELECT
-        #|  COALESCE(u.ai_provider, 'openai') AS ai_provider,
-        #|  COALESCE(u.ai_model, '') AS ai_model,
-        #|  COALESCE(u.ai_api_key, '') AS ai_api_key
-        #|FROM projects p
-        #|JOIN users u ON u.id = p.owner_user_id
-        #|WHERE p.id = ?;
+        #|  id,
+        #|  provider,
+        #|  label,
+        #|  COALESCE(key_hint, '') AS key_hint,
+        #|  status,
+        #|  priority,
+        #|  COALESCE(last_used_at, '') AS last_used_at,
+        #|  COALESCE(last_error, '') AS last_error,
+        #|  created_at,
+        #|  updated_at
+        #|FROM ai_keys
+        #|WHERE id = ?;
+      ),
+      params=[String(id)],
+    ) {
+    Some(row) => Some(admin_ai_key_from_row(row))
+    None => None
+  }
+}
+
+///|
+async fn Store::update_admin_ai_key(
+  self : Store,
+  id : String,
+  label_input : String,
+  api_key_input : String,
+  status_input : String,
+  priority : Int,
+) -> Result[@sdk.AdminAiKeySummary, String] noraise {
+  let existing = match self.get_admin_ai_key(id) {
+    Some(key) => key
+    None => return Err("AI key not found.")
+  }
+  let label = if label_input.trim() == "" {
+    existing.label
+  } else {
+    label_input.trim().to_owned()
+  }
+  let api_key = api_key_input.trim().to_owned()
+  let status = match normalize_ai_key_status(status_input) {
+    Ok(value) => value
+    Err(message) => return Err(message)
+  }
+  let update_result = if api_key == "" {
+    self.exec_or_error(
+      (
+        #|UPDATE ai_keys
+        #|SET label = ?,
+        #|    status = ?,
+        #|    priority = ?,
+        #|    updated_at = ?
+        #|WHERE id = ?;
+      ),
+      "update AI key",
+      params=[
+        String(label),
+        String(status),
+        Int(priority),
+        String(now_string()),
+        String(id),
+      ],
+    )
+  } else {
+    self.exec_or_error(
+      (
+        #|UPDATE ai_keys
+        #|SET label = ?,
+        #|    key_secret = ?,
+        #|    key_hint = ?,
+        #|    status = ?,
+        #|    priority = ?,
+        #|    last_error = NULL,
+        #|    updated_at = ?
+        #|WHERE id = ?;
+      ),
+      "update AI key",
+      params=[
+        String(label),
+        String(api_key),
+        String(ai_key_hint(api_key)),
+        String(status),
+        Int(priority),
+        String(now_string()),
+        String(id),
+      ],
+    )
+  }
+  match update_result {
+    Ok(_) =>
+      match self.get_admin_ai_key(id) {
+        Some(key) => Ok(key)
+        None => Err("The AI key was updated but could not be loaded.")
+      }
+    Err(message) => Err(message)
+  }
+}
+
+///|
+async fn Store::delete_admin_ai_key(
+  self : Store,
+  id : String,
+) -> Result[Unit, String] noraise {
+  if self.get_admin_ai_key(id) is None {
+    return Err("AI key not found.")
+  }
+  self.exec_or_error("DELETE FROM ai_keys WHERE id = ?;", "delete AI key", params=[
+    String(id),
+  ])
+}
+
+///|
+async fn Store::list_recent_ai_key_usages(
+  self : Store,
+  limit : Int,
+) -> Array[@sdk.AdminAiKeyUsageSummary] noraise {
+  let rows = self.query_rows(
+    (
+      #|SELECT
+      #|  id,
+      #|  key_id,
+      #|  run_id,
+      #|  project_id,
+      #|  user_id,
+      #|  model,
+      #|  state,
+      #|  COALESCE(error_code, '') AS error_code,
+      #|  started_at,
+      #|  COALESCE(finished_at, '') AS finished_at
+      #|FROM ai_key_usages
+      #|ORDER BY started_at DESC
+      #|LIMIT ?;
+    ),
+    params=[Int(limit)],
+  )
+  let items : Array[@sdk.AdminAiKeyUsageSummary] = []
+  for row in rows {
+    items.push(admin_ai_key_usage_from_row(row))
+  }
+  items
+}
+
+///|
+async fn Store::finish_ai_key_usage(
+  self : Store,
+  run_id : String,
+  state : String,
+  error_code : String?,
+) -> Unit noraise {
+  ignore(
+    self.exec_or_error(
+      (
+        #|UPDATE ai_key_usages
+        #|SET state = ?,
+        #|    error_code = ?,
+        #|    finished_at = ?
+        #|WHERE run_id = ? AND finished_at IS NULL;
+      ),
+      "finish AI key usage",
+      params=[
+        String(state),
+        nullable_text_param(error_code),
+        String(now_string()),
+        String(run_id),
+      ],
+    ),
+  )
+}
+
+///|
+async fn Store::lease_ai_runtime_settings_for_project(
+  self : Store,
+  project_id : String,
+  run_id : String,
+) -> Result[AiRuntimeSettings, String] noraise {
+  let project = match
+    self.query_one(
+      (
+        #|SELECT owner_user_id
+        #|FROM projects
+        #|WHERE id = ?;
       ),
       params=[String(project_id)],
     ) {
-    Some(row) => {
-      let provider = match normalize_ai_provider(row_text(row, "ai_provider")) {
-        Ok(provider) => provider
-        Err(message) => return Err(message)
-      }
-      let api_key = row_text(row, "ai_api_key").trim().to_owned()
-      if api_key == "" {
-        return Err(
-          "Configure your AI provider and API key in Account before building apps.",
-        )
-      }
-      Ok({
-        provider,
-        model: normalized_ai_model(provider, row_text(row, "ai_model")),
-        api_key,
-      })
-    }
-    None => Err("The project owner could not be loaded for this run.")
+    Some(row) => row
+    None => return Err("The project owner could not be loaded for this run.")
   }
+  let config = self.get_admin_ai_config()
+  let row = match
+    self.query_one(
+      (
+        #|SELECT
+        #|  id,
+        #|  COALESCE(key_secret, '') AS key_secret
+        #|FROM ai_keys
+        #|WHERE provider = ? AND status = ?
+        #|  AND COALESCE(key_secret, '') <> ''
+        #|ORDER BY priority DESC, COALESCE(last_used_at, '') ASC, created_at ASC
+        #|LIMIT 1;
+      ),
+      params=[String("openrouter"), String("active")],
+    ) {
+    Some(row) => row
+    None =>
+      return Err(
+        "Mooncraft's AI service is not configured with an active OpenRouter key.",
+      )
+  }
+  let key_id = row_text(row, "id")
+  let api_key = row_text(row, "key_secret").trim().to_owned()
+  if api_key == "" {
+    ignore(self.mark_ai_key_error(key_id, "Stored OpenRouter key is missing."))
+    return Err("Mooncraft's AI service key is not available on this server.")
+  }
+  let usage_id = next_id("ai-usage")
+  let now = now_string()
+  ignore(
+    self.exec_or_error(
+      (
+        #|INSERT INTO ai_key_usages (
+        #|  id,
+        #|  key_id,
+        #|  run_id,
+        #|  project_id,
+        #|  user_id,
+        #|  model,
+        #|  state,
+        #|  started_at
+        #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+      ),
+      "record AI key usage",
+      params=[
+        String(usage_id),
+        String(key_id),
+        String(run_id),
+        String(project_id),
+        String(row_text(project, "owner_user_id")),
+        String(config.default_model),
+        String("started"),
+        String(now),
+      ],
+    ),
+  )
+  ignore(
+    self.exec_or_error(
+      (
+        #|UPDATE ai_keys
+        #|SET last_used_at = ?,
+        #|    last_error = NULL,
+        #|    updated_at = ?
+        #|WHERE id = ?;
+      ),
+      "mark AI key usage",
+      params=[String(now), String(now), String(key_id)],
+    ),
+  )
+  Ok({ provider: "openrouter", model: config.default_model, api_key })
+}
+
+///|
+async fn Store::mark_ai_key_error(
+  self : Store,
+  key_id : String,
+  message : String,
+) -> Result[Unit, String] noraise {
+  self.exec_or_error(
+    (
+      #|UPDATE ai_keys
+      #|SET status = ?,
+      #|    last_error = ?,
+      #|    updated_at = ?
+      #|WHERE id = ?;
+    ),
+    "mark AI key error",
+    params=[
+      String("error"),
+      String(message),
+      String(now_string()),
+      String(key_id),
+    ],
+  )
 }

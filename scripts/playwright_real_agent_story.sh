@@ -7,14 +7,25 @@ playwright_version="${MOONCRAFT_PLAYWRIGHT_VERSION:-1.56.1}"
 artifact_root="${MOONCRAFT_PLAYWRIGHT_OUTPUT_DIR:-output/playwright/real-agent-story}"
 run_stamp="$(date +%Y%m%d-%H%M%S)"
 artifact_dir="${artifact_root}/${run_stamp}"
-provider="${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_PROVIDER:-${MOONCRAFT_CODEX_SMOKE_PROVIDER:-openrouter}}"
-model="${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_MODEL:-${MOONCRAFT_CODEX_SMOKE_MODEL:-openai/gpt-5.5}}"
-api_key="${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_API_KEY:-${MOONCRAFT_CODEX_SMOKE_API_KEY:-}}"
+model="${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_MODEL:-${MOONCRAFT_CODEX_SMOKE_MODEL:-anthropic/claude-sonnet-4.5}}"
+if [[ -n "${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_KEY_REF:-}" ]]; then
+  key_ref="$MOONCRAFT_PLAYWRIGHT_REAL_AGENT_KEY_REF"
+elif [[ -n "${MOONCRAFT_CODEX_SMOKE_KEY_REF:-}" ]]; then
+  key_ref="$MOONCRAFT_CODEX_SMOKE_KEY_REF"
+elif [[ -n "${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_API_KEY:-}" ]]; then
+  key_ref="MOONCRAFT_PLAYWRIGHT_REAL_AGENT_API_KEY"
+elif [[ -n "${MOONCRAFT_CODEX_SMOKE_API_KEY:-}" ]]; then
+  key_ref="MOONCRAFT_CODEX_SMOKE_API_KEY"
+else
+  key_ref="OPENROUTER_API_KEY"
+fi
+api_key="${!key_ref:-}"
 codex_image="${MOONCRAFT_CODEX_DOCKER_IMAGE:-docker.io/moonbitcloud/codex:codex-0.125.0-node24}"
+admin_token="${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_ADMIN_TOKEN:-playwright-real-agent-admin-token}"
 
 if [[ -z "$api_key" ]]; then
-  echo "MOONCRAFT_PLAYWRIGHT_REAL_AGENT_API_KEY is required." >&2
-  echo "This browser story uses a real provider-backed Codex run and is intentionally opt-in." >&2
+  echo "Set $key_ref or MOONCRAFT_PLAYWRIGHT_REAL_AGENT_KEY_REF to an environment variable containing an OpenRouter API key." >&2
+  echo "This browser story uses a real platform-managed AI key and is intentionally opt-in." >&2
   exit 1
 fi
 
@@ -70,9 +81,7 @@ const { chromium } = require("playwright")
 
 const baseUrl = process.env.MOONCRAFT_PLAYWRIGHT_BASE_URL
 const artifactDir = process.env.MOONCRAFT_PLAYWRIGHT_ARTIFACT_DIR
-const provider = process.env.MOONCRAFT_PLAYWRIGHT_REAL_AGENT_PROVIDER
 const model = process.env.MOONCRAFT_PLAYWRIGHT_REAL_AGENT_MODEL
-const apiKey = process.env.MOONCRAFT_PLAYWRIGHT_REAL_AGENT_API_KEY
 const timeoutSeconds = Number(process.env.MOONCRAFT_PLAYWRIGHT_REAL_AGENT_TIMEOUT_SECONDS || "1800")
 const expectedPreviewTerms = (process.env.MOONCRAFT_PLAYWRIGHT_REAL_AGENT_EXPECTED_TERMS || "counter,increment,reset")
   .split(",")
@@ -81,9 +90,7 @@ const expectedPreviewTerms = (process.env.MOONCRAFT_PLAYWRIGHT_REAL_AGENT_EXPECT
 
 if (!baseUrl) throw new Error("MOONCRAFT_PLAYWRIGHT_BASE_URL is required")
 if (!artifactDir) throw new Error("MOONCRAFT_PLAYWRIGHT_ARTIFACT_DIR is required")
-if (!provider) throw new Error("MOONCRAFT_PLAYWRIGHT_REAL_AGENT_PROVIDER is required")
 if (!model) throw new Error("MOONCRAFT_PLAYWRIGHT_REAL_AGENT_MODEL is required")
-if (!apiKey) throw new Error("MOONCRAFT_PLAYWRIGHT_REAL_AGENT_API_KEY is required")
 
 const screenshot = (name) => path.join(artifactDir, name)
 const prompt = process.env.MOONCRAFT_PLAYWRIGHT_REAL_AGENT_PROMPT ||
@@ -139,17 +146,7 @@ async function main() {
     }
     await page.reload({ waitUntil: "domcontentloaded" })
     await page.getByRole("button", { name: /Real Agent Tester/ }).waitFor()
-    await page.evaluate(async ({ provider, model, apiKey }) => {
-      const response = await fetch("/api/account/ai-settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider, model, api_key: apiKey }),
-      })
-      if (!response.ok) throw new Error(`AI settings failed with HTTP ${response.status}`)
-      const settings = await response.json()
-      if (!settings.api_key_configured) throw new Error("AI settings did not persist an API key")
-    }, { provider, model, apiKey })
-    screenshots.push(screenshot("02-ai-settings-configured.png"))
+    screenshots.push(screenshot("02-signed-in.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
 
     await page.getByPlaceholder("Project name").first().fill("Snake Game")
@@ -206,7 +203,7 @@ async function main() {
 
 - Result: Passed
 - App URL: \`${baseUrl}\`
-- Provider: \`${provider}\`
+- Provider: \`OpenRouter (platform key pool)\`
 - Model: \`${model}\`
 - User: \`${email}\`
 - Project ID: \`${projectId}\`
@@ -218,7 +215,6 @@ async function main() {
 ## Assertions
 
 - Development sign-in succeeds.
-- User-scoped AI settings are saved without storing provider secrets in this report.
 - Browser prompt starts a real Docker-backed Codex run.
 - The run reaches \`Succeeded\`.
 - The project persists a Codex thread ID.
@@ -237,7 +233,6 @@ ${screenshots.map((shot, index) => `### ${index + 1}. ${path.basename(shot)}
       result: "passed",
       artifactDir,
       reportPath: path.join(artifactDir, "REPORT.md"),
-      provider,
       model,
       email,
       projectId,
@@ -252,7 +247,7 @@ ${screenshots.map((shot, index) => `### ${index + 1}. ${path.basename(shot)}
 
 - Result: Failed
 - App URL: \`${baseUrl}\`
-- Provider: \`${provider}\`
+- Provider: \`OpenRouter (platform key pool)\`
 - Model: \`${model}\`
 - Project ID: \`${projectId || "unknown"}\`
 - Run ID: \`${runId || "unknown"}\`
@@ -278,6 +273,7 @@ MOONCRAFT_APP_MODE="${MOONCRAFT_APP_MODE:-test}" \
 MOONCRAFT_BUILD_PROFILE=debug \
 MOONCRAFT_CODEX_FAKE_MODE= \
 MOONCRAFT_ENABLE_DEV_AUTH=1 \
+MOONCRAFT_ADMIN_TOKEN="$admin_token" \
 MOONCRAFT_CODEX_DOCKER_IMAGE="$codex_image" \
 moon -C . run --target native services/control-plane >"$log_file" 2>&1 &
 server_pid=$!
@@ -295,11 +291,19 @@ if ! curl -fsS "${base_url}/api/health" | grep -q '"ok":true'; then
   exit 1
 fi
 
+admin_header=(-H "Authorization: Bearer $admin_token" -H 'Content-Type: application/json')
+curl -fsS "${admin_header[@]}" \
+  -X PUT "${base_url}/api/admin/ai/config" \
+  --data-binary "{\"default_model\":\"$model\",\"allowed_models\":[\"$model\"]}" \
+  >/dev/null
+curl -fsS "${admin_header[@]}" \
+  -X POST "${base_url}/api/admin/ai/keys" \
+  --data-binary "{\"label\":\"Playwright real-agent key\",\"api_key\":\"$api_key\",\"priority\":100}" \
+  >/dev/null
+
 MOONCRAFT_PLAYWRIGHT_BASE_URL="$base_url" \
 MOONCRAFT_PLAYWRIGHT_ARTIFACT_DIR="$artifact_dir" \
-MOONCRAFT_PLAYWRIGHT_REAL_AGENT_PROVIDER="$provider" \
 MOONCRAFT_PLAYWRIGHT_REAL_AGENT_MODEL="$model" \
-MOONCRAFT_PLAYWRIGHT_REAL_AGENT_API_KEY="$api_key" \
   node "$runner_script" | tee "${artifact_dir}/result.json"
 
 echo "Playwright real-agent report: ${artifact_dir}/REPORT.md"

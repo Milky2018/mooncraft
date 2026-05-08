@@ -48,7 +48,7 @@ Last updated: 2026-04-29
 | TASK-020 | Playwright simple project story | The Playwright story is still a manual artifact run instead of an official `just` target that owns server startup, browser setup, screenshots, and cleanup. | DONE | Added `scripts/playwright_simple_project_story.sh` and `just playwright-story`; artifacts are saved under ignored `output/playwright/`. |
 | TASK-021 | Playwright simple project story | The browser story does not yet assert persistence after a full page refresh for project rail, chat history, and preview URL recovery. | DONE | The committed Playwright story reloads after two runs and asserts project rail, chat history, and preview URL persistence. |
 | TASK-022 | Playwright simple project story | There is no browser coverage for failed agent/build/fetch paths preserving the last successful preview with plain-English errors. | DONE | Added `MOONCRAFT_CODEX_FAKE_FAIL_CONTAINS` and extended `just playwright-story` to assert failed-run copy plus last-preview preservation. |
-| TASK-023 | Playwright simple project story | There is no browser-level real provider-backed Codex E2E; existing `codex-smoke` covers the HTTP API path only. | IN_PROGRESS | Added `scripts/playwright_real_agent_story.sh` and `just playwright-real-agent-story`; still needs an explicit live-provider run with `MOONCRAFT_PLAYWRIGHT_REAL_AGENT_API_KEY` before marking done. |
+| TASK-023 | Playwright simple project story | There is no browser-level real provider-backed Codex E2E; existing `codex-smoke` covers the HTTP API path only. | IN_PROGRESS | Added `scripts/playwright_real_agent_story.sh` and `just playwright-real-agent-story`; still needs an explicit live-provider run with an admin OpenRouter key before marking done. |
 
 ## Current Work Queue
 

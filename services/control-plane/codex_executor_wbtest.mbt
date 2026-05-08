@@ -366,13 +366,13 @@ test "github user profile parser accepts optional strings" {
 }
 
 ///|
-test "docker command receives user scoped AI settings" {
+test "docker command receives leased platform AI settings" {
   let config : CodexDockerConfig = {
     image: "codex:test",
     platform: "linux/amd64",
     provider: "openrouter",
     model: "openai/gpt-5.5",
-    api_key: "user-key",
+    api_key: "leased-key",
     container_home: "/root",
     container_data_dir: "/app/data",
     host_data_dir: Some("/srv/mooncraft/test/data"),
@@ -401,7 +401,7 @@ test "docker command receives user scoped AI settings" {
   )
   assert_false(args.contains("MOONCRAFT_AI_PROVIDER=openrouter"))
   assert_false(args.contains("MOONCRAFT_AI_MODEL=openai/gpt-5.5"))
-  assert_false(args.contains("MOONCRAFT_AI_API_KEY=user-key"))
+  assert_false(args.contains("MOONCRAFT_AI_API_KEY=leased-key"))
   assert_false(args.contains("CODEX_HOME=/root/.codex"))
   assert_true(
     args.contains(
@@ -425,7 +425,7 @@ test "docker command receives user scoped AI settings" {
   let env_file = docker_env_file_content(config)
   assert_true(env_file.contains("MOONCRAFT_AI_PROVIDER=openrouter"))
   assert_true(env_file.contains("MOONCRAFT_AI_MODEL=openai/gpt-5.5"))
-  assert_true(env_file.contains("MOONCRAFT_AI_API_KEY=user-key"))
+  assert_true(env_file.contains("MOONCRAFT_AI_API_KEY=leased-key"))
   assert_true(env_file.contains("CODEX_HOME=/root/.codex"))
 }
 
@@ -718,6 +718,51 @@ async test "admin run and project listings are project agnostic" {
   let recent_projects = store.list_recent_projects(10)
   inspect(recent_projects.length(), content="1")
   inspect(recent_projects[0].id, content=project_id)
+  cleanup_test_db(db_path)
+}
+
+///|
+async test "OpenRouter key pool leases and finishes usage per run" {
+  let root = @env.current_dir().unwrap_or(".")
+  let (store, db_path) = new_test_store(root, "ai-key-pool")
+  let project_id = next_id("project")
+  ignore(
+    store.create_project(
+      project_id,
+      "user-1",
+      "preview-" + project_id,
+      "AI Pool",
+      project_workspace(root, project_id),
+    ),
+  )
+  let key = store.create_admin_ai_key("Test Key", "sk-test-secret", 10).unwrap()
+  let _ = key
+  ignore(
+    store.update_admin_ai_config("openrouter/test-model", [
+      "openrouter/test-model",
+    ]),
+  )
+  let run = store.start_run(project_id, "Build a todo app").unwrap()
+
+  let settings = store
+    .lease_ai_runtime_settings_for_project(project_id, run.run_id)
+    .unwrap()
+  inspect(settings.provider, content="openrouter")
+  inspect(settings.model, content="openrouter/test-model")
+  inspect(settings.api_key, content="sk-test-secret")
+  let usages = store.list_recent_ai_key_usages(10)
+  inspect(usages.length(), content="1")
+  inspect(usages[0].run_id, content=run.run_id)
+  inspect(usages[0].state, content="started")
+
+  store.finish_run_success(project_id, run.run_id, "done", Some("thread-1"), {
+    url: "/p/test/",
+    port: 4300,
+    healthy: true,
+  })
+  let finished = store.list_recent_ai_key_usages(10)
+  inspect(finished[0].state, content="succeeded")
+  assert_true(finished[0].finished_at is Some(_))
   cleanup_test_db(db_path)
 }
 

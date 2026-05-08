@@ -239,7 +239,7 @@ async fn CodexDockerConfig::load(
   if @env.get_env_var("MOONCRAFT_CODEX_HOME_HOST") is Some(value) &&
     value.trim() != "" {
     return Err(
-      "MOONCRAFT_CODEX_HOME_HOST is not supported. Configure AI keys in Mooncraft account settings instead.",
+      "MOONCRAFT_CODEX_HOME_HOST is not supported. Configure AI keys in the Mooncraft admin page instead.",
     )
   }
   let container_home = match
@@ -1769,12 +1769,13 @@ async fn AgentGateway::run_turn(
   let config = if smoke_codex_enabled() {
     None
   } else {
-    let settings = match store.get_ai_runtime_settings_for_project(project.id) {
+    let settings = match
+      store.lease_ai_runtime_settings_for_project(project.id, run_id) {
       Ok(settings) => settings
       Err(message) =>
         return Err(
           codex_failure(
-            "Configure your AI provider and API key in Account before building apps.",
+            "Mooncraft's AI service is temporarily unavailable. Please retry later.",
             message,
             project.codex_thread_id,
           ),

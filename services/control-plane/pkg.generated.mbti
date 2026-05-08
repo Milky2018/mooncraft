@@ -17,8 +17,6 @@ type AgentTurnFailure
 
 type AgentTurnSuccess
 
-type AiCredentialSettings
-
 type AiRuntimeSettings
 
 type AppContext
@@ -36,18 +34,6 @@ type GitHubCallbackPayload derive(@debug.Debug, @json.FromJson)
 type GitHubUserEmail derive(@debug.Debug, @json.FromJson)
 
 type GitHubUserProfile derive(@debug.Debug)
-
-type ModelOptionsCacheEntry
-
-type OpenAIModel derive(@debug.Debug, @json.FromJson)
-
-type OpenAIModelsResponse derive(@debug.Debug, @json.FromJson)
-
-type OpenRouterArchitecture derive(@debug.Debug, @json.FromJson)
-
-type OpenRouterModel derive(@debug.Debug, @json.FromJson)
-
-type OpenRouterModelsResponse derive(@debug.Debug, @json.FromJson)
 
 type PreviewManager
 

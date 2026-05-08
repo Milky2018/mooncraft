@@ -535,10 +535,22 @@ fn workspace_page_html(root : String) -> String {
 }
 
 ///|
+fn admin_page_html(root : String) -> String {
+  control_plane_asset_string(root, "admin/index.html", "")
+}
+
+///|
 fn AppContext::ensure_platform_web_bundle(self : AppContext) -> Unit {
   ensure_dir(platform_web_dist_dir(self.root))
+  @fs.remove_file(platform_web_staged_bundle_path(self.root)) catch {
+    _ => ()
+  }
   let code = shell_status(
-    "cd '\{self.root}' && moon build --manifest-path '\{self.root}/moon.work' \{self.build_profile.cli_flag()}>/dev/null 2>&1",
+    "moon -C " +
+    shell_quote(self.root) +
+    " build " +
+    self.build_profile.cli_flag() +
+    " apps/web >/dev/null 2>&1",
   )
   if code != 0 {
     println("warning: failed to build apps/web bundle")
@@ -636,6 +648,8 @@ fn main {
     }
   })
   app.get(@sdk.login_path(), _ => html_response(workspace_page_html(ctx.root)))
+  app.get("/admin", _ => html_response(admin_page_html(ctx.root)))
+  app.get("/admin/", _ => html_response(admin_page_html(ctx.root)))
   app.get("/control-plane-assets/**", event => {
     let remainder = event.params
       .get("_")
@@ -759,52 +773,111 @@ fn main {
       Err(message) => api_error_response(NotFound, NotFound, message)
     }
   })
-  app.get(@sdk.ai_settings_path(), async fn(event) noraise {
-    let user = match require_session_user(ctx, event) {
-      Ok(user) => user
-      Err(response) => return response
-    }
-    match ctx.store.get_ai_settings(user.id) {
-      Some(settings) => json_ok(settings)
-      None => api_error_response(NotFound, NotFound, "User not found.")
-    }
-  })
-  app.get(@sdk.ai_model_options_route().path_pattern, async fn(event) noraise {
-    let user = match require_session_user(ctx, event) {
-      Ok(user) => user
-      Err(response) => return response
-    }
-    let provider = match path_param(event, "provider") {
-      Ok(provider) => provider
-      Err(response) => return response
-    }
-    let credentials = match ctx.store.get_ai_credential_settings(user.id) {
-      Some(settings) => settings
-      None => return api_error_response(NotFound, NotFound, "User not found.")
-    }
-    match list_ai_model_options(user.id, provider, credentials) {
-      Ok(response) => json_ok(response)
-      Err(message) =>
-        api_error_response(UnprocessableEntity, ValidationFailed, message)
+  app.get(@sdk.admin_ai_keys_path(), event => {
+    match require_admin_token(event) {
+      Ok(_) => {
+        let response : @sdk.AdminListAiKeysResponse = {
+          items: ctx.store.list_admin_ai_keys(),
+        }
+        json_ok(response)
+      }
+      Err(response) => response
     }
   })
-  app.put(@sdk.ai_settings_path(), async fn(event) noraise {
-    let user = match require_session_user(ctx, event) {
-      Ok(user) => user
+  app.post(@sdk.admin_ai_keys_path(), async fn(event) noraise {
+    match require_admin_token(event) {
+      Ok(_) => ignore(())
       Err(response) => return response
     }
-    let request : @sdk.UpdateAiSettingsRequest = match decode_json_body(event) {
+    let request : @sdk.CreateAdminAiKeyRequest = match decode_json_body(event) {
       Ok(request) => request
       Err(response) => return response
     }
     match
-      ctx.store.update_ai_settings(
-        user.id,
-        request.provider,
-        request.model,
+      ctx.store.create_admin_ai_key(
+        request.label,
         request.api_key,
+        request.priority,
       ) {
-      Ok(settings) => json_ok(settings)
+      Ok(key) => json_created(key)
+      Err(message) =>
+        api_error_response(UnprocessableEntity, ValidationFailed, message)
+    }
+  })
+  app.patch(@sdk.admin_ai_key_route().path_pattern, async fn(event) noraise {
+    match require_admin_token(event) {
+      Ok(_) => ignore(())
+      Err(response) => return response
+    }
+    let id = match path_param(event, "id") {
+      Ok(id) => id
+      Err(response) => return response
+    }
+    let request : @sdk.UpdateAdminAiKeyRequest = match decode_json_body(event) {
+      Ok(request) => request
+      Err(response) => return response
+    }
+    match
+      ctx.store.update_admin_ai_key(
+        id,
+        request.label,
+        request.api_key,
+        request.status,
+        request.priority,
+      ) {
+      Ok(key) => json_ok(key)
+      Err(message) =>
+        api_error_response(UnprocessableEntity, ValidationFailed, message)
+    }
+  })
+  app.delete(@sdk.admin_ai_key_route().path_pattern, async fn(event) noraise {
+    match require_admin_token(event) {
+      Ok(_) => ignore(())
+      Err(response) => return response
+    }
+    let id = match path_param(event, "id") {
+      Ok(id) => id
+      Err(response) => return response
+    }
+    match ctx.store.delete_admin_ai_key(id) {
+      Ok(_) => json_no_content()
+      Err(message) =>
+        api_error_response(UnprocessableEntity, ValidationFailed, message)
+    }
+  })
+  app.get(@sdk.admin_ai_key_usages_recent_route().path_pattern, event => {
+    match require_admin_token(event) {
+      Ok(_) => {
+        let response : @sdk.AdminListAiKeyUsagesResponse = {
+          items: ctx.store.list_recent_ai_key_usages(admin_limit_param(event)),
+        }
+        json_ok(response)
+      }
+      Err(response) => response
+    }
+  })
+  app.get(@sdk.admin_ai_config_path(), event => {
+    match require_admin_token(event) {
+      Ok(_) => json_ok(ctx.store.get_admin_ai_config())
+      Err(response) => response
+    }
+  })
+  app.put(@sdk.admin_ai_config_path(), async fn(event) noraise {
+    match require_admin_token(event) {
+      Ok(_) => ignore(())
+      Err(response) => return response
+    }
+    let request : @sdk.UpdateAdminAiConfigRequest = match
+      decode_json_body(event) {
+      Ok(request) => request
+      Err(response) => return response
+    }
+    match
+      ctx.store.update_admin_ai_config(
+        request.default_model,
+        request.allowed_models,
+      ) {
+      Ok(config) => json_ok(config)
       Err(message) =>
         api_error_response(UnprocessableEntity, ValidationFailed, message)
     }

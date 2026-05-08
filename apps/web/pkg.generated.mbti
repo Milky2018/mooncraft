@@ -33,8 +33,6 @@ type Request
 
 type RequestBody
 
-type ShellPage derive(Eq)
-
 type ThemeMode derive(Eq)
 
 // Type aliases

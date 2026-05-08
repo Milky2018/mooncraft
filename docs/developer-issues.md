@@ -1,6 +1,6 @@
 Agents do not edit this. This file is maintainable by human developers.
 
-- [ ] Why `/js/debug/` instead of `/js/release/`
+- [x] Why `/js/debug/` instead of `/js/release/`
 - [ ] React.ts frontend as backup
 - [x] Persist a workspace snapshot per project or per run, instead of treating workspace_path as the source of truth.
 - [x] Hydrate that snapshot into a temp directory before each Codex run.
@@ -28,106 +28,49 @@ Agents do not edit this. This file is maintainable by human developers.
 - [ ] Use `codex-sdk` instead of CLI
 - [ ] Improve the generated workspace bootstrap
 - [ ] OAuth with github account
-
-Refactor Goal
-Move Mooncraft from “single-node prototype” to “production-shaped platform” without adding product surface area. Keep the user flow simple: login, create project, chat, preview.
-
-Phase 1: Runtime Boundary
-
-Replace ad-hoc preview/process management with a RuntimeService abstraction.
-Move Codex runs and preview runs behind the same job/runner interface.
-Define explicit states: queued, preparing, building, running_agent, validating, starting_preview, healthy, failed.
-Store runtime events structurally, not only as logs.
-Keep Docker as the first backend, but make it replaceable later by ECS/Kubernetes.
-Result: control plane stops directly knowing how to docker run, moon build, nohup, or kill ports.
-
-Phase 2: Project Artifact Model
-
-Stop treating SQLite/Postgres snapshots as the long-term source for large workspace archives.
-Introduce ArtifactStore:
-local filesystem for dev/test
-S3 later for production
-Store only metadata in DB:
-current workspace artifact id
-Codex session artifact id
-run log artifact ids
-preview build artifact id if needed
-Keep DB transactions responsible for state, not blobs.
-Result: easier backup, migration, multi-instance support, and large-project handling.
-
-Phase 3: Job Orchestration
-
-Add a jobs table separate from runs.
-A project run creates one job.
-A worker claims jobs with DB locking.
-The web server only accepts requests and reports state.
-Add retry policy by stage:
-dependency fetch can retry
-validation can retry only by asking agent to repair
-provider failures can retry safely
-user-code failures should not infinite retry
-Result: multiple workers become possible without changing product UX.
-
-Phase 4: Security Isolation
-
-Treat generated apps as untrusted.
-Run agent/build/preview in isolated Docker containers.
-Enforce:
-no host Codex home mount
-no Docker socket inside user containers unless absolutely necessary
-CPU/memory limits
-network policy
-timeout per stage
-readonly mounted platform docs/skills
-Separate build container from preview container.
-Result: public users can run code without directly threatening the host.
-
-Phase 5: Preview Architecture
-
-Replace local port allocation with preview instance records.
-Add preview_instances table:
-project id
-run id
-container id
-internal URL
-public path
-health status
-Keep last healthy preview alive until replacement is healthy.
-Add cleanup for old previews and deleted projects.
-Eventually route through a real reverse proxy layer instead of only control-plane proxying.
-Result: preview behavior becomes predictable and debuggable.
-
-Phase 6: Observability
-
-Keep user-facing errors short.
-Make operator APIs complete:
-recent runs
-run detail
-run events
-logs
-project runtime state
-preview instance state
-worker/job state
-Add structured logs with run id, project id, user id, stage.
-Add metrics:
-run duration by stage
-failure rate by stage
-preview health failures
-provider failures
-Docker failures
-Add a simple admin page later, but API first is fine.
-Result: production failures become diagnosable.
-
-Phase 7: Data And Accounts
-
-Keep GitHub OAuth only for now.
-Add rate limits before public launch.
-Add quotas:
-max projects per user
-max active runs per user
-max workspace size
-max run duration
-Add account deletion later, but project deletion must be complete and audited.
-Encrypt stored LLM API keys or move them to a secret store.
-Result: public usage becomes manageable.
-
+- [ ] Refactor, goal: Move Mooncraft from “single-node prototype” to “production-shaped platform” without adding product surface area. Keep the user flow simple: login, create project, chat, preview.
+  - [ ] Phase 1: Runtime Boundary, Result: control plane stops directly knowing how to docker run, moon build, nohup, or kill ports.
+    - [ ] Replace ad-hoc preview/process management with a RuntimeService abstraction.
+    - [ ] Move Codex runs and preview runs behind the same job/runner interface.
+    - [ ] Define explicit states: queued, preparing, building, running_agent, validating, starting_preview, healthy, failed.
+    - [ ] Store runtime events structurally, not only as logs.
+    - [ ] Keep Docker as the first backend, but make it replaceable later by ECS/Kubernetes.
+  - [ ] Phase 2: Project Artifact Model, Result: easier backup, migration, multi-instance support, and large-project handling.
+    - [ ] Stop treating SQLite/Postgres snapshots as the long-term source for large workspace archives.
+    - [ ] Introduce ArtifactStore: local filesystem for dev/test, S3 later for production
+    - [ ] Store only metadata in DB: current workspace artifact id, Codex session artifact id, run log artifact ids, preview build artifact id if needed
+    - [ ] Keep DB transactions responsible for state, not blobs.
+  - [ ] Phase 3: Job Orchestration, Result: multiple workers become possible without changing product UX.
+    - [ ] Add a jobs table separate from runs.
+    - [ ] A project run creates one job.
+    - [ ] A worker claims jobs with DB locking.
+    - [ ] The web server only accepts requests and reports state.
+    - [ ] Add retry policy by stage: dependency fetch can retry, validation can retry only by asking agent to repair, provider failures can retry safely, user-code failures should not infinite retry
+  - [ ] Phase 4: Security Isolation, Result: public users can run code without directly threatening the host.
+    - [ ] Treat generated apps as untrusted.
+    - [ ] Run agent/build/preview in isolated Docker containers.
+    - [ ] Enforce: no host Codex home mount, no Docker socket inside user containers unless absolutely necessary, CPU/memory limits network policy, timeout per stage, readonly mounted platform docs/skills
+    - [ ] Separate build container from preview container.
+  - [ ] Phase 5: Preview Architecture, Result: preview behavior becomes predictable and debuggable.
+    - [ ] Replace local port allocation with preview instance records.
+    - [ ] Add preview_instances table: project id, run id, container id, internal URL, public path, health status
+    - [ ] Keep last healthy preview alive until replacement is healthy.
+    - [ ] Add cleanup for old previews and deleted projects.
+    - [ ] Eventually route through a real reverse proxy layer instead of only control-plane proxying.
+  - [ ] Phase 6: Observability, Result: production failures become diagnosable.
+    - [ ] Keep user-facing errors short.
+    - [ ] Make operator APIs complete: recent runs, run detail, run events, logs, project runtime state, preview instance state, worker/job state
+    - [ ] Add structured logs with run id, project id, user id, stage.
+    - [ ] Add metrics: run duration by stage, failure rate by stage, preview health failures, provider failures
+    - [ ] Docker failures
+    - [ ] Add a simple admin page later, but API first is fine.
+  - [ ] Phase 7: Data And Accounts, Result: public usage becomes manageable.
+    - [ ] Keep GitHub OAuth only for now.
+    - [ ] Add rate limits before public launch.
+    - [ ] Add quotas:
+      - [ ] max projects per user
+      - [ ] max active runs per user
+      - [ ] max workspace size
+      - [ ] max run duration
+    - [ ] Add account deletion later, but project deletion must be complete and audited.
+    - [ ] Keep AI keys out of user accounts and environment files; production keys must be configured through the admin page.

@@ -48,28 +48,48 @@ pub fn logout_path() -> String {
 }
 
 ///|
-pub fn ai_settings_route() -> RouteSpec {
-  route(GET, "/api/account/ai-settings", Ok)
+pub fn admin_ai_keys_route() -> RouteSpec {
+  route(GET, "/api/admin/ai/keys", Ok)
 }
 
 ///|
-pub fn update_ai_settings_route() -> RouteSpec {
-  route(PUT, "/api/account/ai-settings", Ok)
+pub fn create_admin_ai_key_route() -> RouteSpec {
+  route(POST, "/api/admin/ai/keys", Created)
 }
 
 ///|
-pub fn ai_settings_path() -> String {
-  ai_settings_route().path_pattern
+pub fn admin_ai_keys_path() -> String {
+  admin_ai_keys_route().path_pattern
 }
 
 ///|
-pub fn ai_model_options_route() -> RouteSpec {
-  route(GET, "/api/account/ai-model-options/:provider", Ok)
+pub fn admin_ai_key_route() -> RouteSpec {
+  route(PATCH, "/api/admin/ai/keys/:id", Ok)
 }
 
 ///|
-pub fn ai_model_options_path(provider : String) -> String {
-  "/api/account/ai-model-options/\{provider}"
+pub fn admin_ai_key_path(id : String) -> String {
+  "/api/admin/ai/keys/\{id}"
+}
+
+///|
+pub fn admin_ai_key_usages_recent_route() -> RouteSpec {
+  route(GET, "/api/admin/ai/usages/recent/:limit", Ok)
+}
+
+///|
+pub fn admin_ai_key_usages_recent_path(limit : Int) -> String {
+  "/api/admin/ai/usages/recent/\{limit}"
+}
+
+///|
+pub fn admin_ai_config_route() -> RouteSpec {
+  route(GET, "/api/admin/ai/config", Ok)
+}
+
+///|
+pub fn admin_ai_config_path() -> String {
+  admin_ai_config_route().path_pattern
 }
 
 ///|

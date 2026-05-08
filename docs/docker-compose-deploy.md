@@ -59,7 +59,7 @@ cp .env.test.example .env.test
 cp .env.prod.example .env.prod
 ```
 
-Then edit `.env.test` and `.env.prod` with real domains, ports, passwords, admin tokens, GitHub OAuth credentials, and an absolute `MOONCRAFT_HOST_DATA_DIR`. GitHub OAuth is required because it is the only supported sign-in provider.
+Then edit `.env.test` and `.env.prod` with real domains, ports, passwords, admin tokens, GitHub OAuth credentials, and an absolute `MOONCRAFT_HOST_DATA_DIR`. Do not put OpenRouter keys in these files. GitHub OAuth is required because it is the only supported sign-in provider.
 
 Create the data directories before starting Compose:
 
@@ -129,11 +129,29 @@ If `.env.prod` binds to a different port, use that port in the health check. For
 curl -fsS http://127.0.0.1:8089/api/health
 ```
 
-## User LLM Keys
+## AI Key Pool
 
-Do not configure a deployment-level OpenAI or OpenRouter key.
+Users do not configure LLM providers or API keys.
 
-Each platform user configures their own provider, model, and API key in the Mooncraft UI. The worker injects that user's key into the isolated Codex container only for the active run.
+Admins provide OpenRouter keys through the admin page at `/admin`. The worker leases one active key from the database for each run and injects it into the isolated Codex container only for that run. Key values are accepted on create/update and are never returned by the API; list responses show only a masked hint.
+
+Open the admin page in a browser:
+
+```text
+https://craft-test.moonbitlang.com/admin
+https://craft.moonbitlang.com/admin
+```
+
+Use `MOONCRAFT_ADMIN_TOKEN` from the environment file as the admin token on that page.
+
+The admin API can inspect the configured pool:
+
+```bash
+curl -fsS -H "Authorization: Bearer $MOONCRAFT_ADMIN_TOKEN" \
+  "$MOONCRAFT_PUBLIC_BASE_URL/api/admin/ai/keys"
+curl -fsS -H "Authorization: Bearer $MOONCRAFT_ADMIN_TOKEN" \
+  "$MOONCRAFT_PUBLIC_BASE_URL/api/admin/ai/usages/recent/20"
+```
 
 ## Reverse Proxy
 
@@ -282,13 +300,12 @@ curl -fsS https://your-domain.com/api/health
 For an opt-in real Codex smoke test from the repo root:
 
 ```bash
-export MOONCRAFT_CODEX_SMOKE_PROVIDER=openrouter
 export MOONCRAFT_CODEX_SMOKE_MODEL=anthropic/claude-sonnet-4.5
-export MOONCRAFT_CODEX_SMOKE_API_KEY='your-test-key'
+export OPENROUTER_API_KEY='your-test-key'
 just codex-smoke
 ```
 
-This spends real provider quota.
+This spends real provider quota. The smoke script uses the admin API to save the key into the running test server; it does not pass the key as a Mooncraft service environment variable.
 
 ## Current Limits
 

@@ -51,14 +51,6 @@ fi
 
 dev_sign_in "$user1_cookie" "$user1_email" "Owner"
 curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/session" | grep -q '"email_verified":true'
-curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/account/ai-settings" | grep -q '"api_key_configured":false'
-curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/account/ai-model-options/openrouter" | grep -q '"provider":"openrouter"'
-curl -fsS -c "$user1_cookie" -b "$user1_cookie" \
-  -X PUT "$base_url/api/account/ai-settings" \
-  -H 'Content-Type: application/json' \
-  -d '{"provider":"openrouter","model":"openai/gpt-5.5","api_key":"fake-smoke-key"}' \
-  | grep -q '"api_key_configured":true'
-curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/session" | grep -q '"ai_provider":"openrouter"'
 
 dev_sign_in "$user2_cookie" "$user2_email" "Viewer"
 

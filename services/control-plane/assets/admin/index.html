@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mooncraft Admin</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "IBM Plex Sans", "Avenir Next", "Helvetica Neue", sans-serif;
+        background: #f4f6f8;
+        color: #172033;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at top left, rgba(40, 124, 108, 0.14), transparent 34rem),
+          linear-gradient(135deg, #f7f8fa, #edf2f7);
+      }
+
+      main {
+        width: min(1120px, calc(100vw - 48px));
+        margin: 0 auto;
+        padding: 42px 0 64px;
+      }
+
+      h1,
+      h2,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 44px;
+        letter-spacing: -0.05em;
+        line-height: 1;
+      }
+
+      h2 {
+        font-size: 18px;
+        letter-spacing: -0.02em;
+      }
+
+      .hero,
+      .card {
+        border: 1px solid rgba(23, 32, 51, 0.1);
+        border-radius: 24px;
+        background: rgba(255, 255, 255, 0.88);
+        box-shadow: 0 24px 80px rgba(23, 32, 51, 0.08);
+      }
+
+      .hero {
+        padding: 28px;
+        display: flex;
+        justify-content: space-between;
+        gap: 24px;
+        align-items: end;
+      }
+
+      .hero p,
+      .muted {
+        color: #5e6a7d;
+        line-height: 1.6;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: minmax(340px, 0.8fr) minmax(420px, 1.2fr);
+        gap: 18px;
+        margin-top: 18px;
+      }
+
+      .card {
+        padding: 22px;
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      label {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #5e6a7d;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      input,
+      textarea,
+      select {
+        width: 100%;
+        border: 1px solid rgba(23, 32, 51, 0.14);
+        border-radius: 14px;
+        background: #ffffff;
+        color: #172033;
+        padding: 12px 13px;
+        font: inherit;
+        font-size: 14px;
+        outline: none;
+      }
+
+      textarea {
+        min-height: 104px;
+        resize: vertical;
+      }
+
+      button {
+        border: 0;
+        border-radius: 14px;
+        padding: 12px 15px;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+        background: #21665d;
+        color: #ffffff;
+      }
+
+      button.secondary {
+        background: #eef2f6;
+        color: #243044;
+      }
+
+      button.danger {
+        background: #fff1f0;
+        color: #a3312b;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
+      .row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .row > * {
+        flex: 1;
+      }
+
+      .notice {
+        border-radius: 14px;
+        padding: 12px 13px;
+        background: #ecfdf5;
+        color: #17654f;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .notice.error {
+        background: #fff1f0;
+        color: #a3312b;
+      }
+
+      .key-list,
+      .usage-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .key-item,
+      .usage-item {
+        border: 1px solid rgba(23, 32, 51, 0.1);
+        border-radius: 16px;
+        background: #ffffff;
+        padding: 14px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .key-head,
+      .usage-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: start;
+      }
+
+      .badge {
+        border-radius: 999px;
+        padding: 5px 9px;
+        background: #eef2f6;
+        color: #49566b;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      code {
+        font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+        color: #49566b;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <div class="stack">
+          <p class="muted">Mooncraft Admin</p>
+          <h1>OpenRouter Key Pool</h1>
+          <p>Configure platform-owned AI keys here. Do not put OpenRouter keys in <code>.env</code> files.</p>
+        </div>
+        <button class="secondary" id="refresh">Refresh</button>
+      </section>
+
+      <section class="grid">
+        <div class="stack">
+          <div class="card stack">
+            <h2>Admin Token</h2>
+            <label>
+              Token
+              <input id="admin-token" type="password" autocomplete="off" placeholder="MOONCRAFT_ADMIN_TOKEN" />
+            </label>
+            <button id="save-token" class="secondary">Save Token In Browser</button>
+          </div>
+
+          <div class="card stack">
+            <h2>Runtime Model</h2>
+            <label>
+              Default model
+              <input id="default-model" placeholder="anthropic/claude-sonnet-4.5" />
+            </label>
+            <label>
+              Allowed models, one per line
+              <textarea id="allowed-models" placeholder="anthropic/claude-sonnet-4.5"></textarea>
+            </label>
+            <button id="save-config">Save Runtime Config</button>
+          </div>
+
+          <div class="card stack">
+            <h2>Add Key</h2>
+            <label>
+              Label
+              <input id="new-label" placeholder="OpenRouter production key" />
+            </label>
+            <label>
+              API key
+              <input id="new-key" type="password" autocomplete="off" placeholder="sk-or-v1-..." />
+            </label>
+            <label>
+              Priority
+              <input id="new-priority" type="number" value="100" />
+            </label>
+            <button id="create-key">Add Key</button>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div id="notice" class="notice" hidden></div>
+          <div class="card stack">
+            <h2>Keys</h2>
+            <div id="keys" class="key-list"></div>
+          </div>
+          <div class="card stack">
+            <h2>Recent Usage</h2>
+            <div id="usages" class="usage-list"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const tokenInput = document.querySelector("#admin-token")
+      const notice = document.querySelector("#notice")
+      const keys = document.querySelector("#keys")
+      const usages = document.querySelector("#usages")
+      const defaultModel = document.querySelector("#default-model")
+      const allowedModels = document.querySelector("#allowed-models")
+      const storageKey = "mooncraft-admin-token"
+
+      tokenInput.value = localStorage.getItem(storageKey) || ""
+
+      function showNotice(message, error = false) {
+        notice.textContent = message
+        notice.className = error ? "notice error" : "notice"
+        notice.hidden = false
+      }
+
+      async function api(path, options = {}) {
+        const token = tokenInput.value.trim()
+        if (!token) throw new Error("Admin token is required.")
+        const response = await fetch(path, {
+          ...options,
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+            ...(options.headers || {}),
+          },
+        })
+        if (response.status === 204) return null
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          throw new Error(payload.error?.message || `HTTP ${response.status}`)
+        }
+        return payload
+      }
+
+      function keyItem(key) {
+        const node = document.createElement("div")
+        node.className = "key-item"
+        node.innerHTML = `
+          <div class="key-head">
+            <div>
+              <strong>${escapeHtml(key.label)}</strong>
+              <div class="muted"><code>${escapeHtml(key.key_hint || "saved key")}</code></div>
+            </div>
+            <span class="badge">${escapeHtml(key.status)}</span>
+          </div>
+          <div class="row">
+            <input data-field="label" value="${escapeAttr(key.label)}" />
+            <input data-field="priority" type="number" value="${key.priority}" />
+          </div>
+          <div class="row">
+            <input data-field="api_key" type="password" placeholder="New key, blank keeps current key" />
+            <select data-field="status">
+              ${["active", "disabled", "exhausted", "error"].map((status) => `
+                <option value="${status}" ${status === key.status ? "selected" : ""}>${status}</option>
+              `).join("")}
+            </select>
+          </div>
+          <div class="row">
+            <button data-action="save">Save</button>
+            <button data-action="delete" class="danger">Delete</button>
+          </div>
+          ${key.last_error ? `<div class="notice error">${escapeHtml(key.last_error)}</div>` : ""}
+        `
+        node.querySelector('[data-action="save"]').addEventListener("click", async () => {
+          await updateKey(key.id, {
+            label: node.querySelector('[data-field="label"]').value,
+            api_key: node.querySelector('[data-field="api_key"]').value,
+            status: node.querySelector('[data-field="status"]').value,
+            priority: Number(node.querySelector('[data-field="priority"]').value || "0"),
+          })
+        })
+        node.querySelector('[data-action="delete"]').addEventListener("click", async () => {
+          if (confirm(`Delete ${key.label}?`)) await deleteKey(key.id)
+        })
+        return node
+      }
+
+      function usageItem(usage) {
+        const node = document.createElement("div")
+        node.className = "usage-item"
+        node.innerHTML = `
+          <div class="usage-head">
+            <strong>${escapeHtml(usage.state)}</strong>
+            <span class="badge">${escapeHtml(usage.model)}</span>
+          </div>
+          <div class="muted">Run <code>${escapeHtml(usage.run_id)}</code></div>
+          <div class="muted">Project <code>${escapeHtml(usage.project_id)}</code></div>
+          ${usage.error_code ? `<div class="notice error">${escapeHtml(usage.error_code)}</div>` : ""}
+        `
+        return node
+      }
+
+      async function refresh() {
+        try {
+          const [config, keyList, usageList] = await Promise.all([
+            api("/api/admin/ai/config"),
+            api("/api/admin/ai/keys"),
+            api("/api/admin/ai/usages/recent/20"),
+          ])
+          defaultModel.value = config.default_model
+          allowedModels.value = (config.allowed_models || []).join("\n")
+          keys.replaceChildren(...(keyList.items || []).map(keyItem))
+          usages.replaceChildren(...(usageList.items || []).map(usageItem))
+          showNotice("Admin data loaded.")
+        } catch (error) {
+          showNotice(error.message, true)
+        }
+      }
+
+      async function createKey() {
+        try {
+          await api("/api/admin/ai/keys", {
+            method: "POST",
+            body: JSON.stringify({
+              label: document.querySelector("#new-label").value,
+              api_key: document.querySelector("#new-key").value,
+              priority: Number(document.querySelector("#new-priority").value || "0"),
+            }),
+          })
+          document.querySelector("#new-key").value = ""
+          showNotice("Key added.")
+          await refresh()
+        } catch (error) {
+          showNotice(error.message, true)
+        }
+      }
+
+      async function updateKey(id, payload) {
+        try {
+          await api(`/api/admin/ai/keys/${encodeURIComponent(id)}`, {
+            method: "PATCH",
+            body: JSON.stringify(payload),
+          })
+          showNotice("Key updated.")
+          await refresh()
+        } catch (error) {
+          showNotice(error.message, true)
+        }
+      }
+
+      async function deleteKey(id) {
+        try {
+          await api(`/api/admin/ai/keys/${encodeURIComponent(id)}`, { method: "DELETE" })
+          showNotice("Key deleted.")
+          await refresh()
+        } catch (error) {
+          showNotice(error.message, true)
+        }
+      }
+
+      async function saveConfig() {
+        try {
+          await api("/api/admin/ai/config", {
+            method: "PUT",
+            body: JSON.stringify({
+              default_model: defaultModel.value,
+              allowed_models: allowedModels.value.split("\n").map((line) => line.trim()).filter(Boolean),
+            }),
+          })
+          showNotice("Runtime config saved.")
+          await refresh()
+        } catch (error) {
+          showNotice(error.message, true)
+        }
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        }[char]))
+      }
+
+      function escapeAttr(value) {
+        return escapeHtml(value)
+      }
+
+      document.querySelector("#save-token").addEventListener("click", () => {
+        localStorage.setItem(storageKey, tokenInput.value.trim())
+        showNotice("Token saved in this browser.")
+      })
+      document.querySelector("#refresh").addEventListener("click", refresh)
+      document.querySelector("#create-key").addEventListener("click", createKey)
+      document.querySelector("#save-config").addEventListener("click", saveConfig)
+      refresh()
+    </script>
+  </body>
+</html>

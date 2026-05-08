@@ -40,8 +40,7 @@ fn sidebar_project_item(
   model : Model,
   project : @sdk.ProjectSummary,
 ) -> @rabbita.Html {
-  let selected = model.active_page is AppWorkspace &&
-    model.selected_project_id == Some(project.id)
+  let selected = model.selected_project_id == Some(project.id)
   let background = if selected {
     "linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(241, 245, 249, 0.88))"
   } else {
@@ -133,235 +132,6 @@ fn sidebar_project_item(
 }
 
 ///|
-fn account_password_input(
-  value : String,
-  placeholder : String,
-  on_input : (String) -> Msg,
-  dispatch : @rabbita.Dispatch[Msg],
-) -> @rabbita.Html {
-  @html.input(
-    input_type=Password,
-    value~,
-    placeholder~,
-    on_input=fn(next) { dispatch(on_input(next)) },
-    style=input_style(false) +
-      [
-        "padding: 9px 10px", "font-size: 13px", "border-color: var(--border-soft)",
-      ],
-    "",
-  )
-}
-
-///|
-fn ai_provider_button(
-  dispatch : @rabbita.Dispatch[Msg],
-  model : Model,
-  provider : String,
-  label : String,
-) -> @rabbita.Html {
-  let selected = model.account_ai_provider == provider
-  @html.button(
-    type_="button",
-    on_click=dispatch(AccountAiProviderChanged(provider)),
-    style=button_style(
-        if selected {
-          "var(--accent)"
-        } else {
-          "var(--surface-2)"
-        },
-        if selected {
-          "#ffffff"
-        } else {
-          "var(--text-2)"
-        },
-        true,
-      ) +
-      ["padding: 8px 10px", "font-size: 12px", "flex: 1"],
-  ) <| label
-}
-
-///|
-fn ai_key_status_text(user : @sdk.UserSummary) -> String {
-  if user.ai_api_key_configured {
-    "Key saved"
-  } else {
-    "Key missing"
-  }
-}
-
-///|
-fn model_option_label(option : @sdk.ModelOption) -> String {
-  let prefix = if option.recommended { "Recommended - " } else { "" }
-  if option.label == option.id {
-    prefix + option.id
-  } else {
-    prefix + option.label + " (" + option.id + ")"
-  }
-}
-
-///|
-fn model_option_select_items(model : Model) -> Array[@rabbita.Html] {
-  let items : Array[@rabbita.Html] = []
-  if model.account_ai_model != "" &&
-    !model_options_include(model.account_model_options, model.account_ai_model) {
-    items.push(
-      @html.option(
-        value=model.account_ai_model,
-        selected=true,
-        "Current - " + model.account_ai_model,
-      ),
-    )
-  }
-  for option in model.account_model_options {
-    items.push(
-      @html.option(
-        value=option.id,
-        selected=option.id == model.account_ai_model,
-        model_option_label(option),
-      ),
-    )
-  }
-  items
-}
-
-///|
-fn render_model_selector(
-  dispatch : @rabbita.Dispatch[Msg],
-  model : Model,
-) -> @rabbita.Html {
-  let disabled = model.account_model_options_pending ||
-    model.account_model_options.length() == 0
-  let select_items = if model.account_model_options_pending {
-    [
-      @html.option(
-        value=model.account_ai_model,
-        selected=true,
-        "Loading models...",
-      ),
-    ]
-  } else {
-    model_option_select_items(model)
-  }
-  @html.div(style=["display: flex", "flex-direction: column", "gap: 7px"]) <| [
-    @html.label(
-      for_="ai-model-select",
-      style=["font-size: 12px", "font-weight: 700", "color: var(--text-2)"],
-      "Model",
-    ),
-    @html.select(
-      id="ai-model-select",
-      disabled~,
-      on_change=fn(value) { dispatch(AccountAiModelChanged(value)) },
-      style=input_style(false) +
-        [
-          "padding: 9px 10px", "font-size: 13px", "border-color: var(--border-soft)",
-          "background: var(--surface-1)",
-        ],
-      select_items,
-    ),
-    @html.div(
-      style=[
-        "display: flex", "align-items: center", "justify-content: space-between",
-        "gap: 8px",
-      ],
-      [
-        @html.div(
-          style=["font-size: 12px", "line-height: 1.5", "color: var(--text-2)"],
-          if model.account_model_options_pending {
-            "Loading models from " + model.account_ai_provider + "."
-          } else if model.account_model_options.length() == 0 {
-            "No live model list is available. The saved model will be kept."
-          } else {
-            "Choose a model available for this provider."
-          },
-        ),
-        @html.button(
-          type_="button",
-          disabled=model.account_model_options_pending,
-          on_click=dispatch(RefreshModelOptions),
-          style=button_style("var(--surface-1)", "var(--text-2)", true) +
-            ["padding: 7px 9px", "font-size: 12px", "white-space: nowrap"],
-          "Refresh list",
-        ),
-      ],
-    ),
-  ]
-}
-
-///|
-fn render_ai_settings_form(
-  dispatch : @rabbita.Dispatch[Msg],
-  model : Model,
-  user : @sdk.UserSummary,
-  compact : Bool,
-) -> @rabbita.Html {
-  let padding = if compact { "10px" } else { "18px" }
-  let radius = if compact { "10px" } else { "18px" }
-  let key_placeholder = if user.ai_api_key_configured {
-    "Leave blank to keep saved API key"
-  } else {
-    "API key"
-  }
-  @html.div(
-    style=[
-      "display: flex",
-      "flex-direction: column",
-      "gap: 12px",
-      "padding: " + padding,
-      "border: 1px solid var(--border-soft)",
-      "border-radius: " + radius,
-      "background: var(--surface-2)",
-    ],
-  ) <| [
-    @html.div(
-      style=[
-        "display: flex", "align-items: center", "justify-content: space-between",
-        "gap: 10px",
-      ],
-      [
-        @html.div(style=section_label_style(), "Provider & Key"),
-        @html.div(
-          style=mono_style() +
-            [
-              "font-size: 11px", "color: var(--text-2)", "padding: 5px 8px", "border: 1px solid var(--border-soft)",
-              "border-radius: 999px", "background: var(--surface-3)", "white-space: nowrap",
-            ],
-          ai_key_status_text(user),
-        ),
-      ],
-    ),
-    @html.div(
-      style=["font-size: 13px", "line-height: 1.6", "color: var(--text-2)"],
-      "Mooncraft uses this provider only when running your project agent. API keys are stored on your account and are never shown again.",
-    ),
-    render_notice_card(model.account_notice, "var(--warning-soft)"),
-    @html.div(style=["display: flex", "gap: 8px"], [
-      ai_provider_button(dispatch, model, "openai", "OpenAI"),
-      ai_provider_button(dispatch, model, "openrouter", "OpenRouter"),
-    ]),
-    render_model_selector(dispatch, model),
-    account_password_input(
-      model.account_ai_api_key,
-      key_placeholder,
-      fn(value) { AccountAiApiKeyChanged(value) },
-      dispatch,
-    ),
-    @html.button(
-      type_="button",
-      disabled=!can_save_ai_settings(model),
-      on_click=dispatch(SaveAiSettings),
-      style=primary_button_style(can_save_ai_settings(model)) +
-        ["padding: 10px 12px", "font-size: 13px"],
-      if model.account_pending {
-        "Saving..."
-      } else {
-        "Save LLM Config"
-      },
-    ),
-  ]
-}
-
-///|
 fn render_account_panel(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
@@ -439,35 +209,6 @@ fn render_account_panel(
               [@html.div(style=section_label_style(), "Appearance")],
             ),
             theme_toggle_button(dispatch, model),
-          ],
-        ),
-        @html.div(
-          style=[
-            "display: flex", "flex-direction: column", "gap: 8px", "padding: 10px",
-            "border: 1px solid var(--border-soft)", "border-radius: 10px", "background: var(--surface-2)",
-          ],
-          [
-            @html.div(
-              style=[
-                "display: flex", "align-items: center", "justify-content: space-between",
-                "gap: 8px",
-              ],
-              [
-                @html.div(style=section_label_style(), "LLM Config"),
-                @html.div(
-                  style=mono_style() +
-                    ["font-size: 10px", "color: var(--text-3)"],
-                  ai_key_status_text(user),
-                ),
-              ],
-            ),
-            @html.button(
-              type_="button",
-              on_click=dispatch(OpenLlmConfig),
-              style=secondary_button_style(true) +
-                ["padding: 9px 10px", "font-size: 12px"],
-              "Open LLM Config",
-            ),
           ],
         ),
         @html.button(
@@ -580,64 +321,6 @@ fn render_account_toolbar(
 }
 
 ///|
-fn sidebar_llm_config_button(
-  dispatch : @rabbita.Dispatch[Msg],
-  model : Model,
-  user : @sdk.UserSummary,
-) -> @rabbita.Html {
-  let selected = model.active_page is LlmConfig
-  let background = if selected {
-    "linear-gradient(135deg, rgba(15, 118, 110, 0.13), rgba(37, 99, 235, 0.09))"
-  } else {
-    "rgba(255, 255, 255, 0.34)"
-  }
-  let border_color = if selected {
-    "var(--border-strong)"
-  } else {
-    "rgba(15, 23, 42, 0.08)"
-  }
-  @html.button(
-    type_="button",
-    on_click=dispatch(OpenLlmConfig),
-    style=[
-      "width: 100%",
-      "padding: 12px",
-      "border: 1px solid " + border_color,
-      "border-radius: 14px",
-      "background: " + background,
-      "color: var(--text-1)",
-      "cursor: pointer",
-      "display: flex",
-      "align-items: center",
-      "justify-content: space-between",
-      "gap: 10px",
-      "text-align: left",
-    ],
-  ) <| [
-    @html.div(
-      style=[
-        "display: flex", "flex-direction: column", "gap: 4px", "min-width: 0",
-      ],
-      [
-        @html.div(style=["font-size: 14px", "font-weight: 700"], "LLM Config"),
-        @html.div(
-          style=mono_style() + ["font-size: 11px", "color: var(--text-3)"],
-          user.ai_provider + " / " + user.ai_model,
-        ),
-      ],
-    ),
-    @html.div(
-      style=mono_style() +
-        [
-          "font-size: 10px", "color: var(--text-2)", "padding: 5px 8px", "border: 1px solid var(--border-soft)",
-          "border-radius: 999px", "background: var(--surface-2)", "white-space: nowrap",
-        ],
-      ai_key_status_text(user),
-    ),
-  ]
-}
-
-///|
 fn render_project_sidebar(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
@@ -676,10 +359,6 @@ fn render_project_sidebar(
       ),
     ]),
     render_new_project_form(dispatch, model, true),
-    match model.current_user {
-      Some(user) => sidebar_llm_config_button(dispatch, model, user)
-      None => @html.nothing
-    },
     @html.div(
       style=[
         "display: flex", "justify-content: space-between", "align-items: center",
@@ -713,103 +392,6 @@ fn render_project_sidebar(
 }
 
 ///|
-fn render_llm_config_page(
-  dispatch : @rabbita.Dispatch[Msg],
-  model : Model,
-) -> @rabbita.Html {
-  match model.current_user {
-    Some(user) =>
-      @html.div(
-        style=["flex: 1", "min-width: 0", "min-height: 0", "overflow: auto"],
-      ) <| (@html.div(
-        style=panel_style() +
-          [
-            "min-height: 100%", "padding: 28px", "display: flex", "flex-direction: column",
-            "gap: 24px", "box-sizing: border-box",
-          ],
-      ) <| [
-        @html.div(
-          style=[
-            "display: flex", "align-items: flex-start", "justify-content: space-between",
-            "gap: 24px",
-          ],
-          [
-            @html.div(
-              style=[
-                "display: flex", "flex-direction: column", "gap: 8px", "max-width: 620px",
-              ],
-              [
-                @html.div(style=section_label_style(), "Account Settings"),
-                @html.div(
-                  style=[
-                    "font-size: 34px", "line-height: 1.05", "font-weight: 700", "letter-spacing: -0.04em",
-                  ],
-                  "LLM Config",
-                ),
-                @html.div(
-                  style=[
-                    "font-size: 15px", "line-height: 1.7", "color: var(--text-2)",
-                  ],
-                  "Choose the provider, model, and API key Mooncraft should use when a project asks the agent to build or update software.",
-                ),
-              ],
-            ),
-            @html.div(
-              style=mono_style() +
-                [
-                  "font-size: 12px", "color: var(--text-2)", "padding: 8px 10px",
-                  "border: 1px solid var(--border-soft)", "border-radius: 999px",
-                  "background: var(--surface-2)", "white-space: nowrap",
-                ],
-              ai_key_status_text(user),
-            ),
-          ],
-        ),
-        @html.div(
-          style=[
-            "display: grid", "grid-template-columns: minmax(420px, 620px) minmax(280px, 1fr)",
-            "gap: 18px", "align-items: start",
-          ],
-          [
-            render_ai_settings_form(dispatch, model, user, false),
-            @html.div(
-              style=inset_panel_style() +
-                [
-                  "padding: 18px", "display: flex", "flex-direction: column", "gap: 14px",
-                  "background: var(--surface-2)",
-                ],
-              [
-                @html.div(style=section_label_style(), "Provider Notes"),
-                @html.div(
-                  style=[
-                    "display: flex", "flex-direction: column", "gap: 12px", "font-size: 13px",
-                    "line-height: 1.6", "color: var(--text-2)",
-                  ],
-                  [
-                    @html.div(
-                      "OpenAI model IDs can be entered directly, for example gpt-5.5.",
-                    ),
-                    @html.div(
-                      "OpenRouter model IDs should include the provider prefix, for example openai/gpt-5.5.",
-                    ),
-                    @html.div(
-                      "For OpenRouter, Mooncraft recommends anthropic/claude-sonnet-4.5 for agentic app-building runs.",
-                    ),
-                    @html.div(
-                      "Leave the API key field blank when a key is already saved and you only want to change the model.",
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
-      ])
-    None => @html.nothing
-  }
-}
-
-///|
 fn render_workspace_shell(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
@@ -828,20 +410,13 @@ fn render_workspace_shell(
       ],
       [
         render_account_toolbar(dispatch, model),
-        if model.active_page is LlmConfig {
-          render_llm_config_page(dispatch, model)
-        } else {
-          @html.div(
-            style=[
-              "flex: 1", "min-width: 0", "min-height: 0", "display: flex", "gap: 16px",
-              "align-items: stretch", "overflow: hidden",
-            ],
-            [
-              render_workspace_panel(dispatch, model),
-              render_preview_panel(model),
-            ],
-          )
-        },
+        @html.div(
+          style=[
+            "flex: 1", "min-width: 0", "min-height: 0", "display: flex", "gap: 16px",
+            "align-items: stretch", "overflow: hidden",
+          ],
+          [render_workspace_panel(dispatch, model), render_preview_panel(model)],
+        ),
       ],
     ),
   ]
