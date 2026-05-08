@@ -102,6 +102,7 @@ fn update(
           run_events: [],
           last_run_event_seq: 0,
           run_spinner_tick: 0,
+          rename_project_editing: false,
           rename_project_name: "",
           rename_project_pending: false,
         }
@@ -134,6 +135,7 @@ fn update(
           last_run_event_seq: 0,
           run_spinner_tick: 0,
           delete_project_confirming: None,
+          rename_project_editing: false,
           rename_project_name: "",
           rename_project_pending: false,
           notice: None,
@@ -153,6 +155,7 @@ fn update(
         {
           ..model,
           project_detail: Some(project),
+          rename_project_editing: false,
           rename_project_name: project.display_name,
           rename_project_pending: false,
           notice: None,
@@ -190,6 +193,26 @@ fn update(
         )
       }
     DraftChanged(value) => (@rabbita.none, { ..model, draft: value })
+    OpenNewProjectDialog =>
+      (
+        @rabbita.none,
+        {
+          ..model,
+          new_project_modal_open: true,
+          new_project_name: "",
+          delete_project_confirming: None,
+          notice: None,
+        },
+      )
+    CloseNewProjectDialog =>
+      if model.create_project_pending {
+        (@rabbita.none, model)
+      } else {
+        (
+          @rabbita.none,
+          { ..model, new_project_modal_open: false, new_project_name: "" },
+        )
+      }
     NewProjectNameChanged(value) =>
       (@rabbita.none, { ..model, new_project_name: value })
     CreateProject =>
@@ -202,10 +225,50 @@ fn update(
           {
             ..model,
             create_project_pending: true,
+            new_project_modal_open: true,
             delete_project_confirming: None,
             notice: None,
           },
         )
+      }
+    StartProjectRename(display_name) =>
+      match model.selected_project_id {
+        Some(_) =>
+          (
+            @rabbita.none,
+            {
+              ..model,
+              rename_project_editing: true,
+              rename_project_name: display_name,
+              notice: None,
+            },
+          )
+        None => (@rabbita.none, model)
+      }
+    CancelProjectRename =>
+      if model.rename_project_pending {
+        (@rabbita.none, model)
+      } else {
+        match model.project_detail {
+          Some(project) =>
+            (
+              @rabbita.none,
+              {
+                ..model,
+                rename_project_editing: false,
+                rename_project_name: project.display_name,
+              },
+            )
+          None =>
+            (
+              @rabbita.none,
+              {
+                ..model,
+                rename_project_editing: false,
+                rename_project_name: "",
+              },
+            )
+        }
       }
     RenameProjectNameChanged(value) =>
       (@rabbita.none, { ..model, rename_project_name: value })
@@ -256,9 +319,11 @@ fn update(
         {
           ..model,
           create_project_pending: false,
+          new_project_modal_open: false,
           new_project_name: "",
           selected_project_id: Some(project.id),
           project_detail: Some(project),
+          rename_project_editing: false,
           rename_project_name: project.display_name,
           rename_project_pending: false,
           messages: [],
@@ -279,6 +344,7 @@ fn update(
           {
             ..model,
             create_project_pending: false,
+            new_project_modal_open: true,
             rename_project_pending: false,
             delete_project_confirming: None,
             notice: Some(
@@ -299,6 +365,7 @@ fn update(
           last_run_event_seq: 0,
           run_spinner_tick: 0,
           draft: "",
+          rename_project_editing: false,
           rename_project_name: "",
           rename_project_pending: false,
           delete_project_confirming: None,
@@ -326,6 +393,7 @@ fn update(
           } else {
             model.project_detail
           },
+          rename_project_editing: false,
           rename_project_name: project.display_name,
           rename_project_pending: false,
           notice: None,

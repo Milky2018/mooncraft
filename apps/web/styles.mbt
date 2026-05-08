@@ -124,40 +124,6 @@ fn secondary_button_style(enabled : Bool) -> Array[String] {
 }
 
 ///|
-fn subtle_danger_button_style(enabled : Bool) -> Array[String] {
-  let foreground = if enabled { "var(--danger)" } else { "var(--text-3)" }
-  let border_color = if enabled {
-    "rgba(255, 122, 122, 0.18)"
-  } else {
-    "var(--border-soft)"
-  }
-  let background = if enabled {
-    "rgba(255, 122, 122, 0.06)"
-  } else {
-    "transparent"
-  }
-  let cursor = if enabled { "pointer" } else { "not-allowed" }
-  let opacity = if enabled { "1" } else { "0.45" }
-  mono_style() +
-  [
-    "display: inline-flex",
-    "align-items: center",
-    "justify-content: center",
-    "padding: 8px 10px",
-    "border: 1px solid " + border_color,
-    "border-radius: 5px",
-    "background: " + background,
-    "color: " + foreground,
-    "font-size: 11px",
-    "font-weight: 700",
-    "letter-spacing: 0.06em",
-    "text-transform: uppercase",
-    "cursor: " + cursor,
-    "opacity: " + opacity,
-  ]
-}
-
-///|
 fn input_style(disabled : Bool) -> Array[String] {
   let border_color = if disabled {
     "var(--border-soft)"

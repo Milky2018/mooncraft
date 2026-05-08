@@ -35,6 +35,122 @@ fn avatar_chip(label : String) -> @rabbita.Html {
 }
 
 ///|
+fn project_action_button_style(
+  foreground : String,
+  background : String,
+  enabled : Bool,
+) -> Array[String] {
+  let cursor = if enabled { "pointer" } else { "not-allowed" }
+  let opacity = if enabled { "1" } else { "0.45" }
+  [
+    "width: 34px",
+    "height: 34px",
+    "padding: 0",
+    "border: 1px solid var(--border-soft)",
+    "border-radius: 10px",
+    "background: " + background,
+    "color: " + foreground,
+    "display: inline-flex",
+    "align-items: center",
+    "justify-content: center",
+    "cursor: " + cursor,
+    "opacity: " + opacity,
+    "flex-shrink: 0",
+  ]
+}
+
+///|
+fn project_edit_icon() -> @rabbita.Html {
+  @svg.svg(
+    width=17,
+    height=17,
+    view_box="0 0 24 24",
+    style=["display: block"],
+    [
+      @svg.path(
+        d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z",
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+      @svg.path(
+        d="M13.5 8.5l2 2",
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+    ],
+  )
+}
+
+///|
+fn project_delete_icon() -> @rabbita.Html {
+  @svg.svg(
+    width=17,
+    height=17,
+    view_box="0 0 24 24",
+    style=["display: block"],
+    [
+      @svg.path(d="M4 7h16", fill="none", stroke="currentColor", stroke_width=2),
+      @svg.path(
+        d="M9 7V4h6v3",
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+      @svg.path(
+        d="M6 7l1 14h10l1-14",
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+    ],
+  )
+}
+
+///|
+fn project_save_icon() -> @rabbita.Html {
+  @svg.svg(
+    width=17,
+    height=17,
+    view_box="0 0 24 24",
+    style=["display: block"],
+    [
+      @svg.path(
+        d="M5 12.5l4 4L19 6.5",
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+    ],
+  )
+}
+
+///|
+fn project_cancel_icon() -> @rabbita.Html {
+  @svg.svg(
+    width=17,
+    height=17,
+    view_box="0 0 24 24",
+    style=["display: block"],
+    [
+      @svg.path(
+        d="M7 7l10 10",
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+      @svg.path(
+        d="M17 7L7 17",
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+    ],
+  )
+}
+
+///|
 fn sidebar_project_item(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
@@ -58,7 +174,15 @@ fn sidebar_project_item(
   }
   let deleting = model.delete_project_pending == Some(project.id)
   let confirming = model.delete_project_confirming == Some(project.id)
+  let renaming = selected && model.rename_project_editing
   let delete_enabled = !(project.status is Running || deleting)
+  let edit_enabled = !deleting
+  let delete_foreground = if confirming { "#ffffff" } else { "var(--danger)" }
+  let delete_background = if confirming {
+    "var(--danger)"
+  } else {
+    "var(--danger-soft)"
+  }
   @html.div(
     style=[
       "border: 1px solid " + border_color,
@@ -71,15 +195,12 @@ fn sidebar_project_item(
       "gap: 8px",
     ],
   ) <| [
-    @html.button(
-      type_="button",
-      on_click=dispatch(SelectProject(project.id)),
-      style=[
-        "flex: 1", "min-width: 0", "padding: 0", "border: none", "background: transparent",
-        "color: var(--text-1)", "cursor: pointer", "display: flex", "align-items: center",
-        "gap: 10px", "text-align: left",
-      ],
-      [
+    if renaming {
+      @html.div(
+        style=[
+          "flex: 1", "min-width: 0", "display: flex", "align-items: center", "gap: 10px",
+        ],
+      ) <| [
         @html.div(
           style=[
             "width: 34px", "height: 34px", "border-radius: 10px", "background: linear-gradient(135deg, var(--accent), #2563eb)",
@@ -91,40 +212,122 @@ fn sidebar_project_item(
           style=[
             "min-width: 0", "display: flex", "flex-direction: column", "gap: 3px",
           ],
-          [
-            @html.div(
-              style=[
-                "font-size: 14px", "font-weight: 600", "white-space: nowrap", "overflow: hidden",
-                "text-overflow: ellipsis",
+        ) <| [
+          @html.input(
+            input_type=Text,
+            value=model.rename_project_name,
+            placeholder="Project name",
+            read_only=model.rename_project_pending,
+            on_input=fn(value) { dispatch(RenameProjectNameChanged(value)) },
+            style=input_style(model.rename_project_pending) +
+              [
+                "height: 34px", "min-width: 0", "font-size: 14px", "font-weight: 600",
+                "padding: 6px 9px", "border-radius: 9px",
               ],
-              project.display_name,
-            ),
-            @html.div(
-              style=mono_style() + ["font-size: 11px", "color: var(--text-3)"],
-              project.status.label(),
-            ),
-          ],
-        ),
-      ],
-    ),
-    if selected || deleting {
+            "",
+          ),
+          @html.div(
+            style=mono_style() + ["font-size: 11px", "color: var(--text-3)"],
+            project.status.label(),
+          ),
+        ],
+      ]
+    } else {
       @html.button(
         type_="button",
-        disabled=!delete_enabled,
-        on_click=if confirming {
-          dispatch(ConfirmDeleteProject(project.id))
-        } else {
-          dispatch(RequestDeleteProject(project.id))
-        },
-        style=subtle_danger_button_style(delete_enabled) + ["flex-shrink: 0"],
-        if deleting {
-          "Deleting..."
-        } else if confirming {
-          "Confirm Delete"
-        } else {
-          "Delete"
-        },
+        on_click=dispatch(SelectProject(project.id)),
+        style=[
+          "flex: 1", "min-width: 0", "padding: 0", "border: none", "background: transparent",
+          "color: var(--text-1)", "cursor: pointer", "display: flex", "align-items: center",
+          "gap: 10px", "text-align: left",
+        ],
+        [
+          @html.div(
+            style=[
+              "width: 34px", "height: 34px", "border-radius: 10px", "background: linear-gradient(135deg, var(--accent), #2563eb)",
+              "box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35)",
+            ],
+            "",
+          ),
+          @html.div(
+            style=[
+              "min-width: 0", "display: flex", "flex-direction: column", "gap: 3px",
+            ],
+            [
+              @html.div(
+                style=[
+                  "font-size: 14px", "font-weight: 600", "white-space: nowrap", "overflow: hidden",
+                  "text-overflow: ellipsis",
+                ],
+                project.display_name,
+              ),
+              @html.div(
+                style=mono_style() + ["font-size: 11px", "color: var(--text-3)"],
+                project.status.label(),
+              ),
+            ],
+          ),
+        ],
       )
+    },
+    if renaming {
+      @html.div(style=["display: flex", "align-items: center", "gap: 6px"]) <| [
+        @html.button(
+          type_="button",
+          title="Save project name",
+          disabled=!can_rename_project(model),
+          on_click=dispatch(SaveProjectRename),
+          style=project_action_button_style(
+            "var(--accent-strong)",
+            "var(--accent-soft)",
+            can_rename_project(model),
+          ),
+          [project_save_icon()],
+        ),
+        @html.button(
+          type_="button",
+          title="Cancel rename",
+          disabled=model.rename_project_pending,
+          on_click=dispatch(CancelProjectRename),
+          style=project_action_button_style(
+            "var(--text-2)",
+            "var(--surface-3)",
+            !model.rename_project_pending,
+          ),
+          [project_cancel_icon()],
+        ),
+      ]
+    } else if selected || deleting {
+      @html.div(style=["display: flex", "align-items: center", "gap: 6px"]) <| [
+        @html.button(
+          type_="button",
+          title="Rename project",
+          disabled=!edit_enabled,
+          on_click=dispatch(StartProjectRename(project.display_name)),
+          style=project_action_button_style(
+            "var(--action-strong)", "var(--action-soft)", edit_enabled,
+          ),
+          [project_edit_icon()],
+        ),
+        @html.button(
+          type_="button",
+          title=if confirming {
+            "Confirm delete project"
+          } else {
+            "Delete project"
+          },
+          disabled=!delete_enabled,
+          on_click=if confirming {
+            dispatch(ConfirmDeleteProject(project.id))
+          } else {
+            dispatch(RequestDeleteProject(project.id))
+          },
+          style=project_action_button_style(
+            delete_foreground, delete_background, delete_enabled,
+          ),
+          [project_delete_icon()],
+        ),
+      ]
     } else {
       @html.nothing
     },
@@ -358,7 +561,6 @@ fn render_project_sidebar(
         ],
       ),
     ]),
-    render_new_project_form(dispatch, model, true),
     @html.div(
       style=[
         "display: flex", "justify-content: space-between", "align-items: center",
@@ -366,7 +568,19 @@ fn render_project_sidebar(
       ],
       [
         @html.div("Projects"),
-        @html.div(style=mono_style(), model.projects.length().to_string()),
+        @html.div(style=["display: flex", "align-items: center", "gap: 8px"]) <| [
+          @html.div(style=mono_style(), model.projects.length().to_string()),
+          @html.button(
+            type_="button",
+            disabled=false,
+            on_click=dispatch(OpenNewProjectDialog),
+            style=primary_button_style(true) +
+              [
+                "height: 32px", "padding: 0 12px", "border-radius: 999px", "font-size: 12px",
+              ],
+            "+ New",
+          ),
+        ],
       ],
     ),
     @html.div(
@@ -424,6 +638,7 @@ fn render_workspace_shell(
         ),
       ],
     ),
+    render_new_project_dialog(dispatch, model),
   ]
 }
 

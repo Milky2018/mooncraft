@@ -278,46 +278,114 @@ fn render_run_failure_card(model : Model) -> @rabbita.Html {
 }
 
 ///|
-fn render_new_project_form(
+fn render_open_project_button(
+  dispatch : @rabbita.Dispatch[Msg],
+  label : String,
+  full_width : Bool,
+) -> @rabbita.Html {
+  let width = if full_width { "100%" } else { "auto" }
+  @html.button(
+    type_="button",
+    disabled=false,
+    on_click=dispatch(OpenNewProjectDialog),
+    style=primary_button_style(true) + ["width: " + width],
+    label,
+  )
+}
+
+///|
+fn render_new_project_dialog(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
-  compact : Bool,
 ) -> @rabbita.Html {
-  let enabled = can_create_project(model)
-  let direction = if compact { "column" } else { "row" }
-  let button_width = if compact { "100%" } else { "auto" }
-  @html.div(
-    style=[
-      "display: flex",
-      "flex-direction: " + direction,
-      "gap: 10px",
-      "align-items: stretch",
-      "width: 100%",
-    ],
-  ) <| [
-    @html.input(
-      input_type=Text,
-      value=model.new_project_name,
-      placeholder="Project name",
-      read_only=model.create_project_pending,
-      on_input=fn(value) { dispatch(NewProjectNameChanged(value)) },
-      style=input_style(model.create_project_pending) +
-        ["min-width: 0", "flex: 1", "font-size: 14px", "padding: 11px 12px"],
-      "",
-    ),
-    @html.button(
-      type_="button",
-      disabled=!enabled,
-      on_click=dispatch(CreateProject),
-      style=primary_button_style(enabled) +
-        ["width: " + button_width, "padding: 11px 14px"],
-      if model.create_project_pending {
-        "Creating..."
-      } else {
-        "Create Project"
-      },
-    ),
-  ]
+  if !model.new_project_modal_open {
+    @html.nothing
+  } else {
+    let enabled = can_create_project(model)
+    @html.div(
+      style=[
+        "position: fixed", "inset: 0", "z-index: 100", "display: flex", "align-items: center",
+        "justify-content: center", "padding: 24px", "background: rgba(15, 23, 42, 0.28)",
+        "backdrop-filter: blur(10px)",
+      ],
+    ) <| [
+      @html.div(
+        style=[
+          "width: min(460px, 100%)", "background: var(--surface-raised)", "border: 1px solid var(--border-soft)",
+          "border-radius: 22px", "box-shadow: 0 28px 80px rgba(15, 23, 42, 0.22)",
+          "padding: 22px", "display: flex", "flex-direction: column", "gap: 16px",
+        ],
+      ) <| [
+        @html.div(
+          style=[
+            "display: flex", "align-items: flex-start", "justify-content: space-between",
+            "gap: 16px",
+          ],
+        ) <| [
+          @html.div(
+            style=["display: flex", "flex-direction: column", "gap: 6px"],
+          ) <| [
+            @html.div(style=section_label_style(), "New project"),
+            @html.div(
+              style=[
+                "font-size: 28px", "font-weight: 600", "letter-spacing: -0.03em",
+                "line-height: 1.08",
+              ],
+              "Name the workspace",
+            ),
+          ],
+          @html.button(
+            type_="button",
+            disabled=model.create_project_pending,
+            on_click=dispatch(CloseNewProjectDialog),
+            style=secondary_button_style(!model.create_project_pending) +
+              [
+                "width: 38px", "height: 38px", "padding: 0", "border-radius: 999px",
+              ],
+            "x",
+          ),
+        ],
+        @html.div(
+          style=["font-size: 14px", "line-height: 1.6", "color: var(--text-2)"],
+          "The first chat message decides what this app becomes. Pick a short name you can recognize later.",
+        ),
+        @html.input(
+          input_type=Text,
+          value=model.new_project_name,
+          placeholder="Snake game, Team CRM, Launch page...",
+          read_only=model.create_project_pending,
+          on_input=fn(value) { dispatch(NewProjectNameChanged(value)) },
+          style=input_style(model.create_project_pending) +
+            ["font-size: 16px", "padding: 13px 14px"],
+          "",
+        ),
+        @html.div(
+          style=[
+            "display: flex", "justify-content: flex-end", "gap: 10px", "padding-top: 4px",
+          ],
+        ) <| [
+          @html.button(
+            type_="button",
+            disabled=model.create_project_pending,
+            on_click=dispatch(CloseNewProjectDialog),
+            style=secondary_button_style(!model.create_project_pending),
+            "Cancel",
+          ),
+          @html.button(
+            type_="button",
+            disabled=!enabled,
+            on_click=dispatch(CreateProject),
+            style=primary_button_style(enabled),
+            if model.create_project_pending {
+              "Creating..."
+            } else {
+              "Create Project"
+            },
+          ),
+        ],
+      ],
+    ]
+  }
 }
 
 ///|
@@ -346,7 +414,11 @@ fn render_workspace_empty(
           ],
           "Name the project first, then describe the app in plain English and watch the live preview appear beside the chat.",
         ),
-        render_new_project_form(dispatch, model, false),
+        @html.div(
+          style=["display: flex", "align-items: center", "padding-top: 4px"],
+        ) <| [
+          render_open_project_button(dispatch, "Create Project", false),
+        ],
       ]
     Some(_) =>
       @html.div(
@@ -373,45 +445,23 @@ fn render_workspace_empty(
 }
 
 ///|
-fn render_project_rename_form(
-  dispatch : @rabbita.Dispatch[Msg],
-  model : Model,
-) -> @rabbita.Html {
+fn render_project_title(model : Model) -> @rabbita.Html {
   match model.project_detail {
-    Some(_) =>
+    Some(project) =>
       @html.div(
         style=[
-          "display: flex", "gap: 8px", "align-items: center", "max-width: 520px",
+          "font-size: 30px", "line-height: 1.04", "font-weight: 600", "letter-spacing: -0.03em",
+          "min-width: 0", "overflow: hidden", "text-overflow: ellipsis", "white-space: nowrap",
         ],
-      ) <| [
-        @html.input(
-          input_type=Text,
-          value=model.rename_project_name,
-          placeholder="Project name",
-          read_only=model.rename_project_pending,
-          on_input=fn(value) { dispatch(RenameProjectNameChanged(value)) },
-          style=input_style(model.rename_project_pending) +
-            ["min-width: 0", "flex: 1", "font-size: 13px", "padding: 9px 10px"],
-          "",
-        ),
-        @html.button(
-          type_="button",
-          disabled=!can_rename_project(model),
-          on_click=dispatch(SaveProjectRename),
-          style=button_style(
-              "var(--surface-2)",
-              "var(--text-1)",
-              can_rename_project(model),
-            ) +
-            ["padding: 9px 12px", "font-size: 13px", "white-space: nowrap"],
-          if model.rename_project_pending {
-            "Saving..."
-          } else {
-            "Rename"
-          },
-        ),
-      ]
-    None => @html.nothing
+        project.display_name,
+      )
+    None =>
+      @html.div(
+        style=[
+          "font-size: 30px", "line-height: 1.04", "font-weight: 600", "letter-spacing: -0.03em",
+        ],
+        project_headline(model),
+      )
   }
 }
 
@@ -450,21 +500,17 @@ fn render_workspace_panel(
       ],
       [
         @html.div(
-          style=["display: flex", "flex-direction: column", "gap: 6px"],
+          style=[
+            "display: flex", "flex-direction: column", "gap: 6px", "min-width: 0",
+          ],
           [
-            @html.div(
-              style=[
-                "font-size: 30px", "line-height: 1.04", "font-weight: 600", "letter-spacing: -0.03em",
-              ],
-              project_headline(model),
-            ),
+            render_project_title(model),
             @html.div(
               style=[
                 "font-size: 14px", "line-height: 1.55", "color: var(--text-2)",
               ],
               "Chat with the builder. The generated app stays hidden behind the live preview.",
             ),
-            render_project_rename_form(dispatch, model),
           ],
         ),
         status_badge(active_project_status(model)),

@@ -27,8 +27,10 @@ struct Model {
   last_run_event_seq : Int
   run_spinner_tick : Int
   draft : String
+  new_project_modal_open : Bool
   new_project_name : String
   create_project_pending : Bool
+  rename_project_editing : Bool
   rename_project_name : String
   rename_project_pending : Bool
   delete_project_confirming : String?
@@ -51,8 +53,12 @@ enum Msg {
   ProjectLoaded(Result[@sdk.ProjectDetail, @sdk.ApiError])
   MessagesLoaded(Result[@sdk.ListMessagesResponse, @sdk.ApiError])
   DraftChanged(String)
+  OpenNewProjectDialog
+  CloseNewProjectDialog
   NewProjectNameChanged(String)
   CreateProject
+  StartProjectRename(String)
+  CancelProjectRename
   RenameProjectNameChanged(String)
   SaveProjectRename
   ProjectRenamed(Result[@sdk.UpdateProjectResponse, @sdk.ApiError])
@@ -155,8 +161,10 @@ fn initial_model() -> Model {
     last_run_event_seq: 0,
     run_spinner_tick: 0,
     draft: "",
+    new_project_modal_open: false,
     new_project_name: "",
     create_project_pending: false,
+    rename_project_editing: false,
     rename_project_name: "",
     rename_project_pending: false,
     delete_project_confirming: None,

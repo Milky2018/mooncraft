@@ -3,6 +3,7 @@ import {
   "moonbit-community/rabbita",
   "moonbit-community/rabbita/cmd" @cmd,
   "moonbit-community/rabbita/html" @html,
+  "moonbit-community/rabbita/svg" @svg,
   "moonbit-community/rabbita/sub" @sub,
   "moonbitlang/core/json",
 }
