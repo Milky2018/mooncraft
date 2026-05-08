@@ -234,6 +234,21 @@ pub(all) struct AdminAiConfigResponse {
 } derive(Debug, ToJson, FromJson)
 
 ///|
+pub(all) struct AdminAiModelSummary {
+  id : String
+  name : String
+  context_length : Int
+  prompt_price : String
+  completion_price : String
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct AdminListAiModelsResponse {
+  items : Array[AdminAiModelSummary]
+  fetched_at : String
+} derive(Debug, ToJson, FromJson)
+
+///|
 pub(all) struct UpdateAdminAiConfigRequest {
   default_model : String
   allowed_models : Array[String]

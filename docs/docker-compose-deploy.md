@@ -133,7 +133,9 @@ curl -fsS http://127.0.0.1:8089/api/health
 
 Users do not configure LLM providers or API keys.
 
-Admins provide OpenRouter keys through the admin page at `/admin`. Browser access to `/admin` redirects to `/admin/login` until the operator enters `MOONCRAFT_ADMIN_TOKEN`; the server stores an HTTP-only admin session cookie after a successful login. The worker leases one active key from the database for each run and injects it into the isolated Codex container only for that run. Key values are accepted on create/update and are never returned by the API; list responses show only a masked hint.
+Admins provide OpenRouter keys through the admin page at `/admin`. Browser access to `/admin` redirects to `/admin/login` until the operator enters `MOONCRAFT_ADMIN_TOKEN`; the server stores an HTTP-only admin session cookie after a successful login. The worker leases one active OpenRouter key from the database for each run and injects it into the isolated Codex container only for that run. Key values are accepted on create/update and are never returned by the API; list responses show only a masked hint.
+
+Mooncraft only supports OpenRouter keys for generated-app runs. The runtime model picker loads the live OpenRouter text model catalog from `GET https://openrouter.ai/api/v1/models` using an active saved OpenRouter key, then saves the selected default model and allowed model list in SQLite.
 
 Open the admin page in a browser:
 
@@ -149,6 +151,8 @@ The admin API can inspect the configured pool:
 ```bash
 curl -fsS -H "Authorization: Bearer $MOONCRAFT_ADMIN_TOKEN" \
   "$MOONCRAFT_PUBLIC_BASE_URL/api/admin/ai/keys"
+curl -fsS -H "Authorization: Bearer $MOONCRAFT_ADMIN_TOKEN" \
+  "$MOONCRAFT_PUBLIC_BASE_URL/api/admin/ai/models"
 curl -fsS -H "Authorization: Bearer $MOONCRAFT_ADMIN_TOKEN" \
   "$MOONCRAFT_PUBLIC_BASE_URL/api/admin/ai/usages/recent/20"
 ```

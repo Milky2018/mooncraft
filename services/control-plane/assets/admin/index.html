@@ -167,14 +167,16 @@
       }
 
       .key-list,
-      .usage-list {
+      .usage-list,
+      .model-list {
         display: flex;
         flex-direction: column;
         gap: 10px;
       }
 
       .key-item,
-      .usage-item {
+      .usage-item,
+      .model-item {
         border: 1px solid rgba(23, 32, 51, 0.1);
         border-radius: 16px;
         background: #ffffff;
@@ -184,11 +186,28 @@
       }
 
       .key-head,
-      .usage-head {
+      .usage-head,
+      .model-head {
         display: flex;
         justify-content: space-between;
         gap: 12px;
         align-items: start;
+      }
+
+      .model-list {
+        max-height: 360px;
+        overflow: auto;
+        padding-right: 4px;
+      }
+
+      .model-item {
+        grid-template-columns: auto 1fr;
+        align-items: start;
+      }
+
+      .model-item input {
+        width: auto;
+        margin-top: 3px;
       }
 
       .badge {
@@ -224,14 +243,17 @@
         <div class="stack">
           <div class="card stack">
             <h2>Runtime Model</h2>
+            <p class="muted">Models are loaded directly from OpenRouter using an active saved key.</p>
+            <button id="load-models" class="secondary">Load OpenRouter Models</button>
             <label>
               Default model
-              <input id="default-model" placeholder="anthropic/claude-sonnet-4.5" />
+              <select id="default-model"></select>
             </label>
             <label>
-              Allowed models, one per line
-              <textarea id="allowed-models" placeholder="anthropic/claude-sonnet-4.5"></textarea>
+              Filter models
+              <input id="model-filter" placeholder="Search model id or name" />
             </label>
+            <div id="models" class="model-list"></div>
             <button id="save-config">Save Runtime Config</button>
           </div>
 
@@ -272,7 +294,11 @@
       const keys = document.querySelector("#keys")
       const usages = document.querySelector("#usages")
       const defaultModel = document.querySelector("#default-model")
-      const allowedModels = document.querySelector("#allowed-models")
+      const modelFilter = document.querySelector("#model-filter")
+      const models = document.querySelector("#models")
+      let runtimeConfig = { default_model: "", allowed_models: [] }
+      let openRouterModels = []
+      let selectedModelIds = new Set()
 
       function showNotice(message, error = false) {
         notice.textContent = message
@@ -358,6 +384,85 @@
         return node
       }
 
+      function modelLabel(model) {
+        return `${model.name || model.id} (${model.id})`
+      }
+
+      function allowedModelIds() {
+        return Array.from(selectedModelIds)
+      }
+
+      function ensureDefaultModelOption(modelId) {
+        if (!modelId) return
+        if (!Array.from(defaultModel.options).some((option) => option.value === modelId)) {
+          const option = document.createElement("option")
+          option.value = modelId
+          option.textContent = modelId
+          defaultModel.append(option)
+        }
+      }
+
+      function renderModels() {
+        const filter = modelFilter.value.trim().toLowerCase()
+        const filtered = openRouterModels.filter((model) => {
+          const haystack = `${model.id} ${model.name}`.toLowerCase()
+          return !filter || haystack.includes(filter)
+        })
+        defaultModel.replaceChildren()
+        for (const model of openRouterModels) {
+          const option = document.createElement("option")
+          option.value = model.id
+          option.textContent = modelLabel(model)
+          defaultModel.append(option)
+        }
+        ensureDefaultModelOption(runtimeConfig.default_model)
+        defaultModel.value = runtimeConfig.default_model || (openRouterModels[0]?.id || "")
+        if (filtered.length === 0) {
+          models.replaceChildren(emptyModelState())
+          return
+        }
+        models.replaceChildren(...filtered.map((model) => modelItem(model, selectedModelIds.has(model.id))))
+      }
+
+      function emptyModelState() {
+        const node = document.createElement("div")
+        node.className = "model-item"
+        node.innerHTML = `<div></div><div class="muted">No OpenRouter models match the current filter.</div>`
+        return node
+      }
+
+      function modelItem(model, selected) {
+        const node = document.createElement("label")
+        node.className = "model-item"
+        node.innerHTML = `
+          <input data-model-id="${escapeAttr(model.id)}" type="checkbox" ${selected ? "checked" : ""} />
+          <div class="stack">
+            <div class="model-head">
+              <strong>${escapeHtml(model.name || model.id)}</strong>
+              <span class="badge">${escapeHtml(model.id)}</span>
+            </div>
+            <div class="muted">
+              Context ${Number(model.context_length || 0).toLocaleString()} · prompt ${escapeHtml(model.prompt_price || "n/a")} · completion ${escapeHtml(model.completion_price || "n/a")}
+            </div>
+          </div>
+        `
+        node.querySelector("input").addEventListener("change", (event) => {
+          if (event.target.checked) {
+            selectedModelIds.add(model.id)
+          } else {
+            selectedModelIds.delete(model.id)
+          }
+        })
+        return node
+      }
+
+      async function loadModels(showSuccess = true) {
+        const response = await api("/api/admin/ai/models")
+        openRouterModels = response.items || []
+        renderModels()
+        if (showSuccess) showNotice(`Loaded ${openRouterModels.length} OpenRouter models.`)
+      }
+
       async function refresh() {
         try {
           const [config, keyList, usageList] = await Promise.all([
@@ -365,10 +470,19 @@
             api("/api/admin/ai/keys"),
             api("/api/admin/ai/usages/recent/20"),
           ])
-          defaultModel.value = config.default_model
-          allowedModels.value = (config.allowed_models || []).join("\n")
+          runtimeConfig = config
+          selectedModelIds = new Set(config.allowed_models || [])
+          if (config.default_model) selectedModelIds.add(config.default_model)
           keys.replaceChildren(...(keyList.items || []).map(keyItem))
           usages.replaceChildren(...(usageList.items || []).map(usageItem))
+          try {
+            await loadModels(false)
+          } catch (error) {
+            openRouterModels = []
+            renderModels()
+            showNotice(error.message, true)
+            return
+          }
           showNotice("Admin data loaded.")
         } catch (error) {
           showNotice(error.message, true)
@@ -418,11 +532,15 @@
 
       async function saveConfig() {
         try {
+          const selectedModels = allowedModelIds()
+          const defaultModelId = defaultModel.value
+          if (!defaultModelId) throw new Error("Load OpenRouter models and choose a default model first.")
+          if (!selectedModels.includes(defaultModelId)) selectedModels.unshift(defaultModelId)
           await api("/api/admin/ai/config", {
             method: "PUT",
             body: JSON.stringify({
-              default_model: defaultModel.value,
-              allowed_models: allowedModels.value.split("\n").map((line) => line.trim()).filter(Boolean),
+              default_model: defaultModelId,
+              allowed_models: selectedModels,
             }),
           })
           showNotice("Runtime config saved.")
@@ -447,6 +565,15 @@
       }
 
       document.querySelector("#refresh").addEventListener("click", refresh)
+      document.querySelector("#load-models").addEventListener("click", () => {
+        loadModels(true).catch((error) => showNotice(error.message, true))
+      })
+      modelFilter.addEventListener("input", renderModels)
+      defaultModel.addEventListener("change", () => {
+        const input = Array.from(models.querySelectorAll("input[data-model-id]")).find((node) => node.dataset.modelId === defaultModel.value)
+        selectedModelIds.add(defaultModel.value)
+        if (input) input.checked = true
+      })
       document.querySelector("#logout").addEventListener("click", async () => {
         await fetch("/api/admin/logout", { method: "POST" })
         window.location.assign("/admin/login")

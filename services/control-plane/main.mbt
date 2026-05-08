@@ -983,6 +983,17 @@ fn main {
       Err(response) => response
     }
   })
+  app.get(@sdk.admin_ai_models_path(), async fn(event) noraise {
+    match require_admin_token(event) {
+      Ok(_) => ignore(())
+      Err(response) => return response
+    }
+    match ctx.fetch_openrouter_models() {
+      Ok(response) => json_ok(response)
+      Err(message) =>
+        api_error_response(UnprocessableEntity, ValidationFailed, message)
+    }
+  })
   app.put(@sdk.admin_ai_config_path(), async fn(event) noraise {
     match require_admin_token(event) {
       Ok(_) => ignore(())

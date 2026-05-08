@@ -220,6 +220,34 @@ async fn Store::list_admin_ai_keys(
 }
 
 ///|
+async fn Store::get_active_openrouter_api_key(
+  self : Store,
+) -> Result[String, String] noraise {
+  match
+    self.query_one(
+      (
+        #|SELECT COALESCE(key_secret, '') AS key_secret
+        #|FROM ai_keys
+        #|WHERE provider = ? AND status = ?
+        #|  AND COALESCE(key_secret, '') <> ''
+        #|ORDER BY priority DESC, COALESCE(last_used_at, '') ASC, created_at ASC
+        #|LIMIT 1;
+      ),
+      params=[String("openrouter"), String("active")],
+    ) {
+    Some(row) => {
+      let api_key = row_text(row, "key_secret").trim().to_owned()
+      if api_key == "" {
+        Err("No active OpenRouter key is available.")
+      } else {
+        Ok(api_key)
+      }
+    }
+    None => Err("Add an active OpenRouter key before loading models.")
+  }
+}
+
+///|
 async fn Store::create_admin_ai_key(
   self : Store,
   label_input : String,

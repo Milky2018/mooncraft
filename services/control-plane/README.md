@@ -74,7 +74,7 @@ Required Codex runtime configuration:
 
 The default runtime image is `docker.io/moonbitcloud/codex:codex-0.125.0-node24`. Override it through `MOONCRAFT_CODEX_DOCKER_IMAGE` when testing local images, PR images, rollbacks, or digest-pinned production deployments.
 
-The runtime intentionally does not mount a host Codex home and users do not configure provider keys. Admins log in at `/admin/login` with `MOONCRAFT_ADMIN_TOKEN` and configure OpenRouter keys through `/admin`; the API stores the key value, returns only a masked hint, and the worker passes one leased key into the isolated Codex container only for the active run.
+The runtime intentionally does not mount a host Codex home and users do not configure provider keys. Admins log in at `/admin/login` with `MOONCRAFT_ADMIN_TOKEN` and configure OpenRouter keys through `/admin`; the API stores the key value, returns only a masked hint, and the worker passes one leased key into the isolated Codex container only for the active run. OpenRouter is the only supported AI provider for generated-app runs. The admin model picker fetches the live OpenRouter text model catalog from `/api/admin/ai/models`, which proxies OpenRouter's `/api/v1/models` endpoint through an active saved key.
 
 Use `just codex-config` to inspect the effective runtime configuration. Build the runtime image locally with `just build-codex-image` and publish the shared multi-arch runtime image with `just docker-codex-publish` after `docker login`.
 

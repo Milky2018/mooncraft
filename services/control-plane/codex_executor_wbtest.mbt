@@ -164,6 +164,34 @@ test "admin bearer token parser accepts standard authorization header" {
 }
 
 ///|
+test "OpenRouter model list parser keeps usable model metadata" {
+  let models = openrouter_models_from_response(
+    (
+      #|{
+      #|  "data": [
+      #|    {
+      #|      "id": "anthropic/claude-sonnet-4.5",
+      #|      "name": "Claude Sonnet 4.5",
+      #|      "context_length": 200000,
+      #|      "pricing": {
+      #|        "prompt": "0.000003",
+      #|        "completion": "0.000015"
+      #|      }
+      #|    },
+      #|    { "name": "missing id" }
+      #|  ]
+      #|}
+    ),
+  ).unwrap()
+  inspect(models.length(), content="1")
+  inspect(models[0].id, content="anthropic/claude-sonnet-4.5")
+  inspect(models[0].name, content="Claude Sonnet 4.5")
+  inspect(models[0].context_length, content="200000")
+  inspect(models[0].prompt_price, content="0.000003")
+  inspect(models[0].completion_price, content="0.000015")
+}
+
+///|
 test "admin log reader returns structured file content" {
   let root = @env.current_dir().unwrap_or(".") +
     "/data/test-admin-logs/" +
@@ -372,7 +400,7 @@ test "docker command receives leased platform AI settings" {
     image: "codex:test",
     platform: "linux/amd64",
     provider: "openrouter",
-    model: "openai/gpt-5.5",
+    model: "anthropic/claude-sonnet-4.5",
     api_key: "leased-key",
     container_home: "/root",
     container_data_dir: "/app/data",
@@ -401,7 +429,7 @@ test "docker command receives leased platform AI settings" {
     ),
   )
   assert_false(args.contains("MOONCRAFT_AI_PROVIDER=openrouter"))
-  assert_false(args.contains("MOONCRAFT_AI_MODEL=openai/gpt-5.5"))
+  assert_false(args.contains("MOONCRAFT_AI_MODEL=anthropic/claude-sonnet-4.5"))
   assert_false(args.contains("MOONCRAFT_AI_API_KEY=leased-key"))
   assert_false(args.contains("CODEX_HOME=/root/.codex"))
   assert_true(
@@ -425,7 +453,9 @@ test "docker command receives leased platform AI settings" {
   assert_false(args.contains("OPENAI_API_KEY"))
   let env_file = docker_env_file_content(config)
   assert_true(env_file.contains("MOONCRAFT_AI_PROVIDER=openrouter"))
-  assert_true(env_file.contains("MOONCRAFT_AI_MODEL=openai/gpt-5.5"))
+  assert_true(
+    env_file.contains("MOONCRAFT_AI_MODEL=anthropic/claude-sonnet-4.5"),
+  )
   assert_true(env_file.contains("MOONCRAFT_AI_API_KEY=leased-key"))
   assert_true(env_file.contains("CODEX_HOME=/root/.codex"))
 }

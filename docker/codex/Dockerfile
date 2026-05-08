@@ -45,30 +45,26 @@ RUN printf '%s\n' \
   '    cp -R /opt/codex-skill-seed/skills/. "$codex_home/skills/"' \
   '  fi' \
   'fi' \
-  'provider="${MOONCRAFT_AI_PROVIDER:-openai}"' \
+  'provider="${MOONCRAFT_AI_PROVIDER:-openrouter}"' \
   'api_key="${MOONCRAFT_AI_API_KEY:-}"' \
   'if [ -z "$api_key" ]; then' \
-  '  echo "MOONCRAFT_AI_API_KEY is required for Codex runs." >&2' \
+  '  echo "MOONCRAFT_AI_API_KEY is required for OpenRouter-backed Codex runs." >&2' \
   '  exit 64' \
   'fi' \
-  'export OPENAI_API_KEY="$api_key"' \
-  'if [ "$provider" = "openrouter" ]; then' \
+  'export OPENROUTER_API_KEY="$api_key"' \
+  'if [ "$provider" != "openrouter" ]; then' \
+  '  echo "Only OpenRouter is supported by the Mooncraft Codex runtime." >&2' \
+  '  exit 64' \
+  'fi' \
   '  cat > "$codex_home/config.toml" <<EOF' \
   'model_provider = "openrouter"' \
   '' \
   '[model_providers.openrouter]' \
   'name = "OpenRouter"' \
   'base_url = "https://openrouter.ai/api/v1"' \
-  'env_key = "OPENAI_API_KEY"' \
+  'env_key = "OPENROUTER_API_KEY"' \
   'wire_api = "responses"' \
   'EOF' \
-  'elif [ "$provider" = "openai" ]; then' \
-  '  rm -f "$codex_home/config.toml"' \
-  '  printf "%s" "$OPENAI_API_KEY" | codex login --with-api-key >/dev/null' \
-  'else' \
-  '  echo "Unsupported MOONCRAFT_AI_PROVIDER: $provider" >&2' \
-  '  exit 64' \
-  'fi' \
   'unset MOONCRAFT_AI_API_KEY' \
   'exec "$@"' \
   > /usr/local/bin/mooncraft-codex-entrypoint \

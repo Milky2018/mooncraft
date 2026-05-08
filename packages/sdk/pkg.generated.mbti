@@ -23,6 +23,10 @@ pub fn admin_ai_keys_path() -> String
 
 pub fn admin_ai_keys_route() -> RouteSpec
 
+pub fn admin_ai_models_path() -> String
+
+pub fn admin_ai_models_route() -> RouteSpec
+
 pub fn admin_project_path(String) -> String
 
 pub fn admin_project_route() -> RouteSpec
@@ -134,12 +138,25 @@ pub(all) struct AdminAiKeyUsageSummary {
   finished_at : String?
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
+pub(all) struct AdminAiModelSummary {
+  id : String
+  name : String
+  context_length : Int
+  prompt_price : String
+  completion_price : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
 pub(all) struct AdminListAiKeyUsagesResponse {
   items : Array[AdminAiKeyUsageSummary]
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct AdminListAiKeysResponse {
   items : Array[AdminAiKeySummary]
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct AdminListAiModelsResponse {
+  items : Array[AdminAiModelSummary]
+  fetched_at : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct AdminListProjectsResponse {
