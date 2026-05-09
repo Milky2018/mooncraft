@@ -3,7 +3,7 @@ fn render_loading_screen() -> @rabbita.Html {
   @html.div(style=["display: grid", "place-items: center", "flex: 1"]) <| (@html.div(
     style=panel_style() +
       [
-        "padding: 8px", "display: flex", "flex-direction: column", "gap: 6px", "min-width: 340px",
+        "padding: 8px", "display: flex", "flex-direction: column", "gap: 4px", "min-width: 340px",
       ],
   ) <| [
     @html.div(style=title_text_style(), "Opening MoonCraft"),
@@ -30,10 +30,10 @@ fn project_action_button_style(
   let cursor = if enabled { "pointer" } else { "not-allowed" }
   let opacity = if enabled { "1" } else { "0.45" }
   [
-    "width: 34px",
-    "height: 34px",
+    "width: 32px",
+    "height: 32px",
     "padding: 0",
-    "border: 1px solid var(--border-soft)",
+    "border: 1px solid transparent",
     "border-radius: var(--radius-control)",
     "background: " + background,
     "color: " + foreground,
@@ -49,8 +49,8 @@ fn project_action_button_style(
 ///|
 fn project_edit_icon() -> @rabbita.Html {
   @svg.svg(
-    width=17,
-    height=17,
+    width=16,
+    height=16,
     view_box="0 0 24 24",
     style=["display: block"],
     [
@@ -73,8 +73,8 @@ fn project_edit_icon() -> @rabbita.Html {
 ///|
 fn project_delete_icon() -> @rabbita.Html {
   @svg.svg(
-    width=17,
-    height=17,
+    width=16,
+    height=16,
     view_box="0 0 24 24",
     style=["display: block"],
     [
@@ -98,8 +98,8 @@ fn project_delete_icon() -> @rabbita.Html {
 ///|
 fn project_save_icon() -> @rabbita.Html {
   @svg.svg(
-    width=17,
-    height=17,
+    width=16,
+    height=16,
     view_box="0 0 24 24",
     style=["display: block"],
     [
@@ -116,8 +116,8 @@ fn project_save_icon() -> @rabbita.Html {
 ///|
 fn project_cancel_icon() -> @rabbita.Html {
   @svg.svg(
-    width=17,
-    height=17,
+    width=16,
+    height=16,
     view_box="0 0 24 24",
     style=["display: block"],
     [
@@ -138,27 +138,32 @@ fn project_cancel_icon() -> @rabbita.Html {
 }
 
 ///|
+fn account_caret_icon(open : Bool) -> @rabbita.Html {
+  @svg.svg(
+    width=16,
+    height=16,
+    view_box="0 0 24 24",
+    style=["display: block"],
+    [
+      @svg.path(
+        d=if open { "M6 15l6-6 6 6" } else { "M6 9l6 6 6-6" },
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+    ],
+  )
+}
+
+///|
 fn sidebar_project_item(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
   project : @sdk.ProjectSummary,
 ) -> @rabbita.Html {
   let selected = model.selected_project_id == Some(project.id)
-  let background = if selected {
-    "linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(241, 245, 249, 0.88))"
-  } else {
-    "rgba(255, 255, 255, 0.38)"
-  }
-  let border_color = if selected {
-    "var(--border-strong)"
-  } else {
-    "rgba(15, 23, 42, 0.08)"
-  }
-  let shadow = if selected {
-    "0 14px 30px rgba(26, 46, 43, 0.10)"
-  } else {
-    "none"
-  }
+  let background = if selected { "var(--surface-2)" } else { "transparent" }
+  let border_color = if selected { "var(--border-soft)" } else { "transparent" }
   let deleting = model.delete_project_pending == Some(project.id)
   let confirming = model.delete_project_confirming == Some(project.id)
   let renaming = selected && model.rename_project_editing
@@ -168,36 +173,29 @@ fn sidebar_project_item(
   let delete_background = if confirming {
     "var(--danger)"
   } else {
-    "var(--danger-soft)"
+    "transparent"
   }
   @html.div(
     style=[
       "border: 1px solid " + border_color,
       "border-radius: var(--radius-control)",
       "background: " + background,
-      "box-shadow: " + shadow,
-      "padding: 10px",
+      "box-shadow: none",
+      "padding: 8px",
       "display: flex",
       "align-items: center",
-      "gap: 6px",
+      "gap: 4px",
     ],
   ) <| [
     if renaming {
       @html.div(
         style=[
-          "flex: 1", "min-width: 0", "display: flex", "align-items: center", "gap: 6px",
+          "flex: 1", "min-width: 0", "display: flex", "align-items: center", "gap: 4px",
         ],
       ) <| [
         @html.div(
           style=[
-            "width: 34px", "height: 34px", "border-radius: var(--radius-control)",
-            "background: linear-gradient(135deg, var(--accent), #2563eb)", "box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35)",
-          ],
-          "",
-        ),
-        @html.div(
-          style=[
-            "min-width: 0", "display: flex", "flex-direction: column", "gap: 3px",
+            "min-width: 0", "display: flex", "flex-direction: column", "gap: 4px",
           ],
         ) <| [
           @html.input(
@@ -208,11 +206,10 @@ fn sidebar_project_item(
             on_input=fn(value) { dispatch(RenameProjectNameChanged(value)) },
             style=input_style(model.rename_project_pending) +
               [
-                "height: 34px", "min-width: 0", "padding: 6px 9px", "border-radius: var(--radius-control)",
+                "height: 32px", "min-width: 0", "padding: 4px 8px", "border-radius: var(--radius-control)",
               ],
             "",
           ),
-          @html.div(style=normal_text_style(), project.status.label()),
         ],
       ]
     } else {
@@ -222,20 +219,13 @@ fn sidebar_project_item(
         style=value_text_style() +
           [
             "flex: 1", "min-width: 0", "padding: 0", "border: none", "background: transparent",
-            "cursor: pointer", "display: flex", "align-items: center", "gap: 6px",
+            "cursor: pointer", "display: flex", "align-items: center", "gap: 4px",
             "text-align: left",
           ],
         [
           @html.div(
             style=[
-              "width: 34px", "height: 34px", "border-radius: var(--radius-control)",
-              "background: linear-gradient(135deg, var(--accent), #2563eb)", "box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35)",
-            ],
-            "",
-          ),
-          @html.div(
-            style=[
-              "min-width: 0", "display: flex", "flex-direction: column", "gap: 3px",
+              "min-width: 0", "display: flex", "flex-direction: column", "gap: 4px",
             ],
             [
               @html.div(
@@ -245,14 +235,13 @@ fn sidebar_project_item(
                   ],
                 project.display_name,
               ),
-              @html.div(style=normal_text_style(), project.status.label()),
             ],
           ),
         ],
       )
     },
     if renaming {
-      @html.div(style=["display: flex", "align-items: center", "gap: 6px"]) <| [
+      @html.div(style=["display: flex", "align-items: center", "gap: 4px"]) <| [
         @html.button(
           type_="button",
           title="Save project name",
@@ -260,7 +249,7 @@ fn sidebar_project_item(
           on_click=dispatch(SaveProjectRename),
           style=project_action_button_style(
             "var(--accent-strong)",
-            "var(--accent-soft)",
+            "transparent",
             can_rename_project(model),
           ),
           [project_save_icon()],
@@ -272,21 +261,21 @@ fn sidebar_project_item(
           on_click=dispatch(CancelProjectRename),
           style=project_action_button_style(
             "var(--text-2)",
-            "var(--surface-3)",
+            "transparent",
             !model.rename_project_pending,
           ),
           [project_cancel_icon()],
         ),
       ]
     } else if selected || deleting {
-      @html.div(style=["display: flex", "align-items: center", "gap: 6px"]) <| [
+      @html.div(style=["display: flex", "align-items: center", "gap: 4px"]) <| [
         @html.button(
           type_="button",
           title="Rename project",
           disabled=!edit_enabled,
           on_click=dispatch(StartProjectRename(project.display_name)),
           style=project_action_button_style(
-            "var(--action-strong)", "var(--action-soft)", edit_enabled,
+            "var(--text-2)", "transparent", edit_enabled,
           ),
           [project_edit_icon()],
         ),
@@ -322,76 +311,52 @@ fn render_account_panel(
 ) -> @rabbita.Html {
   match model.current_user {
     Some(user) => {
-      let provider_text = match user.github_login {
-        Some(login) if login != "" => "GitHub @" + login
-        _ => "GitHub"
-      }
       let email_text = if user.email != "" {
         user.email
       } else {
-        "Verified GitHub account"
+        user.display_name
       }
       @html.div(
         style=[
-          "position: absolute", "right: 0", "top: calc(100% + 10px)", "width: min(380px, calc(100vw - 32px))",
-          "padding: 8px", "display: flex", "flex-direction: column", "gap: 6px",
+          "position: absolute", "right: 0", "top: calc(100% + 8px)", "width: min(320px, calc(100vw - 32px))",
+          "padding: 8px", "display: flex", "flex-direction: column", "gap: 4px",
           "z-index: 100", "max-height: calc(100vh - 90px)", "overflow-y: auto", "background: var(--surface-raised)",
           "background-color: var(--surface-raised)", "background-image: none", "border: 1px solid var(--border-soft)",
-          "border-radius: var(--radius-control)", "box-shadow: 0 28px 80px rgba(15, 23, 42, 0.18)",
+          "border-radius: var(--radius-control)", "box-shadow: 0 16px 48px rgba(15, 23, 42, 0.14)",
           "backdrop-filter: none", "isolation: isolate",
         ],
       ) <| [
-        @html.div(
-          style=[
-            "display: flex", "align-items: center", "justify-content: space-between",
-            "gap: 6px",
-          ],
-          [
-            @html.div(
-              style=[
-                "display: flex", "flex-direction: column", "gap: 3px", "min-width: 0",
-              ],
-              [
-                @html.div(style=section_label_style(), "Account"),
-                @html.div(
-                  style=value_text_style() +
-                    [
-                      "white-space: nowrap", "overflow: hidden", "text-overflow: ellipsis",
-                    ],
-                  user.display_name,
-                ),
-                @html.div(
-                  style=normal_text_style() +
-                    [
-                      "white-space: nowrap", "overflow: hidden", "text-overflow: ellipsis",
-                    ],
-                  email_text,
-                ),
-              ],
-            ),
-            @html.div(
-              style=normal_text_style() +
-                [
-                  "padding: 5px 8px", "border: 1px solid var(--border-soft)", "border-radius: 999px",
-                  "background: var(--surface-2)", "white-space: nowrap",
-                ],
-              provider_text,
-            ),
-          ],
-        ),
+        @html.div(style=["display: flex", "align-items: center", "gap: 8px"], [
+          avatar_chip("U"),
+          @html.div(
+            style=[
+              "display: flex", "flex-direction: column", "gap: 4px", "min-width: 0",
+            ],
+            [
+              @html.div(
+                style=value_text_style() +
+                  [
+                    "white-space: nowrap", "overflow: hidden", "text-overflow: ellipsis",
+                  ],
+                user.display_name,
+              ),
+              @html.div(
+                style=normal_text_style() +
+                  [
+                    "white-space: nowrap", "overflow: hidden", "text-overflow: ellipsis",
+                  ],
+                email_text,
+              ),
+            ],
+          ),
+        ]),
         render_notice_card(model.account_notice, "var(--warning-soft)"),
         @html.div(
           style=[
             "display: flex", "align-items: center", "justify-content: space-between",
-            "gap: 6px", "padding-top: 8px", "border-top: 1px solid var(--border-soft)",
+            "gap: 8px", "padding-top: 4px",
           ],
-          [
-            @html.div(
-              style=["display: flex", "flex-direction: column", "gap: 3px"],
-              [@html.div(style=section_label_style(), "Appearance")],
-            ),
-            theme_toggle_button(dispatch, model),
-          ],
+          [theme_toggle_button(dispatch, model)],
         ),
         @html.button(
           type_="button",
@@ -423,17 +388,16 @@ fn render_account_toolbar(
   match model.current_user {
     Some(user) =>
       @html.div(
-        style=panel_style() +
-          [
-            "position: relative", "padding: 8px 16px", "display: flex", "align-items: center",
-            "justify-content: flex-end", "gap: 6px", "flex-wrap: wrap", "flex-shrink: 0",
-            "overflow: visible", "z-index: 20",
-          ],
+        style=[
+          "position: relative", "padding: 0", "display: flex", "align-items: center",
+          "justify-content: flex-end", "gap: 8px", "flex-wrap: wrap", "flex-shrink: 0",
+          "overflow: visible", "z-index: 20",
+        ],
       ) <| [
         @html.div(
           style=[
             "display: flex", "align-items: center", "justify-content: flex-end",
-            "gap: 6px", "flex-wrap: wrap", "position: relative",
+            "gap: 8px", "flex-wrap: wrap", "position: relative",
           ],
           [
             tun_poc_link(),
@@ -442,34 +406,23 @@ fn render_account_toolbar(
               on_click=dispatch(ToggleAccountPanel),
               style=secondary_button_style(true) +
                 [
-                  "padding: 8px 10px", "justify-content: flex-start", "min-width: 190px",
+                  "height: 32px", "padding: 0 8px", "justify-content: flex-start",
+                  "min-width: 0",
                 ],
               [
                 avatar_chip("U"),
                 @html.div(
-                  style=[
-                    "display: flex", "flex-direction: column", "gap: 1px", "min-width: 0",
-                    "align-items: flex-start",
-                  ],
-                  [
-                    @html.div(
-                      style=value_text_style() +
-                        [
-                          "white-space: nowrap", "overflow: hidden", "text-overflow: ellipsis",
-                          "max-width: 110px",
-                        ],
-                      user.display_name,
-                    ),
-                    @html.div(style=normal_text_style(), "Account"),
-                  ],
+                  style=value_text_style() +
+                    [
+                      "white-space: nowrap", "overflow: hidden", "text-overflow: ellipsis",
+                      "max-width: 140px",
+                    ],
+                  user.display_name,
                 ),
                 @html.div(
-                  style=normal_text_style() + ["margin-left: auto"],
-                  if model.account_panel_open {
-                    "^"
-                  } else {
-                    "v"
-                  },
+                  style=normal_text_style() +
+                    ["margin-left: auto", "color: var(--text-2)"],
+                  [account_caret_icon(model.account_panel_open)],
                 ),
               ],
             ),
@@ -495,16 +448,16 @@ fn render_project_sidebar(
   })
   @html.div(
     style=[
-      "width: 320px", "height: 100vh", "min-height: 0", "padding: 8px", "display: flex",
-      "flex-direction: column", "gap: 6px", "background: var(--sidebar-bg)", "border-right: 1px solid rgba(15, 23, 42, 0.08)",
+      "width: 296px", "height: 100vh", "min-height: 0", "padding: 8px", "display: flex",
+      "flex-direction: column", "gap: 8px", "background: var(--sidebar-bg)", "border-right: 0",
       "box-sizing: border-box", "flex-shrink: 0", "overflow: hidden", "backdrop-filter: blur(24px)",
     ],
   ) <| [
-    @html.div(style=["display: flex", "align-items: center", "gap: 6px"], [
-      brand_logo(38),
+    @html.div(style=["display: flex", "align-items: center", "gap: 8px"], [
+      brand_logo(32),
       @html.div(
         style=[
-          "min-width: 0", "display: flex", "flex-direction: column", "gap: 2px",
+          "min-width: 0", "display: flex", "flex-direction: column", "gap: 4px",
         ],
         [@html.div(style=title_text_style(), "MoonCraft")],
       ),
@@ -516,22 +469,18 @@ fn render_project_sidebar(
         ],
       [
         @html.div("Projects"),
-        @html.div(style=["display: flex", "align-items: center", "gap: 6px"]) <| [
-          @html.div(style=mono_style(), model.projects.length().to_string()),
-          @html.button(
-            type_="button",
-            disabled=false,
-            on_click=dispatch(OpenNewProjectDialog),
-            style=primary_button_style(true) +
-              ["height: 32px", "padding: 0 12px", "border-radius: 999px"],
-            "+ New",
-          ),
-        ],
+        @html.button(
+          type_="button",
+          disabled=false,
+          on_click=dispatch(OpenNewProjectDialog),
+          style=primary_button_style(true) + ["height: 32px", "padding: 0 12px"],
+          "+ New",
+        ),
       ],
     ),
     @html.div(
       style=[
-        "display: flex", "flex-direction: column", "gap: 6px", "min-height: 0", "overflow-y: auto",
+        "display: flex", "flex-direction: column", "gap: 4px", "min-height: 0", "overflow-y: auto",
         "overscroll-behavior: contain", "flex: 1",
       ],
       project_items,
@@ -558,14 +507,14 @@ fn render_workspace_shell(
     render_project_sidebar(dispatch, model),
     @html.div(
       style=[
-        "flex: 1", "min-width: 0", "padding: 10px", "display: flex", "flex-direction: column",
-        "gap: 6px", "box-sizing: border-box", "min-height: 0", "overflow: hidden",
+        "flex: 1", "min-width: 0", "padding: 8px", "display: flex", "flex-direction: column",
+        "gap: 8px", "box-sizing: border-box", "min-height: 0", "overflow: hidden",
       ],
       [
         render_account_toolbar(dispatch, model),
         @html.div(
           style=[
-            "flex: 1", "min-width: 0", "min-height: 0", "display: flex", "gap: 6px",
+            "flex: 1", "min-width: 0", "min-height: 0", "display: flex", "gap: 8px",
             "align-items: stretch", "overflow: hidden",
           ],
           workspace_body,

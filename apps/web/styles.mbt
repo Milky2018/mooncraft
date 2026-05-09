@@ -1,16 +1,11 @@
 ///|
-fn mono_style() -> Array[String] {
-  ["font-family: var(--font-family-ui)"]
-}
-
-///|
 fn theme_variables(theme_mode : ThemeMode) -> Array[String] {
   match theme_mode {
     System => theme_variables(Light)
     Dark =>
       [
         "--font-family-ui: \"IBM Plex Mono\", \"SFMono-Regular\", Menlo, monospace",
-        "--font-title: 24px", "--font-mid: 14px", "--radius-panel: 8px", "--radius-control: 6px",
+        "--font-title: 24px", "--font-mid: 14px", "--radius-panel: 6px", "--radius-control: 4px",
         "--page-bg: #101113", "--page-bg-alt: #111214", "--sidebar-bg: rgba(23, 24, 26, 0.92)",
         "--surface-1: #17181b", "--surface-2: #1c1d20", "--surface-3: #222328", "--surface-raised: #25262b",
         "--preview-bg: #111214", "--border-soft: rgba(255, 255, 255, 0.09)", "--border-strong: rgba(47, 132, 255, 0.72)",
@@ -28,7 +23,7 @@ fn theme_variables(theme_mode : ThemeMode) -> Array[String] {
     Light =>
       [
         "--font-family-ui: \"IBM Plex Mono\", \"SFMono-Regular\", Menlo, monospace",
-        "--font-title: 24px", "--font-mid: 14px", "--radius-panel: 8px", "--radius-control: 6px",
+        "--font-title: 24px", "--font-mid: 14px", "--radius-panel: 6px", "--radius-control: 4px",
         "--page-bg: #eef2f7", "--page-bg-alt: #f8fafc", "--sidebar-bg: rgba(248, 250, 252, 0.88)",
         "--surface-1: rgba(255, 255, 255, 0.90)", "--surface-2: #ffffff", "--surface-3: #f1f5f9",
         "--surface-raised: #ffffff", "--preview-bg: #f8fafc", "--border-soft: rgba(15, 23, 42, 0.10)",
@@ -60,7 +55,7 @@ fn app_root_style(theme_mode : ThemeMode) -> Array[String] {
 fn app_stack_style() -> Array[String] {
   [
     "min-height: calc(100vh - 12px)", "display: flex", "flex-direction: column",
-    "gap: 4px", "padding: 6px",
+    "gap: 4px", "padding: 8px",
   ]
 }
 
@@ -74,9 +69,7 @@ fn panel_style() -> Array[String] {
 
 ///|
 fn inset_panel_style() -> Array[String] {
-  [
-    "background: var(--surface-2)", "border: 1px solid var(--border-soft)", "border-radius: var(--radius-control)",
-  ]
+  ["background: var(--surface-2)", "border-radius: var(--radius-control)"]
 }
 
 ///|
@@ -121,9 +114,9 @@ fn button_style(
     "display: inline-flex",
     "align-items: center",
     "justify-content: center",
-    "gap: 6px",
-    "padding: 8px 10px",
-    "border: 1px solid var(--border-soft)",
+    "gap: 4px",
+    "padding: 8px 12px",
+    "border: 1px solid transparent",
     "border-radius: var(--radius-control)",
     "background: " + background,
     "color: " + foreground,
@@ -139,7 +132,7 @@ fn primary_button_style(enabled : Bool) -> Array[String] {
     "linear-gradient(135deg, var(--action-strong), var(--action))", "var(--on-action)",
     enabled,
   ) +
-  ["box-shadow: 0 8px 18px var(--action-soft)"]
+  ["box-shadow: none"]
 }
 
 ///|
@@ -162,7 +155,7 @@ fn input_style(disabled : Bool) -> Array[String] {
   value_text_style() +
   [
     "width: 100%",
-    "padding: 9px 10px",
+    "padding: 8px 12px",
     "border: 1px solid " + border_color,
     "border-radius: var(--radius-control)",
     "background: " + background,

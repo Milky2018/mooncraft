@@ -20,7 +20,7 @@ fn render_message(message : @sdk.ChatMessage) -> @rabbita.Html {
   @html.div(style=["display: flex", "justify-content: " + justify]) <| (@html.div(
     style=[
       "max-width: min(720px, 88%)",
-      "padding: 10px 12px",
+      "padding: 8px 12px",
       "border-radius: var(--radius-control)",
       "background: " + bubble_background,
       "color: " + bubble_foreground,
@@ -86,9 +86,9 @@ fn render_run_events(model : Model) -> @rabbita.Html {
   }
   @html.div(style=["display: flex", "justify-content: flex-start"]) <| (@html.div(
     style=[
-      "max-width: min(760px, 92%)", "padding: 10px 12px", "border-radius: var(--radius-control)",
-      "background: var(--surface-2)", "border: 1px solid var(--border-soft)", "box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08)",
-      "display: flex", "flex-direction: column", "gap: 6px",
+      "max-width: min(760px, 92%)", "padding: 8px 12px", "border-radius: var(--radius-control)",
+      "background: var(--surface-2)", "box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06)",
+      "display: flex", "flex-direction: column", "gap: 8px",
     ],
   ) <| [
     @html.div(
@@ -97,8 +97,8 @@ fn render_run_events(model : Model) -> @rabbita.Html {
     ),
     @html.div(
       style=[
-        "display: flex", "align-items: center", "gap: 6px", "padding: 8px", "border-radius: var(--radius-control)",
-        "background: var(--surface-3)", "border: 1px solid var(--border-soft)",
+        "display: flex", "align-items: center", "gap: 8px", "padding: 8px", "border-radius: var(--radius-control)",
+        "background: var(--surface-3)",
       ],
       [
         @html.div(
@@ -128,7 +128,7 @@ fn render_run_banner(model : Model) -> @rabbita.Html {
         style=[
           "padding: 8px 10px", "border-radius: var(--radius-control)", "background: var(--action-soft)",
           "border: 1px solid var(--border-soft)", "display: flex", "justify-content: space-between",
-          "align-items: center", "gap: 6px",
+          "align-items: center", "gap: 8px",
         ],
       ) <| [
         @html.div(style=value_text_style(), "Building your app..."),
@@ -154,7 +154,7 @@ fn debug_value_row(label : String, value : String?) -> @rabbita.Html {
       @html.div(
         style=normal_text_style() +
           [
-            "display: grid", "grid-template-columns: 120px minmax(0, 1fr)", "gap: 6px",
+            "display: grid", "grid-template-columns: 120px minmax(0, 1fr)", "gap: 8px",
           ],
       ) <| [
         @html.div(style=normal_text_style(), label),
@@ -183,8 +183,7 @@ fn render_run_failure_debug(run : @sdk.RunStatusResponse) -> @rabbita.Html {
       @html.div(
         style=[
           "padding: 8px", "border-radius: var(--radius-control)", "background: var(--surface-3)",
-          "border: 1px solid var(--border-soft)", "display: flex", "flex-direction: column",
-          "gap: 6px",
+          "display: flex", "flex-direction: column", "gap: 8px",
         ],
       ) <| [
         debug_value_row("Stage", ui_empty_to_none(debug.stage)),
@@ -205,13 +204,13 @@ fn render_run_failure_detail(
 ) -> @rabbita.Html {
   match details {
     Some(text) if text != "" && text != summary =>
-      @html.div(style=["display: flex", "flex-direction: column", "gap: 6px"], [
+      @html.div(style=["display: flex", "flex-direction: column", "gap: 8px"], [
         @html.div(style=value_text_style(), "Failure detail"),
         @html.div(
           style=normal_text_style() +
             [
               "padding: 8px", "border-radius: var(--radius-control)", "background: var(--surface-2)",
-              "border: 1px solid var(--border-soft)", "white-space: pre-wrap", "overflow-wrap: anywhere",
+              "white-space: pre-wrap", "overflow-wrap: anywhere",
             ],
           text,
         ),
@@ -232,9 +231,8 @@ fn render_run_failure_card(model : Model) -> @rabbita.Html {
       )
       @html.div(
         style=[
-          "padding: 10px 12px", "border-radius: var(--radius-control)", "background: var(--danger-soft)",
-          "border: 1px solid var(--border-soft)", "display: flex", "flex-direction: column",
-          "gap: 6px",
+          "padding: 8px 12px", "border-radius: var(--radius-control)", "background: var(--danger-soft)",
+          "display: flex", "flex-direction: column", "gap: 8px",
         ],
       ) <| [
         @html.div(style=value_text_style(), "Run failed"),
@@ -317,8 +315,8 @@ fn model_list_contains(
 ///|
 fn render_disclosure_icon(open : Bool) -> @rabbita.Html {
   @svg.svg(
-    width=15,
-    height=15,
+    width=16,
+    height=16,
     view_box="0 0 24 24",
     style=["display: block"],
     [
@@ -372,8 +370,7 @@ fn render_new_project_more(
 ) -> @rabbita.Html {
   @html.div(
     style=[
-      "border: 1px solid var(--border-soft)", "border-radius: var(--radius-control)",
-      "background: var(--surface-2)", "overflow: hidden",
+      "border-radius: var(--radius-control)", "background: var(--surface-2)", "overflow: hidden",
     ],
   ) <| [
     @html.button(
@@ -384,7 +381,7 @@ fn render_new_project_more(
         [
           "width: 100%", "border: 0", "background: transparent", "padding: 8px 10px",
           "display: flex", "align-items: center", "justify-content: space-between",
-          "gap: 6px", "cursor: pointer",
+          "gap: 8px", "cursor: pointer",
         ],
     ) <| [
       @html.span("More options"),
@@ -394,7 +391,7 @@ fn render_new_project_more(
       @html.div(
         style=[
           "border-top: 1px solid var(--border-soft)", "padding: 8px", "display: flex",
-          "flex-direction: column", "gap: 6px",
+          "flex-direction: column", "gap: 8px",
         ],
       ) <| [
         @html.div(style=section_label_style(), "Agent"),
@@ -442,17 +439,17 @@ fn render_new_project_dialog(
         style=[
           "width: min(460px, 100%)", "background: var(--surface-raised)", "border: 1px solid var(--border-soft)",
           "border-radius: var(--radius-control)", "box-shadow: 0 28px 80px rgba(15, 23, 42, 0.22)",
-          "padding: 8px", "display: flex", "flex-direction: column", "gap: 6px",
+          "padding: 8px", "display: flex", "flex-direction: column", "gap: 8px",
         ],
       ) <| [
         @html.div(
           style=[
             "display: flex", "align-items: flex-start", "justify-content: space-between",
-            "gap: 6px",
+            "gap: 8px",
           ],
         ) <| [
           @html.div(
-            style=["display: flex", "flex-direction: column", "gap: 6px"],
+            style=["display: flex", "flex-direction: column", "gap: 8px"],
           ) <| [
             @html.div(style=section_label_style(), "New project"),
             @html.div(style=title_text_style(), "Name the workspace"),
@@ -475,13 +472,13 @@ fn render_new_project_dialog(
           read_only=model.create_project_pending,
           on_input=fn(value) { dispatch(NewProjectNameChanged(value)) },
           style=input_style(model.create_project_pending) +
-            ["padding: 9px 10px"],
+            ["padding: 8px 12px"],
           "",
         ),
         render_new_project_more(dispatch, model),
         @html.div(
           style=[
-            "display: flex", "justify-content: flex-end", "gap: 6px", "padding-top: 4px",
+            "display: flex", "justify-content: flex-end", "gap: 8px", "padding-top: 4px",
           ],
         ) <| [
           @html.button(
@@ -576,22 +573,22 @@ fn render_workspace_panel(
     @html.div(
       style=[
         "padding: 8px", "border-bottom: 1px solid var(--border-soft)", "display: flex",
-        "justify-content: space-between", "align-items: flex-start", "gap: 6px",
+        "justify-content: space-between", "align-items: flex-start", "gap: 8px",
         "flex-wrap: wrap",
       ],
       [
         @html.div(
           style=[
-            "display: flex", "flex-direction: column", "gap: 6px", "min-width: 0",
+            "display: flex", "flex-direction: column", "gap: 8px", "min-width: 0",
           ],
           [render_project_title(model)],
         ),
-        status_badge(active_project_status(model)),
+        maybe_status_badge(active_project_status(model)),
       ],
     ),
     @html.div(
       style=[
-        "padding: 8px 12px 0", "display: flex", "flex-direction: column", "gap: 6px",
+        "padding: 8px 12px 0", "display: flex", "flex-direction: column", "gap: 8px",
       ],
       [
         render_notice_card(model.notice, "var(--warning-soft)"),
@@ -602,7 +599,7 @@ fn render_workspace_panel(
     @html.div(
       style=[
         "flex: 1", "min-height: 0", "padding: 8px 12px", "display: flex", "flex-direction: column",
-        "gap: 6px", "overflow-y: auto",
+        "gap: 8px", "overflow-y: auto",
       ],
       messages,
     ),
@@ -611,8 +608,8 @@ fn render_workspace_panel(
     } else {
       @html.div(
         style=[
-          "padding: 10px 12px", "border-top: 1px solid var(--border-soft)", "display: flex",
-          "flex-direction: column", "gap: 6px",
+          "padding: 8px 12px", "border-top: 1px solid var(--border-soft)", "display: flex",
+          "flex-direction: column", "gap: 8px",
         ],
         [
           @html.textarea(
@@ -630,7 +627,7 @@ fn render_workspace_panel(
           @html.div(
             style=[
               "display: flex", "justify-content: flex-end", "align-items: center",
-              "gap: 6px", "flex-wrap: wrap",
+              "gap: 8px", "flex-wrap: wrap",
             ],
             [
               @html.button(
@@ -686,16 +683,16 @@ fn render_preview_panel(model : Model) -> @rabbita.Html {
   ) <| [
     @html.div(
       style=[
-        "padding: 10px 12px", "border-bottom: 1px solid var(--border-soft)", "display: flex",
-        "justify-content: space-between", "align-items: flex-start", "gap: 6px",
+        "padding: 8px 12px", "border-bottom: 1px solid var(--border-soft)", "display: flex",
+        "justify-content: space-between", "align-items: flex-start", "gap: 8px",
         "flex-wrap: wrap",
       ],
       [
         @html.div(
-          style=["display: flex", "flex-direction: column", "gap: 6px"],
+          style=["display: flex", "flex-direction: column", "gap: 8px"],
           [@html.div(style=title_text_style(), "Live preview")],
         ),
-        status_badge(status),
+        maybe_status_badge(status),
       ],
     ),
     @html.div(
@@ -705,8 +702,8 @@ fn render_preview_panel(model : Model) -> @rabbita.Html {
       @html.div(
         style=[
           "height: 100%", "border-radius: var(--radius-control)", "overflow: hidden",
-          "background: var(--surface-raised)", "border: 1px solid var(--border-soft)",
-          "box-shadow: 0 20px 50px rgba(15, 23, 42, 0.12)", "display: flex", "flex-direction: column",
+          "background: var(--surface-raised)", "box-shadow: 0 12px 36px rgba(15, 23, 42, 0.10)",
+          "display: flex", "flex-direction: column",
         ],
         [
           preview_browser_chrome(preview),
@@ -739,7 +736,7 @@ fn preview_browser_chrome(preview : @sdk.PreviewTarget?) -> @rabbita.Html {
   }
   @html.div(
     style=[
-      "height: 46px", "display: flex", "align-items: center", "gap: 6px", "padding: 0 12px",
+      "height: 44px", "display: flex", "align-items: center", "gap: 8px", "padding: 0 12px",
       "background: rgba(255, 255, 255, 0.72)", "border-bottom: 1px solid var(--border-soft)",
     ],
   ) <| [
@@ -753,7 +750,7 @@ fn preview_browser_chrome(preview : @sdk.PreviewTarget?) -> @rabbita.Html {
         [
           "flex: 1", "min-width: 0", "padding: 7px 10px", "border-radius: 999px",
           "background: rgba(248, 250, 252, 0.96)", "white-space: nowrap", "overflow: hidden",
-          "text-overflow: ellipsis", "border: 1px solid var(--border-soft)",
+          "text-overflow: ellipsis",
         ],
       url_text,
     ),
@@ -788,7 +785,7 @@ fn preview_empty_state(model : Model) -> @rabbita.Html {
     ],
   ) <| (@html.div(
     style=[
-      "max-width: 360px", "display: flex", "flex-direction: column", "gap: 6px",
+      "max-width: 360px", "display: flex", "flex-direction: column", "gap: 8px",
       "text-align: center", "align-items: center",
     ],
   ) <| [

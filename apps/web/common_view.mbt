@@ -9,13 +9,20 @@ fn status_badge(state : @sdk.RunState) -> @rabbita.Html {
   @html.div(
     style=value_text_style() +
       [
-        "padding: 6px 10px",
+        "padding: 4px 8px",
         "border-radius: var(--radius-control)",
         "background: " + background,
         "color: " + foreground,
-        "border: 1px solid var(--border-soft)",
       ],
   ) <| state.label()
+}
+
+///|
+fn maybe_status_badge(state : @sdk.RunState) -> @rabbita.Html {
+  match state {
+    Idle => @html.nothing
+    _ => status_badge(state)
+  }
 }
 
 ///|
@@ -85,7 +92,7 @@ fn tun_poc_link() -> @rabbita.Html {
     target=Blank,
     rel="noopener noreferrer",
     style=secondary_button_style(true) +
-      ["text-decoration: none", "height: 36px", "padding: 0 10px"],
+      ["text-decoration: none", "height: 32px", "padding: 0 8px"],
     [external_link_icon(), @html.span("tun-poc")],
   )
 }
