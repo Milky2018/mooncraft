@@ -5,7 +5,7 @@ This module is the local backend for the current Mooncraft prototype.
 Responsibilities:
 
 - persist users, sessions, projects, messages, runs, and workspace source snapshots
-- generate the initial MoonBit full-stack workspace under `data/runtime/projects/<id>/workspace`
+- seed the initial MoonBit workspace under `data/runtime/projects/<id>/workspace`
 - serve the app-develop HTTP API
 - serve the main workspace page and platform bundle
 - serve file-backed control-plane HTML/CSS assets from `services/control-plane/assets`
@@ -15,7 +15,7 @@ Responsibilities:
 - rebuild and restart local previews
 - store preview URLs and last-known run state
 
-The platform no longer uses official app templates. Project rows do not carry template ids, and project creation writes only minimal workspace ignore rules. The first user prompt decides what the app becomes; the selected agent is instructed to use `moon new` and choose the project shape.
+The platform no longer uses official app templates. Project rows do not carry template ids, and there is no template picker. Project creation copies the minimal native Mocket seed from `examples/project-seeds/native-mocket` so the workspace has a valid MoonBit preview contract before the first agent turn. The first user prompt still decides what the app becomes; the selected agent must replace the starter app rather than preserve it as a product template.
 
 The current `AgentGateway` uses Docker-backed agent CLI runs. Projects are bound to one agent CLI at creation time: Codex, Claude Code, or Kimi Code. Codex projects keep one persistent `codex_thread_id` in the database and one platform-owned Codex home under `data/codex-sessions/<project-id>/.codex`; Claude Code and Kimi Code are stateless per turn and rely on the persisted workspace snapshot. Each new chat message starts a detached worker process through `moonbitlang/async/process`, runs the selected agent in the disposable container, validates the workspace with dependency fetches plus `moon fmt`, `moon check`, `moon build`, and `moon test`, then refreshes the preview. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
 
@@ -76,6 +76,6 @@ The default runtime image is stored in `config/agent_runtime_image.txt` and is c
 
 The runtime intentionally does not mount a host AI tool home and users do not configure provider keys. Admins log in at `/admin/login` with `MOONCRAFT_ADMIN_TOKEN` and configure OpenRouter keys through `/admin`; the API stores the key value, returns only a masked hint, and the worker passes one leased key into the isolated agent runtime container only for the active run. OpenRouter is the only supported AI provider for generated-app runs.
 
-Use `just agent-runtime-config` to inspect the effective runtime configuration. Build the runtime image locally with `just build-agent-runtime-image` and publish the shared multi-arch runtime image with `just docker-agent-runtime-publish` after `docker login`.
+Use `just agent-runtime-config` to inspect the effective runtime configuration. Build the runtime image locally with `just build-agent-runtime-image <repository> <version> <platform>` and publish the shared multi-arch runtime image with `just docker-agent-runtime-publish <repository> <version> <platforms>` after `docker login`.
 
-Use `OPENROUTER_API_KEY=... just codex-smoke` from the repository root only when you intentionally want to spend real OpenRouter quota on an end-to-end Docker-backed build. The smoke script writes the key through the admin API after startup; it does not configure Mooncraft through service environment variables. Optional smoke overrides are `MOONCRAFT_CODEX_SMOKE_KEY_REF` and `MOONCRAFT_CODEX_SMOKE_MODEL`.
+Use `OPENROUTER_API_KEY=... just agent-smoke` from the repository root only when you intentionally want to spend real OpenRouter quota on an end-to-end Docker-backed build. The smoke script writes the key through the admin API after startup; it does not configure Mooncraft through service environment variables. Optional smoke overrides are `MOONCRAFT_AGENT_SMOKE_KEY_REF` and `MOONCRAFT_AGENT_SMOKE_MODEL`. The old `just codex-smoke` recipe remains as a compatibility alias.

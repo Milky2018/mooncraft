@@ -36,6 +36,10 @@ just build-mooncraft-image mooncraft:local linux/amd64
 Make sure the agent runtime image is available. The `just deploy-*` commands below pull it automatically from the image configured in the matching env file.
 
 ```bash
+just build-agent-runtime-image docker.io/moonbitcloud/mooncraft-agent-runtime 0.1.0 linux/amd64
+# or publish the shared multi-architecture image:
+just docker-agent-runtime-publish docker.io/moonbitcloud/mooncraft-agent-runtime 0.1.0 linux/amd64,linux/arm64
+
 just deploy-test
 # or
 just deploy-prod
@@ -297,12 +301,12 @@ Then verify through the public URL:
 curl -fsS https://your-domain.com/api/health
 ```
 
-For an opt-in real Codex smoke test from the repo root:
+For an opt-in real agent smoke test from the repo root:
 
 ```bash
-export MOONCRAFT_CODEX_SMOKE_MODEL=anthropic/claude-sonnet-4.5
+export MOONCRAFT_AGENT_SMOKE_MODEL=anthropic/claude-sonnet-4.5
 export OPENROUTER_API_KEY='your-test-key'
-just codex-smoke
+just agent-smoke
 ```
 
 This spends real provider quota. The smoke script uses the admin API to save the key into the running test server; it does not pass the key as a Mooncraft service environment variable.

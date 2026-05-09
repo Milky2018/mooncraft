@@ -1,8 +1,8 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-agent_runtime_repository := "docker.io/moonbitcloud/mooncraft-agent-runtime"
-agent_runtime_version := `sed 's/.*://' config/agent_runtime_image.txt`
 agent_runtime_image := `cat config/agent_runtime_image.txt`
+agent_runtime_repository := `sed 's/:[^:]*$//' config/agent_runtime_image.txt`
+agent_runtime_version := `sed 's/.*://' config/agent_runtime_image.txt`
 
 # Show available recipes
 default:
@@ -19,12 +19,12 @@ build profile='debug': fmt
   @if [ "{{profile}}" = release ]; then moon -C . build --release; else moon -C . build; fi
 
 # Serve locally. Usage: `just serve`, `just serve 8107`, or `just serve release`
-serve target='8080' profile='debug':
-  ./scripts/serve.sh "{{target}}" "{{profile}}"
+serve target='8080' profile='':
+  @if [ -n "{{profile}}" ]; then ./scripts/serve.sh "{{target}}" "{{profile}}"; else ./scripts/serve.sh "{{target}}"; fi
 
 # Alias for `serve`
-run target='8080' profile='debug':
-  @just serve {{target}} {{profile}}
+run target='8080' profile='':
+  @if [ -n "{{profile}}" ]; then just serve "{{target}}" "{{profile}}"; else just serve "{{target}}"; fi
 
 # Open the local app in the browser
 open port='8080':
@@ -43,7 +43,7 @@ smoke-running:
 
 # Run a browser smoke test for auth, theme, project lifecycle, and recovery
 ui-smoke port='8094':
-  scripts/playwright_full_smoke.sh {{port}}
+  ./scripts/playwright_full_smoke.sh {{port}}
 
 # Run the browser simple-project story and save screenshots
 playwright-story:
@@ -54,16 +54,20 @@ playwright-real-agent-story:
   ./scripts/playwright_real_agent_story.sh
 
 # Run an opt-in real Docker-backed default-agent smoke test
+agent-smoke:
+  ./scripts/agent_smoke.sh "{{agent_runtime_image}}"
+
+# Compatibility alias for the old real-agent smoke recipe name
 codex-smoke:
-  ./scripts/codex_smoke.sh "{{agent_runtime_image}}"
+  @just agent-smoke
 
 # Build the Docker image used by the Mooncraft app runtime
 build-mooncraft-image tag='mooncraft:local' platform='linux/amd64':
-  docker build --platform {{platform}} -f docker/mooncraft/Dockerfile -t {{tag}} .
+  ./scripts/docker_mooncraft_build.sh "{{tag}}" "{{platform}}"
 
 # Build the Docker image used by Mooncraft agent workers
-build-agent-runtime-image tag=agent_runtime_image platform='linux/amd64':
-  docker build --platform {{platform}} -f docker/agent-runtime/Dockerfile -t {{tag}} .
+build-agent-runtime-image repository=agent_runtime_repository version=agent_runtime_version platform='linux/amd64':
+  ./scripts/docker_agent_runtime_build.sh "{{repository}}" "{{version}}" "{{platform}}"
 
 # Publish the agent runtime image to Docker Hub
 docker-agent-runtime-publish repository=agent_runtime_repository version=agent_runtime_version platforms='linux/amd64,linux/arm64':

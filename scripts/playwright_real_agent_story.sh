@@ -9,13 +9,17 @@ run_stamp="$(date +%Y%m%d-%H%M%S)"
 artifact_dir="${artifact_root}/${run_stamp}"
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 default_agent_runtime_image="$(cat "$repo_root/config/agent_runtime_image.txt")"
-model="${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_MODEL:-${MOONCRAFT_CODEX_SMOKE_MODEL:-anthropic/claude-sonnet-4.5}}"
+model="${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_MODEL:-${MOONCRAFT_AGENT_SMOKE_MODEL:-${MOONCRAFT_CODEX_SMOKE_MODEL:-anthropic/claude-sonnet-4.5}}}"
 if [[ -n "${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_KEY_REF:-}" ]]; then
   key_ref="$MOONCRAFT_PLAYWRIGHT_REAL_AGENT_KEY_REF"
+elif [[ -n "${MOONCRAFT_AGENT_SMOKE_KEY_REF:-}" ]]; then
+  key_ref="$MOONCRAFT_AGENT_SMOKE_KEY_REF"
 elif [[ -n "${MOONCRAFT_CODEX_SMOKE_KEY_REF:-}" ]]; then
   key_ref="$MOONCRAFT_CODEX_SMOKE_KEY_REF"
 elif [[ -n "${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_API_KEY:-}" ]]; then
   key_ref="MOONCRAFT_PLAYWRIGHT_REAL_AGENT_API_KEY"
+elif [[ -n "${MOONCRAFT_AGENT_SMOKE_API_KEY:-}" ]]; then
+  key_ref="MOONCRAFT_AGENT_SMOKE_API_KEY"
 elif [[ -n "${MOONCRAFT_CODEX_SMOKE_API_KEY:-}" ]]; then
   key_ref="MOONCRAFT_CODEX_SMOKE_API_KEY"
 else

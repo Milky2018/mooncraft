@@ -29,13 +29,15 @@ The old `data/projects` location is not a fallback source; startup removes that 
 
 Each generated project chooses its own MoonBit structure. The control plane does not create or require `frontend/`, `backend/`, or `shared/` directories; it only requires valid root-level MoonBit commands and one native runnable app that accepts the preview port as its first CLI argument.
 
-This keeps the live preview tied to a real generated app instead of a fake demo panel without forcing every app into one scaffold.
+New projects start from the minimal native Mocket seed in `examples/project-seeds/native-mocket`. That seed is not a user-facing template; it is a valid preview substrate that the selected agent must replace with the requested app.
+
+This keeps the live preview tied to a real generated app instead of a fake demo panel without forcing every app into one final scaffold.
 
 ## Current Runtime Flow
 
-1. `POST /api/projects` creates project metadata and writes only minimal workspace ignore rules.
+1. `POST /api/projects` creates project metadata and materializes the minimal native MoonBit seed workspace.
 2. `POST /api/projects/:id/runs` stores the user message, opens a run, and locks the project.
-3. `AgentGateway` runs the project's selected agent in the project workspace. For the first app turn, the agent is instructed to create the real MoonBit project with `moon new`.
+3. `AgentGateway` runs the project's selected agent in the project workspace. For the first app turn, the agent is instructed to replace the starter substrate with the requested real app.
 4. `PreviewManager` fetches approved MoonBit modules, rebuilds the generated app, and starts the built native executable on a stable local port.
 5. The control plane marks the run as succeeded or failed and stores the latest preview target.
 6. `apps/web` polls run status and refreshes project state.
@@ -74,14 +76,14 @@ Important persisted fields include:
 
 The control plane owns only the runtime boundary, not the app's source layout. Each project is bound to one agent CLI at creation time. Codex continuity is split deliberately: the database stores the project's `codex_thread_id`, while the matching Codex CLI state lives in the app data volume under `data/codex-sessions/<project-id>/.codex` and is mounted into the disposable Docker container as `CODEX_HOME`. Claude Code and Kimi Code do not persist CLI session state; each turn receives the hydrated workspace snapshot and the current prompt.
 
-- new projects start without a platform-owned app scaffold
-- the selected agent creates the real MoonBit project with `moon new`
+- new projects start from the minimal native Mocket seed, not an official app template
+- the selected agent replaces the starter app with the requested real app
 - root-level `moon fmt`, `moon check`, `moon test`, and `moon build` must remain valid
 - the generated app must build one native runnable executable
 - the executable receives the preview port as its first CLI argument, starts the app server, serves `/`, and returns success from `/api/health`
 - source snapshots are persisted after creation and after successful agent edits
 
-There are no official app templates, no template ids, and no template picker in this slice. Reusable examples should live in documentation or external MoonBit projects, not as platform-owned scaffold variants.
+There are no official app templates, no template ids, and no template picker in this slice. The seed exists only to make the workspace immediately buildable and previewable. Reusable examples should live in documentation or external MoonBit projects, not as platform-owned scaffold variants.
 
 ## Web Surface
 
