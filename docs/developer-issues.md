@@ -10,7 +10,7 @@ Agents do not edit this. This file is maintainable by human developers.
 - [x] Remove runtime template manifests and seed an empty project workspace instead of generating a fixed app scaffold.
 - [x] Add a real durability smoke test: first run, delete the canonical workspace/, send a follow-up message, and verify the run hydrates from workspace.tar, validates, and refreshes preview.
 - [ ] Real codex docker e2e
-    - [x] Add a real just agent-smoke that uses `MOONCRAFT_AGENT_RUNTIME_IMAGE` and builds the Todo List App end-to-end with the real Docker-backed agent runtime.
+  - [x] Add a real just agent-smoke that uses `MOONCRAFT_AGENT_RUNTIME_IMAGE` and builds the Todo List App end-to-end with the real Docker-backed agent runtime.
   - [x] Save enough failure detail from real agent runs to debug quickly: command, exit code, agent.log, validation.log, and final summary path are already close; make sure the UI exposes the failure summary cleanly.
   - [x] Persist the initial project prompt explicitly on the project record instead of deriving it from the first user message. The current recovery path works, but explicit persistence is safer for long-term session recovery.
   - [ ] Replace the nohup moon run ... run-worker worker launch with a small durable worker model: mark stale Running runs failed/retryable on startup, and prevent orphaned state after crashes.
@@ -27,7 +27,7 @@ Agents do not edit this. This file is maintainable by human developers.
   - [ ] Resend verification email
 - [ ] Use `codex-sdk` instead of CLI
 - [ ] Improve the generated workspace bootstrap
-- [ ] OAuth with github account
+- [x] OAuth with github account
 - [ ] Refactor, goal: Move MoonCraft from “single-node prototype” to “production-shaped platform” without adding product surface area. Keep the user flow simple: login, create project, chat, preview.
   - [ ] Phase 1: Runtime Boundary, Result: control plane stops directly knowing how to docker run, moon build, nohup, or kill ports.
     - [ ] Replace ad-hoc preview/process management with a RuntimeService abstraction.

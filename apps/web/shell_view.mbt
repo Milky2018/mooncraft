@@ -436,6 +436,7 @@ fn render_account_toolbar(
             "gap: 6px", "flex-wrap: wrap", "position: relative",
           ],
           [
+            tun_poc_link(),
             @html.button(
               type_="button",
               on_click=dispatch(ToggleAccountPanel),

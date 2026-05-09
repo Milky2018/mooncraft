@@ -27,7 +27,10 @@ fn render_app_header(
       brand_logo(38),
       @html.div(style=title_text_style(), "MoonCraft"),
     ]),
-    theme_toggle_button(dispatch, model),
+    @html.div(style=["display: flex", "align-items: center", "gap: 6px"]) <| [
+      tun_poc_link(),
+      theme_toggle_button(dispatch, model),
+    ],
   ]
 }
 

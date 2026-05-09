@@ -49,6 +49,48 @@ fn brand_logo(size : Int) -> @rabbita.Html {
 }
 
 ///|
+fn external_link_icon() -> @rabbita.Html {
+  @svg.svg(
+    width=16,
+    height=16,
+    view_box="0 0 24 24",
+    style=["display: block"],
+    [
+      @svg.path(
+        d="M10.5 13.5l3-3",
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+      @svg.path(
+        d="M8.5 16.5l-1 1a4 4 0 0 1-5.7-5.7l3-3a4 4 0 0 1 5.7 0",
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+      @svg.path(
+        d="M15.5 7.5l1-1a4 4 0 0 1 5.7 5.7l-3 3a4 4 0 0 1-5.7 0",
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+    ],
+  )
+}
+
+///|
+fn tun_poc_link() -> @rabbita.Html {
+  @html.a(
+    href="https://tun-poc.moonbitlang.com",
+    target=Blank,
+    rel="noopener noreferrer",
+    style=secondary_button_style(true) +
+      ["text-decoration: none", "height: 36px", "padding: 0 10px"],
+    [external_link_icon(), @html.span("tun-poc")],
+  )
+}
+
+///|
 fn project_headline(model : Model) -> String {
   match model.project_detail {
     Some(project) => project.display_name
