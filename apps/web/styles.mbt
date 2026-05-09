@@ -109,8 +109,11 @@ fn button_style(
 ) -> Array[String] {
   let cursor = if enabled { "pointer" } else { "not-allowed" }
   let opacity = if enabled { "1" } else { "0.45" }
-  value_text_style() +
   [
+    "font-size: var(--font-mid)",
+    "font-weight: 600",
+    "line-height: 1.45",
+    "letter-spacing: 0",
     "display: inline-flex",
     "align-items: center",
     "justify-content: center",

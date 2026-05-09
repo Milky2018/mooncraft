@@ -544,6 +544,30 @@ fn render_project_title(model : Model) -> @rabbita.Html {
 }
 
 ///|
+fn send_arrow_icon() -> @rabbita.Html {
+  @svg.svg(
+    width=18,
+    height=18,
+    view_box="0 0 24 24",
+    style=["display: block"],
+    [
+      @svg.path(
+        d="M12 19V5",
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+      @svg.path(
+        d="M5 12l7-7 7 7",
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+    ],
+  )
+}
+
+///|
 fn render_workspace_panel(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
@@ -632,14 +656,14 @@ fn render_workspace_panel(
             [
               @html.button(
                 type_="button",
+                title="Build with MoonCraft",
                 disabled=!send_enabled,
                 on_click=dispatch(SendDraft),
-                style=primary_button_style(send_enabled),
-                if active_run(model) is Some(_) {
-                  "Building..."
-                } else {
-                  "Build With MoonCraft"
-                },
+                style=primary_button_style(send_enabled) +
+                  [
+                    "width: 40px", "height: 40px", "padding: 0", "color: var(--on-action)",
+                  ],
+                [send_arrow_icon()],
               ),
             ],
           ),
