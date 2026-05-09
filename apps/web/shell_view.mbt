@@ -531,17 +531,16 @@ fn view(dispatch : @rabbita.Dispatch[Msg], model : Model) -> @rabbita.Html {
     @html.div(style=app_root_style(model.resolved_theme_mode)) <| render_workspace_shell(
       dispatch, model,
     )
+  } else if model.session_ready {
+    @html.div(style=app_root_style(model.resolved_theme_mode)) <| render_auth_screen(
+      dispatch, model,
+    )
   } else {
-    let body = if !model.session_ready {
-      render_loading_screen()
-    } else {
-      render_auth_screen(dispatch, model)
-    }
     @html.div(style=app_root_style(model.resolved_theme_mode)) <| (@html.div(
       style=app_stack_style(),
     ) <| [
       render_app_header(dispatch, model),
-      body,
+      render_loading_screen(),
     ])
   }
 }

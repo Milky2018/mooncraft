@@ -111,8 +111,13 @@ fn asset_response_bytes(
 }
 
 ///|
-fn platform_logo_asset_path(root : String) -> String {
-  root + "/apps/web/assets/logo.svg"
+fn platform_assets_root(root : String) -> String {
+  root + "/apps/web/assets"
+}
+
+///|
+fn platform_asset_path(root : String, relative : String) -> String {
+  platform_assets_root(root) + "/" + relative
 }
 
 ///|
@@ -688,7 +693,7 @@ fn AppContext::serve_platform_bundle(self : AppContext) -> @mocket.HttpResponse 
 fn AppContext::serve_platform_logo(self : AppContext) -> @mocket.HttpResponse {
   asset_response_bytes(
     "image/svg+xml; charset=utf-8",
-    safe_read_bytes_or(platform_logo_asset_path(self.root), b""),
+    safe_read_bytes_or(platform_asset_path(self.root, "logo.svg"), b""),
   )
 }
 
@@ -699,6 +704,20 @@ fn AppContext::serve_platform_asset(
 ) -> @mocket.HttpResponse {
   match event.params.get("_") {
     Some(value) if value.to_owned() == "logo.svg" => self.serve_platform_logo()
+    Some(value) =>
+      match safe_control_plane_asset_relative_path(value.to_owned()) {
+        Some(relative) => {
+          let asset_path = platform_asset_path(self.root, relative)
+          if !(@fs.is_file(asset_path) catch { _ => false }) {
+            return text_response(NotFound, "Not found")
+          }
+          asset_response_bytes(
+            static_preview_content_type(relative),
+            safe_read_bytes_or(asset_path, b""),
+          )
+        }
+        None => text_response(NotFound, "Not found")
+      }
     _ => text_response(NotFound, "Not found")
   }
 }

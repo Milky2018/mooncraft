@@ -57,39 +57,62 @@ fn render_auth_screen(
   model : Model,
 ) -> @rabbita.Html {
   let _ = dispatch
-  @html.div(style=["display: grid", "place-items: center", "flex: 1"]) <| [
+  let _ = model.github_enabled
+  let _ = model.auth_notice
+  @html.div(
+    style=[
+      "min-height: 100vh", "position: relative", "padding: 16px", "background-image: linear-gradient(rgba(2, 6, 23, 0.58), rgba(2, 6, 23, 0.70)), url('/assets/factory.png')",
+      "background-size: cover", "background-position: center", "box-sizing: border-box",
+    ],
+  ) <| [
     @html.div(
-      style=panel_style() +
-        [
-          "width: min(420px, 100%)", "min-width: 320px", "padding: 8px", "display: flex",
-          "flex-direction: column", "gap: 6px",
-        ],
+      style=[
+        "position: absolute", "top: 16px", "left: 16px", "display: flex", "align-items: center",
+        "gap: 8px",
+      ],
     ) <| [
-      @html.div(style=["display: flex", "align-items: center", "gap: 6px"]) <| [
-        brand_logo(42),
+      brand_logo(32),
+      @html.div(
+        style=title_text_style() +
+          ["color: #ffffff", "text-shadow: 0 1px 18px rgba(0, 0, 0, 0.32)"],
+        "MoonCraft",
+      ),
+    ],
+    @html.a(
+      href=@sdk.github_login_path(),
+      style=primary_button_style(true) +
+        [
+          "position: absolute", "top: 16px", "right: 16px", "text-decoration: none",
+          "justify-content: center", "min-width: 0", "padding: 8px 12px",
+        ],
+    ) <| "Log in",
+    @html.div(
+      style=[
+        "position: absolute", "inset: 0", "display: grid", "place-items: center",
+        "pointer-events: none", "padding: 24px", "box-sizing: border-box",
+      ],
+    ) <| [
+      @html.div(
+        style=[
+          "display: flex", "flex-direction: column", "align-items: center", "gap: 8px",
+          "text-align: center",
+        ],
+      ) <| [
         @html.div(
-          style=["display: flex", "flex-direction: column", "gap: 4px"],
-          [@html.div(style=title_text_style(), "Sign in to MoonCraft")],
+          style=[
+            "font-size: 52px", "font-weight: 800", "line-height: 1.05", "letter-spacing: -0.04em",
+            "color: #ffffff", "text-shadow: 0 2px 24px rgba(0, 0, 0, 0.38)",
+          ],
+          "Craft Your App with AI",
+        ),
+        @html.div(
+          style=[
+            "font-size: 18px", "font-weight: 600", "line-height: 1.4", "color: rgba(226, 232, 240, 0.76)",
+            "text-shadow: 0 1px 16px rgba(0, 0, 0, 0.35)",
+          ],
+          "Powered by MoonBit",
         ),
       ],
-      render_notice_card(model.auth_notice, "var(--danger-soft)"),
-      if model.github_enabled {
-        @html.a(
-          href=@sdk.github_login_path(),
-          style=primary_button_style(true) +
-            [
-              "text-decoration: none", "justify-content: center", "padding: 13px 16px",
-            ],
-        ) <| "Continue with GitHub"
-      } else {
-        @html.div(
-          style=value_text_style() +
-            [
-              "padding: 8px", "border-radius: var(--radius-control)", "background: var(--warning-soft)",
-              "border: 1px solid var(--border-soft)",
-            ],
-        ) <| "Sign-in is temporarily unavailable. Please try again later."
-      },
     ],
   ]
 }
