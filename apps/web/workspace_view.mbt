@@ -29,10 +29,19 @@ fn render_message(message : @sdk.ChatMessage) -> @rabbita.Html {
     ],
   ) <| [
     @html.div(
-      style=normal_text_style() + ["opacity: 0.86", "margin-bottom: 8px"],
+      style=normal_text_style() +
+        ["opacity: 0.86", "margin-bottom: 8px", "color: " + bubble_foreground],
       message.role.label(),
     ),
-    render_markdown_message(message.content, is_user~),
+    if is_user {
+      @html.div(
+        style=value_text_style() +
+          ["white-space: pre-wrap", "color: " + bubble_foreground],
+        message.content,
+      )
+    } else {
+      render_markdown_message(message.content, is_user~)
+    },
   ])
 }
 
