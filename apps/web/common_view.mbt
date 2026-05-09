@@ -7,16 +7,12 @@ fn status_badge(state : @sdk.RunState) -> @rabbita.Html {
     Failed => ("var(--badge-failed-bg)", "var(--badge-failed-fg)")
   }
   @html.div(
-    style=mono_style() +
+    style=value_text_style() +
       [
         "padding: 6px 10px",
-        "border-radius: 6px",
+        "border-radius: var(--radius-control)",
         "background: " + background,
         "color: " + foreground,
-        "font-size: 11px",
-        "font-weight: 700",
-        "letter-spacing: 0.06em",
-        "text-transform: uppercase",
         "border: 1px solid var(--border-soft)",
       ],
   ) <| state.label()
@@ -36,7 +32,7 @@ fn brand_logo(size : Int) -> @rabbita.Html {
       "height: " + px,
       "display: grid",
       "place-items: center",
-      "border-radius: 6px",
+      "border-radius: var(--radius-control)",
       "background: #05080c",
       "border: 1px solid var(--border-soft)",
       "overflow: hidden",
@@ -50,14 +46,6 @@ fn brand_logo(size : Int) -> @rabbita.Html {
     style=["width: 100%", "height: 100%", "object-fit: contain"],
     "",
   )
-}
-
-///|
-fn user_name(model : Model) -> String {
-  match model.current_user {
-    Some(user) => user.display_name
-    None => "Operator"
-  }
 }
 
 ///|

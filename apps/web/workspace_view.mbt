@@ -20,8 +20,8 @@ fn render_message(message : @sdk.ChatMessage) -> @rabbita.Html {
   @html.div(style=["display: flex", "justify-content: " + justify]) <| (@html.div(
     style=[
       "max-width: min(720px, 88%)",
-      "padding: 16px 18px",
-      "border-radius: 16px",
+      "padding: 10px 12px",
+      "border-radius: var(--radius-control)",
       "background: " + bubble_background,
       "color: " + bubble_foreground,
       "border: 1px solid " + bubble_border,
@@ -29,11 +29,7 @@ fn render_message(message : @sdk.ChatMessage) -> @rabbita.Html {
     ],
   ) <| [
     @html.div(
-      style=mono_style() +
-        [
-          "font-size: 11px", "letter-spacing: 0.08em", "text-transform: uppercase",
-          "opacity: 0.86", "margin-bottom: 8px", "font-weight: 700",
-        ],
+      style=normal_text_style() + ["opacity: 0.86", "margin-bottom: 8px"],
       message.role.label(),
     ),
     render_markdown_message(message.content, is_user~),
@@ -90,39 +86,33 @@ fn render_run_events(model : Model) -> @rabbita.Html {
   }
   @html.div(style=["display: flex", "justify-content: flex-start"]) <| (@html.div(
     style=[
-      "max-width: min(760px, 92%)", "padding: 16px 18px", "border-radius: 16px",
-      "background: var(--surface-2)", "color: var(--text-1)", "border: 1px solid var(--border-soft)",
-      "box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08)", "display: flex", "flex-direction: column",
-      "gap: 10px",
+      "max-width: min(760px, 92%)", "padding: 10px 12px", "border-radius: var(--radius-control)",
+      "background: var(--surface-2)", "border: 1px solid var(--border-soft)", "box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08)",
+      "display: flex", "flex-direction: column", "gap: 6px",
     ],
   ) <| [
     @html.div(
-      style=mono_style() +
-        [
-          "font-size: 11px", "letter-spacing: 0.08em", "text-transform: uppercase",
-          "opacity: 0.86", "font-weight: 700",
-        ],
+      style=normal_text_style() + ["opacity: 0.86"],
       "Crafting your app",
     ),
     @html.div(
       style=[
-        "display: flex", "align-items: center", "gap: 12px", "padding: 14px", "border-radius: 16px",
-        "background: var(--surface-3)", "border: 1px solid var(--border-soft)", "color: var(--text-2)",
+        "display: flex", "align-items: center", "gap: 6px", "padding: 8px", "border-radius: var(--radius-control)",
+        "background: var(--surface-3)", "border: 1px solid var(--border-soft)",
       ],
       [
         @html.div(
-          style=[
-            "font-size: 18px", "line-height: 1", "width: 28px", "height: 28px", "border-radius: 999px",
-            "display: grid", "place-items: center", "color: var(--accent)", "background: var(--accent-soft)",
-            "flex-shrink: 0",
-          ],
+          style=title_text_style() +
+            [
+              "width: 28px", "height: 28px", "border-radius: 999px", "display: grid",
+              "place-items: center", "color: var(--accent)", "background: var(--accent-soft)",
+              "flex-shrink: 0",
+            ],
           run_spinner_frame(model.run_spinner_tick),
         ),
         @html.div(
-          style=[
-            "font-size: 14px", "font-weight: 700", "line-height: 1.55", "white-space: pre-wrap",
-            "overflow-wrap: anywhere", "color: var(--text-1)",
-          ],
+          style=value_text_style() +
+            ["white-space: pre-wrap", "overflow-wrap: anywhere"],
           latest_run_event_text(model.run_events),
         ),
       ],
@@ -136,15 +126,12 @@ fn render_run_banner(model : Model) -> @rabbita.Html {
     Some(run) =>
       @html.div(
         style=[
-          "padding: 12px 14px", "border-radius: 14px", "background: var(--action-soft)",
+          "padding: 8px 10px", "border-radius: var(--radius-control)", "background: var(--action-soft)",
           "border: 1px solid var(--border-soft)", "display: flex", "justify-content: space-between",
-          "align-items: center", "gap: 12px",
+          "align-items: center", "gap: 6px",
         ],
       ) <| [
-        @html.div(
-          style=["font-size: 14px", "font-weight: 600", "color: var(--text-1)"],
-          "Building your app...",
-        ),
+        @html.div(style=value_text_style(), "Building your app..."),
         status_badge(run.state),
       ]
     None => @html.nothing
@@ -165,20 +152,15 @@ fn debug_value_row(label : String, value : String?) -> @rabbita.Html {
   match value {
     Some(text) if text != "" =>
       @html.div(
-        style=[
-          "display: grid", "grid-template-columns: 120px minmax(0, 1fr)", "gap: 10px",
-          "font-size: 12px", "line-height: 1.5",
-        ],
+        style=normal_text_style() +
+          [
+            "display: grid", "grid-template-columns: 120px minmax(0, 1fr)", "gap: 6px",
+          ],
       ) <| [
+        @html.div(style=normal_text_style(), label),
         @html.div(
-          style=mono_style() + ["color: var(--text-3)", "font-weight: 700"],
-          label,
-        ),
-        @html.div(
-          style=mono_style() +
-            [
-              "color: var(--text-2)", "overflow-wrap: anywhere", "white-space: pre-wrap",
-            ],
+          style=normal_text_style() +
+            ["overflow-wrap: anywhere", "white-space: pre-wrap"],
           text,
         ),
       ]
@@ -200,9 +182,9 @@ fn render_run_failure_debug(run : @sdk.RunStatusResponse) -> @rabbita.Html {
     Some(debug) =>
       @html.div(
         style=[
-          "padding: 12px", "border-radius: 10px", "background: var(--surface-3)",
+          "padding: 8px", "border-radius: var(--radius-control)", "background: var(--surface-3)",
           "border: 1px solid var(--border-soft)", "display: flex", "flex-direction: column",
-          "gap: 8px",
+          "gap: 6px",
         ],
       ) <| [
         debug_value_row("Stage", ui_empty_to_none(debug.stage)),
@@ -223,17 +205,13 @@ fn render_run_failure_detail(
 ) -> @rabbita.Html {
   match details {
     Some(text) if text != "" && text != summary =>
-      @html.div(style=["display: flex", "flex-direction: column", "gap: 8px"], [
+      @html.div(style=["display: flex", "flex-direction: column", "gap: 6px"], [
+        @html.div(style=value_text_style(), "Failure detail"),
         @html.div(
-          style=["font-size: 12px", "font-weight: 700", "color: var(--text-2)"],
-          "Failure detail",
-        ),
-        @html.div(
-          style=mono_style() +
+          style=normal_text_style() +
             [
-              "padding: 12px", "border-radius: 10px", "background: var(--surface-2)",
-              "border: 1px solid var(--border-soft)", "font-size: 12px", "line-height: 1.5",
-              "color: var(--text-2)", "white-space: pre-wrap", "overflow-wrap: anywhere",
+              "padding: 8px", "border-radius: var(--radius-control)", "background: var(--surface-2)",
+              "border: 1px solid var(--border-soft)", "white-space: pre-wrap", "overflow-wrap: anywhere",
             ],
           text,
         ),
@@ -254,21 +232,13 @@ fn render_run_failure_card(model : Model) -> @rabbita.Html {
       )
       @html.div(
         style=[
-          "padding: 14px 16px", "border-radius: 12px", "background: var(--danger-soft)",
+          "padding: 10px 12px", "border-radius: var(--radius-control)", "background: var(--danger-soft)",
           "border: 1px solid var(--border-soft)", "display: flex", "flex-direction: column",
-          "gap: 12px",
+          "gap: 6px",
         ],
       ) <| [
-        @html.div(
-          style=["font-size: 14px", "font-weight: 700", "color: var(--text-1)"],
-          "Run failed",
-        ),
-        @html.div(
-          style=[
-            "font-size: 14px", "line-height: 1.6", "color: var(--text-1)", "white-space: pre-wrap",
-          ],
-          summary,
-        ),
+        @html.div(style=value_text_style(), "Run failed"),
+        @html.div(style=value_text_style() + ["white-space: pre-wrap"], summary),
         render_run_failure_debug(run),
         render_run_failure_detail(summary, run.error_message),
       ]
@@ -402,19 +372,20 @@ fn render_new_project_more(
 ) -> @rabbita.Html {
   @html.div(
     style=[
-      "border: 1px solid var(--border-soft)", "border-radius: 16px", "background: var(--surface-2)",
-      "overflow: hidden",
+      "border: 1px solid var(--border-soft)", "border-radius: var(--radius-control)",
+      "background: var(--surface-2)", "overflow: hidden",
     ],
   ) <| [
     @html.button(
       type_="button",
       disabled=model.create_project_pending,
       on_click=dispatch(ToggleNewProjectMore),
-      style=[
-        "width: 100%", "border: 0", "background: transparent", "color: var(--text-1)",
-        "padding: 12px 14px", "display: flex", "align-items: center", "justify-content: space-between",
-        "gap: 12px", "font-size: 14px", "font-weight: 700", "cursor: pointer",
-      ],
+      style=value_text_style() +
+        [
+          "width: 100%", "border: 0", "background: transparent", "padding: 8px 10px",
+          "display: flex", "align-items: center", "justify-content: space-between",
+          "gap: 6px", "cursor: pointer",
+        ],
     ) <| [
       @html.span("More options"),
       render_disclosure_icon(model.new_project_more_open),
@@ -422,15 +393,15 @@ fn render_new_project_more(
     if model.new_project_more_open {
       @html.div(
         style=[
-          "border-top: 1px solid var(--border-soft)", "padding: 14px", "display: flex",
-          "flex-direction: column", "gap: 10px",
+          "border-top: 1px solid var(--border-soft)", "padding: 8px", "display: flex",
+          "flex-direction: column", "gap: 6px",
         ],
       ) <| [
         @html.div(style=section_label_style(), "Agent"),
         @html.select(
           disabled=model.create_project_pending,
           on_change=fn(value) { dispatch(NewProjectAgentChanged(value)) },
-          style=input_style(model.create_project_pending) + ["font-size: 14px"],
+          style=input_style(model.create_project_pending),
           render_agent_select_options(model),
         ),
         @html.div(style=section_label_style(), "Model"),
@@ -439,23 +410,10 @@ fn render_new_project_more(
             (model.ai_models_loading && model.ai_models.length() == 0),
           on_change=fn(value) { dispatch(NewProjectModelChanged(value)) },
           style=input_style(
-              model.create_project_pending ||
-              (model.ai_models_loading && model.ai_models.length() == 0),
-            ) +
-            ["font-size: 14px"],
+            model.create_project_pending ||
+            (model.ai_models_loading && model.ai_models.length() == 0),
+          ),
           render_model_select_options(model),
-        ),
-        @html.div(
-          style=["font-size: 12px", "line-height: 1.55", "color: var(--text-3)"],
-          if model.ai_models_error is Some(message) {
-            "Model list could not be loaded. Creation will use the admin default. " +
-            message
-          } else if model.ai_models_default_model != "" {
-            agent_cli_label(model.new_project_agent_cli) +
-            " will use compatible OpenRouter models only."
-          } else {
-            "Default model is managed by the admin."
-          },
         ),
       ]
     } else {
@@ -476,34 +434,28 @@ fn render_new_project_dialog(
     @html.div(
       style=[
         "position: fixed", "inset: 0", "z-index: 100", "display: flex", "align-items: center",
-        "justify-content: center", "padding: 24px", "background: rgba(15, 23, 42, 0.28)",
+        "justify-content: center", "padding: 12px", "background: rgba(15, 23, 42, 0.28)",
         "backdrop-filter: blur(10px)",
       ],
     ) <| [
       @html.div(
         style=[
           "width: min(460px, 100%)", "background: var(--surface-raised)", "border: 1px solid var(--border-soft)",
-          "border-radius: 22px", "box-shadow: 0 28px 80px rgba(15, 23, 42, 0.22)",
-          "padding: 22px", "display: flex", "flex-direction: column", "gap: 16px",
+          "border-radius: var(--radius-control)", "box-shadow: 0 28px 80px rgba(15, 23, 42, 0.22)",
+          "padding: 8px", "display: flex", "flex-direction: column", "gap: 6px",
         ],
       ) <| [
         @html.div(
           style=[
             "display: flex", "align-items: flex-start", "justify-content: space-between",
-            "gap: 16px",
+            "gap: 6px",
           ],
         ) <| [
           @html.div(
             style=["display: flex", "flex-direction: column", "gap: 6px"],
           ) <| [
             @html.div(style=section_label_style(), "New project"),
-            @html.div(
-              style=[
-                "font-size: 28px", "font-weight: 600", "letter-spacing: -0.03em",
-                "line-height: 1.08",
-              ],
-              "Name the workspace",
-            ),
+            @html.div(style=title_text_style(), "Name the workspace"),
           ],
           @html.button(
             type_="button",
@@ -516,10 +468,6 @@ fn render_new_project_dialog(
             "x",
           ),
         ],
-        @html.div(
-          style=["font-size: 14px", "line-height: 1.6", "color: var(--text-2)"],
-          "The first chat message decides what this app becomes. Pick a short name you can recognize later.",
-        ),
         @html.input(
           input_type=Text,
           value=model.new_project_name,
@@ -527,13 +475,13 @@ fn render_new_project_dialog(
           read_only=model.create_project_pending,
           on_input=fn(value) { dispatch(NewProjectNameChanged(value)) },
           style=input_style(model.create_project_pending) +
-            ["font-size: 16px", "padding: 13px 14px"],
+            ["padding: 9px 10px"],
           "",
         ),
         render_new_project_more(dispatch, model),
         @html.div(
           style=[
-            "display: flex", "justify-content: flex-end", "gap: 10px", "padding-top: 4px",
+            "display: flex", "justify-content: flex-end", "gap: 6px", "padding-top: 4px",
           ],
         ) <| [
           @html.button(
@@ -570,49 +518,16 @@ fn render_workspace_empty(
       @html.div(
         style=inset_panel_style() +
           [
-            "padding: 24px 28px", "display: flex", "flex-direction: column", "gap: 14px",
-            "min-height: 190px", "justify-content: center",
+            "padding: 8px", "display: flex", "align-items: center", "min-height: 120px",
           ],
       ) <| [
-        @html.div(
-          style=[
-            "font-size: 28px", "line-height: 1.08", "font-weight: 600", "letter-spacing: -0.03em",
-          ],
-          "Start with a product idea.",
-        ),
-        @html.div(
-          style=[
-            "font-size: 15px", "line-height: 1.65", "color: var(--text-2)", "max-width: 560px",
-          ],
-          "Name the project first, then describe the app in plain English and watch the live preview appear beside the chat.",
-        ),
         @html.div(
           style=["display: flex", "align-items: center", "padding-top: 4px"],
         ) <| [
           render_open_project_button(dispatch, "Create Project", false),
         ],
       ]
-    Some(_) =>
-      @html.div(
-        style=inset_panel_style() +
-          [
-            "padding: 22px 28px", "display: flex", "flex-direction: column", "gap: 12px",
-            "justify-content: center",
-          ],
-      ) <| [
-        @html.div(
-          style=[
-            "font-size: 28px", "line-height: 1.08", "font-weight: 600", "letter-spacing: -0.03em",
-          ],
-          "What should this app become?",
-        ),
-        @html.div(
-          style=[
-            "font-size: 15px", "line-height: 1.65", "color: var(--text-2)", "max-width: 580px",
-          ],
-          "Try: \"Build a simple CRM for indie founders\", \"Create a habit tracker\", or \"Make a landing page with signup\".",
-        ),
-      ]
+    Some(_) => @html.nothing
   }
 }
 
@@ -621,19 +536,13 @@ fn render_project_title(model : Model) -> @rabbita.Html {
   match model.project_detail {
     Some(project) =>
       @html.div(
-        style=[
-          "font-size: 30px", "line-height: 1.04", "font-weight: 600", "letter-spacing: -0.03em",
-          "min-width: 0", "overflow: hidden", "text-overflow: ellipsis", "white-space: nowrap",
-        ],
+        style=title_text_style() +
+          [
+            "min-width: 0", "overflow: hidden", "text-overflow: ellipsis", "white-space: nowrap",
+          ],
         project.display_name,
       )
-    None =>
-      @html.div(
-        style=[
-          "font-size: 30px", "line-height: 1.04", "font-weight: 600", "letter-spacing: -0.03em",
-        ],
-        project_headline(model),
-      )
+    None => @html.div(style=title_text_style(), project_headline(model))
   }
 }
 
@@ -666,31 +575,23 @@ fn render_workspace_panel(
   ) <| [
     @html.div(
       style=[
-        "padding: 20px 22px 16px", "border-bottom: 1px solid var(--border-soft)",
-        "display: flex", "justify-content: space-between", "align-items: flex-start",
-        "gap: 12px", "flex-wrap: wrap",
+        "padding: 8px", "border-bottom: 1px solid var(--border-soft)", "display: flex",
+        "justify-content: space-between", "align-items: flex-start", "gap: 6px",
+        "flex-wrap: wrap",
       ],
       [
         @html.div(
           style=[
             "display: flex", "flex-direction: column", "gap: 6px", "min-width: 0",
           ],
-          [
-            render_project_title(model),
-            @html.div(
-              style=[
-                "font-size: 14px", "line-height: 1.55", "color: var(--text-2)",
-              ],
-              "Chat with the builder. The generated app stays hidden behind the live preview.",
-            ),
-          ],
+          [render_project_title(model)],
         ),
         status_badge(active_project_status(model)),
       ],
     ),
     @html.div(
       style=[
-        "padding: 14px 22px 0", "display: flex", "flex-direction: column", "gap: 10px",
+        "padding: 8px 12px 0", "display: flex", "flex-direction: column", "gap: 6px",
       ],
       [
         render_notice_card(model.notice, "var(--warning-soft)"),
@@ -700,8 +601,8 @@ fn render_workspace_panel(
     ),
     @html.div(
       style=[
-        "flex: 1", "min-height: 0", "padding: 14px 22px", "display: flex", "flex-direction: column",
-        "gap: 14px", "overflow-y: auto",
+        "flex: 1", "min-height: 0", "padding: 8px 12px", "display: flex", "flex-direction: column",
+        "gap: 6px", "overflow-y: auto",
       ],
       messages,
     ),
@@ -710,8 +611,8 @@ fn render_workspace_panel(
     } else {
       @html.div(
         style=[
-          "padding: 16px 22px 22px", "border-top: 1px solid var(--border-soft)",
-          "display: flex", "flex-direction: column", "gap: 10px",
+          "padding: 10px 12px", "border-top: 1px solid var(--border-soft)", "display: flex",
+          "flex-direction: column", "gap: 6px",
         ],
         [
           @html.textarea(
@@ -722,14 +623,14 @@ fn render_workspace_panel(
             on_input=fn(value) { dispatch(DraftChanged(value)) },
             style=input_style(active_run(model) is Some(_)) +
               [
-                "min-height: 132px", "resize: vertical", "font-size: 16px", "box-shadow: 0 16px 40px rgba(15, 23, 42, 0.07)",
+                "min-height: 132px", "resize: vertical", "box-shadow: 0 16px 40px rgba(15, 23, 42, 0.07)",
               ],
             "",
           ),
           @html.div(
             style=[
               "display: flex", "justify-content: flex-end", "align-items: center",
-              "gap: 12px", "flex-wrap: wrap",
+              "gap: 6px", "flex-wrap: wrap",
             ],
             [
               @html.button(
@@ -785,40 +686,27 @@ fn render_preview_panel(model : Model) -> @rabbita.Html {
   ) <| [
     @html.div(
       style=[
-        "padding: 18px 20px", "border-bottom: 1px solid var(--border-soft)", "display: flex",
-        "justify-content: space-between", "align-items: flex-start", "gap: 12px",
+        "padding: 10px 12px", "border-bottom: 1px solid var(--border-soft)", "display: flex",
+        "justify-content: space-between", "align-items: flex-start", "gap: 6px",
         "flex-wrap: wrap",
       ],
       [
         @html.div(
           style=["display: flex", "flex-direction: column", "gap: 6px"],
-          [
-            @html.div(
-              style=[
-                "font-size: 28px", "line-height: 1.04", "font-weight: 600", "letter-spacing: -0.03em",
-              ],
-              "Live preview",
-            ),
-            @html.div(
-              style=[
-                "font-size: 13px", "line-height: 1.55", "color: var(--text-2)",
-              ],
-              "The generated app appears here when Mooncraft finishes a run.",
-            ),
-          ],
+          [@html.div(style=title_text_style(), "Live preview")],
         ),
         status_badge(status),
       ],
     ),
     @html.div(
       style=[
-        "flex: 1", "min-height: 0", "padding: 14px", "background: linear-gradient(180deg, var(--surface-2), var(--surface-3))",
+        "flex: 1", "min-height: 0", "padding: 8px", "background: linear-gradient(180deg, var(--surface-2), var(--surface-3))",
       ],
       @html.div(
         style=[
-          "height: 100%", "border-radius: 16px", "overflow: hidden", "background: var(--surface-raised)",
-          "border: 1px solid var(--border-soft)", "box-shadow: 0 20px 50px rgba(15, 23, 42, 0.12)",
-          "display: flex", "flex-direction: column",
+          "height: 100%", "border-radius: var(--radius-control)", "overflow: hidden",
+          "background: var(--surface-raised)", "border: 1px solid var(--border-soft)",
+          "box-shadow: 0 20px 50px rgba(15, 23, 42, 0.12)", "display: flex", "flex-direction: column",
         ],
         [
           preview_browser_chrome(preview),
@@ -847,11 +735,11 @@ fn render_preview_panel(model : Model) -> @rabbita.Html {
 fn preview_browser_chrome(preview : @sdk.PreviewTarget?) -> @rabbita.Html {
   let url_text = match preview {
     Some(target) => target.url
-    None => "Preview will open here"
+    None => "No preview"
   }
   @html.div(
     style=[
-      "height: 46px", "display: flex", "align-items: center", "gap: 10px", "padding: 0 12px",
+      "height: 46px", "display: flex", "align-items: center", "gap: 6px", "padding: 0 12px",
       "background: rgba(255, 255, 255, 0.72)", "border-bottom: 1px solid var(--border-soft)",
     ],
   ) <| [
@@ -861,11 +749,11 @@ fn preview_browser_chrome(preview : @sdk.PreviewTarget?) -> @rabbita.Html {
       browser_dot("#62c554"),
     ]),
     @html.div(
-      style=mono_style() +
+      style=normal_text_style() +
         [
           "flex: 1", "min-width: 0", "padding: 7px 10px", "border-radius: 999px",
-          "background: rgba(248, 250, 252, 0.96)", "color: var(--text-3)", "font-size: 11px",
-          "white-space: nowrap", "overflow: hidden", "text-overflow: ellipsis", "border: 1px solid var(--border-soft)",
+          "background: rgba(248, 250, 252, 0.96)", "white-space: nowrap", "overflow: hidden",
+          "text-overflow: ellipsis", "border: 1px solid var(--border-soft)",
         ],
       url_text,
     ),
@@ -893,38 +781,24 @@ fn preview_empty_state(model : Model) -> @rabbita.Html {
   } else {
     "Create a project first"
   }
-  let body = if active_run(model) is Some(_) {
-    "Mooncraft is assembling the app. The live version will load here automatically."
-  } else if model.selected_project_id is Some(_) {
-    "Send the first request in chat, and the generated app will appear in this window."
-  } else {
-    "Create a project and describe the app you want to build."
-  }
   @html.div(
     style=[
-      "flex: 1", "min-height: 0", "display: grid", "place-items: center", "padding: 32px",
+      "flex: 1", "min-height: 0", "display: grid", "place-items: center", "padding: 14px",
       "background: radial-gradient(circle at 50% 24%, var(--accent-soft), transparent 34%), var(--preview-bg)",
     ],
   ) <| (@html.div(
     style=[
-      "max-width: 360px", "display: flex", "flex-direction: column", "gap: 12px",
+      "max-width: 360px", "display: flex", "flex-direction: column", "gap: 6px",
       "text-align: center", "align-items: center",
     ],
   ) <| [
     @html.div(
       style=[
-        "width: 58px", "height: 58px", "border-radius: 18px", "background: linear-gradient(135deg, var(--accent), #2563eb)",
+        "width: 58px", "height: 58px", "border-radius: var(--radius-control)", "background: linear-gradient(135deg, var(--accent), #2563eb)",
         "box-shadow: 0 16px 34px rgba(15, 118, 110, 0.18)",
       ],
       "",
     ),
-    @html.div(
-      style=["font-size: 23px", "font-weight: 600", "letter-spacing: -0.025em"],
-      title,
-    ),
-    @html.div(
-      style=["font-size: 14px", "line-height: 1.7", "color: var(--text-2)"],
-      body,
-    ),
+    @html.div(style=title_text_style(), title),
   ])
 }

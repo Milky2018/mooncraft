@@ -1,6 +1,6 @@
 ///|
 fn mono_style() -> Array[String] {
-  ["font-family: \"IBM Plex Mono\", \"SFMono-Regular\", Menlo, monospace"]
+  ["font-family: var(--font-family-ui)"]
 }
 
 ///|
@@ -9,6 +9,8 @@ fn theme_variables(theme_mode : ThemeMode) -> Array[String] {
     System => theme_variables(Light)
     Dark =>
       [
+        "--font-family-ui: \"IBM Plex Mono\", \"SFMono-Regular\", Menlo, monospace",
+        "--font-title: 24px", "--font-mid: 14px", "--radius-panel: 8px", "--radius-control: 6px",
         "--page-bg: #101113", "--page-bg-alt: #111214", "--sidebar-bg: rgba(23, 24, 26, 0.92)",
         "--surface-1: #17181b", "--surface-2: #1c1d20", "--surface-3: #222328", "--surface-raised: #25262b",
         "--preview-bg: #111214", "--border-soft: rgba(255, 255, 255, 0.09)", "--border-strong: rgba(47, 132, 255, 0.72)",
@@ -25,6 +27,8 @@ fn theme_variables(theme_mode : ThemeMode) -> Array[String] {
       ]
     Light =>
       [
+        "--font-family-ui: \"IBM Plex Mono\", \"SFMono-Regular\", Menlo, monospace",
+        "--font-title: 24px", "--font-mid: 14px", "--radius-panel: 8px", "--radius-control: 6px",
         "--page-bg: #eef2f7", "--page-bg-alt: #f8fafc", "--sidebar-bg: rgba(248, 250, 252, 0.88)",
         "--surface-1: rgba(255, 255, 255, 0.90)", "--surface-2: #ffffff", "--surface-3: #f1f5f9",
         "--surface-raised: #ffffff", "--preview-bg: #f8fafc", "--border-soft: rgba(15, 23, 42, 0.10)",
@@ -47,39 +51,60 @@ fn app_root_style(theme_mode : ThemeMode) -> Array[String] {
   theme_variables(theme_mode) +
   [
     "min-height: 100vh", "padding: 0", "background-color: var(--page-bg)", "background-image: radial-gradient(circle at 18% 0%, rgba(15, 118, 110, 0.12), transparent 30%), radial-gradient(circle at 86% 8%, rgba(37, 99, 235, 0.08), transparent 28%), linear-gradient(135deg, var(--page-bg-alt), var(--page-bg))",
-    "background-size: auto", "color: var(--text-1)", "font-family: \"IBM Plex Sans\", \"Helvetica Neue\", \"Avenir Next\", sans-serif",
-  ]
+    "background-size: auto", "font-family: var(--font-family-ui)",
+  ] +
+  normal_text_style()
 }
 
 ///|
 fn app_stack_style() -> Array[String] {
   [
-    "min-height: calc(100vh - 24px)", "display: flex", "flex-direction: column",
-    "gap: 10px", "padding: 12px",
+    "min-height: calc(100vh - 12px)", "display: flex", "flex-direction: column",
+    "gap: 4px", "padding: 6px",
   ]
 }
 
 ///|
 fn panel_style() -> Array[String] {
   [
-    "background: var(--surface-1)", "border: 1px solid var(--border-soft)", "border-radius: 18px",
-    "box-shadow: var(--shadow)", "overflow: hidden", "backdrop-filter: blur(18px)",
+    "background: var(--surface-1)", "border: 1px solid var(--border-soft)", "border-radius: var(--radius-panel)",
+    "box-shadow: var(--shadow)", "overflow: hidden", "backdrop-filter: blur(8px)",
   ]
 }
 
 ///|
 fn inset_panel_style() -> Array[String] {
   [
-    "background: var(--surface-2)", "border: 1px solid var(--border-soft)", "border-radius: 14px",
+    "background: var(--surface-2)", "border: 1px solid var(--border-soft)", "border-radius: var(--radius-control)",
   ]
 }
 
 ///|
 fn section_label_style() -> Array[String] {
-  mono_style() +
+  normal_text_style()
+}
+
+///|
+fn title_text_style() -> Array[String] {
   [
-    "font-size: 12px", "letter-spacing: 0.08em", "text-transform: uppercase", "color: var(--text-3)",
-    "font-weight: 700",
+    "font-size: var(--font-title)", "font-weight: 700", "line-height: 1.12", "letter-spacing: -0.02em",
+    "color: var(--text-1)",
+  ]
+}
+
+///|
+fn normal_text_style() -> Array[String] {
+  [
+    "font-size: var(--font-mid)", "font-weight: 500", "line-height: 1.55", "letter-spacing: 0",
+    "color: var(--text-2)",
+  ]
+}
+
+///|
+fn value_text_style() -> Array[String] {
+  [
+    "font-size: var(--font-mid)", "font-weight: 600", "line-height: 1.45", "letter-spacing: 0",
+    "color: var(--text-1)",
   ]
 }
 
@@ -91,18 +116,17 @@ fn button_style(
 ) -> Array[String] {
   let cursor = if enabled { "pointer" } else { "not-allowed" }
   let opacity = if enabled { "1" } else { "0.45" }
+  value_text_style() +
   [
     "display: inline-flex",
     "align-items: center",
     "justify-content: center",
-    "gap: 10px",
-    "padding: 10px 14px",
+    "gap: 6px",
+    "padding: 8px 10px",
     "border: 1px solid var(--border-soft)",
-    "border-radius: 10px",
+    "border-radius: var(--radius-control)",
     "background: " + background,
     "color: " + foreground,
-    "font-size: 14px",
-    "font-weight: 700",
     "cursor: " + cursor,
     "opacity: " + opacity,
     "transition: opacity 120ms ease, transform 120ms ease, box-shadow 120ms ease",
@@ -135,15 +159,13 @@ fn input_style(disabled : Bool) -> Array[String] {
   } else {
     "var(--surface-2)"
   }
+  value_text_style() +
   [
     "width: 100%",
-    "padding: 12px 14px",
+    "padding: 9px 10px",
     "border: 1px solid " + border_color,
-    "border-radius: 12px",
+    "border-radius: var(--radius-control)",
     "background: " + background,
-    "font-size: 15px",
-    "line-height: 1.5",
-    "color: var(--text-1)",
     "outline: none",
     "box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02)",
   ]

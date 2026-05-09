@@ -202,7 +202,6 @@ fn clear_workspace(model : Model) -> Model {
     ai_models: [],
     ai_models_default_model: "",
     ai_models_loading: false,
-    ai_models_error: None,
     create_project_pending: false,
     rename_project_editing: false,
     rename_project_name: "",

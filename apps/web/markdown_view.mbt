@@ -172,26 +172,15 @@ fn parse_markdown_blocks(content : String) -> Array[MarkdownBlock] {
 
 ///|
 fn markdown_container_style() -> Array[String] {
+  normal_text_style() +
   [
-    "display: flex", "flex-direction: column", "gap: 10px", "font-size: 15px", "line-height: 1.7",
-    "overflow-wrap: anywhere",
+    "display: flex", "flex-direction: column", "gap: 6px", "overflow-wrap: anywhere",
   ]
 }
 
 ///|
-fn markdown_heading_style(level : Int) -> Array[String] {
-  let size = match level {
-    1 => "20px"
-    2 => "17px"
-    _ => "15px"
-  }
-  [
-    "margin: 4px 0 0",
-    "font-size: " + size,
-    "line-height: 1.25",
-    "font-weight: 800",
-    "letter-spacing: -0.02em",
-  ]
+fn markdown_heading_style(_level : Int) -> Array[String] {
+  title_text_style() + ["margin: 4px 0 0"]
 }
 
 ///|
@@ -219,11 +208,10 @@ fn markdown_inline_code_style(is_user : Bool) -> Array[String] {
   } else {
     "var(--surface-3)"
   }
+  value_text_style() +
   [
-    "font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-    "font-size: 0.92em",
     "padding: 1px 5px",
-    "border-radius: 6px",
+    "border-radius: var(--radius-control)",
     "background: " + background,
   ]
 }
@@ -235,15 +223,13 @@ fn markdown_code_block_style(is_user : Bool) -> Array[String] {
   } else {
     "var(--surface-3)"
   }
+  value_text_style() +
   [
     "margin: 0",
-    "padding: 12px 14px",
-    "border-radius: 12px",
+    "padding: 8px 10px",
+    "border-radius: var(--radius-control)",
     "background: " + background,
     "overflow-x: auto",
-    "font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-    "font-size: 12px",
-    "line-height: 1.55",
     "white-space: pre",
   ]
 }
@@ -370,14 +356,7 @@ fn render_markdown_block(
         if language == "" {
           @html.nothing
         } else {
-          @html.div(
-            style=mono_style() +
-              [
-                "font-size: 11px", "font-weight: 800", "letter-spacing: 0.08em",
-                "text-transform: uppercase", "opacity: 0.72",
-              ],
-            language,
-          )
+          @html.div(style=normal_text_style() + ["opacity: 0.72"], language)
         },
         @html.pre(style=markdown_code_block_style(is_user), @html.code(code)),
       ])

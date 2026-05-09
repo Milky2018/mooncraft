@@ -3,34 +3,21 @@ fn render_loading_screen() -> @rabbita.Html {
   @html.div(style=["display: grid", "place-items: center", "flex: 1"]) <| (@html.div(
     style=panel_style() +
       [
-        "padding: 26px 30px", "display: flex", "flex-direction: column", "gap: 10px",
-        "min-width: 340px",
+        "padding: 8px", "display: flex", "flex-direction: column", "gap: 6px", "min-width: 340px",
       ],
   ) <| [
-    @html.div(
-      style=["font-size: 30px", "line-height: 1.05", "font-weight: 600"],
-      "Opening Mooncraft",
-    ),
-    @html.div(
-      style=["font-size: 14px", "line-height: 1.6", "color: var(--text-2)"],
-      "Preparing your project workspace.",
-    ),
+    @html.div(style=title_text_style(), "Opening Mooncraft"),
   ])
-}
-
-///|
-fn workspace_name(model : Model) -> String {
-  user_name(model) + "'s Workspace"
 }
 
 ///|
 fn avatar_chip(label : String) -> @rabbita.Html {
   @html.div(
-    style=[
-      "width: 28px", "height: 28px", "border-radius: 999px", "display: grid", "place-items: center",
-      "background: var(--accent-strong)", "color: var(--on-action)", "font-size: 13px",
-      "font-weight: 700",
-    ],
+    style=value_text_style() +
+      [
+        "width: 28px", "height: 28px", "border-radius: 999px", "display: grid", "place-items: center",
+        "background: var(--accent-strong)", "color: var(--on-action)",
+      ],
   ) <| label
 }
 
@@ -47,7 +34,7 @@ fn project_action_button_style(
     "height: 34px",
     "padding: 0",
     "border: 1px solid var(--border-soft)",
-    "border-radius: 10px",
+    "border-radius: var(--radius-control)",
     "background: " + background,
     "color: " + foreground,
     "display: inline-flex",
@@ -186,25 +173,25 @@ fn sidebar_project_item(
   @html.div(
     style=[
       "border: 1px solid " + border_color,
-      "border-radius: 14px",
+      "border-radius: var(--radius-control)",
       "background: " + background,
       "box-shadow: " + shadow,
       "padding: 10px",
       "display: flex",
       "align-items: center",
-      "gap: 8px",
+      "gap: 6px",
     ],
   ) <| [
     if renaming {
       @html.div(
         style=[
-          "flex: 1", "min-width: 0", "display: flex", "align-items: center", "gap: 10px",
+          "flex: 1", "min-width: 0", "display: flex", "align-items: center", "gap: 6px",
         ],
       ) <| [
         @html.div(
           style=[
-            "width: 34px", "height: 34px", "border-radius: 10px", "background: linear-gradient(135deg, var(--accent), #2563eb)",
-            "box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35)",
+            "width: 34px", "height: 34px", "border-radius: var(--radius-control)",
+            "background: linear-gradient(135deg, var(--accent), #2563eb)", "box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35)",
           ],
           "",
         ),
@@ -221,31 +208,28 @@ fn sidebar_project_item(
             on_input=fn(value) { dispatch(RenameProjectNameChanged(value)) },
             style=input_style(model.rename_project_pending) +
               [
-                "height: 34px", "min-width: 0", "font-size: 14px", "font-weight: 600",
-                "padding: 6px 9px", "border-radius: 9px",
+                "height: 34px", "min-width: 0", "padding: 6px 9px", "border-radius: var(--radius-control)",
               ],
             "",
           ),
-          @html.div(
-            style=mono_style() + ["font-size: 11px", "color: var(--text-3)"],
-            project.status.label(),
-          ),
+          @html.div(style=normal_text_style(), project.status.label()),
         ],
       ]
     } else {
       @html.button(
         type_="button",
         on_click=dispatch(SelectProject(project.id)),
-        style=[
-          "flex: 1", "min-width: 0", "padding: 0", "border: none", "background: transparent",
-          "color: var(--text-1)", "cursor: pointer", "display: flex", "align-items: center",
-          "gap: 10px", "text-align: left",
-        ],
+        style=value_text_style() +
+          [
+            "flex: 1", "min-width: 0", "padding: 0", "border: none", "background: transparent",
+            "cursor: pointer", "display: flex", "align-items: center", "gap: 6px",
+            "text-align: left",
+          ],
         [
           @html.div(
             style=[
-              "width: 34px", "height: 34px", "border-radius: 10px", "background: linear-gradient(135deg, var(--accent), #2563eb)",
-              "box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35)",
+              "width: 34px", "height: 34px", "border-radius: var(--radius-control)",
+              "background: linear-gradient(135deg, var(--accent), #2563eb)", "box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35)",
             ],
             "",
           ),
@@ -255,16 +239,13 @@ fn sidebar_project_item(
             ],
             [
               @html.div(
-                style=[
-                  "font-size: 14px", "font-weight: 600", "white-space: nowrap", "overflow: hidden",
-                  "text-overflow: ellipsis",
-                ],
+                style=value_text_style() +
+                  [
+                    "white-space: nowrap", "overflow: hidden", "text-overflow: ellipsis",
+                  ],
                 project.display_name,
               ),
-              @html.div(
-                style=mono_style() + ["font-size: 11px", "color: var(--text-3)"],
-                project.status.label(),
-              ),
+              @html.div(style=normal_text_style(), project.status.label()),
             ],
           ),
         ],
@@ -353,17 +334,17 @@ fn render_account_panel(
       @html.div(
         style=[
           "position: absolute", "right: 0", "top: calc(100% + 10px)", "width: min(380px, calc(100vw - 32px))",
-          "padding: 14px", "display: flex", "flex-direction: column", "gap: 12px",
+          "padding: 8px", "display: flex", "flex-direction: column", "gap: 6px",
           "z-index: 100", "max-height: calc(100vh - 90px)", "overflow-y: auto", "background: var(--surface-raised)",
           "background-color: var(--surface-raised)", "background-image: none", "border: 1px solid var(--border-soft)",
-          "border-radius: 18px", "box-shadow: 0 28px 80px rgba(15, 23, 42, 0.18)",
+          "border-radius: var(--radius-control)", "box-shadow: 0 28px 80px rgba(15, 23, 42, 0.18)",
           "backdrop-filter: none", "isolation: isolate",
         ],
       ) <| [
         @html.div(
           style=[
             "display: flex", "align-items: center", "justify-content: space-between",
-            "gap: 10px",
+            "gap: 6px",
           ],
           [
             @html.div(
@@ -373,27 +354,25 @@ fn render_account_panel(
               [
                 @html.div(style=section_label_style(), "Account"),
                 @html.div(
-                  style=[
-                    "font-size: 14px", "font-weight: 600", "color: var(--text-1)",
-                    "white-space: nowrap", "overflow: hidden", "text-overflow: ellipsis",
-                  ],
+                  style=value_text_style() +
+                    [
+                      "white-space: nowrap", "overflow: hidden", "text-overflow: ellipsis",
+                    ],
                   user.display_name,
                 ),
                 @html.div(
-                  style=mono_style() +
+                  style=normal_text_style() +
                     [
-                      "font-size: 11px", "color: var(--text-3)", "white-space: nowrap",
-                      "overflow: hidden", "text-overflow: ellipsis",
+                      "white-space: nowrap", "overflow: hidden", "text-overflow: ellipsis",
                     ],
                   email_text,
                 ),
               ],
             ),
             @html.div(
-              style=mono_style() +
+              style=normal_text_style() +
                 [
-                  "font-size: 11px", "color: var(--text-2)", "padding: 5px 8px",
-                  "border: 1px solid var(--border-soft)", "border-radius: 999px",
+                  "padding: 5px 8px", "border: 1px solid var(--border-soft)", "border-radius: 999px",
                   "background: var(--surface-2)", "white-space: nowrap",
                 ],
               provider_text,
@@ -404,7 +383,7 @@ fn render_account_panel(
         @html.div(
           style=[
             "display: flex", "align-items: center", "justify-content: space-between",
-            "gap: 10px", "padding-top: 8px", "border-top: 1px solid var(--border-soft)",
+            "gap: 6px", "padding-top: 8px", "border-top: 1px solid var(--border-soft)",
           ],
           [
             @html.div(
@@ -446,27 +425,15 @@ fn render_account_toolbar(
       @html.div(
         style=panel_style() +
           [
-            "position: relative", "padding: 12px 16px", "display: flex", "align-items: center",
-            "justify-content: space-between", "gap: 10px", "flex-wrap: wrap", "flex-shrink: 0",
+            "position: relative", "padding: 8px 16px", "display: flex", "align-items: center",
+            "justify-content: flex-end", "gap: 6px", "flex-wrap: wrap", "flex-shrink: 0",
             "overflow: visible", "z-index: 20",
           ],
       ) <| [
         @html.div(
-          style=["display: flex", "flex-direction: column", "gap: 2px"],
-          [
-            @html.div(style=section_label_style(), "Workspace"),
-            @html.div(
-              style=[
-                "font-size: 15px", "font-weight: 600", "color: var(--text-1)",
-              ],
-              workspace_name(model),
-            ),
-          ],
-        ),
-        @html.div(
           style=[
             "display: flex", "align-items: center", "justify-content: flex-end",
-            "gap: 8px", "flex-wrap: wrap", "position: relative",
+            "gap: 6px", "flex-wrap: wrap", "position: relative",
           ],
           [
             @html.button(
@@ -485,24 +452,18 @@ fn render_account_toolbar(
                   ],
                   [
                     @html.div(
-                      style=[
-                        "font-size: 13px", "font-weight: 600", "color: var(--text-1)",
-                        "white-space: nowrap", "overflow: hidden", "text-overflow: ellipsis",
-                        "max-width: 110px",
-                      ],
+                      style=value_text_style() +
+                        [
+                          "white-space: nowrap", "overflow: hidden", "text-overflow: ellipsis",
+                          "max-width: 110px",
+                        ],
                       user.display_name,
                     ),
-                    @html.div(
-                      style=mono_style() +
-                        ["font-size: 10px", "color: var(--text-3)"],
-                      "Account",
-                    ),
+                    @html.div(style=normal_text_style(), "Account"),
                   ],
                 ),
                 @html.div(
-                  style=[
-                    "margin-left: auto", "font-size: 12px", "color: var(--text-3)",
-                  ],
+                  style=normal_text_style() + ["margin-left: auto"],
                   if model.account_panel_open {
                     "^"
                   } else {
@@ -533,51 +494,35 @@ fn render_project_sidebar(
   })
   @html.div(
     style=[
-      "width: 320px", "height: 100vh", "min-height: 0", "padding: 18px 14px", "display: flex",
-      "flex-direction: column", "gap: 16px", "background: var(--sidebar-bg)", "border-right: 1px solid rgba(15, 23, 42, 0.08)",
+      "width: 320px", "height: 100vh", "min-height: 0", "padding: 8px", "display: flex",
+      "flex-direction: column", "gap: 6px", "background: var(--sidebar-bg)", "border-right: 1px solid rgba(15, 23, 42, 0.08)",
       "box-sizing: border-box", "flex-shrink: 0", "overflow: hidden", "backdrop-filter: blur(24px)",
     ],
   ) <| [
-    @html.div(style=["display: flex", "align-items: center", "gap: 10px"], [
+    @html.div(style=["display: flex", "align-items: center", "gap: 6px"], [
       brand_logo(38),
       @html.div(
         style=[
           "min-width: 0", "display: flex", "flex-direction: column", "gap: 2px",
         ],
-        [
-          @html.div(
-            style=[
-              "font-size: 18px", "font-weight: 600", "letter-spacing: -0.02em",
-            ],
-            "Mooncraft",
-          ),
-          @html.div(
-            style=[
-              "font-size: 12px", "color: var(--text-3)", "white-space: nowrap", "overflow: hidden",
-              "text-overflow: ellipsis",
-            ],
-            workspace_name(model),
-          ),
-        ],
+        [@html.div(style=title_text_style(), "Mooncraft")],
       ),
     ]),
     @html.div(
-      style=[
-        "display: flex", "justify-content: space-between", "align-items: center",
-        "color: var(--text-2)", "font-size: 13px", "font-weight: 700",
-      ],
+      style=value_text_style() +
+        [
+          "display: flex", "justify-content: space-between", "align-items: center",
+        ],
       [
         @html.div("Projects"),
-        @html.div(style=["display: flex", "align-items: center", "gap: 8px"]) <| [
+        @html.div(style=["display: flex", "align-items: center", "gap: 6px"]) <| [
           @html.div(style=mono_style(), model.projects.length().to_string()),
           @html.button(
             type_="button",
             disabled=false,
             on_click=dispatch(OpenNewProjectDialog),
             style=primary_button_style(true) +
-              [
-                "height: 32px", "padding: 0 12px", "border-radius: 999px", "font-size: 12px",
-              ],
+              ["height: 32px", "padding: 0 12px", "border-radius: 999px"],
             "+ New",
           ),
         ],
@@ -585,22 +530,10 @@ fn render_project_sidebar(
     ),
     @html.div(
       style=[
-        "display: flex", "flex-direction: column", "gap: 8px", "min-height: 0", "overflow-y: auto",
+        "display: flex", "flex-direction: column", "gap: 6px", "min-height: 0", "overflow-y: auto",
         "overscroll-behavior: contain", "flex: 1",
       ],
-      if project_items.length() == 0 {
-        [
-          @html.div(
-            style=[
-              "padding: 16px", "border: 1px dashed var(--border-soft)", "border-radius: 14px",
-              "color: var(--text-3)", "font-size: 13px", "line-height: 1.55", "background: rgba(255, 255, 255, 0.36)",
-            ],
-            "Create your first project. The preview will appear on the right.",
-          ),
-        ]
-      } else {
-        project_items
-      },
+      project_items,
     ),
   ]
 }
@@ -624,14 +557,14 @@ fn render_workspace_shell(
     render_project_sidebar(dispatch, model),
     @html.div(
       style=[
-        "flex: 1", "min-width: 0", "padding: 16px", "display: flex", "flex-direction: column",
-        "gap: 16px", "box-sizing: border-box", "min-height: 0", "overflow: hidden",
+        "flex: 1", "min-width: 0", "padding: 10px", "display: flex", "flex-direction: column",
+        "gap: 6px", "box-sizing: border-box", "min-height: 0", "overflow: hidden",
       ],
       [
         render_account_toolbar(dispatch, model),
         @html.div(
           style=[
-            "flex: 1", "min-width: 0", "min-height: 0", "display: flex", "gap: 16px",
+            "flex: 1", "min-width: 0", "min-height: 0", "display: flex", "gap: 6px",
             "align-items: stretch", "overflow: hidden",
           ],
           workspace_body,
