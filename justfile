@@ -61,11 +61,11 @@ agent-smoke:
 codex-smoke:
   @just agent-smoke
 
-# Build the Docker image used by the Mooncraft app runtime
+# Build the Docker image used by the MoonCraft app runtime
 build-mooncraft-image tag='mooncraft:local' platform='linux/amd64':
   ./scripts/docker_mooncraft_build.sh "{{tag}}" "{{platform}}"
 
-# Build the Docker image used by Mooncraft agent workers
+# Build the Docker image used by MoonCraft agent workers
 build-agent-runtime-image repository=agent_runtime_repository version=agent_runtime_version platform='linux/amd64':
   ./scripts/docker_agent_runtime_build.sh "{{repository}}" "{{version}}" "{{platform}}"
 

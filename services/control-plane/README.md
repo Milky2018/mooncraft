@@ -1,6 +1,6 @@
 # Control Plane
 
-This module is the local backend for the current Mooncraft prototype.
+This module is the local backend for the current MoonCraft prototype.
 
 Responsibilities:
 
@@ -21,7 +21,7 @@ The current `AgentGateway` uses Docker-backed agent CLI runs. Projects are bound
 
 Workspace directories are no longer durable state. The control plane saves the latest source archive in SQLite after initial workspace generation and after agent edits. Each run hydrates that database snapshot into an isolated runtime workspace before starting the selected agent, then restores the local preview cache from the saved snapshot.
 
-Codex session directories are durable app data, not host user state. Mooncraft does not mount a developer's local Codex home, and AI credentials are leased from the admin-managed OpenRouter key pool for one active run at a time. Deleting a project removes its workspace cache, artifacts, database rows, and `data/codex-sessions/<project-id>`.
+Codex session directories are durable app data, not host user state. MoonCraft does not mount a developer's local Codex home, and AI credentials are leased from the admin-managed OpenRouter key pool for one active run at a time. Deleting a project removes its workspace cache, artifacts, database rows, and `data/codex-sessions/<project-id>`.
 
 The legacy `data/projects` workspace root is cleaned at startup. It is not used as a restore fallback, because generated files must come from the database snapshot or be treated as unavailable.
 
@@ -31,7 +31,7 @@ SQLite is a required dependency for the control plane. If the database cannot be
 
 Before agent runs, validation, and preview builds, generated user projects run `moon fetch --no-update` for the pinned modules listed in `config/user_project_reference_modules.txt`. That file is the single source of truth for user-project reference packages and versions.
 
-For real Docker-backed runs, the Mooncraft agent runtime image initializes the MoonBit registry at image build time, installs the supported agent CLIs, and seeds MoonBit skills from `https://github.com/moonbitlang/skills` into the container-local Codex home before every command. Runtime validation avoids `moon update` by default because MoonBit may fail while rotating its symbols directory across Docker mount boundaries.
+For real Docker-backed runs, the MoonCraft agent runtime image initializes the MoonBit registry at image build time, installs the supported agent CLIs, and seeds MoonBit skills from `https://github.com/moonbitlang/skills` into the container-local Codex home before every command. Runtime validation avoids `moon update` by default because MoonBit may fail while rotating its symbols directory across Docker mount boundaries.
 
 If Mooncakes returns a transient network error such as a TLS handshake EOF during dependency fetch, the run fails cleanly, preserves the previous preview, records the artifact logs for operators, and returns a plain-English retry message to the user instead of exposing raw registry output as the main chat response.
 
@@ -78,4 +78,4 @@ The runtime intentionally does not mount a host AI tool home and users do not co
 
 Use `just agent-runtime-config` to inspect the effective runtime configuration. Build the runtime image locally with `just build-agent-runtime-image <repository> <version> <platform>` and publish the shared multi-arch runtime image with `just docker-agent-runtime-publish <repository> <version> <platforms>` after `docker login`.
 
-Use `OPENROUTER_API_KEY=... just agent-smoke` from the repository root only when you intentionally want to spend real OpenRouter quota on an end-to-end Docker-backed build. The smoke script writes the key through the admin API after startup; it does not configure Mooncraft through service environment variables. Optional smoke overrides are `MOONCRAFT_AGENT_SMOKE_KEY_REF` and `MOONCRAFT_AGENT_SMOKE_MODEL`. The old `just codex-smoke` recipe remains as a compatibility alias.
+Use `OPENROUTER_API_KEY=... just agent-smoke` from the repository root only when you intentionally want to spend real OpenRouter quota on an end-to-end Docker-backed build. The smoke script writes the key through the admin API after startup; it does not configure MoonCraft through service environment variables. Optional smoke overrides are `MOONCRAFT_AGENT_SMOKE_KEY_REF` and `MOONCRAFT_AGENT_SMOKE_MODEL`. The old `just codex-smoke` recipe remains as a compatibility alias.

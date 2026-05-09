@@ -397,7 +397,7 @@ fn project_workspace(root : String, project_id : String) -> String {
 
 ///|
 fn preview_executable_missing_message() -> String {
-  "The app compiled, but Mooncraft could not find a native executable to run for the live preview."
+  "The app compiled, but MoonCraft could not find a native executable to run for the live preview."
 }
 
 ///|

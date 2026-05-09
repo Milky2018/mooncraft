@@ -25,7 +25,7 @@ status: draft
 
 Use this recipe when the user asks for a collaborative or shared task-tracking backend, a simple CRUD API with durable storage, or a meaningful starter app that demonstrates tenant-aware behavior.
 
-This recipe is the canonical first business app pattern for Mooncraft because it exercises:
+This recipe is the canonical first business app pattern for MoonCraft because it exercises:
 
 - HTTP routing
 - request and response handling

@@ -40,7 +40,7 @@ fn brand_logo(size : Int) -> @rabbita.Html {
     ],
   ) <| @html.img(
     src=logo_asset_url(),
-    alt="Mooncraft logo",
+    alt="MoonCraft logo",
     loading="eager",
     decoding="async",
     style=["width: 100%", "height: 100%", "object-fit: contain"],

@@ -133,7 +133,7 @@ async function main() {
 
     await page.getByPlaceholder("Project name").first().fill("Simple Story Project")
     await page.getByRole("button", { name: "Create Project" }).first().click()
-    await page.getByPlaceholder("Tell Mooncraft what to build or change...").waitFor()
+    await page.getByPlaceholder("Tell MoonCraft what to build or change...").waitFor()
     await page.getByPlaceholder("Project name").nth(1).fill("Renamed Story Project")
     const renameResponsePromise = page.waitForResponse((response) => {
       return response.url().includes("/api/projects/") &&
@@ -146,7 +146,7 @@ async function main() {
     screenshots.push(screenshot("02-project-renamed.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
 
-    await page.getByPlaceholder("Tell Mooncraft what to build or change...").fill(prompt)
+    await page.getByPlaceholder("Tell MoonCraft what to build or change...").fill(prompt)
     screenshots.push(screenshot("03-project-prompt.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
 
@@ -155,7 +155,7 @@ async function main() {
         response.url().includes("/runs") &&
         response.request().method() === "POST"
     })
-    await page.getByRole("button", { name: "Build With Mooncraft" }).click()
+    await page.getByRole("button", { name: "Build With MoonCraft" }).click()
     screenshots.push(screenshot("04-run-started.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
 
@@ -175,18 +175,18 @@ async function main() {
     await page.getByText("The app is updated and the preview is ready.").waitFor()
     await page.getByText(prompt).waitFor()
     const firstPreviewFrame = page.frameLocator(`iframe[src*="${firstDetail.preview.url}"]`)
-    await firstPreviewFrame.getByText("Mooncraft smoke preview").waitFor()
+    await firstPreviewFrame.getByText("MoonCraft smoke preview").waitFor()
     await assertNoInternalPromptLeak(page, firstPreviewFrame)
     const previewTitle = await firstPreviewFrame.locator("h1").innerText()
     screenshots.push(screenshot("05-completed-preview.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
 
-    await page.getByPlaceholder("Tell Mooncraft what to build or change...").fill(secondPrompt)
+    await page.getByPlaceholder("Tell MoonCraft what to build or change...").fill(secondPrompt)
     const secondRunResponsePromise = page.waitForResponse((response) => {
       return response.url().includes(`/api/projects/${projectId}/runs`) &&
         response.request().method() === "POST"
     })
-    await page.getByRole("button", { name: "Build With Mooncraft" }).click()
+    await page.getByRole("button", { name: "Build With MoonCraft" }).click()
     const secondRunResponse = await secondRunResponsePromise
     if (!secondRunResponse.ok()) {
       throw new Error(`Second run creation failed with HTTP ${secondRunResponse.status()}`)
@@ -208,17 +208,17 @@ async function main() {
       throw new Error("Expected the preview URL to persist after refresh")
     }
     const refreshedPreviewFrame = page.frameLocator(`iframe[src*="${refreshedDetail.preview.url}"]`)
-    await refreshedPreviewFrame.getByText("Mooncraft smoke preview").waitFor()
+    await refreshedPreviewFrame.getByText("MoonCraft smoke preview").waitFor()
     await assertNoInternalPromptLeak(page, refreshedPreviewFrame)
     screenshots.push(screenshot("07-refresh-persistence.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
 
-    await page.getByPlaceholder("Tell Mooncraft what to build or change...").fill(failurePrompt)
+    await page.getByPlaceholder("Tell MoonCraft what to build or change...").fill(failurePrompt)
     const failureRunResponsePromise = page.waitForResponse((response) => {
       return response.url().includes(`/api/projects/${projectId}/runs`) &&
         response.request().method() === "POST"
     })
-    await page.getByRole("button", { name: "Build With Mooncraft" }).click()
+    await page.getByRole("button", { name: "Build With MoonCraft" }).click()
     const failureRunResponse = await failureRunResponsePromise
     if (!failureRunResponse.ok()) {
       throw new Error(`Failure run creation failed with HTTP ${failureRunResponse.status()}`)
@@ -232,7 +232,7 @@ async function main() {
       throw new Error("Expected the last successful preview to remain available after a failed run")
     }
     const failedPreviewFrame = page.frameLocator(`iframe[src*="${failedDetail.preview.url}"]`)
-    await failedPreviewFrame.getByText("Mooncraft smoke preview").waitFor()
+    await failedPreviewFrame.getByText("MoonCraft smoke preview").waitFor()
     await assertNoInternalPromptLeak(page, failedPreviewFrame)
     screenshots.push(screenshot("08-failed-run-preserves-preview.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })

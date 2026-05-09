@@ -1,4 +1,4 @@
-# Deploying Mooncraft on EC2
+# Deploying MoonCraft on EC2
 
 ## Status
 

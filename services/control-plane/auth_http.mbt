@@ -194,7 +194,7 @@ fn normalized_email(email : String) -> String {
 fn display_name_from_email(email : String) -> String {
   let parts = email.split("@").to_array()
   match parts[0].to_owned() {
-    "" => "Mooncraft Builder"
+    "" => "MoonCraft Builder"
     local_part =>
       local_part
       .replace_all(old=".", new=" ")

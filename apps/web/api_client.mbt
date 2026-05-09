@@ -23,9 +23,9 @@ struct Request {
 ///|
 fn network_error(detail : String) -> @sdk.ApiError {
   let message = if detail == "" {
-    "Mooncraft did not respond. Check your connection and try again."
+    "MoonCraft did not respond. Check your connection and try again."
   } else {
-    "Mooncraft did not respond: \{detail}"
+    "MoonCraft did not respond: \{detail}"
   }
   { code: NetworkFailure, message }
 }
@@ -56,7 +56,7 @@ fn decode_raw_http_response(
     _ =>
       return Err(
         unexpected_response_error(
-          "Mooncraft returned a response the app could not read.",
+          "MoonCraft returned a response the app could not read.",
         ),
       )
   }
@@ -65,7 +65,7 @@ fn decode_raw_http_response(
       _ =>
         return Err(
           unexpected_response_error(
-            "Mooncraft returned a response the app could not understand.",
+            "MoonCraft returned a response the app could not understand.",
           ),
         )
     },
@@ -78,7 +78,7 @@ fn[T : FromJson] decode_json_success(body : String) -> Result[T, @sdk.ApiError] 
     _ =>
       return Err(
         unexpected_response_error(
-          "Mooncraft returned a response the app could not read.",
+          "MoonCraft returned a response the app could not read.",
         ),
       )
   }
@@ -87,7 +87,7 @@ fn[T : FromJson] decode_json_success(body : String) -> Result[T, @sdk.ApiError] 
       _ =>
         return Err(
           unexpected_response_error(
-            "Mooncraft returned a response the app could not understand.",
+            "MoonCraft returned a response the app could not understand.",
           ),
         )
     },
@@ -99,7 +99,7 @@ fn decode_error_response(status : Int, body : String) -> @sdk.ApiError {
   let parsed = @json.parse(body) catch {
     _ => {
       let fallback = if body == "" {
-        "Mooncraft returned an empty error response (\{status})."
+        "MoonCraft returned an empty error response (\{status})."
       } else {
         body
       }
@@ -109,7 +109,7 @@ fn decode_error_response(status : Int, body : String) -> @sdk.ApiError {
   let response : @sdk.ApiErrorResponse = @json.from_json(parsed) catch {
     _ => {
       let fallback = if body == "" {
-        "Mooncraft returned an unexpected error response (\{status})."
+        "MoonCraft returned an unexpected error response (\{status})."
       } else {
         body
       }

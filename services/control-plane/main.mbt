@@ -678,7 +678,7 @@ fn AppContext::serve_platform_bundle(self : AppContext) -> @mocket.HttpResponse 
   if bundle.length() == 0 {
     return text_response(
       ServiceUnavailable,
-      "The Mooncraft interface is temporarily unavailable.",
+      "The MoonCraft interface is temporarily unavailable.",
     )
   }
   javascript_response(bundle)
@@ -727,7 +727,7 @@ fn main {
   let port = control_plane_port()
   let ctx = match AppContext::try_new(root) {
     Ok(ctx) => ctx
-    Err(message) => abort("Mooncraft cannot start: " + message)
+    Err(message) => abort("MoonCraft cannot start: " + message)
   }
   let stale_runs_ref : Ref[Int] = @ref.new(0)
   @async.run_async_main(async fn() {
@@ -1395,6 +1395,6 @@ fn main {
     }
   })
 
-  println("Mooncraft running at http://localhost:\{port}")
+  println("MoonCraft running at http://localhost:\{port}")
   @async.run_async_main(() => serve_mocket_async(app, port))
 }

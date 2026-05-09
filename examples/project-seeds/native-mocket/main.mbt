@@ -5,7 +5,7 @@ fn app_page_html() -> String {
     #|<html>
     #|<head>
     #|  <meta charset='utf-8'>
-    #|  <title>Mooncraft Starter</title>
+    #|  <title>MoonCraft Starter</title>
     #|  <style>
     #|    body{font-family:sans-serif;margin:48px;background:#f7faf8;color:#15211f}
     #|    main{max-width:720px;margin:auto;padding:32px;border:1px solid #d8e4df;border-radius:24px;background:white}
@@ -13,7 +13,7 @@ fn app_page_html() -> String {
     #|</head>
     #|<body>
     #|  <main>
-    #|    <h1>Mooncraft Starter</h1>
+    #|    <h1>MoonCraft Starter</h1>
     #|    <p>This project is ready for the builder to replace with your requested app.</p>
     #|  </main>
     #|</body>

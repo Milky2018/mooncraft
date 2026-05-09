@@ -1,6 +1,6 @@
 ---
 title: HTTP Handler Contract
-summary: The initial request, response, and context contract for Mooncraft apps
+summary: The initial request, response, and context contract for MoonCraft apps
 applies_to:
   - http-api
   - sdk

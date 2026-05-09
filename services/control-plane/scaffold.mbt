@@ -14,7 +14,7 @@ fn required_user_project_fetches() -> Array[String] {
   let content = @fs.read_file_to_string(user_project_reference_modules_path()) catch {
     err =>
       abort(
-        "Mooncraft cannot read user-project reference modules from " +
+        "MoonCraft cannot read user-project reference modules from " +
         user_project_reference_modules_path() +
         ": \{err}",
       )
@@ -28,7 +28,7 @@ fn required_user_project_fetches() -> Array[String] {
   }
   if modules.length() == 0 {
     abort(
-      "Mooncraft requires at least one user-project reference module in " +
+      "MoonCraft requires at least one user-project reference module in " +
       user_project_reference_modules_path(),
     )
   }
@@ -153,12 +153,12 @@ fn required_project_seed_files() -> Array[String] {
 ///|
 fn project_seed_error(seed_dir : String) -> String? {
   if !@fs.path_exists(seed_dir) {
-    return Some("Mooncraft project seed directory does not exist: \{seed_dir}")
+    return Some("MoonCraft project seed directory does not exist: \{seed_dir}")
   }
   for file in required_project_seed_files() {
     let path = seed_dir + "/" + file
     if !@fs.path_exists(path) {
-      return Some("Mooncraft project seed is missing required file: \{path}")
+      return Some("MoonCraft project seed is missing required file: \{path}")
     }
   }
   None
@@ -184,7 +184,7 @@ fn copy_project_seed(
     Ok(())
   } else {
     Err(
-      "Failed to copy Mooncraft project seed from \{seed_dir} to \{workspace_path}.",
+      "Failed to copy MoonCraft project seed from \{seed_dir} to \{workspace_path}.",
     )
   }
 }

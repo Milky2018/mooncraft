@@ -25,7 +25,7 @@ fn render_app_header(
   ) <| [
     @html.div(style=["display: flex", "align-items: center", "gap: 6px"], [
       brand_logo(38),
-      @html.div(style=title_text_style(), "Mooncraft"),
+      @html.div(style=title_text_style(), "MoonCraft"),
     ]),
     theme_toggle_button(dispatch, model),
   ]
@@ -66,7 +66,7 @@ fn render_auth_screen(
         brand_logo(42),
         @html.div(
           style=["display: flex", "flex-direction: column", "gap: 4px"],
-          [@html.div(style=title_text_style(), "Sign in to Mooncraft")],
+          [@html.div(style=title_text_style(), "Sign in to MoonCraft")],
         ),
       ],
       render_notice_card(model.auth_notice, "var(--danger-soft)"),

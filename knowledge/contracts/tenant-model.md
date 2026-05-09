@@ -1,6 +1,6 @@
 ---
 title: Tenant Model
-summary: The local prototype tenant contract for Mooncraft apps
+summary: The local prototype tenant contract for MoonCraft apps
 applies_to:
   - multi-tenant
   - durable-storage

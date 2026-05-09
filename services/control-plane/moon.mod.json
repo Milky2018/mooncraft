@@ -17,6 +17,6 @@
     "cloud",
     "backend"
   ],
-  "description": "Mooncraft local control plane.",
+  "description": "MoonCraft local control plane.",
   "preferred-target": "native"
 }

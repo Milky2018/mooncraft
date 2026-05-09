@@ -156,7 +156,7 @@ fn configured_host_data_dir(root : String) -> Result[String?, String] {
     None =>
       if trim_mount_path(root) == "/app" {
         Err(
-          "MOONCRAFT_HOST_DATA_DIR must be set when Mooncraft runs in Docker. It must point to the host directory bind-mounted as /app/data.",
+          "MOONCRAFT_HOST_DATA_DIR must be set when MoonCraft runs in Docker. It must point to the host directory bind-mounted as /app/data.",
         )
       } else {
         Ok(None)
@@ -245,7 +245,7 @@ fn normalize_docker_architecture(
     Ok("linux/arm64")
   } else {
     Err(
-      "Unsupported Docker host architecture '\{architecture.trim()}'. Mooncraft supports only linux/amd64 and linux/arm64 agent runtime containers.",
+      "Unsupported Docker host architecture '\{architecture.trim()}'. MoonCraft supports only linux/amd64 and linux/arm64 agent runtime containers.",
     )
   }
 }
@@ -291,7 +291,7 @@ async fn AgentRuntimeConfig::load(
   if @env.get_env_var("MOONCRAFT_CODEX_HOME_HOST") is Some(value) &&
     value.trim() != "" {
     return Err(
-      "MOONCRAFT_CODEX_HOME_HOST is not supported. Configure AI keys in the Mooncraft admin page instead.",
+      "MOONCRAFT_CODEX_HOME_HOST is not supported. Configure AI keys in the MoonCraft admin page instead.",
     )
   }
   let spec = agent_runtime_spec(settings.agent_cli)
@@ -344,7 +344,7 @@ fn prepare_agent_mounts(
 ///|
 fn minimal_native_mocket_recipe() -> String {
   (
-    #|Minimum valid Mooncraft native-server shape for a new or broken workspace:
+    #|Minimum valid MoonCraft native-server shape for a new or broken workspace:
     #|- Root `moon.mod.json`:
     #|  `{ "name": "mooncraft/generated-app", "version": "0.1.0", "preferred-target": "native", "deps": { "moonbitlang/async": "
   ) +
@@ -370,7 +370,7 @@ fn minimal_native_mocket_recipe() -> String {
 ///|
 fn bootstrap_prompt(user_message : String) -> String {
   (
-    #|You are the software engineer for Mooncraft. Build the user's app inside the current workspace.
+    #|You are the software engineer for MoonCraft. Build the user's app inside the current workspace.
     #|
     #|Mandatory first actions:
     #|1. Inspect the workspace root with one small listing command.
@@ -395,7 +395,7 @@ fn bootstrap_prompt(user_message : String) -> String {
     #|- For browser games and simple UI apps, keep the MoonBit server shape and put the client interaction in the HTML/CSS/JavaScript returned by `app_page_html()`.
     #|- Use a MoonBit block string for large HTML/CSS/JavaScript. Do not start lines with `+` for string continuation.
     #|- If you update tests, assert stable visible behavior such as the page title, heading, canvas/board element, controls, and absence of starter text. Do not assert brittle JavaScript implementation details like `const` versus `let`.
-    #|- A valid Snake game change must remove the words `Mooncraft Starter` from the served app source.
+    #|- A valid Snake game change must remove the words `MoonCraft Starter` from the served app source.
     #|- Do not assume `frontend/`, `backend/`, or `shared/` directories exist.
     #|- The current workspace root is the generated app root. Do not leave the only MoonBit module inside a child directory.
     #|- Prefer direct root-file creation over scaffold commands. If a scaffold command created `cmd/main`, do not keep it as the runnable app; replace it with the root native-server shape below.
@@ -407,7 +407,7 @@ fn bootstrap_prompt(user_message : String) -> String {
   reference_modules_prompt_rule() +
   (
     #|
-    #|- Produce one native runnable app. Mooncraft will run the built executable directly.
+    #|- Produce one native runnable app. MoonCraft will run the built executable directly.
     #|- The app must read the first CLI argument as the preview port and default to `4300`.
     #|- The app must serve the user-facing app at `/` and return a successful response from `/api/health`.
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
@@ -426,7 +426,7 @@ fn bootstrap_prompt(user_message : String) -> String {
 ///|
 fn followup_prompt(user_message : String) -> String {
   (
-    #|Continue building the same Mooncraft app in the current workspace.
+    #|Continue building the same MoonCraft app in the current workspace.
     #|
     #|Mandatory first actions:
     #|1. Inspect the workspace root with one small listing command.
@@ -454,7 +454,7 @@ fn followup_prompt(user_message : String) -> String {
   reference_modules_prompt_rule() +
   (
     #|
-    #|- Keep one native runnable app. Mooncraft will run the built executable directly.
+    #|- Keep one native runnable app. MoonCraft will run the built executable directly.
     #|- The app must read the first CLI argument as the preview port and default to `4300`.
     #|- The app must serve the user-facing app at `/` and return a successful response from `/api/health`.
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
@@ -476,7 +476,7 @@ fn recovery_prompt(
   user_message : String,
 ) -> String {
   (
-    #|Continue building the same Mooncraft app inside the current workspace.
+    #|Continue building the same MoonCraft app inside the current workspace.
     #|
     #|Mandatory first actions:
     #|1. Inspect the workspace root with one small listing command.
@@ -505,7 +505,7 @@ fn recovery_prompt(
   reference_modules_prompt_rule() +
   (
     #|
-    #|- Keep one native runnable app. Mooncraft will run the built executable directly.
+    #|- Keep one native runnable app. MoonCraft will run the built executable directly.
     #|- The app must read the first CLI argument as the preview port and default to `4300`.
     #|- The app must serve the user-facing app at `/` and return a successful response from `/api/health`.
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
@@ -531,7 +531,7 @@ fn recovery_prompt(
 ///|
 fn preview_setup_repair_prompt() -> String {
   (
-    #|The app builds, but Mooncraft cannot start or health-check the live preview.
+    #|The app builds, but MoonCraft cannot start or health-check the live preview.
     #|
     #|This is a mandatory startup repair. Do not read skills, examples, or dependency internals before editing the startup path.
     #|Do not send progress messages such as "I will..." or "I am going to...". Use commands and file edits first, then send exactly one final response after validation.
@@ -561,7 +561,7 @@ fn workspace_contract_repair_prompt(
   user_prompt : String,
 ) -> String {
   (
-    #|Mooncraft could not validate the generated workspace structure.
+    #|MoonCraft could not validate the generated workspace structure.
     #|
     #|This is a mandatory repair task. Do not read skills, examples, or dependency internals before editing the workspace.
     #|Do not send progress messages such as "I will..." or "I am going to...". Use commands and file edits first, then send exactly one final response after validation.
@@ -587,12 +587,12 @@ fn workspace_contract_repair_prompt(
   (
     #|
     #|
-    #|Repair only the workspace structure needed by Mooncraft:
+    #|Repair only the workspace structure needed by MoonCraft:
     #|- First inspect the workspace root with one small listing command.
     #|- Ensure the workspace root contains a MoonBit project manifest: `moon.mod.json`, `moon.mod`, or `moon.work`.
     #|- Create or repair root-level `moon.mod.json`, `moon.pkg`, `main.mbt`, and a small test file directly.
     #|- Do not run `moon new`, `moon add`, or `moon update` during this repair.
-    #|- If the workspace contains `Mooncraft Starter`, replace that starter page with the user's requested app now.
+    #|- If the workspace contains `MoonCraft Starter`, replace that starter page with the user's requested app now.
     #|- For browser games and simple UI apps, keep the MoonBit server shape and put the client interaction in the HTML/CSS/JavaScript returned by `app_page_html()`.
     #|- Ensure the built native executable starts the app server when run directly.
     #|- Read the first CLI argument as the preview port and default to `4300`.
@@ -628,7 +628,7 @@ fn preview_refresh_failed_assistant_message() -> String {
 
 ///|
 fn preview_setup_repair_failed_assistant_message() -> String {
-  "The app was generated, but the live preview could not be started. Mooncraft tried to repair the preview setup but could not finish it. Send another message to retry the preview."
+  "The app was generated, but the live preview could not be started. MoonCraft tried to repair the preview setup but could not finish it. Send another message to retry the preview."
 }
 
 ///|
@@ -745,9 +745,9 @@ fn workspace_contract_error(workspace_path : String) -> String? {
     Some(
       "The generated app does not expose the required `/api/health` preview health endpoint.",
     )
-  } else if workspace_app_sources_contain(workspace_path, "Mooncraft Starter") {
+  } else if workspace_app_sources_contain(workspace_path, "MoonCraft Starter") {
     Some(
-      "The generated app still contains the default Mooncraft starter page. Replace it with the user's requested app before finishing.",
+      "The generated app still contains the default MoonCraft starter page. Replace it with the user's requested app before finishing.",
     )
   } else {
     None
@@ -999,7 +999,7 @@ fn fake_codex_update_workspace(
 ) -> Result[String, String] {
   let normalized = trim_or_default(
     fake_codex_user_request(prompt),
-    "Mooncraft update",
+    "MoonCraft update",
   )
   let async_version = required_reference_module_version("moonbitlang/async")
   let mocket_version = required_reference_module_version("oboard/mocket")
@@ -1023,7 +1023,7 @@ fn fake_codex_update_workspace(
         #|  "repository": "",
         #|  "license": "Apache-2.0",
         #|  "keywords": [],
-        #|  "description": "Mooncraft smoke app"
+        #|  "description": "MoonCraft smoke app"
         #|}
       ),
     ),
@@ -1049,7 +1049,7 @@ fn fake_codex_update_workspace(
       (
         #|///|
         #|fn app_page_html() -> String {
-        #|  "<!doctype html><html><head><meta charset='utf-8'><title>Mooncraft smoke preview</title></head><body><main><h1>Mooncraft smoke preview</h1><p>The fake builder generated a runnable preview.</p></main></body></html>"
+        #|  "<!doctype html><html><head><meta charset='utf-8'><title>MoonCraft smoke preview</title></head><body><main><h1>MoonCraft smoke preview</h1><p>The fake builder generated a runnable preview.</p></main></body></html>"
         #|}
         #|
         #|///|
@@ -1074,11 +1074,11 @@ fn fake_codex_update_workspace(
       (
         #|///|
         #|test "page includes smoke title" {
-        #|  assert_true(app_page_html().contains("Mooncraft smoke preview"))
+        #|  assert_true(app_page_html().contains("MoonCraft smoke preview"))
         #|}
       ),
     ),
-    ("/README.md", "# Mooncraft Smoke App\n\n" + normalized + "\n"),
+    ("/README.md", "# MoonCraft Smoke App\n\n" + normalized + "\n"),
   ]
   for file in files {
     match scaffold_write_file(workspace_path + file.0, file.1) {
@@ -1469,7 +1469,7 @@ async fn collect_agent_command_output(
         }
         Ok((result.0, result.1, None))
       }
-      None => Err("Mooncraft's app builder is temporarily unavailable.")
+      None => Err("MoonCraft's app builder is temporarily unavailable.")
     }
   }
 }
@@ -1497,7 +1497,7 @@ async fn run_agent_runtime_doctor(
       return Err(
         codex_failure_with_debug(
           "The app builder runtime is not available.",
-          "Mooncraft's app builder is temporarily unavailable.",
+          "MoonCraft's app builder is temporarily unavailable.",
           thread_id,
           Some(
             failure_debug("Agent runtime doctor", None, None, Some(artifacts)),
@@ -2366,7 +2366,7 @@ async fn AgentGateway::run_turn(
       Err(message) =>
         return Err(
           codex_failure(
-            "Mooncraft's app builder is temporarily unavailable. Please retry later.",
+            "MoonCraft's app builder is temporarily unavailable. Please retry later.",
             message,
             project.codex_thread_id,
           ),
@@ -2934,7 +2934,7 @@ async fn run_worker_mode(
 ) -> Unit {
   let ctx = match AppContext::try_new_for_worker_async(root) {
     Ok(ctx) => ctx
-    Err(message) => abort("Mooncraft worker cannot start: " + message)
+    Err(message) => abort("MoonCraft worker cannot start: " + message)
   }
   ctx.run_project_turn(project_id, run_id)
 }

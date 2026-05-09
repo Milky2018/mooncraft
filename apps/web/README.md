@@ -1,6 +1,6 @@
 # Web App
 
-This module renders the current Mooncraft workspace UI with Rabbita.
+This module renders the current MoonCraft workspace UI with Rabbita.
 
 The page is intentionally narrow:
 

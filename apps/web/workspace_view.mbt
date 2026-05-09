@@ -553,7 +553,7 @@ fn render_workspace_panel(
 ) -> @rabbita.Html {
   let send_enabled = can_send(model)
   let composer_placeholder = if model.selected_project_id is Some(_) {
-    "Tell Mooncraft what to build or change..."
+    "Tell MoonCraft what to build or change..."
   } else {
     "Create a project first."
   }
@@ -641,7 +641,7 @@ fn render_workspace_panel(
                 if active_run(model) is Some(_) {
                   "Building..."
                 } else {
-                  "Build With Mooncraft"
+                  "Build With MoonCraft"
                 },
               ),
             ],

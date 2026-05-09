@@ -2,7 +2,7 @@
 
 ## Goal
 
-Mooncraft v1 is a local app-develop system with three visible ideas:
+MoonCraft v1 is a local app-develop system with three visible ideas:
 
 - projects
 - chat

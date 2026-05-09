@@ -1,6 +1,6 @@
 ---
 title: App Model
-summary: The core mental model for apps built on Mooncraft
+summary: The core mental model for apps built on MoonCraft
 applies_to:
   - product-model
   - chat-first
@@ -13,11 +13,11 @@ status: draft
 
 # When To Use
 
-Use this document when deciding how a Mooncraft app should be structured or when choosing between multiple implementation shapes.
+Use this document when deciding how a MoonCraft app should be structured or when choosing between multiple implementation shapes.
 
 # Model Summary
 
-Mooncraft apps are generated and modified through agent interaction. The end user does not manage the source code directly. The app should therefore stay predictable and easy for the agent to reason about.
+MoonCraft apps are generated and modified through agent interaction. The end user does not manage the source code directly. The app should therefore stay predictable and easy for the agent to reason about.
 
 The first platform model is:
 
@@ -34,9 +34,9 @@ The first platform model is:
 - The main user interface is chat, not a code editor.
 - Platform users own projects explicitly; project access must stay owner-scoped.
 - The app must remain runnable through the platform runner.
-- The app should use the MoonBit project structure that fits the request; Mooncraft must not assume every app has `frontend/`, `backend/`, and `shared/` directories.
+- The app should use the MoonBit project structure that fits the request; MoonCraft must not assume every app has `frontend/`, `backend/`, and `shared/` directories.
 - The workspace root must keep `moon fmt`, `moon check`, `moon test`, and `moon build` valid.
-- The workspace root must provide `mooncraft-preview.sh` so Mooncraft can start the live preview.
+- The workspace root must provide `mooncraft-preview.sh` so MoonCraft can start the live preview.
 - Public previews must stay tied to opaque preview identifiers, not predictable project ids.
 - Tenant-aware apps must scope data explicitly.
 - Product-facing complexity should stay hidden from the end user.

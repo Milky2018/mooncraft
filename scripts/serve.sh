@@ -13,7 +13,7 @@ fi
 
 base_url="http://localhost:$port"
 public_base_url="${MOONCRAFT_PUBLIC_BASE_URL:-$base_url}"
-echo "Mooncraft: $base_url"
+echo "MoonCraft: $base_url"
 
 if [[ "$profile" == "release" ]]; then
   moon -C . build --release

@@ -1,6 +1,6 @@
 # Knowledge Base
 
-This directory will contain the agent-readable docs that explain how to build on Mooncraft.
+This directory will contain the agent-readable docs that explain how to build on MoonCraft.
 
 Suggested subdirectories:
 

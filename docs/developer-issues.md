@@ -28,7 +28,7 @@ Agents do not edit this. This file is maintainable by human developers.
 - [ ] Use `codex-sdk` instead of CLI
 - [ ] Improve the generated workspace bootstrap
 - [ ] OAuth with github account
-- [ ] Refactor, goal: Move Mooncraft from “single-node prototype” to “production-shaped platform” without adding product surface area. Keep the user flow simple: login, create project, chat, preview.
+- [ ] Refactor, goal: Move MoonCraft from “single-node prototype” to “production-shaped platform” without adding product surface area. Keep the user flow simple: login, create project, chat, preview.
   - [ ] Phase 1: Runtime Boundary, Result: control plane stops directly knowing how to docker run, moon build, nohup, or kill ports.
     - [ ] Replace ad-hoc preview/process management with a RuntimeService abstraction.
     - [ ] Move agent runs and preview runs behind the same job/runner interface.

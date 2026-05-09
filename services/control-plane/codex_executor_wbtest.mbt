@@ -134,11 +134,11 @@ test "workspace contract requires root MoonBit project" {
   debug_inspect(workspace_contract_error(workspace), content="None")
   safe_write_string(
     workspace + "/main.mbt",
-    "fn main { let _ = \"/api/health Mooncraft Starter\" }\n",
+    "fn main { let _ = \"/api/health MoonCraft Starter\" }\n",
   )
   debug_inspect(
     workspace_contract_error(workspace).map(fn(message) {
-      message.contains("default Mooncraft starter page")
+      message.contains("default MoonCraft starter page")
     }),
     content="Some(true)",
   )
@@ -148,7 +148,7 @@ test "workspace contract requires root MoonBit project" {
   )
   safe_write_string(
     workspace + "/main_wbtest.mbt",
-    "test \"starter absent\" { assert_false(\"Snake\".contains(\"Mooncraft Starter\")) }\n",
+    "test \"starter absent\" { assert_false(\"Snake\".contains(\"MoonCraft Starter\")) }\n",
   )
   debug_inspect(workspace_contract_error(workspace), content="None")
   safe_remove_tree(root)
@@ -165,7 +165,7 @@ test "new project workspace seed is a valid native preview substrate" {
   let moon_pkg = safe_read_string_or(seed_dir + "/moon.pkg", "")
   let main = safe_read_string_or(seed_dir + "/main.mbt", "")
   assert_true(main.contains("/api/health"))
-  assert_true(main.contains("Mooncraft Starter"))
+  assert_true(main.contains("MoonCraft Starter"))
   assert_true(moon_pkg.contains("supported_targets = \"native\""))
   assert_true(
     moon_mod.contains(

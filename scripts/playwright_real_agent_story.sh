@@ -166,7 +166,7 @@ async function main() {
         response.url().includes("/runs") &&
         response.request().method() === "POST"
     })
-    await page.getByRole("button", { name: /Build With Mooncraft|Send Request/ }).click()
+    await page.getByRole("button", { name: /Build With MoonCraft|Send Request/ }).click()
     screenshots.push(screenshot("04-real-agent-run-started.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
 

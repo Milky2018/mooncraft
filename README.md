@@ -1,8 +1,8 @@
-# Mooncraft
+# MoonCraft
 
-Mooncraft is a chat-first app builder for MoonBit applications.
+MoonCraft is a chat-first app builder for MoonBit applications.
 
-Users describe what they want, Mooncraft updates the app, and the browser shows a live preview. Code stays hidden in the default product flow.
+Users describe what they want, MoonCraft updates the app, and the browser shows a live preview. Code stays hidden in the default product flow.
 
 ## What It Does
 

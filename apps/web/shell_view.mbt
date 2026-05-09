@@ -6,7 +6,7 @@ fn render_loading_screen() -> @rabbita.Html {
         "padding: 8px", "display: flex", "flex-direction: column", "gap: 6px", "min-width: 340px",
       ],
   ) <| [
-    @html.div(style=title_text_style(), "Opening Mooncraft"),
+    @html.div(style=title_text_style(), "Opening MoonCraft"),
   ])
 }
 
@@ -505,7 +505,7 @@ fn render_project_sidebar(
         style=[
           "min-width: 0", "display: flex", "flex-direction: column", "gap: 2px",
         ],
-        [@html.div(style=title_text_style(), "Mooncraft")],
+        [@html.div(style=title_text_style(), "MoonCraft")],
       ),
     ]),
     @html.div(

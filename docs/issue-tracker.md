@@ -1,4 +1,4 @@
-# Mooncraft Issue Tracker
+# MoonCraft Issue Tracker
 
 Last updated: 2026-04-29
 
