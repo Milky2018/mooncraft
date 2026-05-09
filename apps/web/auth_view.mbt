@@ -78,14 +78,21 @@ fn render_auth_screen(
         "MoonCraft",
       ),
     ],
-    @html.a(
-      href=@sdk.github_login_path(),
-      style=primary_button_style(true) +
-        [
-          "position: absolute", "top: 16px", "right: 16px", "text-decoration: none",
-          "justify-content: center", "min-width: 0", "padding: 8px 12px",
-        ],
-    ) <| "Log in",
+    @html.div(
+      style=[
+        "position: absolute", "top: 16px", "right: 16px", "display: flex", "align-items: center",
+        "gap: 8px",
+      ],
+    ) <| [
+      tun_poc_link(),
+      @html.a(
+        href=@sdk.github_login_path(),
+        style=primary_button_style(true) +
+          [
+            "text-decoration: none", "justify-content: center", "min-width: 0", "padding: 8px 12px",
+          ],
+      ) <| "Log in",
+    ],
     @html.div(
       style=[
         "position: absolute", "inset: 0", "display: grid", "place-items: center",
