@@ -568,6 +568,25 @@ fn send_arrow_icon() -> @rabbita.Html {
 }
 
 ///|
+fn composer_keydown_attrs(
+  dispatch : @rabbita.Dispatch[Msg],
+  send_enabled : Bool,
+) -> @html.Attrs {
+  @html.Attrs::build().on_keydown(fn(event) {
+    if send_enabled &&
+      event.key() == "Enter" &&
+      !event.shift_key() &&
+      !event.is_composing() &&
+      !event.repeat() {
+      event.prevent_default()
+      dispatch(SendDraft)
+    } else {
+      @rabbita.none
+    }
+  })
+}
+
+///|
 fn render_workspace_panel(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
@@ -642,6 +661,7 @@ fn render_workspace_panel(
             disabled=active_run(model) is Some(_),
             placeholder=composer_placeholder,
             on_input=fn(value) { dispatch(DraftChanged(value)) },
+            attrs=composer_keydown_attrs(dispatch, send_enabled),
             style=input_style(active_run(model) is Some(_)) +
               [
                 "min-height: 132px", "resize: vertical", "box-shadow: 0 16px 40px rgba(15, 23, 42, 0.07)",
