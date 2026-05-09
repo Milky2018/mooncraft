@@ -53,10 +53,25 @@ fn reference_modules_prompt_rule() -> String {
 }
 
 ///|
+fn moon_fetch_no_update_command(module_name : String) -> String {
+  "moon fetch --no-update " + shell_quote(module_name)
+}
+
+///|
+fn moon_fetch_no_update_retry_command(module_name : String) -> String {
+  "for attempt in 1 2 3 4 5; do " +
+  moon_fetch_no_update_command(module_name) +
+  " && break; " +
+  "if [ \"$attempt\" = \"5\" ]; then exit 1; fi; " +
+  "sleep $((attempt * 2)); " +
+  "done"
+}
+
+///|
 fn user_project_fetch_commands() -> Array[String] {
   let commands : Array[String] = []
   for module_name in required_user_project_fetches() {
-    commands.push("moon fetch --no-update " + module_name)
+    commands.push(moon_fetch_no_update_retry_command(module_name))
   }
   commands
 }
@@ -93,8 +108,8 @@ fn fetch_user_project_dependencies(
     let status = shell_status(
       "cd " +
       shell_quote(workspace_path) +
-      " && moon fetch --no-update " +
-      shell_quote(module_name) +
+      " && " +
+      moon_fetch_no_update_retry_command(module_name) +
       " >/dev/null 2>&1",
     )
     if status != 0 {
@@ -108,30 +123,70 @@ fn fetch_user_project_dependencies(
 
 ///|
 fn scaffold_write_file(path : String, content : String) -> Result[Unit, String] {
-  let directory = parent_dir(path)
-  if directory != "" {
-    ensure_dir(directory)
-  }
+  ensure_dir(parent_dir(path))
   @fs.write_string_to_file(path, content) catch {
-    err =>
-      return Err("Failed to write project workspace file '\{path}': \{err}")
+    err => return Err("Failed to write \{path}: \{err}")
   }
   Ok(())
 }
 
 ///|
-fn empty_workspace_seed_files() -> Array[(String, String)] {
+fn default_project_seed_dir() -> String {
+  @env.current_dir().unwrap_or(".") + "/examples/project-seeds/native-mocket"
+}
+
+///|
+fn configured_project_seed_dir() -> String {
+  match @env.get_env_var("MOONCRAFT_PROJECT_SEED_DIR") {
+    Some(value) if value.trim() != "" => trim_mount_path(value)
+    _ => default_project_seed_dir()
+  }
+}
+
+///|
+fn required_project_seed_files() -> Array[String] {
   [
-    (
-      ".gitignore",
-      (
-        #|_build/
-        #|.mooncakes/
-        #|.repos/
-        #|preview-dist/
-      ),
-    ),
+    ".gitignore", "README.md", "moon.mod.json", "moon.pkg", "main.mbt", "main_wbtest.mbt",
   ]
+}
+
+///|
+fn project_seed_error(seed_dir : String) -> String? {
+  if !@fs.path_exists(seed_dir) {
+    return Some("Mooncraft project seed directory does not exist: \{seed_dir}")
+  }
+  for file in required_project_seed_files() {
+    let path = seed_dir + "/" + file
+    if !@fs.path_exists(path) {
+      return Some("Mooncraft project seed is missing required file: \{path}")
+    }
+  }
+  None
+}
+
+///|
+fn copy_project_seed(
+  seed_dir : String,
+  workspace_path : String,
+) -> Result[Unit, String] {
+  match project_seed_error(seed_dir) {
+    Some(message) => return Err(message)
+    None => ignore(())
+  }
+  ensure_dir(workspace_path)
+  let status = shell_status(
+    "cp -R " +
+    shell_quote(trim_mount_path(seed_dir) + "/.") +
+    " " +
+    shell_quote(trim_mount_path(workspace_path) + "/"),
+  )
+  if status == 0 {
+    Ok(())
+  } else {
+    Err(
+      "Failed to copy Mooncraft project seed from \{seed_dir} to \{workspace_path}.",
+    )
+  }
 }
 
 ///|
@@ -141,11 +196,9 @@ async fn AppContext::materialize_project_workspace(
 ) -> Result[Unit, String] noraise {
   let workspace_path = project_workspace(self.root, project.id)
   ensure_dir(workspace_path)
-  for file in empty_workspace_seed_files() {
-    match scaffold_write_file(workspace_path + "/" + file.0, file.1) {
-      Ok(_) => ignore(())
-      Err(message) => return Err(message)
-    }
+  match copy_project_seed(configured_project_seed_dir(), workspace_path) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
   }
   match snapshot_workspace(self.store, self.root, project.id, workspace_path) {
     Ok(_) => Ok(())

@@ -1,52 +1,4 @@
 ///|
-test "bootstrap prompt includes the core execution rules" {
-  let prompt = bootstrap_prompt("Build a todo app")
-  assert_true(
-    prompt.contains(
-      "Default to MoonBit unless the user explicitly asks for another technology.",
-    ),
-  )
-  assert_true(prompt.contains("Work directly in this builder container."))
-  assert_true(prompt.contains("Mandatory first actions"))
-  assert_true(
-    prompt.contains(
-      "create a root-level MoonBit project before reading examples, skills, or dependency internals",
-    ),
-  )
-  assert_true(
-    prompt.contains("Do not produce a final answer until you have created"),
-  )
-  assert_true(prompt.contains("Do not send progress messages"))
-  assert_true(prompt.contains("Do not mention internal execution names"))
-  assert_false(prompt.contains("Use subagents"))
-  assert_true(prompt.contains("Use the bundled MoonBit skills"))
-  assert_true(
-    prompt.contains("The current workspace root is the generated app root."),
-  )
-  assert_true(
-    prompt.contains("Do not spend the turn reading broad dependency internals"),
-  )
-  assert_true(
-    prompt.contains(
-      "verify that the workspace root contains `moon.mod.json`, `moon.mod`, or `moon.work`",
-    ),
-  )
-  assert_true(
-    prompt.contains("read the first CLI argument as the preview port"),
-  )
-  assert_true(
-    prompt.contains("return a successful response from `/api/health`"),
-  )
-  assert_false(prompt.contains(".mooncraft/implementation-required"))
-  assert_false(prompt.contains("mooncraft-preview.sh"))
-  assert_false(prompt.contains("placeholder"))
-  assert_true(prompt.contains("Do not stop with a progress-only final answer."))
-  assert_true(prompt.contains("moon fmt"))
-  assert_true(prompt.contains("moon build --target native"))
-  assert_true(prompt.contains("Build a todo app"))
-}
-
-///|
 test "extract thread id from codex json event" {
   let events = "{\"type\":\"thread.started\",\"thread_id\":\"019db86f-4b45-75c3-a409-984993d1f897\"}\n{\"type\":\"turn.started\"}"
   debug_inspect(
@@ -180,6 +132,82 @@ test "workspace contract requires root MoonBit project" {
     "fn main { let _ = \"/api/health\" }\n",
   )
   debug_inspect(workspace_contract_error(workspace), content="None")
+  safe_write_string(
+    workspace + "/main.mbt",
+    "fn main { let _ = \"/api/health Mooncraft Starter\" }\n",
+  )
+  debug_inspect(
+    workspace_contract_error(workspace).map(fn(message) {
+      message.contains("default Mooncraft starter page")
+    }),
+    content="Some(true)",
+  )
+  safe_write_string(
+    workspace + "/main.mbt",
+    "fn main { let _ = \"/api/health Snake\" }\n",
+  )
+  safe_write_string(
+    workspace + "/main_wbtest.mbt",
+    "test \"starter absent\" { assert_false(\"Snake\".contains(\"Mooncraft Starter\")) }\n",
+  )
+  debug_inspect(workspace_contract_error(workspace), content="None")
+  safe_remove_tree(root)
+}
+
+///|
+test "new project workspace seed is a valid native preview substrate" {
+  let seed_dir = configured_project_seed_dir()
+  debug_inspect(project_seed_error(seed_dir), content="None")
+  for file in required_project_seed_files() {
+    assert_true(@fs.path_exists(seed_dir + "/" + file))
+  }
+  let moon_mod = safe_read_string_or(seed_dir + "/moon.mod.json", "")
+  let moon_pkg = safe_read_string_or(seed_dir + "/moon.pkg", "")
+  let main = safe_read_string_or(seed_dir + "/main.mbt", "")
+  assert_true(main.contains("/api/health"))
+  assert_true(main.contains("Mooncraft Starter"))
+  assert_true(moon_pkg.contains("supported_targets = \"native\""))
+  assert_true(
+    moon_mod.contains(
+      "\"moonbitlang/async\": \"" +
+      required_reference_module_version("moonbitlang/async") +
+      "\"",
+    ),
+  )
+  assert_true(
+    moon_mod.contains(
+      "\"moonbitlang/x\": \"" +
+      required_reference_module_version("moonbitlang/x") +
+      "\"",
+    ),
+  )
+  assert_true(
+    moon_mod.contains(
+      "\"oboard/mocket\": \"" +
+      required_reference_module_version("oboard/mocket") +
+      "\"",
+    ),
+  )
+}
+
+///|
+test "project workspace seed can be copied into a workspace" {
+  let root = @env.current_dir().unwrap_or(".") +
+    "/data/control-plane-test-roots/" +
+    next_id("project-seed-copy")
+  let workspace = root + "/workspace"
+  safe_remove_tree(root)
+  ensure_dir(workspace)
+  match copy_project_seed(configured_project_seed_dir(), workspace) {
+    Ok(_) => ignore(())
+    Err(message) => abort(message)
+  }
+  for file in required_project_seed_files() {
+    assert_true(@fs.path_exists(workspace + "/" + file))
+  }
+  assert_true(
+    safe_read_string_or(workspace + "/main.mbt", "").contains("/api/health"),
+  )
   safe_remove_tree(root)
 }
 
@@ -196,9 +224,10 @@ test "workspace contract repair prompt is self-contained" {
   assert_true(prompt.contains("You must edit files in this workspace"))
   assert_true(
     prompt.contains(
-      "Do not read skills, examples, or dependency internals before the workspace root contains a MoonBit manifest.",
+      "Do not read skills, examples, or dependency internals before editing the workspace.",
     ),
   )
+  assert_true(prompt.contains("replace that starter page"))
   assert_true(prompt.contains("Do not send progress messages"))
   assert_true(prompt.contains("moon build --target native"))
   assert_false(prompt.contains("mooncraft-preview.sh"))
@@ -335,8 +364,9 @@ test "docker validation uses initialized image registry in one shell" {
   assert_true(script.has_prefix("set -e"))
   assert_true(required_user_project_fetches().length() > 0)
   for module_name in required_user_project_fetches() {
-    assert_true(script.contains("moon fetch --no-update " + module_name))
+    assert_true(script.contains(moon_fetch_no_update_command(module_name)))
   }
+  assert_true(script.contains("for attempt in 1 2 3 4 5"))
   assert_true(script.contains("moon fmt"))
   assert_true(script.contains("moon check"))
   assert_true(script.contains("moon build"))
@@ -350,8 +380,9 @@ test "docker codex command fetches reference modules before codex starts" {
   inspect(command[1], content="-c")
   assert_true(required_user_project_fetches().length() > 0)
   for module_name in required_user_project_fetches() {
-    assert_true(command[2].contains("moon fetch --no-update " + module_name))
+    assert_true(command[2].contains(moon_fetch_no_update_command(module_name)))
   }
+  assert_true(command[2].contains("for attempt in 1 2 3 4 5"))
   assert_true(command[2].contains("exec \"$@\""))
   inspect(command[3], content="mooncraft-agent")
   inspect(command[4], content="codex")

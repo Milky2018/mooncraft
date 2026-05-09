@@ -1,13 +1,13 @@
 # Examples
 
-This directory will contain working starter applications.
+This directory contains runnable reference projects and platform seed material.
 
-Seed order:
+## Project Seeds
 
-1. hello-world HTTP handler
-2. single-tenant todo API
-3. multi-tenant todo API
-4. notes API
-5. webhook receiver API
+`project-seeds/native-mocket` is copied into every new generated project
+workspace before the first builder turn. It is not a user-facing template picker;
+it is the minimal valid MoonBit native preview contract that gives the builder a
+working root project to replace.
 
-Examples should be runnable and referenced by the knowledge base docs.
+Keep seed projects runnable with `moon -C <seed-dir> check`, `moon -C <seed-dir>
+build --target native`, and `moon -C <seed-dir> test`.

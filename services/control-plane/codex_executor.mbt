@@ -342,31 +342,68 @@ fn prepare_agent_mounts(
 }
 
 ///|
+fn minimal_native_mocket_recipe() -> String {
+  (
+    #|Minimum valid Mooncraft native-server shape for a new or broken workspace:
+    #|- Root `moon.mod.json`:
+    #|  `{ "name": "mooncraft/generated-app", "version": "0.1.0", "preferred-target": "native", "deps": { "moonbitlang/async": "
+  ) +
+  required_reference_module_version("moonbitlang/async") +
+  (
+    #|", "moonbitlang/x": "
+  ) +
+  required_reference_module_version("moonbitlang/x") +
+  (
+    #|", "oboard/mocket": "
+  ) +
+  required_reference_module_version("oboard/mocket") +
+  (
+    #|" } }`
+    #|- Root `moon.pkg` imports `moonbitlang/async`, `oboard/mocket`, `moonbitlang/core/env`, and `moonbitlang/core/string`; set `options("is-main": true)` and `supported_targets = "native"`. Do not put the runnable app in `cmd/main`.
+    #|- Root `main.mbt` should define an HTML-producing function. Prefer a MoonBit block string for HTML: `fn app_page_html() -> String { ( #|<h1>Snake</h1> ) }`. Do not build long HTML by starting continuation lines with `+`.
+    #|- Then keep this server shape:
+    #|  `async fn main { let args = @env.args(); let port = if args.length() > 1 { @string.parse_int(args[1]) catch { _ => 4300 } } else { 4300 }; let app = @mocket.new(); app.get("/api/health", _ => @mocket.HttpResponse::new(OK, headers={ "Content-Type": "application/json" }).body("{\"ok\":true}")); app.get("/", _ => @mocket.HttpResponse::new(OK, headers={ "Content-Type": "text/html; charset=utf-8" }).body(app_page_html())); app.listen("0.0.0.0:\{port}") }`
+    #|- Adapt the HTML/CSS/JavaScript inside `app_page_html()` to satisfy the user's app request.
+  )
+}
+
+///|
 fn bootstrap_prompt(user_message : String) -> String {
   (
     #|You are the software engineer for Mooncraft. Build the user's app inside the current workspace.
     #|
     #|Mandatory first actions:
     #|1. Inspect the workspace root with one small listing command.
-    #|2. If the root does not already contain `moon.mod.json`, `moon.mod`, or `moon.work`, create a root-level MoonBit project before reading examples, skills, or dependency internals.
-    #|3. If you use `moon new`, move or adapt its generated files so the current workspace root is the MoonBit project root, then remove the temporary child directory.
-    #|4. Do not produce a final answer until you have created or updated files in this workspace.
-    #|5. Do not send progress messages such as "I will..." or "I am going to...". Use commands and file edits first, then send exactly one final response after validation.
+    #|2. The workspace normally starts with a minimal valid MoonBit starter app at the root. For app-building requests, read `main.mbt` once, then immediately overwrite `main.mbt` and `main_wbtest.mbt` with shell heredocs before reading anything else.
+    #|3. Replace `app_page_html()` with the requested app UI and behavior while preserving the preview health endpoint.
+    #|4. If the root does not already contain `moon.mod.json`, `moon.mod`, or `moon.work`, create root-level `moon.mod.json`, `moon.pkg`, `main.mbt`, and a small test file directly before reading examples, skills, or dependency internals.
+    #|5. Do not run `moon new`, `moon add`, or `moon update` for a missing workspace. The dependency versions are listed below.
+    #|6. If a default scaffold already exists, immediately replace it; never leave any runnable app as `println("Hello")`.
+    #|7. Do not produce a final answer until you have created or updated files in this workspace.
+    #|8. Do not send progress messages such as "I will..." or "I am going to...". Use commands and file edits first, then send exactly one final response after validation.
     #|
     #|Working rules:
     #|- Default to MoonBit unless the user explicitly asks for another technology.
     #|- Complete the job in one turn without asking follow-up questions.
     #|- Work directly in this builder container. Do not assume subagent or desktop-only tools are available.
-    #|- Use the bundled MoonBit skills for MoonBit syntax, package, API, or toolchain questions after the root project exists, and keep skill reading bounded to the relevant instructions.
-    #|- Do not spend the turn reading broad dependency internals or examples unless a build error requires it.
+    #|- MoonBit skills are installed. Consult them only if validation fails or you need an exact MoonBit syntax/API answer that is not already visible in the starter files.
+    #|- Do not read skill files, examples, or dependency internals before editing the starter app for a normal UI request.
+    #|- Do not `cat` whole skill files or broad dependency files. If a reference is needed, read only the specific section or at most 120 relevant lines.
+    #|- Do not spend the turn reading broad dependency internals, examples, or skills unless a build error requires it.
     #|- Do not mention internal execution names, runtime tools, provider keys, or container details in user-facing progress or final responses.
-    #|- This workspace starts empty except for ignore rules. Create the real app requested by the user.
+    #|- This workspace is not a feature template. The starter app exists only to provide a valid MoonBit preview contract; replace its user-facing page with the real app requested by the user.
+    #|- For browser games and simple UI apps, keep the MoonBit server shape and put the client interaction in the HTML/CSS/JavaScript returned by `app_page_html()`.
+    #|- Use a MoonBit block string for large HTML/CSS/JavaScript. Do not start lines with `+` for string continuation.
+    #|- If you update tests, assert stable visible behavior such as the page title, heading, canvas/board element, controls, and absence of starter text. Do not assert brittle JavaScript implementation details like `const` versus `let`.
+    #|- A valid Snake game change must remove the words `Mooncraft Starter` from the served app source.
     #|- Do not assume `frontend/`, `backend/`, or `shared/` directories exist.
     #|- The current workspace root is the generated app root. Do not leave the only MoonBit module inside a child directory.
-    #|- Use `moon new` only as a scaffold helper. If it creates a child directory, immediately move or adapt the generated files so the workspace root contains the runnable MoonBit project before finishing.
+    #|- Prefer direct root-file creation over scaffold commands. If a scaffold command created `cmd/main`, do not keep it as the runnable app; replace it with the root native-server shape below.
     #|- Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working from the current workspace root.
     #|
   ) +
+  minimal_native_mocket_recipe() +
+  "\n" +
   reference_modules_prompt_rule() +
   (
     #|
@@ -393,21 +430,27 @@ fn followup_prompt(user_message : String) -> String {
     #|
     #|Mandatory first actions:
     #|1. Inspect the workspace root with one small listing command.
-    #|2. If the root does not contain `moon.mod.json`, `moon.mod`, or `moon.work`, create or restore a root-level MoonBit project before reading examples, skills, or dependency internals.
-    #|3. Do not produce a final answer until you have created or updated files in this workspace, unless the request is purely explanatory.
-    #|4. Do not send progress messages such as "I will..." or "I am going to...". Use commands and file edits first, then send exactly one final response after validation.
+    #|2. If the root does not contain `moon.mod.json`, `moon.mod`, or `moon.work`, create root-level `moon.mod.json`, `moon.pkg`, `main.mbt`, and a small test file directly before reading examples, skills, or dependency internals.
+    #|3. Do not run `moon new`, `moon add`, or `moon update` for a missing workspace. The dependency versions are listed below.
+    #|4. If scaffolding is missing or still only prints `Hello`, immediately replace it with the real app server.
+    #|5. Do not produce a final answer until you have created or updated files in this workspace, unless the request is purely explanatory.
+    #|6. Do not send progress messages such as "I will..." or "I am going to...". Use commands and file edits first, then send exactly one final response after validation.
     #|
     #|Working rules:
     #|- Default to MoonBit unless the user explicitly asks for another technology.
     #|- Complete the job in one turn without asking follow-up questions.
     #|- Work directly in this builder container. Do not assume subagent or desktop-only tools are available.
-    #|- Use the bundled MoonBit skills for MoonBit syntax, package, API, or toolchain questions after the root project exists, and keep skill reading bounded to the relevant instructions.
-    #|- Do not spend the turn reading broad dependency internals or examples unless a build error requires it.
+    #|- MoonBit skills are installed. Consult them only if validation fails or you need an exact MoonBit syntax/API answer that is not already visible in the starter files.
+    #|- Do not read skill files, examples, or dependency internals before editing the current app for a normal UI request.
+    #|- Do not `cat` whole skill files or broad dependency files. If a reference is needed, read only the specific section or at most 120 relevant lines.
+    #|- Do not spend the turn reading broad dependency internals, examples, or skills unless a build error requires it.
     #|- Do not mention internal execution names, runtime tools, provider keys, or container details in user-facing progress or final responses.
     #|- Do not assume a fixed project layout. Preserve the existing app structure unless a change is needed.
     #|- The current workspace root is the generated app root. Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working from that root.
     #|
   ) +
+  minimal_native_mocket_recipe() +
+  "\n" +
   reference_modules_prompt_rule() +
   (
     #|
@@ -437,22 +480,28 @@ fn recovery_prompt(
     #|
     #|Mandatory first actions:
     #|1. Inspect the workspace root with one small listing command.
-    #|2. If the root does not contain `moon.mod.json`, `moon.mod`, or `moon.work`, recreate a root-level MoonBit project from the original project requirement before reading examples, skills, or dependency internals.
-    #|3. Do not produce a final answer until you have created or updated files in this workspace.
-    #|4. Do not send progress messages such as "I will..." or "I am going to...". Use commands and file edits first, then send exactly one final response after validation.
+    #|2. If the root does not contain `moon.mod.json`, `moon.mod`, or `moon.work`, create root-level `moon.mod.json`, `moon.pkg`, `main.mbt`, and a small test file directly from the original project requirement before reading examples, skills, or dependency internals.
+    #|3. Do not run `moon new`, `moon add`, or `moon update` for a missing workspace. The dependency versions are listed below.
+    #|4. If scaffolding is missing or still only prints `Hello`, immediately replace it with the real app server.
+    #|5. Do not produce a final answer until you have created or updated files in this workspace.
+    #|6. Do not send progress messages such as "I will..." or "I am going to...". Use commands and file edits first, then send exactly one final response after validation.
     #|
     #|Working rules:
     #|- Default to MoonBit unless the user explicitly asks for another technology.
     #|- Complete the job in one turn without asking follow-up questions.
     #|- Work directly in this builder container. Do not assume subagent or desktop-only tools are available.
-    #|- Use the bundled MoonBit skills for MoonBit syntax, package, API, or toolchain questions after the root project exists, and keep skill reading bounded to the relevant instructions.
-    #|- Do not spend the turn reading broad dependency internals or examples unless a build error requires it.
+    #|- MoonBit skills are installed. Consult them only if validation fails or you need an exact MoonBit syntax/API answer that is not already visible in the starter files.
+    #|- Do not read skill files, examples, or dependency internals before editing the current app for a normal UI request.
+    #|- Do not `cat` whole skill files or broad dependency files. If a reference is needed, read only the specific section or at most 120 relevant lines.
+    #|- Do not spend the turn reading broad dependency internals, examples, or skills unless a build error requires it.
     #|- Do not mention internal execution names, runtime tools, provider keys, or container details in user-facing progress or final responses.
     #|- The current workspace already contains the latest saved project state.
     #|- Do not assume a fixed project layout. Preserve the existing app structure unless a change is needed.
     #|- The current workspace root is the generated app root. Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working from that root.
     #|
   ) +
+  minimal_native_mocket_recipe() +
+  "\n" +
   reference_modules_prompt_rule() +
   (
     #|
@@ -488,8 +537,9 @@ fn preview_setup_repair_prompt() -> String {
     #|Do not send progress messages such as "I will..." or "I am going to...". Use commands and file edits first, then send exactly one final response after validation.
     #|
     #|Repair only the native app startup path:
-    #|- First inspect `cmd/main/main.mbt`, `cmd/main/moon.pkg`, and `moon.mod.json`.
-    #|- If `cmd/main/main.mbt` only prints `Hello` or exits immediately, replace it with a native HTTP server before running more discovery.
+    #|- First inspect root `main.mbt`, root `moon.pkg`, and `moon.mod.json`.
+    #|- If the runnable app only prints `Hello` or exits immediately, replace it with a native HTTP server before running more discovery.
+    #|- Do not run `moon new`, `moon add`, or `moon update` during this repair.
     #|- Keep the app as a root-level MoonBit project.
     #|- Ensure the built native executable starts the server when run directly.
     #|- Read the first CLI argument as the preview port and default to `4300`.
@@ -499,7 +549,9 @@ fn preview_setup_repair_prompt() -> String {
     #|- Keep root-level `moon fmt`, `moon check`, `moon build --target native`, and `moon test` working.
     #|- Do not finish after only describing what you will change. You must edit files in this workspace before your final answer.
     #|- Finish with a brief summary that says the preview startup was repaired only after the files are changed and the checks run.
-  )
+    #|
+  ) +
+  minimal_native_mocket_recipe()
 }
 
 ///|
@@ -511,7 +563,7 @@ fn workspace_contract_repair_prompt(
   (
     #|Mooncraft could not validate the generated workspace structure.
     #|
-    #|This is a mandatory repair task. Do not read skills, examples, or dependency internals before the workspace root contains a MoonBit manifest.
+    #|This is a mandatory repair task. Do not read skills, examples, or dependency internals before editing the workspace.
     #|Do not send progress messages such as "I will..." or "I am going to...". Use commands and file edits first, then send exactly one final response after validation.
     #|
     #|Problem:
@@ -538,7 +590,10 @@ fn workspace_contract_repair_prompt(
     #|Repair only the workspace structure needed by Mooncraft:
     #|- First inspect the workspace root with one small listing command.
     #|- Ensure the workspace root contains a MoonBit project manifest: `moon.mod.json`, `moon.mod`, or `moon.work`.
-    #|- If `moon new` creates a child directory, move or adapt the generated files so the workspace root is the runnable project root.
+    #|- Create or repair root-level `moon.mod.json`, `moon.pkg`, `main.mbt`, and a small test file directly.
+    #|- Do not run `moon new`, `moon add`, or `moon update` during this repair.
+    #|- If the workspace contains `Mooncraft Starter`, replace that starter page with the user's requested app now.
+    #|- For browser games and simple UI apps, keep the MoonBit server shape and put the client interaction in the HTML/CSS/JavaScript returned by `app_page_html()`.
     #|- Ensure the built native executable starts the app server when run directly.
     #|- Read the first CLI argument as the preview port and default to `4300`.
     #|- Serve the user-facing app at `/` and return a successful response from `/api/health`.
@@ -546,7 +601,9 @@ fn workspace_contract_repair_prompt(
     #|- Keep root-level `moon fmt`, `moon check`, `moon build --target native`, and `moon test` working.
     #|- Do not change the app's user-facing behavior unless it is required to make the app valid and previewable.
     #|- Finish with a brief summary that says the workspace structure was repaired.
-  )
+    #|
+  ) +
+  minimal_native_mocket_recipe()
 }
 
 ///|
@@ -661,6 +718,20 @@ fn workspace_moonbit_sources_contain(
 }
 
 ///|
+fn workspace_app_sources_contain(
+  workspace_path : String,
+  needle : String,
+) -> Bool {
+  shell_status(
+    workspace_moonbit_source_find_command(workspace_path) +
+    " ! -name '*_test.mbt' ! -name '*_wbtest.mbt' -exec grep -F -q " +
+    shell_quote(needle) +
+    " {} \\; -print -quit | grep -q .",
+  ) ==
+  0
+}
+
+///|
 fn workspace_contract_error(workspace_path : String) -> String? {
   if !workspace_has_root_moon_project(workspace_path) {
     Some(
@@ -673,6 +744,10 @@ fn workspace_contract_error(workspace_path : String) -> String? {
   } else if !workspace_moonbit_sources_contain(workspace_path, "/api/health") {
     Some(
       "The generated app does not expose the required `/api/health` preview health endpoint.",
+    )
+  } else if workspace_app_sources_contain(workspace_path, "Mooncraft Starter") {
+    Some(
+      "The generated app still contains the default Mooncraft starter page. Replace it with the user's requested app before finishing.",
     )
   } else {
     None
