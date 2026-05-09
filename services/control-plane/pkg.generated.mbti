@@ -19,6 +19,8 @@ type AgentGateway
 
 type AgentRuntimeConfig
 
+type AgentRuntimeSpec
+
 type AgentTurnFailure
 
 type AgentTurnSuccess

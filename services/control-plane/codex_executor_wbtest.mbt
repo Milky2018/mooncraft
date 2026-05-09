@@ -7,6 +7,16 @@ test "bootstrap prompt includes the core execution rules" {
     ),
   )
   assert_true(prompt.contains("Work directly in this builder container."))
+  assert_true(prompt.contains("Mandatory first actions"))
+  assert_true(
+    prompt.contains(
+      "create a root-level MoonBit project before reading examples, skills, or dependency internals",
+    ),
+  )
+  assert_true(
+    prompt.contains("Do not produce a final answer until you have created"),
+  )
+  assert_true(prompt.contains("Do not send progress messages"))
   assert_true(prompt.contains("Do not mention internal execution names"))
   assert_false(prompt.contains("Use subagents"))
   assert_true(prompt.contains("Use the bundled MoonBit skills"))
@@ -32,6 +42,7 @@ test "bootstrap prompt includes the core execution rules" {
   assert_false(prompt.contains("placeholder"))
   assert_true(prompt.contains("Do not stop with a progress-only final answer."))
   assert_true(prompt.contains("moon fmt"))
+  assert_true(prompt.contains("moon build --target native"))
   assert_true(prompt.contains("Build a todo app"))
 }
 
@@ -42,6 +53,31 @@ test "extract thread id from codex json event" {
     extract_thread_id(events),
     content="Some(\"019db86f-4b45-75c3-a409-984993d1f897\")",
   )
+}
+
+///|
+test "stateless agent summary parser extracts streamed assistant text" {
+  let output = "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"thinking\",\"thinking\":\"hidden\"}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Preview is ready.\"}]}}\n{\"type\":\"result\",\"result\":\"\"}"
+  debug_inspect(
+    extract_agent_text_event(output),
+    content="Some(\"Preview is ready.\")",
+  )
+}
+
+///|
+test "raw codex commands do not wrap compact repair prompts" {
+  let repair = workspace_contract_repair_prompt(
+    "missing root manifest", "Build a counter", "Make it previewable",
+  )
+  let exec_command = codex_exec_raw_command("openai/gpt-5.5", repair)
+  inspect(exec_command[exec_command.length() - 1], content=repair)
+  assert_false(exec_command.join(" ").contains("Working rules"))
+
+  let resume_command = codex_resume_raw_command(
+    "openai/gpt-5.5", "thread-1", repair,
+  )
+  inspect(resume_command[resume_command.length() - 1], content=repair)
+  assert_false(resume_command.join(" ").contains("Continue building"))
 }
 
 ///|
@@ -78,6 +114,18 @@ test "preview startup failures use user-safe copy" {
       "built native executable starts the server",
     ),
   )
+  assert_true(
+    preview_setup_repair_prompt().contains(
+      "replace it with a native HTTP server",
+    ),
+  )
+  assert_true(preview_setup_repair_prompt().contains("@env.args()"))
+  assert_true(
+    preview_setup_repair_prompt().contains("moon build --target native"),
+  )
+  assert_true(
+    preview_setup_repair_prompt().contains("Do not send progress messages"),
+  )
   assert_false(preview_setup_repair_prompt().contains("mooncraft-preview.sh"))
   assert_false(
     preview_refresh_failed_assistant_message().contains("mooncraft-preview.sh"),
@@ -87,6 +135,13 @@ test "preview startup failures use user-safe copy" {
       "mooncraft-preview.sh",
     ),
   )
+}
+
+///|
+test "preview executable discovery excludes debug symbols" {
+  let command = preview_executable_find_command("_build/native/debug/build")
+  assert_true(command.contains("-name '*.exe'"))
+  assert_true(command.contains("! -path '*.dSYM/*'"))
 }
 
 ///|
@@ -107,6 +162,23 @@ test "workspace contract requires root MoonBit project" {
   )
 
   safe_write_string(workspace + "/moon.mod.json", "{\"name\":\"test/app\"}\n")
+  debug_inspect(
+    workspace_contract_error(workspace).map(fn(message) {
+      message.contains("did not create any MoonBit source files")
+    }),
+    content="Some(true)",
+  )
+  safe_write_string(workspace + "/main.mbt", "fn main { println(\"Hello\") }\n")
+  debug_inspect(
+    workspace_contract_error(workspace).map(fn(message) {
+      message.contains("/api/health")
+    }),
+    content="Some(true)",
+  )
+  safe_write_string(
+    workspace + "/main.mbt",
+    "fn main { let _ = \"/api/health\" }\n",
+  )
   debug_inspect(workspace_contract_error(workspace), content="None")
   safe_remove_tree(root)
 }
@@ -122,6 +194,13 @@ test "workspace contract repair prompt is self-contained" {
   assert_true(prompt.contains("Latest user request"))
   assert_true(prompt.contains("Make it browser-playable"))
   assert_true(prompt.contains("You must edit files in this workspace"))
+  assert_true(
+    prompt.contains(
+      "Do not read skills, examples, or dependency internals before the workspace root contains a MoonBit manifest.",
+    ),
+  )
+  assert_true(prompt.contains("Do not send progress messages"))
+  assert_true(prompt.contains("moon build --target native"))
   assert_false(prompt.contains("mooncraft-preview.sh"))
   assert_false(prompt.contains("implementation-required"))
 }
@@ -280,6 +359,27 @@ test "docker codex command fetches reference modules before codex starts" {
 }
 
 ///|
+test "agent runtime doctor bypasses project fetch wrapper" {
+  let command = agent_runtime_entry_command(agent_runtime_doctor_command())
+  inspect(command[0], content="sh")
+  inspect(command[1], content="-c")
+  assert_true(
+    command[2].contains(
+      "if [ \"${1:-}\" = \"mooncraft-agent-doctor\" ]; then exec \"$@\"; fi",
+    ),
+  )
+  match command[2].find("mooncraft-agent-doctor") {
+    Some(doctor_index) =>
+      match command[2].find("moon fetch --no-update") {
+        Some(fetch_index) => assert_true(doctor_index < fetch_index)
+        None => abort("expected runtime wrapper to contain moon fetch")
+      }
+    None => abort("expected runtime wrapper to contain doctor command")
+  }
+  inspect(command[4], content="mooncraft-agent-doctor")
+}
+
+///|
 test "reference module versions come from the single config file" {
   let mocket_version = required_reference_module_version("oboard/mocket")
   let x_version = required_reference_module_version("moonbitlang/x")
@@ -359,8 +459,8 @@ test "github oauth helpers build token request and parse access token" {
 
 ///|
 test "github oauth status handling accepts custom 200" {
-  assert_true(http_status_success(@mocket.Custom(200)))
-  assert_false(http_status_success(@mocket.Custom(400)))
+  assert_true(http_status_success(Custom(200)))
+  assert_false(http_status_success(Custom(400)))
 }
 
 ///|
@@ -460,6 +560,42 @@ test "docker command receives leased platform AI settings" {
   )
   assert_true(env_file.contains("MOONCRAFT_AI_API_KEY=leased-key"))
   assert_true(env_file.contains("CODEX_HOME=/root/.codex"))
+}
+
+///|
+test "claude docker command mounts non-root home" {
+  let config : AgentRuntimeConfig = {
+    image: "agent:test",
+    platform: "linux/amd64",
+    agent_cli: "claude_code",
+    provider: "openrouter",
+    model: "anthropic/claude-opus-4.6",
+    api_key: "leased-key",
+    container_home: "/home/mooncraft",
+    container_data_dir: "/app/data",
+    host_data_dir: Some("/srv/mooncraft/test/data"),
+  }
+  let artifacts : RunArtifacts = {
+    dir: "/app/data/runtime/projects/project-1/artifacts/runs/run-1",
+    last_message_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/last_message.txt",
+    agent_log_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/agent.log",
+    validation_log_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/validation.log",
+  }
+  let args = docker_command_args(
+    config,
+    "/app/data/runtime/projects/project-1/artifacts/runs/run-1/agent.env",
+    "/app/data/runtime/projects/project-1/workspace",
+    Some("/app/data/agent-sessions/project-1/claude_code"),
+    artifacts,
+    ["claude", "--bare", "-p", "Build an app"],
+  )
+  assert_false(args.contains("--user"))
+  assert_true(args.contains("HOME=/home/mooncraft"))
+  assert_true(
+    args.contains(
+      "/srv/mooncraft/test/data/agent-sessions/project-1/claude_code:/home/mooncraft",
+    ),
+  )
 }
 
 ///|
@@ -1001,7 +1137,12 @@ async test "builder snapshot persistence saves invalid contract workspaces" {
     safe_read_string_or(workspace_path + "/cmd/main/main.mbt", ""),
     content="fn main { println(\"Hello\") }\n",
   )
-  debug_inspect(workspace_contract_error(workspace_path), content="None")
+  debug_inspect(
+    workspace_contract_error(workspace_path).map(fn(message) {
+      message.contains("/api/health")
+    }),
+    content="Some(true)",
+  )
   safe_remove_tree(project_root(root, project_id))
   cleanup_test_db(db_path)
 }

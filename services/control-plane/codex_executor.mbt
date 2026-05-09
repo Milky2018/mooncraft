@@ -26,6 +26,33 @@ struct AgentRuntimeConfig {
 }
 
 ///|
+struct AgentRuntimeSpec {
+  label : String
+  container_home : String
+  runs_as_mooncraft_user : Bool
+}
+
+///|
+fn agent_runtime_spec(agent_cli : String) -> AgentRuntimeSpec {
+  match agent_cli {
+    "claude_code" =>
+      {
+        label: "claude code",
+        container_home: "/home/mooncraft",
+        runs_as_mooncraft_user: true,
+      }
+    "kimi_code" =>
+      {
+        label: "kimi code",
+        container_home: "/root",
+        runs_as_mooncraft_user: false,
+      }
+    _ =>
+      { label: "codex", container_home: "/root", runs_as_mooncraft_user: false }
+  }
+}
+
+///|
 let default_agent_runtime_image = "docker.io/moonbitcloud/mooncraft-agent-runtime:0.1.0"
 
 ///|
@@ -267,10 +294,11 @@ async fn AgentRuntimeConfig::load(
       "MOONCRAFT_CODEX_HOME_HOST is not supported. Configure AI keys in the Mooncraft admin page instead.",
     )
   }
+  let spec = agent_runtime_spec(settings.agent_cli)
   let container_home = match
     @env.get_env_var("MOONCRAFT_CODEX_CONTAINER_HOME") {
     Some(value) if value.trim() != "" => value
-    _ => "/root"
+    _ => spec.container_home
   }
   let platform = match detect_docker_platform(root) {
     Ok(platform) => platform
@@ -294,16 +322,43 @@ async fn AgentRuntimeConfig::load(
 }
 
 ///|
+fn prepare_agent_mount_path(path : String) -> Unit {
+  ensure_dir(path)
+  ignore(shell_status("chmod -R a+rwX " + shell_quote(path)))
+}
+
+///|
+fn prepare_agent_mounts(
+  workspace_path : String,
+  agent_home_path : String?,
+  artifacts : RunArtifacts,
+) -> Unit {
+  match agent_home_path {
+    Some(path) => prepare_agent_mount_path(path)
+    None => ()
+  }
+  prepare_agent_mount_path(workspace_path)
+  prepare_agent_mount_path(artifacts.dir)
+}
+
+///|
 fn bootstrap_prompt(user_message : String) -> String {
   (
     #|You are the software engineer for Mooncraft. Build the user's app inside the current workspace.
+    #|
+    #|Mandatory first actions:
+    #|1. Inspect the workspace root with one small listing command.
+    #|2. If the root does not already contain `moon.mod.json`, `moon.mod`, or `moon.work`, create a root-level MoonBit project before reading examples, skills, or dependency internals.
+    #|3. If you use `moon new`, move or adapt its generated files so the current workspace root is the MoonBit project root, then remove the temporary child directory.
+    #|4. Do not produce a final answer until you have created or updated files in this workspace.
+    #|5. Do not send progress messages such as "I will..." or "I am going to...". Use commands and file edits first, then send exactly one final response after validation.
     #|
     #|Working rules:
     #|- Default to MoonBit unless the user explicitly asks for another technology.
     #|- Complete the job in one turn without asking follow-up questions.
     #|- Work directly in this builder container. Do not assume subagent or desktop-only tools are available.
-    #|- Use the bundled MoonBit skills for MoonBit syntax, package, API, or toolchain questions, but keep skill reading bounded to the relevant instructions.
-    #|- Do not spend the turn reading broad dependency internals unless a build error requires it.
+    #|- Use the bundled MoonBit skills for MoonBit syntax, package, API, or toolchain questions after the root project exists, and keep skill reading bounded to the relevant instructions.
+    #|- Do not spend the turn reading broad dependency internals or examples unless a build error requires it.
     #|- Do not mention internal execution names, runtime tools, provider keys, or container details in user-facing progress or final responses.
     #|- This workspace starts empty except for ignore rules. Create the real app requested by the user.
     #|- Do not assume `frontend/`, `backend/`, or `shared/` directories exist.
@@ -321,7 +376,7 @@ fn bootstrap_prompt(user_message : String) -> String {
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
     #|- You may run shell commands as needed.
     #|- Before finishing, verify that the workspace root contains `moon.mod.json`, `moon.mod`, or `moon.work`.
-    #|- Before finishing, run `moon fmt`, `moon check`, `moon test`, and `moon build`.
+    #|- Before finishing, run `moon fmt`, `moon check`, `moon build --target native`, and `moon test`.
     #|- Do not stop with a progress-only final answer. Your final response must be brief and must summarize the completed app, validation status, and any blocking failure.
     #|
     #|User's requirement:
@@ -336,12 +391,18 @@ fn followup_prompt(user_message : String) -> String {
   (
     #|Continue building the same Mooncraft app in the current workspace.
     #|
+    #|Mandatory first actions:
+    #|1. Inspect the workspace root with one small listing command.
+    #|2. If the root does not contain `moon.mod.json`, `moon.mod`, or `moon.work`, create or restore a root-level MoonBit project before reading examples, skills, or dependency internals.
+    #|3. Do not produce a final answer until you have created or updated files in this workspace, unless the request is purely explanatory.
+    #|4. Do not send progress messages such as "I will..." or "I am going to...". Use commands and file edits first, then send exactly one final response after validation.
+    #|
     #|Working rules:
     #|- Default to MoonBit unless the user explicitly asks for another technology.
     #|- Complete the job in one turn without asking follow-up questions.
     #|- Work directly in this builder container. Do not assume subagent or desktop-only tools are available.
-    #|- Use the bundled MoonBit skills for MoonBit syntax, package, API, or toolchain questions, but keep skill reading bounded to the relevant instructions.
-    #|- Do not spend the turn reading broad dependency internals unless a build error requires it.
+    #|- Use the bundled MoonBit skills for MoonBit syntax, package, API, or toolchain questions after the root project exists, and keep skill reading bounded to the relevant instructions.
+    #|- Do not spend the turn reading broad dependency internals or examples unless a build error requires it.
     #|- Do not mention internal execution names, runtime tools, provider keys, or container details in user-facing progress or final responses.
     #|- Do not assume a fixed project layout. Preserve the existing app structure unless a change is needed.
     #|- The current workspace root is the generated app root. Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working from that root.
@@ -356,7 +417,7 @@ fn followup_prompt(user_message : String) -> String {
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
     #|- You may run shell commands as needed.
     #|- Before finishing, verify that the workspace root contains `moon.mod.json`, `moon.mod`, or `moon.work`.
-    #|- Before finishing, run `moon fmt`, `moon check`, `moon test`, and `moon build`.
+    #|- Before finishing, run `moon fmt`, `moon check`, `moon build --target native`, and `moon test`.
     #|- Do not stop with a progress-only final answer. Your final response must be brief and must summarize the completed app, validation status, and any blocking failure.
     #|
     #|Latest user request:
@@ -374,12 +435,18 @@ fn recovery_prompt(
   (
     #|Continue building the same Mooncraft app inside the current workspace.
     #|
+    #|Mandatory first actions:
+    #|1. Inspect the workspace root with one small listing command.
+    #|2. If the root does not contain `moon.mod.json`, `moon.mod`, or `moon.work`, recreate a root-level MoonBit project from the original project requirement before reading examples, skills, or dependency internals.
+    #|3. Do not produce a final answer until you have created or updated files in this workspace.
+    #|4. Do not send progress messages such as "I will..." or "I am going to...". Use commands and file edits first, then send exactly one final response after validation.
+    #|
     #|Working rules:
     #|- Default to MoonBit unless the user explicitly asks for another technology.
     #|- Complete the job in one turn without asking follow-up questions.
     #|- Work directly in this builder container. Do not assume subagent or desktop-only tools are available.
-    #|- Use the bundled MoonBit skills for MoonBit syntax, package, API, or toolchain questions, but keep skill reading bounded to the relevant instructions.
-    #|- Do not spend the turn reading broad dependency internals unless a build error requires it.
+    #|- Use the bundled MoonBit skills for MoonBit syntax, package, API, or toolchain questions after the root project exists, and keep skill reading bounded to the relevant instructions.
+    #|- Do not spend the turn reading broad dependency internals or examples unless a build error requires it.
     #|- Do not mention internal execution names, runtime tools, provider keys, or container details in user-facing progress or final responses.
     #|- The current workspace already contains the latest saved project state.
     #|- Do not assume a fixed project layout. Preserve the existing app structure unless a change is needed.
@@ -395,7 +462,7 @@ fn recovery_prompt(
     #|- You may inspect, edit, create, and delete files anywhere in this workspace.
     #|- You may run shell commands as needed.
     #|- Before finishing, verify that the workspace root contains `moon.mod.json`, `moon.mod`, or `moon.work`.
-    #|- Before finishing, run `moon fmt`, `moon check`, `moon test`, and `moon build`.
+    #|- Before finishing, run `moon fmt`, `moon check`, `moon build --target native`, and `moon test`.
     #|- Do not stop with a progress-only final answer. Your final response must be brief and must summarize the completed app, validation status, and any blocking failure.
     #|
     #|Original project requirement:
@@ -417,14 +484,21 @@ fn preview_setup_repair_prompt() -> String {
   (
     #|The app builds, but Mooncraft cannot start or health-check the live preview.
     #|
+    #|This is a mandatory startup repair. Do not read skills, examples, or dependency internals before editing the startup path.
+    #|Do not send progress messages such as "I will..." or "I am going to...". Use commands and file edits first, then send exactly one final response after validation.
+    #|
     #|Repair only the native app startup path:
+    #|- First inspect `cmd/main/main.mbt`, `cmd/main/moon.pkg`, and `moon.mod.json`.
+    #|- If `cmd/main/main.mbt` only prints `Hello` or exits immediately, replace it with a native HTTP server before running more discovery.
     #|- Keep the app as a root-level MoonBit project.
     #|- Ensure the built native executable starts the server when run directly.
     #|- Read the first CLI argument as the preview port and default to `4300`.
     #|- Serve the user-facing app at `/` and return a successful response from `/api/health`.
+    #|- Known MoonBit APIs you may use: `@env.args()` for CLI arguments, `@mocket.new()` to create the app, `app.get(path, handler)` for routes, `@mocket.html(html)` for HTML responses, and `app.listen(":" + port.to_string())` to listen.
     #|- Do not change the app's user-facing behavior unless it is required to make the existing app previewable.
-    #|- Keep root-level `moon fmt`, `moon check`, `moon test`, and `moon build` working.
-    #|- Finish with a brief summary that says the preview startup was repaired.
+    #|- Keep root-level `moon fmt`, `moon check`, `moon build --target native`, and `moon test` working.
+    #|- Do not finish after only describing what you will change. You must edit files in this workspace before your final answer.
+    #|- Finish with a brief summary that says the preview startup was repaired only after the files are changed and the checks run.
   )
 }
 
@@ -436,6 +510,9 @@ fn workspace_contract_repair_prompt(
 ) -> String {
   (
     #|Mooncraft could not validate the generated workspace structure.
+    #|
+    #|This is a mandatory repair task. Do not read skills, examples, or dependency internals before the workspace root contains a MoonBit manifest.
+    #|Do not send progress messages such as "I will..." or "I am going to...". Use commands and file edits first, then send exactly one final response after validation.
     #|
     #|Problem:
     #|
@@ -459,13 +536,14 @@ fn workspace_contract_repair_prompt(
     #|
     #|
     #|Repair only the workspace structure needed by Mooncraft:
+    #|- First inspect the workspace root with one small listing command.
     #|- Ensure the workspace root contains a MoonBit project manifest: `moon.mod.json`, `moon.mod`, or `moon.work`.
     #|- If `moon new` creates a child directory, move or adapt the generated files so the workspace root is the runnable project root.
     #|- Ensure the built native executable starts the app server when run directly.
     #|- Read the first CLI argument as the preview port and default to `4300`.
     #|- Serve the user-facing app at `/` and return a successful response from `/api/health`.
     #|- Do not finish after only describing what you will change. You must edit files in this workspace before your final answer.
-    #|- Keep root-level `moon fmt`, `moon check`, `moon build`, and `moon test` working.
+    #|- Keep root-level `moon fmt`, `moon check`, `moon build --target native`, and `moon test` working.
     #|- Do not change the app's user-facing behavior unless it is required to make the app valid and previewable.
     #|- Finish with a brief summary that says the workspace structure was repaired.
   )
@@ -544,10 +622,57 @@ fn workspace_has_root_moon_project(workspace_path : String) -> Bool {
 }
 
 ///|
+fn workspace_moonbit_source_find_command(workspace_path : String) -> String {
+  let workspace = trim_mount_path(workspace_path)
+  "find " +
+  shell_quote(workspace) +
+  " \\( -path " +
+  shell_quote(workspace + "/.repos") +
+  " -o -path " +
+  shell_quote(workspace + "/_build") +
+  " -o -path " +
+  shell_quote(workspace + "/.git") +
+  " -o -path " +
+  shell_quote(workspace + "/.mooncakes") +
+  " \\) -prune -o -name '*.mbt' -type f"
+}
+
+///|
+fn workspace_has_user_moonbit_source(workspace_path : String) -> Bool {
+  shell_status(
+    workspace_moonbit_source_find_command(workspace_path) +
+    " -print -quit | grep -q .",
+  ) ==
+  0
+}
+
+///|
+fn workspace_moonbit_sources_contain(
+  workspace_path : String,
+  needle : String,
+) -> Bool {
+  shell_status(
+    workspace_moonbit_source_find_command(workspace_path) +
+    " -exec grep -F -q " +
+    shell_quote(needle) +
+    " {} \\; -print -quit | grep -q .",
+  ) ==
+  0
+}
+
+///|
 fn workspace_contract_error(workspace_path : String) -> String? {
   if !workspace_has_root_moon_project(workspace_path) {
     Some(
       "The builder did not create a MoonBit project at the workspace root. Expected `moon.mod.json`, `moon.mod`, or `moon.work` directly under \{workspace_path}.",
+    )
+  } else if !workspace_has_user_moonbit_source(workspace_path) {
+    Some(
+      "The builder created a root MoonBit manifest but did not create any MoonBit source files under \{workspace_path}.",
+    )
+  } else if !workspace_moonbit_sources_contain(workspace_path, "/api/health") {
+    Some(
+      "The generated app does not expose the required `/api/health` preview health endpoint.",
     )
   } else {
     None
@@ -636,6 +761,52 @@ fn extract_thread_id(events : String) -> String? {
     }
   }
   None
+}
+
+///|
+fn extract_agent_text_event(output : String) -> String? {
+  let mut latest = None
+  for raw_line in output.replace_all(old="\r\n", new="\n").split("\n") {
+    let line = raw_line.to_owned()
+    if line.contains("\"type\":\"text\"") {
+      match extract_json_string_field(line, "text") {
+        Some(text) if text.trim() != "" =>
+          latest = Some(text.trim(chars="\n\r ").to_owned())
+        _ => ()
+      }
+    } else if line.contains("\"type\":\"result\"") {
+      match extract_json_string_field(line, "result") {
+        Some(text) if text.trim() != "" =>
+          latest = Some(text.trim(chars="\n\r ").to_owned())
+        _ => ()
+      }
+    } else if line.contains("\"content\"") {
+      match extract_json_string_field(line, "content") {
+        Some(text) if text.trim() != "" =>
+          latest = Some(text.trim(chars="\n\r ").to_owned())
+        _ => ()
+      }
+    } else {
+      ()
+    }
+  }
+  latest
+}
+
+///|
+fn stateless_agent_summary_from_output(
+  output : String,
+  artifacts : RunArtifacts,
+  fallback : String,
+) -> String {
+  match extract_agent_text_event(output) {
+    Some(summary) => summary
+    None =>
+      trim_or_default(
+        safe_read_string_or(artifacts.last_message_path, ""),
+        fallback,
+      )
+  }
 }
 
 ///|
@@ -1012,11 +1183,14 @@ fn docker_command_args(
   args.push(env_file_path)
   match agent_home_path {
     Some(path) => {
-      ensure_dir(path)
       args.push("-v")
       args.push(docker_bind_source(config, path) + ":" + config.container_home)
     }
     None => ()
+  }
+  if agent_runtime_spec(config.agent_cli).runs_as_mooncraft_user {
+    args.push("-e")
+    args.push("HOME=" + config.container_home)
   }
   args.push("-v")
   args.push(
@@ -1044,9 +1218,15 @@ fn agent_runtime_entry_command(
   container_command : Array[String],
 ) -> Array[String] {
   let script_lines : Array[String] = ["set -e"]
+  script_lines.push(
+    "if [ \"${1:-}\" = \"mooncraft-agent-doctor\" ]; then exec \"$@\"; fi",
+  )
   for command in user_project_fetch_commands() {
     script_lines.push(command)
   }
+  script_lines.push(
+    "if [ \"${1:-}\" = \"claude\" ]; then chmod -R a+rwX /workspace /artifacts \"${HOME:-/home/mooncraft}\" >/dev/null 2>&1 || true; exec runuser -u mooncraft -- env HOME=\"${HOME:-/home/mooncraft}\" \"$@\"; fi",
+  )
   script_lines.push("exec \"$@\"")
   let wrapped : Array[String] = [
     "sh",
@@ -1070,6 +1250,7 @@ async fn collect_docker_output(
   container_command : Array[String],
 ) -> Result[(Int, String), String] noraise {
   let env_file_path = write_docker_env_file(config, artifacts)
+  prepare_agent_mounts(workspace_path, agent_home_path, artifacts)
   let docker_args = docker_command_args(
     config, env_file_path, workspace_path, agent_home_path, artifacts, container_command,
   )
@@ -1102,6 +1283,7 @@ async fn stream_docker_output(
   container_command : Array[String],
 ) -> Result[(Int, String), String] noraise {
   let env_file_path = write_docker_env_file(config, artifacts)
+  prepare_agent_mounts(workspace_path, agent_home_path, artifacts)
   let docker_args = docker_command_args(
     config, env_file_path, workspace_path, agent_home_path, artifacts, container_command,
   )
@@ -1218,7 +1400,102 @@ async fn collect_agent_command_output(
 }
 
 ///|
+fn agent_runtime_doctor_command() -> Array[String] {
+  ["mooncraft-agent-doctor"]
+}
+
+///|
+async fn run_agent_runtime_doctor(
+  root : String,
+  config : AgentRuntimeConfig?,
+  project : @sdk.ProjectDetail,
+  workspace_path : String,
+  artifacts : RunArtifacts,
+  thread_id : String?,
+) -> Result[Unit, AgentTurnFailure] noraise {
+  if smoke_codex_enabled() {
+    return Ok(())
+  }
+  let config = match config {
+    Some(config) => config
+    None =>
+      return Err(
+        codex_failure_with_debug(
+          "The app builder runtime is not available.",
+          "Mooncraft's app builder is temporarily unavailable.",
+          thread_id,
+          Some(
+            failure_debug("Agent runtime doctor", None, None, Some(artifacts)),
+          ),
+        ),
+      )
+  }
+  let command = agent_runtime_doctor_command()
+  let agent_home_path = Some(
+    project_runtime_agent_home(root, project.id, config.agent_cli),
+  )
+  let result = match
+    collect_docker_output(
+      root, config, workspace_path, agent_home_path, artifacts, command,
+    ) {
+    Ok(result) => result
+    Err(message) =>
+      return Err(
+        codex_failure_with_debug(
+          "The app builder runtime could not be checked.",
+          message,
+          thread_id,
+          Some(
+            failure_debug(
+              "Agent runtime doctor",
+              Some(command),
+              None,
+              Some(artifacts),
+            ),
+          ),
+        ),
+      )
+  }
+  let (exit_code, output) = result
+  append_command_log(
+    artifacts.agent_log_path,
+    "agent runtime doctor",
+    command,
+    exit_code,
+    output,
+  )
+  if exit_code != 0 {
+    return Err(
+      codex_failure_with_debug(
+        "The app builder runtime is not ready. Please retry after the server is updated.",
+        stage_failure_message(
+          "Agent runtime doctor",
+          exit_code,
+          artifacts.agent_log_path,
+          output,
+        ),
+        thread_id,
+        Some(
+          failure_debug(
+            "Agent runtime doctor",
+            Some(command),
+            Some(exit_code),
+            Some(artifacts),
+          ),
+        ),
+      ),
+    )
+  }
+  Ok(())
+}
+
+///|
 fn codex_exec_command(model : String, user_prompt : String) -> Array[String] {
+  codex_exec_raw_command(model, bootstrap_prompt(user_prompt))
+}
+
+///|
+fn codex_exec_raw_command(model : String, prompt : String) -> Array[String] {
   [
     "codex",
     "exec",
@@ -1229,7 +1506,7 @@ fn codex_exec_command(model : String, user_prompt : String) -> Array[String] {
     "--output-last-message",
     agent_container_artifacts_dir() + "/last_message.txt",
     "--dangerously-bypass-approvals-and-sandbox",
-    bootstrap_prompt(user_prompt),
+    prompt,
   ]
 }
 
@@ -1238,6 +1515,15 @@ fn codex_resume_command(
   model : String,
   thread_id : String,
   user_prompt : String,
+) -> Array[String] {
+  codex_resume_raw_command(model, thread_id, followup_prompt(user_prompt))
+}
+
+///|
+fn codex_resume_raw_command(
+  model : String,
+  thread_id : String,
+  prompt : String,
 ) -> Array[String] {
   [
     "codex",
@@ -1251,7 +1537,7 @@ fn codex_resume_command(
     agent_container_artifacts_dir() + "/last_message.txt",
     "--dangerously-bypass-approvals-and-sandbox",
     thread_id,
-    followup_prompt(user_prompt),
+    prompt,
   ]
 }
 
@@ -1259,7 +1545,7 @@ fn codex_resume_command(
 fn claude_code_command(model : String, prompt : String) -> Array[String] {
   [
     "claude", "--bare", "-p", prompt, "--model", model, "--output-format", "stream-json",
-    "--dangerously-skip-permissions", "--no-session-persistence",
+    "--verbose", "--dangerously-skip-permissions", "--no-session-persistence",
   ]
 }
 
@@ -1295,11 +1581,7 @@ fn stateless_agent_prompt(
 
 ///|
 fn agent_cli_label(agent_cli : String) -> String {
-  match agent_cli {
-    "claude_code" => "claude code"
-    "kimi_code" => "kimi code"
-    _ => "codex"
-  }
+  agent_runtime_spec(agent_cli).label
 }
 
 ///|
@@ -1312,6 +1594,7 @@ async fn run_stateless_agent_turn(
   run_id : String,
   user_prompt : String,
   reset_logs? : Bool = true,
+  raw_prompt? : Bool = false,
 ) -> Result[AgentExecutionResult, AgentTurnFailure] noraise {
   let artifacts = RunArtifacts::new(root, project.id, run_id)
   safe_write_string(artifacts.last_message_path, "")
@@ -1326,11 +1609,27 @@ async fn run_stateless_agent_turn(
     Ok(agent_cli) => agent_cli
     Err(_) => default_agent_cli()
   }
-  let prompt = stateless_agent_prompt(workspace_path, user_prompt)
+  let prompt = if raw_prompt {
+    user_prompt
+  } else {
+    stateless_agent_prompt(workspace_path, user_prompt)
+  }
   let command = match agent_cli {
     "claude_code" => claude_code_command(model, prompt)
     "kimi_code" => kimi_code_command(prompt)
     _ => codex_exec_command(model, user_prompt)
+  }
+  match
+    run_agent_runtime_doctor(
+      root,
+      config,
+      project,
+      workspace_path,
+      artifacts,
+      None,
+    ) {
+    Ok(_) => ignore(())
+    Err(failure) => return Err(failure)
   }
   let result = match
     collect_agent_command_output(
@@ -1365,8 +1664,9 @@ async fn run_stateless_agent_turn(
   let summary = match fake_summary {
     Some(summary) => trim_or_default(summary, default_success_summary())
     None =>
-      trim_or_default(
-        safe_read_string_or(artifacts.last_message_path, ""),
+      stateless_agent_summary_from_output(
+        output,
+        artifacts,
         default_success_summary(),
       )
   }
@@ -1437,6 +1737,8 @@ async fn run_codex_turn(
   run_id : String,
   user_prompt : String,
   reset_logs? : Bool = true,
+  raw_prompt? : Bool = false,
+  resume_existing? : Bool = true,
 ) -> Result[AgentExecutionResult, AgentTurnFailure] noraise {
   let artifacts = RunArtifacts::new(root, project.id, run_id)
   safe_write_string(artifacts.last_message_path, "")
@@ -1448,9 +1750,25 @@ async fn run_codex_turn(
     Some(config) => config.model
     None => default_codex_model
   }
-  let command = match thread_id_before {
-    Some(thread_id) => codex_resume_command(model, thread_id, user_prompt)
-    None => codex_exec_command(model, user_prompt)
+  let command = if raw_prompt {
+    match thread_id_before {
+      Some(thread_id) if resume_existing =>
+        codex_resume_raw_command(model, thread_id, user_prompt)
+      _ => codex_exec_raw_command(model, user_prompt)
+    }
+  } else {
+    match thread_id_before {
+      Some(thread_id) if resume_existing =>
+        codex_resume_command(model, thread_id, user_prompt)
+      _ => codex_exec_command(model, user_prompt)
+    }
+  }
+  match
+    run_agent_runtime_doctor(
+      root, config, project, workspace_path, artifacts, thread_id_before,
+    ) {
+    Ok(_) => ignore(())
+    Err(failure) => return Err(failure)
   }
   let mut active_command = command
   let codex_result = match
@@ -1520,7 +1838,8 @@ async fn run_codex_turn(
         )
     }
   }
-  if thread_id_before is Some(_) &&
+  if !raw_prompt &&
+    thread_id_before is Some(_) &&
     exit_code != 0 &&
     resume_session_missing(output) {
     let recovery_command = codex_exec_command(
@@ -1744,7 +2063,7 @@ fn validation_shell_script(include_update~ : Bool) -> String {
   }
   commands.push("moon fmt")
   commands.push("moon check")
-  commands.push("moon build")
+  commands.push("moon build --target native")
   commands.push("moon test")
   let lines : Array[String] = []
   lines.push("set -e")
@@ -1873,6 +2192,19 @@ async fn run_local_validation_sequence(
       None,
       workspace_path,
       artifacts,
+      "moon build",
+      ["moon", "build", "--target", "native"],
+      thread_id,
+    ) {
+    Ok(_) => ignore(())
+    Err(failure) => return Err(failure)
+  }
+  match
+    run_validation_command(
+      root,
+      None,
+      workspace_path,
+      artifacts,
       "moon check",
       ["moon", "check"],
       thread_id,
@@ -1947,6 +2279,8 @@ async fn AgentGateway::run_turn(
   workspace_path : String,
   run_id : String,
   user_prompt : String,
+  raw_prompt? : Bool = false,
+  resume_existing? : Bool = true,
 ) -> Result[AgentTurnSuccess, AgentTurnFailure] noraise {
   let config = if smoke_codex_enabled() {
     None
@@ -1990,6 +2324,8 @@ async fn AgentGateway::run_turn(
         workspace_path,
         run_id,
         user_prompt,
+        raw_prompt~,
+        resume_existing~,
       )
     } else {
       run_stateless_agent_turn(
@@ -2000,6 +2336,7 @@ async fn AgentGateway::run_turn(
         workspace_path,
         run_id,
         user_prompt,
+        raw_prompt~,
       )
     }) {
     Ok(result) => result
@@ -2044,6 +2381,8 @@ async fn AgentGateway::run_turn(
               contract_error, initial_project_prompt, user_prompt,
             ),
             reset_logs=false,
+            raw_prompt=true,
+            resume_existing=false,
           )
         } else {
           run_stateless_agent_turn(
@@ -2057,6 +2396,7 @@ async fn AgentGateway::run_turn(
               contract_error, initial_project_prompt, user_prompt,
             ),
             reset_logs=false,
+            raw_prompt=true,
           )
         }) {
         Ok(result) => result
@@ -2317,6 +2657,8 @@ async fn AppContext::run_project_turn(
               workspace_path,
               run_id,
               preview_setup_repair_prompt(),
+              raw_prompt=true,
+              resume_existing=false,
             )
             match repair_result {
               Ok(repair) => {

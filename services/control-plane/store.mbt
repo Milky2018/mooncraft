@@ -2664,6 +2664,13 @@ fn preview_health_attempts() -> Int {
 }
 
 ///|
+fn preview_executable_find_command(executable_dir : String) -> String {
+  "find " +
+  shell_quote(executable_dir) +
+  " -name '*.exe' -type f ! -path '*.dSYM/*' | head -n 1"
+}
+
+///|
 fn PreviewManager::rebuild_and_restart(
   self : PreviewManager,
   project : @sdk.ProjectDetail,
@@ -2676,7 +2683,7 @@ fn PreviewManager::rebuild_and_restart(
   let build_code = shell_status(
     "cd " +
     shell_quote(workspace_path) +
-    " && moon build \{self.build_profile.cli_flag()}>/dev/null 2>&1",
+    " && moon build --target native \{self.build_profile.cli_flag()}>/dev/null 2>&1",
   )
   if build_code != 0 {
     return Err(
@@ -2689,9 +2696,9 @@ fn PreviewManager::rebuild_and_restart(
   let executable_probe_code = shell_status(
     "cd " +
     shell_quote(workspace_path) +
-    " && test -n \"$(find " +
-    shell_quote(executable_dir) +
-    " -name '*.exe' -type f | head -n 1)\"",
+    " && test -n \"$(" +
+    preview_executable_find_command(executable_dir) +
+    ")\"",
   )
   if executable_probe_code != 0 {
     return Err(preview_executable_missing_message())
@@ -2705,9 +2712,9 @@ fn PreviewManager::rebuild_and_restart(
   let start_code = shell_status(
     "cd " +
     shell_quote(workspace_path) +
-    " && exe=\"$(find " +
-    shell_quote(executable_dir) +
-    " -name '*.exe' -type f | head -n 1)\"" +
+    " && exe=\"$(" +
+    preview_executable_find_command(executable_dir) +
+    ")\"" +
     " && nohup \"$exe\" \{port} " +
     " >/tmp/mooncraft-preview-\{project.id}.log 2>&1 &",
   )

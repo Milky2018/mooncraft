@@ -13,11 +13,13 @@ LABEL mooncraft.node.version="24"
 LABEL mooncraft.moonbit.version="${MOONBIT_VERSION}"
 
 ENV MOON_HOME=/opt/moon
-ENV PATH=/opt/moon/bin:/root/.local/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ENV PATH=/opt/moon/bin:/opt/kimi-cli/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates curl git bash ripgrep jq coreutils python3 \
   && rm -rf /var/lib/apt/lists/*
+
+RUN useradd --create-home --uid 10001 --shell /bin/bash mooncraft
 
 RUN for attempt in 1 2 3 4 5; do \
     curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash -s -- "${MOONBIT_VERSION}" && break; \
@@ -37,7 +39,19 @@ RUN npm install -g "@openai/codex@${CODEX_CLI_VERSION}" \
   && npm install -g "@anthropic-ai/claude-code" \
   && npm cache clean --force
 
-RUN curl -LsSf https://code.kimi.com/install.sh | bash \
+RUN export PATH="/root/.local/bin:${PATH}" \
+  && curl -LsSf https://code.kimi.com/install.sh | bash \
+  && cp -a /root/.local/share/uv/tools/kimi-cli /opt/kimi-cli \
+  && cp -a /root/.local/share/uv/python /opt/uv-python \
+  && python_path="$(find /opt/uv-python -path '*/bin/python3.13' -type f | head -n 1)" \
+  && test -n "$python_path" \
+  && ln -sf "$python_path" /opt/kimi-cli/bin/python \
+  && ln -sf python /opt/kimi-cli/bin/python3 \
+  && ln -sf python /opt/kimi-cli/bin/python3.13 \
+  && sed -i '1s|^#!.*$|#!/opt/kimi-cli/bin/python|' /opt/kimi-cli/bin/kimi /opt/kimi-cli/bin/kimi-cli \
+  && ln -sf /opt/kimi-cli/bin/kimi /usr/local/bin/kimi \
+  && ln -sf /opt/kimi-cli/bin/kimi-cli /usr/local/bin/kimi-cli \
+  && chmod -R a+rX /opt/kimi-cli /opt/uv-python \
   && kimi --version
 
 RUN git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/moonbitlang/skills.git /opt/moonbitlang-skills \
@@ -45,6 +59,33 @@ RUN git clone --depth 1 --recurse-submodules --shallow-submodules https://github
   && find /opt/moonbitlang-skills -mindepth 1 -maxdepth 5 -name SKILL.md -print \
     -exec sh -c 'dir="$(dirname "$1")"; name="$(basename "$dir")"; cp -R "$dir" "/opt/codex-skill-seed/skills/$name"' sh {} \; \
   && rm -rf /opt/moonbitlang-skills/.git
+
+RUN printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'set -euo pipefail' \
+  'echo "mooncraft-agent-doctor: agent=${MOONCRAFT_AGENT_CLI:-unknown}"' \
+  'for tool in moon rg jq codex claude kimi; do' \
+  '  command -v "$tool" >/dev/null' \
+  'done' \
+  'moon version >/dev/null' \
+  'rg --version >/dev/null' \
+  'jq --version >/dev/null' \
+  'codex --version >/dev/null' \
+  'claude --version >/dev/null' \
+  'kimi --version >/dev/null' \
+  'for dir in /workspace /artifacts "${HOME:-/root}"; do' \
+  '  mkdir -p "$dir"' \
+  '  probe="$dir/.mooncraft-doctor-write-test"' \
+  '  printf ok > "$probe"' \
+  '  rm -f "$probe"' \
+  'done' \
+  'if [ "${MOONCRAFT_AGENT_CLI:-}" = "claude_code" ]; then' \
+  '  chmod -R a+rwX /workspace /artifacts "${HOME:-/home/mooncraft}" >/dev/null 2>&1 || true' \
+  '  runuser -u mooncraft -- env HOME="${HOME:-/home/mooncraft}" claude --version >/dev/null' \
+  'fi' \
+  'echo "mooncraft-agent-doctor: ok"' \
+  > /usr/local/bin/mooncraft-agent-doctor \
+  && chmod +x /usr/local/bin/mooncraft-agent-doctor
 
 RUN printf '%s\n' \
   '#!/usr/bin/env bash' \
@@ -62,6 +103,9 @@ RUN printf '%s\n' \
   'agent_cli="${MOONCRAFT_AGENT_CLI:-codex}"' \
   'api_key="${MOONCRAFT_AI_API_KEY:-}"' \
   'model="${MOONCRAFT_AI_MODEL:-anthropic/claude-sonnet-4.5}"' \
+  'if [ "${1:-}" = "mooncraft-agent-doctor" ]; then' \
+  '  exec "$@"' \
+  'fi' \
   'if [ -z "$api_key" ]; then' \
   '  echo "MOONCRAFT_AI_API_KEY is required for OpenRouter-backed agent runs." >&2' \
   '  exit 64' \
@@ -103,15 +147,15 @@ RUN printf '%s\n' \
   'merge_all_available_skills = true' \
   '' \
   '[providers.openrouter]' \
-  'type = "openai_responses"' \
+  'type = "openai_legacy"' \
   'base_url = "https://openrouter.ai/api/v1"' \
-  'api_key = "'"'"'$api_key'"'"'"' \
+  'api_key = "$api_key"' \
   '' \
   '[models.mooncraft-openrouter]' \
   'provider = "openrouter"' \
-  'model = "'"'"'$model'"'"'"' \
+  'model = "$model"' \
   'max_context_size = 262144' \
-  'capabilities = ["thinking"]' \
+  'capabilities = []' \
   'EOF' \
   '    export OPENAI_BASE_URL="https://openrouter.ai/api/v1"' \
   '    export OPENAI_API_KEY="$api_key"' \
