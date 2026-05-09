@@ -156,6 +156,42 @@ fn account_caret_icon(open : Bool) -> @rabbita.Html {
 }
 
 ///|
+fn project_phase_dot(project : @sdk.ProjectSummary) -> @rabbita.Html {
+  let color = match project.current_run_phase {
+    AgentRunning => Some("#16a34a")
+    Checking => Some("#2563eb")
+    NoPhase =>
+      if project.status is Running {
+        Some("#16a34a")
+      } else if project.status is Failed {
+        Some("var(--danger)")
+      } else {
+        None
+      }
+  }
+  match color {
+    Some(value) =>
+      @html.span(
+        title=if project.current_run_phase is NoPhase {
+          project.status.label()
+        } else {
+          project.current_run_phase.label()
+        },
+        style=[
+          "width: 8px",
+          "height: 8px",
+          "border-radius: 999px",
+          "background: " + value,
+          "display: inline-block",
+          "flex: 0 0 auto",
+        ],
+        "",
+      )
+    None => @html.nothing
+  }
+}
+
+///|
 fn sidebar_project_item(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
@@ -223,6 +259,7 @@ fn sidebar_project_item(
             "text-align: left",
           ],
         [
+          project_phase_dot(project),
           @html.div(
             style=[
               "min-width: 0", "display: flex", "flex-direction: column", "gap: 4px",

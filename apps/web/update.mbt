@@ -536,6 +536,10 @@ fn update(
             ]),
             {
               ..model,
+              projects: replace_project_summary_run_status(
+                model.projects,
+                response.run,
+              ),
               run_status: Some(response.run),
               sending_message: false,
               run_events: [],
@@ -552,6 +556,10 @@ fn update(
             ]),
             {
               ..model,
+              projects: replace_project_summary_run_status(
+                model.projects,
+                response.run,
+              ),
               run_status: Some(response.run),
               sending_message: false,
               stopping_run_id: None,
@@ -614,7 +622,11 @@ fn update(
             @rabbita.delay(dispatch(PollRun(project_id, run_id)), 1000),
             @rabbita.delay(dispatch(PollRunEvents(project_id, run_id)), 1000),
           ]),
-          { ..model, run_status: Some(run) },
+          {
+            ..model,
+            projects: replace_project_summary_run_status(model.projects, run),
+            run_status: Some(run),
+          },
         )
       } else {
         (

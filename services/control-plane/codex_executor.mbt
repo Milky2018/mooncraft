@@ -2545,6 +2545,7 @@ async fn AgentGateway::run_turn(
     }
   }
   safe_write_string(artifacts.validation_log_path, "")
+  store.set_run_phase(project.id, run_id, Checking)
   match
     run_validation_sequence(
       self.root,

@@ -83,6 +83,8 @@ if [[ -z "$run_id" ]]; then
   echo "Failed to parse run id from run response: $run_response" >&2
   exit 1
 fi
+printf '%s' "$run_response" | grep -q '"phase":"AgentRunning"'
+curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects" | grep -q '"current_run_phase":"AgentRunning"'
 
 final_run=""
 for _ in $(seq 1 "$run_poll_limit"); do
@@ -99,10 +101,12 @@ if ! printf '%s' "$final_run" | grep -q '"state":"Succeeded"'; then
   echo "Expected first smoke run to succeed, got: $final_run" >&2
   exit 1
 fi
+printf '%s' "$final_run" | grep -q '"phase":"NoPhase"'
 printf '%s' "$final_run" | grep -q '"healthy":true'
 printf '%s' "$preview_url" | grep -q '^/p/'
 
 project_detail="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$project_id")"
+printf '%s' "$project_detail" | grep -q '"current_run_phase":"NoPhase"'
 first_thread_id="$(printf '%s' "$project_detail" | sed -n 's/.*"codex_thread_id":"\([^"]*\)".*/\1/p')"
 if [[ -z "$first_thread_id" ]]; then
   echo "Failed to parse the first codex thread id from project detail: $project_detail" >&2
@@ -137,6 +141,7 @@ if [[ -z "$run_id_2" ]]; then
   echo "Failed to parse second run id from run response: $run_response_2" >&2
   exit 1
 fi
+printf '%s' "$run_response_2" | grep -q '"phase":"AgentRunning"'
 
 final_run_2=""
 for _ in $(seq 1 "$run_poll_limit"); do
@@ -153,9 +158,11 @@ if ! printf '%s' "$final_run_2" | grep -q '"state":"Succeeded"'; then
   echo "Expected second smoke run to succeed, got: $final_run_2" >&2
   exit 1
 fi
+printf '%s' "$final_run_2" | grep -q '"phase":"NoPhase"'
 printf '%s' "$final_run_2" | grep -q '"healthy":true'
 
 project_detail_2="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$project_id")"
+printf '%s' "$project_detail_2" | grep -q '"current_run_phase":"NoPhase"'
 second_thread_id="$(printf '%s' "$project_detail_2" | sed -n 's/.*"codex_thread_id":"\([^"]*\)".*/\1/p')"
 if [[ -z "$second_thread_id" ]]; then
   echo "Failed to parse the recovered codex thread id from project detail: $project_detail_2" >&2

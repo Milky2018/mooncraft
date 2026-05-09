@@ -8,6 +8,13 @@ pub(all) enum RunState {
 } derive(Eq, Debug, ToJson, FromJson)
 
 ///|
+pub(all) enum RunPhase {
+  NoPhase
+  AgentRunning
+  Checking
+} derive(Eq, Debug, ToJson, FromJson)
+
+///|
 pub(all) enum ChatRole {
   User
   Assistant
@@ -46,6 +53,7 @@ pub(all) struct ProjectSummary {
   agent_cli : String
   model : String
   status : RunState
+  current_run_phase : RunPhase
   preview : PreviewTarget?
   current_run_id : String?
   updated_at : String
@@ -61,6 +69,7 @@ pub(all) struct ProjectDetail {
   workspace_path : String
   codex_thread_id : String?
   status : RunState
+  current_run_phase : RunPhase
   preview : PreviewTarget?
   current_run_id : String?
   last_error : String?
@@ -93,6 +102,7 @@ pub(all) struct RunStatusResponse {
   run_id : String
   project_id : String
   state : RunState
+  phase : RunPhase
   summary : String?
   error_message : String?
   failure_debug : RunFailureDebug?
@@ -312,6 +322,15 @@ pub fn RunState::label(self : RunState) -> String {
     Succeeded => "Ready"
     Failed => "Needs attention"
     Cancelled => "Stopped"
+  }
+}
+
+///|
+pub fn RunPhase::label(self : RunPhase) -> String {
+  match self {
+    NoPhase => ""
+    AgentRunning => "Working"
+    Checking => "Checking"
   }
 }
 

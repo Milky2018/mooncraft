@@ -240,6 +240,7 @@ test "public run status hides failure diagnostics outside development mode" {
     run_id: "run-1",
     project_id: "project-1",
     state: Failed,
+    phase: NoPhase,
     summary: Some("The update failed before the preview could be refreshed."),
     error_message: Some("raw command output and private log paths"),
     failure_debug: Some({

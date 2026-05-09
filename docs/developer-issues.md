@@ -77,3 +77,5 @@ Agents do not edit this. This file is maintainable by human developers.
 - [ ] IDLE/RUNNING/CHECKNEED
 - [ ] change model by user 
 - [ ] Bug: if there is a running agent, other chat will also show it
+- [ ] We should provide AGENTS.md for system prompt
+- [ ] Admin manages Users and projects and runs 

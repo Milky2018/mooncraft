@@ -19,27 +19,37 @@ fn pick_selected_project_id(
 ///|
 fn active_run(model : Model) -> @sdk.RunStatusResponse? {
   match model.run_status {
-    Some(run) if run.state is Running => Some(run)
-    _ =>
-      match model.project_detail {
-        Some(project) if project.status is Running =>
-          match project.current_run_id {
-            Some(run_id) =>
-              Some({
-                run_id,
-                project_id: project.id,
-                state: Running,
-                summary: None,
-                error_message: None,
-                failure_debug: None,
-                preview: project.preview,
-                started_at: project.updated_at,
-                finished_at: None,
-              })
-            None => None
-          }
-        _ => None
+    Some(run) =>
+      if run.state is Running &&
+        model.selected_project_id == Some(run.project_id) {
+        return Some(run)
       }
+    _ => ignore(())
+  }
+  match model.project_detail {
+    Some(project) =>
+      if project.status is Running &&
+        model.selected_project_id == Some(project.id) {
+        match project.current_run_id {
+          Some(run_id) =>
+            Some({
+              run_id,
+              project_id: project.id,
+              state: Running,
+              phase: project.current_run_phase,
+              summary: None,
+              error_message: None,
+              failure_debug: None,
+              preview: project.preview,
+              started_at: project.updated_at,
+              finished_at: None,
+            })
+          None => None
+        }
+      } else {
+        None
+      }
+    _ => None
   }
 }
 
@@ -132,6 +142,7 @@ fn project_summary_from_detail(
     agent_cli: project.agent_cli,
     model: project.model,
     status: project.status,
+    current_run_phase: project.current_run_phase,
     preview: project.preview,
     current_run_id: project.current_run_id,
     updated_at: project.updated_at,
@@ -155,6 +166,31 @@ fn replace_project_summary(
   }
   if !found {
     items.push(replacement)
+  }
+  items
+}
+
+///|
+fn replace_project_summary_run_status(
+  projects : Array[@sdk.ProjectSummary],
+  run : @sdk.RunStatusResponse,
+) -> Array[@sdk.ProjectSummary] {
+  let items : Array[@sdk.ProjectSummary] = []
+  for item in projects {
+    if item.id == run.project_id {
+      items.push({
+        ..item,
+        status: run.state,
+        current_run_phase: run.phase,
+        current_run_id: if run.state is Running {
+          Some(run.run_id)
+        } else {
+          None
+        },
+      })
+    } else {
+      items.push(item)
+    }
   }
   items
 }

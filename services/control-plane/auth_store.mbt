@@ -353,6 +353,7 @@ fn project_summary_from_row(
     agent_cli: row_text(row, "agent_cli"),
     model: row_text(row, "ai_model"),
     status: run_state_from_db(row_text(row, "status")),
+    current_run_phase: run_phase_from_db(row_text(row, "current_run_phase")),
     preview,
     current_run_id: empty_to_none(row_text(row, "current_run_id")),
     updated_at: row_text(row, "updated_at"),
@@ -367,20 +368,22 @@ async fn Store::list_projects_for_user(
   let rows = self.query_rows(
     (
       #|SELECT
-      #|  id,
-      #|  preview_public_id,
-      #|  display_name,
-      #|  COALESCE(agent_cli, 'codex') AS agent_cli,
-      #|  COALESCE(ai_model, '') AS ai_model,
-      #|  status,
-      #|  COALESCE(preview_url, '') AS preview_url,
-      #|  COALESCE(preview_port, 0) AS preview_port,
-      #|  preview_healthy,
-      #|  COALESCE(current_run_id, '') AS current_run_id,
-      #|  updated_at
-      #|FROM projects
-      #|WHERE owner_user_id = ?
-      #|ORDER BY updated_at DESC;
+      #|  p.id,
+      #|  p.preview_public_id,
+      #|  p.display_name,
+      #|  COALESCE(p.agent_cli, 'codex') AS agent_cli,
+      #|  COALESCE(p.ai_model, '') AS ai_model,
+      #|  p.status,
+      #|  COALESCE(p.preview_url, '') AS preview_url,
+      #|  COALESCE(p.preview_port, 0) AS preview_port,
+      #|  p.preview_healthy,
+      #|  COALESCE(p.current_run_id, '') AS current_run_id,
+      #|  COALESCE(r.phase, 'none') AS current_run_phase,
+      #|  p.updated_at
+      #|FROM projects p
+      #|LEFT JOIN runs r ON r.id = p.current_run_id AND r.project_id = p.id
+      #|WHERE p.owner_user_id = ?
+      #|ORDER BY p.updated_at DESC;
     ),
     params=[String(user_id)],
   )

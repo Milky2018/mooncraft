@@ -9,6 +9,7 @@ fn preview_test_project(preview : @sdk.PreviewTarget?) -> @sdk.ProjectDetail {
     workspace_path: "/tmp/project-1",
     codex_thread_id: None,
     status: Idle,
+    current_run_phase: NoPhase,
     preview,
     current_run_id: None,
     last_error: None,

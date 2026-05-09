@@ -342,6 +342,24 @@ fn run_state_from_db(value : String) -> @sdk.RunState {
 }
 
 ///|
+fn run_phase_to_db(phase : @sdk.RunPhase) -> String {
+  match phase {
+    NoPhase => "none"
+    AgentRunning => "agent_running"
+    Checking => "checking"
+  }
+}
+
+///|
+fn run_phase_from_db(value : String) -> @sdk.RunPhase {
+  match value {
+    "agent_running" => AgentRunning
+    "checking" => Checking
+    _ => NoPhase
+  }
+}
+
+///|
 fn chat_role_to_db(role : @sdk.ChatRole) -> String {
   match role {
     User => "user"
@@ -1282,6 +1300,7 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
         #|  id TEXT PRIMARY KEY,
         #|  project_id TEXT NOT NULL,
         #|  state TEXT NOT NULL,
+        #|  phase TEXT NOT NULL DEFAULT 'none',
         #|  summary TEXT,
         #|  error_message TEXT,
         #|  failure_stage TEXT,
@@ -1327,6 +1346,10 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
     Err(message) => return Err(message)
   }
   match self.ensure_column("runs", "worker_pid", "INTEGER") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match self.ensure_column("runs", "phase", "TEXT NOT NULL DEFAULT 'none'") {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
@@ -1519,6 +1542,7 @@ fn project_detail_from_row(row : Map[String, @db.Param]) -> @sdk.ProjectDetail {
     workspace_path: row_text(row, "workspace_path"),
     codex_thread_id: empty_to_none(row_text(row, "codex_thread_id")),
     status: run_state_from_db(row_text(row, "status")),
+    current_run_phase: run_phase_from_db(row_text(row, "current_run_phase")),
     preview,
     current_run_id: empty_to_none(row_text(row, "current_run_id")),
     last_error: empty_to_none(row_text(row, "last_error")),
@@ -1559,6 +1583,7 @@ fn run_status_from_row(row : Map[String, @db.Param]) -> @sdk.RunStatusResponse {
     run_id: row_text(row, "id"),
     project_id: row_text(row, "project_id"),
     state: run_state_from_db(row_text(row, "state")),
+    phase: run_phase_from_db(row_text(row, "phase")),
     summary: empty_to_none(row_text(row, "summary")),
     error_message: empty_to_none(row_text(row, "error_message")),
     failure_debug,
@@ -1618,23 +1643,25 @@ async fn Store::get_project_detail(
     self.query_one(
       (
         #|SELECT
-        #|  id,
-        #|  preview_public_id,
-        #|  display_name,
-        #|  COALESCE(agent_cli, 'codex') AS agent_cli,
-        #|  COALESCE(ai_model, '') AS ai_model,
-        #|  workspace_path,
-        #|  COALESCE(codex_thread_id, '') AS codex_thread_id,
-        #|  status,
-        #|  COALESCE(preview_url, '') AS preview_url,
-        #|  COALESCE(preview_port, 0) AS preview_port,
-        #|  preview_healthy,
-        #|  COALESCE(last_error, '') AS last_error,
-        #|  COALESCE(current_run_id, '') AS current_run_id,
-        #|  created_at,
-        #|  updated_at
-        #|FROM projects
-        #|WHERE id = ?;
+        #|  p.id,
+        #|  p.preview_public_id,
+        #|  p.display_name,
+        #|  COALESCE(p.agent_cli, 'codex') AS agent_cli,
+        #|  COALESCE(p.ai_model, '') AS ai_model,
+        #|  p.workspace_path,
+        #|  COALESCE(p.codex_thread_id, '') AS codex_thread_id,
+        #|  p.status,
+        #|  COALESCE(p.preview_url, '') AS preview_url,
+        #|  COALESCE(p.preview_port, 0) AS preview_port,
+        #|  p.preview_healthy,
+        #|  COALESCE(p.last_error, '') AS last_error,
+        #|  COALESCE(p.current_run_id, '') AS current_run_id,
+        #|  COALESCE(r.phase, 'none') AS current_run_phase,
+        #|  p.created_at,
+        #|  p.updated_at
+        #|FROM projects p
+        #|LEFT JOIN runs r ON r.id = p.current_run_id AND r.project_id = p.id
+        #|WHERE p.id = ?;
       ),
       params=[String(project_id)],
     ) {
@@ -1651,23 +1678,25 @@ async fn Store::list_recent_projects(
   let rows = self.query_rows(
     (
       #|SELECT
-      #|  id,
-      #|  preview_public_id,
-      #|  display_name,
-      #|  COALESCE(agent_cli, 'codex') AS agent_cli,
-      #|  COALESCE(ai_model, '') AS ai_model,
-      #|  workspace_path,
-      #|  COALESCE(codex_thread_id, '') AS codex_thread_id,
-      #|  status,
-      #|  COALESCE(preview_url, '') AS preview_url,
-      #|  COALESCE(preview_port, 0) AS preview_port,
-      #|  preview_healthy,
-      #|  COALESCE(last_error, '') AS last_error,
-      #|  COALESCE(current_run_id, '') AS current_run_id,
-      #|  created_at,
-      #|  updated_at
-      #|FROM projects
-      #|ORDER BY updated_at DESC
+      #|  p.id,
+      #|  p.preview_public_id,
+      #|  p.display_name,
+      #|  COALESCE(p.agent_cli, 'codex') AS agent_cli,
+      #|  COALESCE(p.ai_model, '') AS ai_model,
+      #|  p.workspace_path,
+      #|  COALESCE(p.codex_thread_id, '') AS codex_thread_id,
+      #|  p.status,
+      #|  COALESCE(p.preview_url, '') AS preview_url,
+      #|  COALESCE(p.preview_port, 0) AS preview_port,
+      #|  p.preview_healthy,
+      #|  COALESCE(p.last_error, '') AS last_error,
+      #|  COALESCE(p.current_run_id, '') AS current_run_id,
+      #|  COALESCE(r.phase, 'none') AS current_run_phase,
+      #|  p.created_at,
+      #|  p.updated_at
+      #|FROM projects p
+      #|LEFT JOIN runs r ON r.id = p.current_run_id AND r.project_id = p.id
+      #|ORDER BY p.updated_at DESC
       #|LIMIT ?;
     ),
     params=[Int(limit)],
@@ -1720,6 +1749,7 @@ async fn Store::get_run(
         #|  r.id,
         #|  r.project_id,
         #|  r.state,
+        #|  COALESCE(r.phase, 'none') AS phase,
         #|  COALESCE(r.summary, '') AS summary,
         #|  COALESCE(r.error_message, '') AS error_message,
         #|  COALESCE(r.failure_stage, '') AS failure_stage,
@@ -1758,6 +1788,7 @@ async fn Store::get_run_by_id(
         #|  r.id,
         #|  r.project_id,
         #|  r.state,
+        #|  COALESCE(r.phase, 'none') AS phase,
         #|  COALESCE(r.summary, '') AS summary,
         #|  COALESCE(r.error_message, '') AS error_message,
         #|  COALESCE(r.failure_stage, '') AS failure_stage,
@@ -1795,6 +1826,7 @@ async fn Store::list_recent_runs(
       #|  r.id,
       #|  r.project_id,
       #|  r.state,
+      #|  COALESCE(r.phase, 'none') AS phase,
       #|  COALESCE(r.summary, '') AS summary,
       #|  COALESCE(r.error_message, '') AS error_message,
       #|  COALESCE(r.failure_stage, '') AS failure_stage,
@@ -1836,6 +1868,7 @@ async fn Store::list_project_runs(
       #|  r.id,
       #|  r.project_id,
       #|  r.state,
+      #|  COALESCE(r.phase, 'none') AS phase,
       #|  COALESCE(r.summary, '') AS summary,
       #|  COALESCE(r.error_message, '') AS error_message,
       #|  COALESCE(r.failure_stage, '') AS failure_stage,
@@ -2178,14 +2211,16 @@ async fn Store::start_run(
         #|  id,
         #|  project_id,
         #|  state,
+        #|  phase,
         #|  started_at
-        #|) VALUES (?, ?, ?, ?);
+        #|) VALUES (?, ?, ?, ?, ?);
       ),
       "create run",
       params=[
         String(run_id),
         String(project_id),
         String(run_state_to_db(Running)),
+        String(run_phase_to_db(AgentRunning)),
         String(now),
       ],
     ),
@@ -2219,6 +2254,7 @@ async fn Store::start_run(
     run_id,
     project_id,
     state: Running,
+    phase: AgentRunning,
     summary: None,
     error_message: None,
     failure_debug: None,
@@ -2226,6 +2262,31 @@ async fn Store::start_run(
     started_at: now,
     finished_at: None,
   })
+}
+
+///|
+async fn Store::set_run_phase(
+  self : Store,
+  project_id : String,
+  run_id : String,
+  phase : @sdk.RunPhase,
+) -> Unit noraise {
+  ignore(
+    self.exec_or_error(
+      (
+        #|UPDATE runs
+        #|SET phase = ?
+        #|WHERE id = ? AND project_id = ? AND state = ?;
+      ),
+      "set run phase",
+      params=[
+        String(run_phase_to_db(phase)),
+        String(run_id),
+        String(project_id),
+        String(run_state_to_db(Running)),
+      ],
+    ),
+  )
 }
 
 ///|
@@ -2375,6 +2436,7 @@ async fn Store::finish_run_success(
         #|UPDATE runs
         #|SET
         #|  state = ?,
+        #|  phase = ?,
         #|  summary = ?,
         #|  error_message = NULL,
         #|  failure_stage = NULL,
@@ -2392,6 +2454,7 @@ async fn Store::finish_run_success(
       "finish run successfully",
       params=[
         String(run_state_to_db(Succeeded)),
+        String(run_phase_to_db(NoPhase)),
         String(assistant_message),
         String(preview.url),
         Int(preview.port),
@@ -2513,6 +2576,7 @@ async fn Store::finish_run_failure_with_debug(
         #|UPDATE runs
         #|SET
         #|  state = ?,
+        #|  phase = ?,
         #|  summary = ?,
         #|  error_message = ?,
         #|  failure_stage = ?,
@@ -2527,6 +2591,7 @@ async fn Store::finish_run_failure_with_debug(
       "finish run with failure",
       params=[
         String(run_state_to_db(Failed)),
+        String(run_phase_to_db(NoPhase)),
         String(message_text),
         String(error_message),
         nullable_text_param(failure_stage),
@@ -2600,6 +2665,7 @@ async fn Store::finish_run_cancelled(
         #|UPDATE runs
         #|SET
         #|  state = ?,
+        #|  phase = ?,
         #|  summary = ?,
         #|  error_message = NULL,
         #|  failure_stage = NULL,
@@ -2614,6 +2680,7 @@ async fn Store::finish_run_cancelled(
       "finish run as cancelled",
       params=[
         String(run_state_to_db(Cancelled)),
+        String(run_phase_to_db(NoPhase)),
         String(message_text),
         String(now),
         String(run_id),
