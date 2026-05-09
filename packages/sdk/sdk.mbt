@@ -4,6 +4,7 @@ pub(all) enum RunState {
   Running
   Succeeded
   Failed
+  Cancelled
 } derive(Eq, Debug, ToJson, FromJson)
 
 ///|
@@ -289,6 +290,11 @@ pub(all) struct CreateRunResponse {
 } derive(Debug, ToJson, FromJson)
 
 ///|
+pub(all) struct CancelRunResponse {
+  run : RunStatusResponse
+} derive(Debug, ToJson, FromJson)
+
+///|
 pub(all) struct AuthResponse {
   user : UserSummary
 } derive(Debug, ToJson, FromJson)
@@ -305,6 +311,7 @@ pub fn RunState::label(self : RunState) -> String {
     Running => "Running"
     Succeeded => "Ready"
     Failed => "Needs attention"
+    Cancelled => "Stopped"
   }
 }
 

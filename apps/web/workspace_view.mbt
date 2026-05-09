@@ -568,6 +568,24 @@ fn send_arrow_icon() -> @rabbita.Html {
 }
 
 ///|
+fn stop_square_icon() -> @rabbita.Html {
+  @svg.svg(
+    width=18,
+    height=18,
+    view_box="0 0 24 24",
+    style=["display: block"],
+    [
+      @svg.path(
+        d="M8 8h8v8H8z",
+        fill="currentColor",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+    ],
+  )
+}
+
+///|
 fn composer_keydown_attrs(
   dispatch : @rabbita.Dispatch[Msg],
   send_enabled : Bool,
@@ -592,6 +610,35 @@ fn render_workspace_panel(
   model : Model,
 ) -> @rabbita.Html {
   let send_enabled = can_send(model)
+  let running_run = active_run(model)
+  let stopping = match running_run {
+    Some(run) => model.stopping_run_id == Some(run.run_id)
+    None => false
+  }
+  let action_enabled = match running_run {
+    Some(_) => !stopping
+    None => send_enabled
+  }
+  let action_style = match running_run {
+    Some(_) =>
+      button_style("var(--danger)", "var(--on-action)", action_enabled) +
+      ["width: 40px", "height: 40px", "padding: 0", "color: var(--on-action)"]
+    None =>
+      primary_button_style(send_enabled) +
+      ["width: 40px", "height: 40px", "padding: 0", "color: var(--on-action)"]
+  }
+  let action_title = match running_run {
+    Some(_) => "Stop"
+    None => "Build with MoonCraft"
+  }
+  let action_click = match running_run {
+    Some(run) => dispatch(StopRun(run.project_id, run.run_id))
+    None => dispatch(SendDraft)
+  }
+  let action_icon = match running_run {
+    Some(_) => stop_square_icon()
+    None => send_arrow_icon()
+  }
   let composer_placeholder = if model.selected_project_id is Some(_) {
     "Tell MoonCraft what to build or change..."
   } else {
@@ -676,14 +723,11 @@ fn render_workspace_panel(
             [
               @html.button(
                 type_="button",
-                title="Build with MoonCraft",
-                disabled=!send_enabled,
-                on_click=dispatch(SendDraft),
-                style=primary_button_style(send_enabled) +
-                  [
-                    "width: 40px", "height: 40px", "padding: 0", "color: var(--on-action)",
-                  ],
-                [send_arrow_icon()],
+                title=action_title,
+                disabled=!action_enabled,
+                on_click=action_click,
+                style=action_style,
+                [action_icon],
               ),
             ],
           ),

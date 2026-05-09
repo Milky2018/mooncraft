@@ -5,6 +5,7 @@ fn status_badge(state : @sdk.RunState) -> @rabbita.Html {
     Running => ("var(--badge-running-bg)", "var(--badge-running-fg)")
     Succeeded => ("var(--badge-success-bg)", "var(--badge-success-fg)")
     Failed => ("var(--badge-failed-bg)", "var(--badge-failed-fg)")
+    Cancelled => ("var(--badge-cancelled-bg)", "var(--badge-cancelled-fg)")
   }
   @html.div(
     style=value_text_style() +

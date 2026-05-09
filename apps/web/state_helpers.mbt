@@ -209,6 +209,7 @@ fn clear_workspace(model : Model) -> Model {
     delete_project_confirming: None,
     delete_project_pending: None,
     sending_message: false,
+    stopping_run_id: None,
     notice: None,
   }
 }

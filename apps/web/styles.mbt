@@ -18,6 +18,7 @@ fn theme_variables(theme_mode : ThemeMode) -> Array[String] {
         "--badge-running-bg: rgba(45, 125, 255, 0.16)", "--badge-running-fg: #91c0ff",
         "--badge-success-bg: rgba(18, 216, 156, 0.14)", "--badge-success-fg: #7af0c6",
         "--badge-failed-bg: rgba(255, 122, 122, 0.14)", "--badge-failed-fg: #ffb0b0",
+        "--badge-cancelled-bg: rgba(148, 163, 184, 0.14)", "--badge-cancelled-fg: #cbd5e1",
         "color-scheme: dark",
       ]
     Light =>
@@ -36,6 +37,7 @@ fn theme_variables(theme_mode : ThemeMode) -> Array[String] {
         "--badge-running-bg: rgba(31, 115, 232, 0.12)", "--badge-running-fg: #175ab9",
         "--badge-success-bg: rgba(0, 110, 99, 0.12)", "--badge-success-fg: #075f56",
         "--badge-failed-bg: rgba(185, 71, 71, 0.12)", "--badge-failed-fg: #9d3838",
+        "--badge-cancelled-bg: rgba(92, 110, 130, 0.12)", "--badge-cancelled-fg: #526173",
         "color-scheme: light",
       ]
   }

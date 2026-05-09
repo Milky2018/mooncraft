@@ -75,6 +75,8 @@ let default_codex_model = "gpt-5.5"
 
 ///|
 struct RunArtifacts {
+  project_id : String
+  run_id : String
   dir : String
   last_message_path : String
   agent_log_path : String
@@ -105,6 +107,8 @@ fn RunArtifacts::new(
   let dir = run_artifacts_dir(root, project_id, run_id)
   ensure_dir(dir)
   {
+    project_id,
+    run_id,
     dir,
     last_message_path: dir + "/last_message.txt",
     agent_log_path: dir + "/agent.log",
@@ -127,6 +131,11 @@ fn agent_container_workspace_dir() -> String {
 ///|
 fn agent_container_artifacts_dir() -> String {
   "/artifacts"
+}
+
+///|
+fn agent_runtime_container_name(project_id : String, run_id : String) -> String {
+  "mooncraft-" + project_id + "-" + run_id
 }
 
 ///|
@@ -1252,6 +1261,10 @@ fn docker_command_args(
   container_command : Array[String],
 ) -> Array[String] {
   let args : Array[String] = ["run", "--rm"]
+  args.push("--name")
+  args.push(
+    agent_runtime_container_name(artifacts.project_id, artifacts.run_id),
+  )
   args.push("--platform")
   args.push(config.platform)
   args.push("--env-file")

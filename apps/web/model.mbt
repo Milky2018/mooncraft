@@ -42,6 +42,7 @@ struct Model {
   delete_project_confirming : String?
   delete_project_pending : String?
   sending_message : Bool
+  stopping_run_id : String?
   notice : String?
 }
 
@@ -77,7 +78,9 @@ enum Msg {
   ProjectCreated(Result[@sdk.CreateProjectResponse, @sdk.ApiError])
   ProjectDeleted(String, Result[Unit, @sdk.ApiError])
   SendDraft
+  StopRun(String, String)
   RunCreated(Result[@sdk.CreateRunResponse, @sdk.ApiError])
+  RunCancelled(Result[@sdk.CancelRunResponse, @sdk.ApiError])
   PollRun(String, String)
   RunLoaded(String, String, Result[@sdk.RunStatusResponse, @sdk.ApiError])
   PollRunEvents(String, String)
@@ -186,6 +189,7 @@ fn initial_model() -> Model {
     delete_project_confirming: None,
     delete_project_pending: None,
     sending_message: false,
+    stopping_run_id: None,
     notice: None,
   }
 }

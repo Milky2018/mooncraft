@@ -38,6 +38,11 @@ struct RunningRun {
 }
 
 ///|
+struct RunningRunWorker {
+  worker_pid : Int
+}
+
+///|
 pub(all) struct PreviewRuntime {
   port : Int
   pid : Int
@@ -103,6 +108,18 @@ fn shell_quote(value : String) -> String {
 ///|
 fn process_alive(pid : Int) -> Bool {
   process_alive_ffi(pid) == 1
+}
+
+///|
+fn terminate_worker_process(pid : Int) -> Unit {
+  if pid <= 0 {
+    return
+  }
+  ignore(
+    shell_status(
+      "pkill -TERM -P \{pid} >/dev/null 2>&1 || true; kill -TERM \{pid} >/dev/null 2>&1 || true; sleep 1; pkill -KILL -P \{pid} >/dev/null 2>&1 || true; kill -KILL \{pid} >/dev/null 2>&1 || true",
+    ),
+  )
 }
 
 ///|
@@ -309,6 +326,7 @@ fn run_state_to_db(state : @sdk.RunState) -> String {
     Running => "running"
     Succeeded => "succeeded"
     Failed => "failed"
+    Cancelled => "cancelled"
   }
 }
 
@@ -318,6 +336,7 @@ fn run_state_from_db(value : String) -> @sdk.RunState {
     "running" => Running
     "succeeded" => Succeeded
     "failed" => Failed
+    "cancelled" => Cancelled
     _ => Idle
   }
 }
@@ -2226,6 +2245,30 @@ async fn Store::set_run_worker_pid(
 }
 
 ///|
+async fn Store::get_running_run_worker(
+  self : Store,
+  project_id : String,
+  run_id : String,
+) -> RunningRunWorker? noraise {
+  match
+    self.query_one(
+      (
+        #|SELECT COALESCE(worker_pid, 0) AS worker_pid
+        #|FROM runs
+        #|WHERE id = ? AND project_id = ? AND state = ?;
+      ),
+      params=[
+        String(run_id),
+        String(project_id),
+        String(run_state_to_db(Running)),
+      ],
+    ) {
+    Some(row) => Some({ worker_pid: row_int(row, "worker_pid") })
+    None => None
+  }
+}
+
+///|
 async fn Store::set_project_thread_id(
   self : Store,
   project_id : String,
@@ -2517,6 +2560,110 @@ async fn Store::finish_run_failure_with_debug(
       ],
     ),
   )
+}
+
+///|
+async fn Store::finish_run_cancelled(
+  self : Store,
+  project_id : String,
+  run_id : String,
+) -> Unit noraise {
+  let now = now_string()
+  let message_text = "Stopped."
+  self.finish_ai_key_usage(run_id, "cancelled", Some("User stop"))
+  ignore(
+    self.exec_or_error(
+      (
+        #|INSERT INTO messages (
+        #|  id,
+        #|  project_id,
+        #|  run_id,
+        #|  role,
+        #|  content,
+        #|  created_at
+        #|) VALUES (?, ?, ?, ?, ?, ?);
+      ),
+      "create assistant cancellation message",
+      params=[
+        String(next_id("message")),
+        String(project_id),
+        String(run_id),
+        String(chat_role_to_db(Assistant)),
+        String(message_text),
+        String(now),
+      ],
+    ),
+  )
+  ignore(
+    self.exec_or_error(
+      (
+        #|UPDATE runs
+        #|SET
+        #|  state = ?,
+        #|  summary = ?,
+        #|  error_message = NULL,
+        #|  failure_stage = NULL,
+        #|  failure_command = NULL,
+        #|  failure_exit_code = NULL,
+        #|  codex_log_path = NULL,
+        #|  validation_log_path = NULL,
+        #|  final_summary_path = NULL,
+        #|  finished_at = ?
+        #|WHERE id = ? AND project_id = ? AND state = ?;
+      ),
+      "finish run as cancelled",
+      params=[
+        String(run_state_to_db(Cancelled)),
+        String(message_text),
+        String(now),
+        String(run_id),
+        String(project_id),
+        String(run_state_to_db(Running)),
+      ],
+    ),
+  )
+  ignore(
+    self.exec_or_error(
+      (
+        #|UPDATE projects
+        #|SET
+        #|  status = ?,
+        #|  current_run_id = NULL,
+        #|  last_error = NULL,
+        #|  updated_at = ?
+        #|WHERE id = ? AND current_run_id = ?;
+      ),
+      "mark project cancelled",
+      params=[
+        String(run_state_to_db(Cancelled)),
+        String(now),
+        String(project_id),
+        String(run_id),
+      ],
+    ),
+  )
+}
+
+///|
+async fn AppContext::cancel_project_run(
+  self : AppContext,
+  project_id : String,
+  run_id : String,
+  worker_pid : Int,
+) -> @sdk.RunStatusResponse? noraise {
+  self.store.append_run_event(
+    project_id, run_id, "status", "Stopping the builder session.",
+  )
+  ignore(
+    shell_status(
+      "docker rm -f " +
+      shell_quote(agent_runtime_container_name(project_id, run_id)) +
+      " >/dev/null 2>&1 || true",
+    ),
+  )
+  terminate_worker_process(worker_pid)
+  self.store.finish_run_cancelled(project_id, run_id)
+  self.store.get_run(project_id, run_id)
 }
 
 ///|

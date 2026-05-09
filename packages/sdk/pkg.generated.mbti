@@ -55,6 +55,10 @@ pub fn ai_models_path() -> String
 
 pub fn ai_models_route() -> RouteSpec
 
+pub fn cancel_run_path(String, String) -> String
+
+pub fn cancel_run_route() -> RouteSpec
+
 pub fn create_admin_ai_key_route() -> RouteSpec
 
 pub fn create_project_route() -> RouteSpec
@@ -226,6 +230,10 @@ pub(all) struct AuthResponse {
   user : UserSummary
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
+pub(all) struct CancelRunResponse {
+  run : RunStatusResponse
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
 pub(all) struct ChatMessage {
   id : String
   project_id : String
@@ -358,6 +366,7 @@ pub(all) enum RunState {
   Running
   Succeeded
   Failed
+  Cancelled
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 pub fn RunState::label(Self) -> String
 

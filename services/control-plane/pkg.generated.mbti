@@ -50,6 +50,8 @@ type RunArtifacts
 
 type RunningRun
 
+type RunningRunWorker
+
 type Store
 
 // Type aliases

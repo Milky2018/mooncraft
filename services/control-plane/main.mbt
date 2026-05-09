@@ -1336,6 +1336,45 @@ fn main {
       None => api_error_response(NotFound, NotFound, "Run not found.")
     }
   })
+  app.post(@sdk.cancel_run_route().path_pattern, async fn(event) noraise {
+    let user = match require_session_user(ctx, event) {
+      Ok(user) => user
+      Err(response) => return response
+    }
+    let project_id = match path_param(event, "id") {
+      Ok(value) => value
+      Err(response) => return response
+    }
+    let run_id = match path_param(event, "run_id") {
+      Ok(value) => value
+      Err(response) => return response
+    }
+    let run = match ctx.store.get_run_for_user(user.id, project_id, run_id) {
+      Some(run) => run
+      None => return api_error_response(NotFound, NotFound, "Run not found.")
+    }
+    if !(run.state is Running) {
+      return api_error_response(
+        Conflict,
+        Conflict,
+        "That run has already finished.",
+      )
+    }
+    let worker = match ctx.store.get_running_run_worker(project_id, run_id) {
+      Some(worker) => worker
+      None =>
+        return api_error_response(
+          Conflict,
+          Conflict,
+          "That run is no longer active.",
+        )
+    }
+    match ctx.cancel_project_run(project_id, run_id, worker.worker_pid) {
+      Some(run) =>
+        json_ok(@sdk.CancelRunResponse::{ run: public_run_status(run) })
+      None => api_error_response(NotFound, NotFound, "Run not found.")
+    }
+  })
   app.get(@sdk.list_run_events_route().path_pattern, event => {
     let user = match require_session_user(ctx, event) {
       Ok(user) => user

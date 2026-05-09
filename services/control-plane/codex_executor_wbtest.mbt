@@ -540,6 +540,8 @@ test "docker command receives leased platform AI settings" {
     host_data_dir: Some("/srv/mooncraft/test/data"),
   }
   let artifacts : RunArtifacts = {
+    project_id: "project-1",
+    run_id: "run-1",
     dir: "/app/data/runtime/projects/project-1/artifacts/runs/run-1",
     last_message_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/last_message.txt",
     agent_log_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/agent.log",
@@ -555,6 +557,8 @@ test "docker command receives leased platform AI settings" {
   )
   assert_true(args.contains("--platform"))
   assert_true(args.contains("linux/amd64"))
+  assert_true(args.contains("--name"))
+  assert_true(args.contains("mooncraft-project-1-run-1"))
   assert_true(args.contains("--env-file"))
   assert_true(
     args.contains(
@@ -607,6 +611,8 @@ test "claude docker command mounts non-root home" {
     host_data_dir: Some("/srv/mooncraft/test/data"),
   }
   let artifacts : RunArtifacts = {
+    project_id: "project-1",
+    run_id: "run-1",
     dir: "/app/data/runtime/projects/project-1/artifacts/runs/run-1",
     last_message_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/last_message.txt",
     agent_log_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/agent.log",
@@ -880,6 +886,44 @@ async test "start_run persists the initial project prompt once" {
     store.get_initial_project_prompt(project_id),
     content="Some(\"Build a todo app\")",
   )
+  cleanup_test_db(db_path)
+}
+
+///|
+async test "finish_run_cancelled clears active project run" {
+  let root = @env.current_dir().unwrap_or(".")
+  let (store, db_path) = new_test_store(root, "cancel-run")
+  let project_id = next_id("project")
+  ignore(
+    store.create_project(
+      project_id,
+      "user-1",
+      "preview-" + project_id,
+      "Cancel Test",
+      "codex",
+      default_openrouter_model(),
+      project_workspace(root, project_id),
+    ),
+  )
+  let run = store.start_run(project_id, "Build a game").unwrap()
+  store.set_run_worker_pid(project_id, run.run_id, 12345)
+  debug_inspect(
+    store
+    .get_running_run_worker(project_id, run.run_id)
+    .map(fn(worker) { worker.worker_pid }),
+    content="Some(12345)",
+  )
+
+  store.finish_run_cancelled(project_id, run.run_id)
+
+  let cancelled = store.get_run(project_id, run.run_id).unwrap()
+  inspect(cancelled.state == Cancelled, content="true")
+  debug_inspect(cancelled.summary, content="Some(\"Stopped.\")")
+  let project = store.get_project_detail(project_id).unwrap()
+  inspect(project.status == Cancelled, content="true")
+  debug_inspect(project.current_run_id, content="None")
+  let retry_run = store.start_run(project_id, "Try again")
+  inspect(retry_run is Ok(_), content="true")
   cleanup_test_db(db_path)
 }
 

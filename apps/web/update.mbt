@@ -506,10 +506,20 @@ fn update(
               run_events: [],
               last_run_event_seq: 0,
               run_spinner_tick: 0,
+              stopping_run_id: None,
             },
           )
         }
         _ => (@rabbita.none, model)
+      }
+    StopRun(project_id, run_id) =>
+      if model.stopping_run_id is Some(_) {
+        (@rabbita.none, model)
+      } else {
+        (
+          cancel_run_cmd(dispatch, project_id, run_id),
+          { ..model, stopping_run_id: Some(run_id), notice: None },
+        )
       }
     RunCreated(Ok(response)) =>
       match response.poll_after_ms {
@@ -531,6 +541,7 @@ fn update(
               run_events: [],
               last_run_event_seq: 0,
               run_spinner_tick: 0,
+              stopping_run_id: None,
             },
           )
         _ =>
@@ -543,6 +554,7 @@ fn update(
               ..model,
               run_status: Some(response.run),
               sending_message: false,
+              stopping_run_id: None,
               notice: None,
             },
           )
@@ -556,7 +568,40 @@ fn update(
           {
             ..model,
             sending_message: false,
+            stopping_run_id: None,
             notice: Some(error_notice("The request could not be sent.", error)),
+          },
+        )
+      }
+    RunCancelled(Ok(response)) =>
+      (
+        @rabbita.batch([
+          load_run_events_cmd(
+            dispatch,
+            response.run.project_id,
+            response.run.run_id,
+            model.last_run_event_seq,
+          ),
+          load_projects_cmd(dispatch),
+          load_project_cmd(dispatch, response.run.project_id),
+        ]),
+        {
+          ..model,
+          run_status: Some(response.run),
+          stopping_run_id: None,
+          notice: None,
+        },
+      )
+    RunCancelled(Err(error)) =>
+      if is_unauthorized_error(error) {
+        auth_recovery(dispatch, model, "Your session expired. Sign in again.")
+      } else {
+        (
+          @rabbita.none,
+          {
+            ..model,
+            stopping_run_id: None,
+            notice: Some(error_notice("The run could not be stopped.", error)),
           },
         )
       }
@@ -583,7 +628,12 @@ fn update(
             load_projects_cmd(dispatch),
             load_project_cmd(dispatch, project_id),
           ]),
-          { ..model, run_status: Some(run), notice: None },
+          {
+            ..model,
+            run_status: Some(run),
+            stopping_run_id: None,
+            notice: None,
+          },
         )
       }
     PollRunEvents(project_id, run_id) =>

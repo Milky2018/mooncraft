@@ -111,6 +111,17 @@ fn create_run_cmd(
 }
 
 ///|
+fn cancel_run_cmd(
+  dispatch : @rabbita.Dispatch[Msg],
+  project_id : String,
+  run_id : String,
+) -> @rabbita.Cmd {
+  post_empty_json(@sdk.cancel_run_path(project_id, run_id), fn(result) {
+    dispatch(RunCancelled(result))
+  })
+}
+
+///|
 fn delete_project_cmd(
   dispatch : @rabbita.Dispatch[Msg],
   project_id : String,

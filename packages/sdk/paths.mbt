@@ -178,6 +178,16 @@ pub fn run_path(project_id : String, run_id : String) -> String {
 }
 
 ///|
+pub fn cancel_run_route() -> RouteSpec {
+  route(POST, "/api/projects/:id/runs/:run_id/cancel", Ok)
+}
+
+///|
+pub fn cancel_run_path(project_id : String, run_id : String) -> String {
+  "/api/projects/\{project_id}/runs/\{run_id}/cancel"
+}
+
+///|
 pub fn list_run_events_route() -> RouteSpec {
   route(GET, "/api/projects/:id/runs/:run_id/events/:after_seq", Ok)
 }
