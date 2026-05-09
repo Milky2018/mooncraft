@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+codex_home="${CODEX_HOME:-${HOME:-/root}/.codex}"
+export CODEX_HOME="$codex_home"
+mkdir -p "$codex_home"
+
+if [[ -d /opt/codex-skill-seed/skills ]]; then
+  if [[ ! -e "$codex_home/skills" || -d "$codex_home/skills" ]]; then
+    mkdir -p "$codex_home/skills"
+    cp -R /opt/codex-skill-seed/skills/. "$codex_home/skills/"
+  fi
+fi
+
+provider="${MOONCRAFT_AI_PROVIDER:-openrouter}"
+agent_cli="${MOONCRAFT_AGENT_CLI:-codex}"
+api_key="${MOONCRAFT_AI_API_KEY:-}"
+model="${MOONCRAFT_AI_MODEL:-anthropic/claude-sonnet-4.5}"
+
+if [[ "${1:-}" == "mooncraft-agent-doctor" ]]; then
+  exec "$@"
+fi
+
+if [[ -z "$api_key" ]]; then
+  echo "MOONCRAFT_AI_API_KEY is required for OpenRouter-backed agent runs." >&2
+  exit 64
+fi
+
+export OPENROUTER_API_KEY="$api_key"
+
+if [[ "$provider" != "openrouter" ]]; then
+  echo "Only OpenRouter is supported by the Mooncraft agent runtime." >&2
+  exit 64
+fi
+
+case "$agent_cli" in
+  codex)
+    cat >"$codex_home/config.toml" <<EOF
+model_provider = "openrouter"
+
+[model_providers.openrouter]
+name = "OpenRouter"
+base_url = "https://openrouter.ai/api/v1"
+env_key = "OPENROUTER_API_KEY"
+wire_api = "responses"
+EOF
+    ;;
+  claude_code)
+    export ANTHROPIC_BASE_URL="https://openrouter.ai/api"
+    export ANTHROPIC_AUTH_TOKEN="$api_key"
+    export ANTHROPIC_API_KEY=""
+    export ANTHROPIC_DEFAULT_OPUS_MODEL="$model"
+    export ANTHROPIC_DEFAULT_SONNET_MODEL="$model"
+    export ANTHROPIC_DEFAULT_HAIKU_MODEL="$model"
+    export CLAUDE_CODE_SUBAGENT_MODEL="$model"
+    export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+    ;;
+  kimi_code)
+    kimi_share_dir="${KIMI_SHARE_DIR:-${HOME:-/root}/.kimi}"
+    mkdir -p "$kimi_share_dir"
+    cat >"$kimi_share_dir/config.toml" <<EOF
+default_model = "mooncraft-openrouter"
+default_thinking = false
+default_yolo = true
+default_plan_mode = false
+merge_all_available_skills = true
+
+[providers.openrouter]
+type = "openai_legacy"
+base_url = "https://openrouter.ai/api/v1"
+api_key = "$api_key"
+
+[models.mooncraft-openrouter]
+provider = "openrouter"
+model = "$model"
+max_context_size = 262144
+capabilities = []
+EOF
+    export OPENAI_BASE_URL="https://openrouter.ai/api/v1"
+    export OPENAI_API_KEY="$api_key"
+    export KIMI_CLI_NO_AUTO_UPDATE=1
+    ;;
+  *)
+    echo "Unsupported MOONCRAFT_AGENT_CLI: $agent_cli" >&2
+    exit 64
+    ;;
+esac
+
+unset MOONCRAFT_AI_API_KEY
+exec "$@"

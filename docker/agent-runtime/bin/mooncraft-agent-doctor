@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "mooncraft-agent-doctor: agent=${MOONCRAFT_AGENT_CLI:-unknown}"
+
+for tool in moon rg jq codex claude kimi; do
+  command -v "$tool" >/dev/null
+done
+
+moon version >/dev/null
+rg --version >/dev/null
+jq --version >/dev/null
+codex --version >/dev/null
+claude --version >/dev/null
+kimi --version >/dev/null
+
+for dir in /workspace /artifacts "${HOME:-/root}"; do
+  mkdir -p "$dir"
+  probe="$dir/.mooncraft-doctor-write-test"
+  printf ok >"$probe"
+  rm -f "$probe"
+done
+
+if [[ "${MOONCRAFT_AGENT_CLI:-}" == "claude_code" ]]; then
+  chmod -R a+rwX /workspace /artifacts "${HOME:-/home/mooncraft}" >/dev/null 2>&1 || true
+  runuser -u mooncraft -- env HOME="${HOME:-/home/mooncraft}" claude --version >/dev/null
+fi
+
+echo "mooncraft-agent-doctor: ok"
