@@ -6,6 +6,13 @@ enum ThemeMode {
 } derive(Eq)
 
 ///|
+enum PreviewPanelMode {
+  PreviewSplit
+  PreviewHidden
+  PreviewExpanded
+} derive(Eq)
+
+///|
 struct Model {
   boot_requested : Bool
   session_ready : Bool
@@ -21,6 +28,7 @@ struct Model {
   projects : Array[@sdk.ProjectSummary]
   selected_project_id : String?
   project_detail : @sdk.ProjectDetail?
+  preview_panel_mode : PreviewPanelMode
   messages : Array[@sdk.ChatMessage]
   run_status : @sdk.RunStatusResponse?
   run_events : Array[@sdk.RunEvent]
@@ -58,6 +66,7 @@ enum Msg {
   ProjectsLoaded(Result[@sdk.ListProjectsResponse, @sdk.ApiError])
   SelectProject(String)
   ProjectLoaded(Result[@sdk.ProjectDetail, @sdk.ApiError])
+  SetPreviewPanelMode(PreviewPanelMode)
   MessagesLoaded(Result[@sdk.ListMessagesResponse, @sdk.ApiError])
   DraftChanged(String)
   OpenNewProjectDialog
@@ -168,6 +177,7 @@ fn initial_model() -> Model {
     projects: [],
     selected_project_id: None,
     project_detail: None,
+    preview_panel_mode: PreviewSplit,
     messages: [],
     run_status: None,
     run_events: [],

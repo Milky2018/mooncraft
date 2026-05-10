@@ -532,7 +532,16 @@ fn render_workspace_shell(
 ) -> @rabbita.Html {
   let workspace_body = match ready_preview(model) {
     Some(_) =>
-      [render_workspace_panel(dispatch, model), render_preview_panel(model)]
+      match model.preview_panel_mode {
+        PreviewHidden => [render_workspace_panel(dispatch, model)]
+        PreviewExpanded =>
+          [render_preview_panel(dispatch, model, expanded=true)]
+        PreviewSplit =>
+          [
+            render_workspace_panel(dispatch, model),
+            render_preview_panel(dispatch, model, expanded=false),
+          ]
+      }
     None => [render_workspace_panel(dispatch, model)]
   }
   @html.div(

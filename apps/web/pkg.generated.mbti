@@ -27,6 +27,8 @@ type Model
 
 type Msg
 
+type PreviewPanelMode derive(Eq)
+
 type RawHttpResponse derive(@json.FromJson)
 
 type Request

@@ -595,6 +595,109 @@ fn stop_square_icon() -> @rabbita.Html {
 }
 
 ///|
+fn preview_hide_icon() -> @rabbita.Html {
+  @svg.svg(
+    width=16,
+    height=16,
+    view_box="0 0 24 24",
+    style=["display: block"],
+    [
+      @svg.path(
+        d="M3 12s3.4-6 9-6 9 6 9 6-3.4 6-9 6-9-6-9-6z",
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+      @svg.path(
+        d="M4 4l16 16",
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+    ],
+  )
+}
+
+///|
+fn preview_show_icon() -> @rabbita.Html {
+  @svg.svg(
+    width=16,
+    height=16,
+    view_box="0 0 24 24",
+    style=["display: block"],
+    [
+      @svg.path(
+        d="M3 12s3.4-6 9-6 9 6 9 6-3.4 6-9 6-9-6-9-6z",
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+      @svg.path(
+        d="M12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6z",
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+    ],
+  )
+}
+
+///|
+fn preview_expand_icon() -> @rabbita.Html {
+  @svg.svg(
+    width=16,
+    height=16,
+    view_box="0 0 24 24",
+    style=["display: block"],
+    [
+      @svg.path(
+        d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5",
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+    ],
+  )
+}
+
+///|
+fn preview_split_icon() -> @rabbita.Html {
+  @svg.svg(
+    width=16,
+    height=16,
+    view_box="0 0 24 24",
+    style=["display: block"],
+    [
+      @svg.path(
+        d="M4 5h16v14H4zM12 5v14",
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+    ],
+  )
+}
+
+///|
+fn preview_action_button_style() -> Array[String] {
+  secondary_button_style(true) +
+  ["width: 32px", "height: 32px", "padding: 0", "justify-content: center"]
+}
+
+///|
+fn render_show_preview_button(
+  dispatch : @rabbita.Dispatch[Msg],
+) -> @rabbita.Html {
+  @html.button(
+    type_="button",
+    title="Show preview",
+    on_click=dispatch(SetPreviewPanelMode(PreviewSplit)),
+    style=secondary_button_style(true) + ["height: 32px", "padding: 0 8px"],
+    [preview_show_icon(), @html.span("Preview")],
+  )
+}
+
+///|
 fn composer_keydown_attrs(
   dispatch : @rabbita.Dispatch[Msg],
   send_enabled : Bool,
@@ -682,7 +785,21 @@ fn render_workspace_panel(
           ],
           [render_project_title(model)],
         ),
-        maybe_status_badge(active_project_status(model)),
+        @html.div(
+          style=[
+            "display: flex", "align-items: center", "gap: 8px", "flex-wrap: wrap",
+            "justify-content: flex-end",
+          ],
+          [
+            if ready_preview(model) is Some(_) &&
+              model.preview_panel_mode is PreviewHidden {
+              render_show_preview_button(dispatch)
+            } else {
+              @html.nothing
+            },
+            maybe_status_badge(active_project_status(model)),
+          ],
+        ),
       ],
     ),
     @html.div(
@@ -765,17 +882,26 @@ fn ready_preview(model : Model) -> @sdk.PreviewTarget? {
 }
 
 ///|
-fn render_preview_panel(model : Model) -> @rabbita.Html {
+fn render_preview_panel(
+  dispatch : @rabbita.Dispatch[Msg],
+  model : Model,
+  expanded~ : Bool,
+) -> @rabbita.Html {
   let preview = model.project_detail.bind(fn(project) { project.preview })
   let status = match preview {
     Some(target) => if target.healthy { @sdk.Succeeded } else { Failed }
     None => if active_run(model) is Some(_) { Running } else { Idle }
   }
+  let size_style = if expanded {
+    ["flex: 1 1 100%", "min-width: 0"]
+  } else {
+    ["flex: 0.92 1 440px", "min-width: 360px"]
+  }
   @html.div(
     style=panel_style() +
+      size_style +
       [
-        "flex: 0.92 1 440px", "min-width: 360px", "display: flex", "flex-direction: column",
-        "min-height: 0", "overflow: hidden",
+        "display: flex", "flex-direction: column", "min-height: 0", "overflow: hidden",
       ],
   ) <| [
     @html.div(
@@ -789,7 +915,47 @@ fn render_preview_panel(model : Model) -> @rabbita.Html {
           style=["display: flex", "flex-direction: column", "gap: 8px"],
           [@html.div(style=title_text_style(), "Live preview")],
         ),
-        maybe_status_badge(status),
+        @html.div(
+          style=[
+            "display: flex", "align-items: center", "gap: 8px", "flex-wrap: wrap",
+            "justify-content: flex-end",
+          ],
+          [
+            maybe_status_badge(status),
+            @html.button(
+              type_="button",
+              title=if expanded {
+                "Return to split view"
+              } else {
+                "Expand preview"
+              },
+              on_click=dispatch(
+                SetPreviewPanelMode(
+                  if expanded {
+                    PreviewSplit
+                  } else {
+                    PreviewExpanded
+                  },
+                ),
+              ),
+              style=preview_action_button_style(),
+              [
+                if expanded {
+                  preview_split_icon()
+                } else {
+                  preview_expand_icon()
+                },
+              ],
+            ),
+            @html.button(
+              type_="button",
+              title="Hide preview",
+              on_click=dispatch(SetPreviewPanelMode(PreviewHidden)),
+              style=preview_action_button_style(),
+              [preview_hide_icon()],
+            ),
+          ],
+        ),
       ],
     ),
     @html.div(
