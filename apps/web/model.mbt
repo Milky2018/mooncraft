@@ -65,9 +65,9 @@ enum Msg {
   ToggleAccountPanel
   ProjectsLoaded(Result[@sdk.ListProjectsResponse, @sdk.ApiError])
   SelectProject(String)
-  ProjectLoaded(Result[@sdk.ProjectDetail, @sdk.ApiError])
+  ProjectLoaded(String, Result[@sdk.ProjectDetail, @sdk.ApiError])
   SetPreviewPanelMode(PreviewPanelMode)
-  MessagesLoaded(Result[@sdk.ListMessagesResponse, @sdk.ApiError])
+  MessagesLoaded(String, Result[@sdk.ListMessagesResponse, @sdk.ApiError])
   DraftChanged(String)
   OpenNewProjectDialog
   CloseNewProjectDialog
@@ -93,7 +93,7 @@ enum Msg {
   PollRun(String, String)
   RunLoaded(String, String, Result[@sdk.RunStatusResponse, @sdk.ApiError])
   PollRunEvents(String, String)
-  RunEventsLoaded(Result[@sdk.ListRunEventsResponse, @sdk.ApiError])
+  RunEventsLoaded(String, Result[@sdk.ListRunEventsResponse, @sdk.ApiError])
 }
 
 ///|

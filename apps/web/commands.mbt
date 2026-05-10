@@ -56,7 +56,7 @@ fn load_messages_cmd(
   project_id : String,
 ) -> @rabbita.Cmd {
   get_json(@sdk.messages_path(project_id), fn(result) {
-    dispatch(MessagesLoaded(result))
+    dispatch(MessagesLoaded(project_id, result))
   })
 }
 
@@ -67,7 +67,7 @@ fn load_project_cmd(
 ) -> @rabbita.Cmd {
   @rabbita.batch([
     get_json(@sdk.project_path(project_id), fn(result) {
-      dispatch(ProjectLoaded(result))
+      dispatch(ProjectLoaded(project_id, result))
     }),
     load_messages_cmd(dispatch, project_id),
   ])
@@ -150,7 +150,7 @@ fn load_run_events_cmd(
   after_seq : Int,
 ) -> @rabbita.Cmd {
   get_json(@sdk.run_events_path(project_id, run_id, after_seq), fn(result) {
-    dispatch(RunEventsLoaded(result))
+    dispatch(RunEventsLoaded(project_id, result))
   })
 }
 

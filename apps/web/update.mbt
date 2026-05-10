@@ -133,9 +133,11 @@ fn update(
           selected_project_id: Some(project_id),
           project_detail: None,
           messages: [],
+          run_status: None,
           run_events: [],
           last_run_event_seq: 0,
           run_spinner_tick: 0,
+          stopping_run_id: None,
           delete_project_confirming: None,
           rename_project_editing: false,
           rename_project_name: "",
@@ -143,29 +145,35 @@ fn update(
           notice: None,
         },
       )
-    ProjectLoaded(Ok(project)) => {
-      let cmd = match project.current_run_id {
-        Some(run_id) if project.status is Running =>
-          @rabbita.batch([
-            @rabbita.delay(dispatch(PollRun(project.id, run_id)), 1000),
-            dispatch(PollRunEvents(project.id, run_id)),
-          ])
-        _ => @rabbita.none
+    ProjectLoaded(requested_project_id, Ok(project)) =>
+      if model.selected_project_id != Some(requested_project_id) ||
+        project.id != requested_project_id {
+        (@rabbita.none, model)
+      } else {
+        let cmd = match project.current_run_id {
+          Some(run_id) if project.status is Running =>
+            @rabbita.batch([
+              @rabbita.delay(dispatch(PollRun(project.id, run_id)), 1000),
+              dispatch(PollRunEvents(project.id, run_id)),
+            ])
+          _ => @rabbita.none
+        }
+        (
+          cmd,
+          {
+            ..model,
+            project_detail: Some(project),
+            rename_project_editing: false,
+            rename_project_name: project.display_name,
+            rename_project_pending: false,
+            notice: None,
+          },
+        )
       }
-      (
-        cmd,
-        {
-          ..model,
-          project_detail: Some(project),
-          rename_project_editing: false,
-          rename_project_name: project.display_name,
-          rename_project_pending: false,
-          notice: None,
-        },
-      )
-    }
-    ProjectLoaded(Err(error)) =>
-      if is_unauthorized_error(error) {
+    ProjectLoaded(requested_project_id, Err(error)) =>
+      if model.selected_project_id != Some(requested_project_id) {
+        (@rabbita.none, model)
+      } else if is_unauthorized_error(error) {
         auth_recovery(dispatch, model, "Your session expired. Sign in again.")
       } else {
         (
@@ -178,10 +186,16 @@ fn update(
           },
         )
       }
-    MessagesLoaded(Ok(response)) =>
-      (@rabbita.none, { ..model, messages: response.items })
-    MessagesLoaded(Err(error)) =>
-      if is_unauthorized_error(error) {
+    MessagesLoaded(project_id, Ok(response)) =>
+      if model.selected_project_id == Some(project_id) {
+        (@rabbita.none, { ..model, messages: response.items })
+      } else {
+        (@rabbita.none, model)
+      }
+    MessagesLoaded(project_id, Err(error)) =>
+      if model.selected_project_id != Some(project_id) {
+        (@rabbita.none, model)
+      } else if is_unauthorized_error(error) {
         auth_recovery(dispatch, model, "Your session expired. Sign in again.")
       } else {
         (
@@ -526,48 +540,80 @@ fn update(
     RunCreated(Ok(response)) =>
       match response.poll_after_ms {
         Some(delay_ms) if response.run.state is Running =>
-          (
-            @rabbita.batch([
-              @rabbita.delay(
-                dispatch(PollRun(response.run.project_id, response.run.run_id)),
-                delay_ms,
-              ),
-              dispatch(
-                PollRunEvents(response.run.project_id, response.run.run_id),
-              ),
-            ]),
-            {
-              ..model,
-              projects: replace_project_summary_run_status(
-                model.projects,
-                response.run,
-              ),
-              run_status: Some(response.run),
-              sending_message: false,
-              run_events: [],
-              last_run_event_seq: 0,
-              run_spinner_tick: 0,
-              stopping_run_id: None,
-            },
-          )
+          if model.selected_project_id == Some(response.run.project_id) {
+            (
+              @rabbita.batch([
+                @rabbita.delay(
+                  dispatch(
+                    PollRun(response.run.project_id, response.run.run_id),
+                  ),
+                  delay_ms,
+                ),
+                dispatch(
+                  PollRunEvents(response.run.project_id, response.run.run_id),
+                ),
+              ]),
+              {
+                ..model,
+                projects: replace_project_summary_run_status(
+                  model.projects,
+                  response.run,
+                ),
+                run_status: Some(response.run),
+                sending_message: false,
+                run_events: [],
+                last_run_event_seq: 0,
+                run_spinner_tick: 0,
+                stopping_run_id: None,
+              },
+            )
+          } else {
+            (
+              @rabbita.none,
+              {
+                ..model,
+                projects: replace_project_summary_run_status(
+                  model.projects,
+                  response.run,
+                ),
+                sending_message: false,
+                stopping_run_id: None,
+              },
+            )
+          }
         _ =>
-          (
-            @rabbita.batch([
+          if model.selected_project_id == Some(response.run.project_id) {
+            (
+              @rabbita.batch([
+                load_projects_cmd(dispatch),
+                load_project_cmd(dispatch, response.run.project_id),
+              ]),
+              {
+                ..model,
+                projects: replace_project_summary_run_status(
+                  model.projects,
+                  response.run,
+                ),
+                run_status: Some(response.run),
+                sending_message: false,
+                stopping_run_id: None,
+                notice: None,
+              },
+            )
+          } else {
+            (
               load_projects_cmd(dispatch),
-              load_project_cmd(dispatch, response.run.project_id),
-            ]),
-            {
-              ..model,
-              projects: replace_project_summary_run_status(
-                model.projects,
-                response.run,
-              ),
-              run_status: Some(response.run),
-              sending_message: false,
-              stopping_run_id: None,
-              notice: None,
-            },
-          )
+              {
+                ..model,
+                projects: replace_project_summary_run_status(
+                  model.projects,
+                  response.run,
+                ),
+                sending_message: false,
+                stopping_run_id: None,
+              },
+            )
+          }
       }
     RunCreated(Err(error)) =>
       if is_unauthorized_error(error) {
@@ -584,24 +630,31 @@ fn update(
         )
       }
     RunCancelled(Ok(response)) =>
-      (
-        @rabbita.batch([
-          load_run_events_cmd(
-            dispatch,
-            response.run.project_id,
-            response.run.run_id,
-            model.last_run_event_seq,
-          ),
+      if model.selected_project_id == Some(response.run.project_id) {
+        (
+          @rabbita.batch([
+            load_run_events_cmd(
+              dispatch,
+              response.run.project_id,
+              response.run.run_id,
+              model.last_run_event_seq,
+            ),
+            load_projects_cmd(dispatch),
+            load_project_cmd(dispatch, response.run.project_id),
+          ]),
+          {
+            ..model,
+            run_status: Some(response.run),
+            stopping_run_id: None,
+            notice: None,
+          },
+        )
+      } else {
+        (
           load_projects_cmd(dispatch),
-          load_project_cmd(dispatch, response.run.project_id),
-        ]),
-        {
-          ..model,
-          run_status: Some(response.run),
-          stopping_run_id: None,
-          notice: None,
-        },
-      )
+          { ..model, stopping_run_id: None, notice: None },
+        )
+      }
     RunCancelled(Err(error)) =>
       if is_unauthorized_error(error) {
         auth_recovery(dispatch, model, "Your session expired. Sign in again.")
@@ -616,9 +669,23 @@ fn update(
         )
       }
     PollRun(project_id, run_id) =>
-      (load_run_cmd(dispatch, project_id, run_id), model)
+      if model.selected_project_id == Some(project_id) {
+        (load_run_cmd(dispatch, project_id, run_id), model)
+      } else {
+        (@rabbita.none, model)
+      }
     RunLoaded(project_id, run_id, Ok(run)) =>
-      if run.state is Running {
+      if model.selected_project_id != Some(project_id) ||
+        run.project_id != project_id ||
+        run.run_id != run_id {
+        (
+          @rabbita.none,
+          {
+            ..model,
+            projects: replace_project_summary_run_status(model.projects, run),
+          },
+        )
+      } else if run.state is Running {
         (
           @rabbita.batch([
             @rabbita.delay(dispatch(PollRun(project_id, run_id)), 1000),
@@ -651,16 +718,23 @@ fn update(
         )
       }
     PollRunEvents(project_id, run_id) =>
-      (
-        load_run_events_cmd(
-          dispatch,
-          project_id,
-          run_id,
-          model.last_run_event_seq,
-        ),
-        model,
-      )
-    RunEventsLoaded(Ok(response)) => {
+      if model.selected_project_id == Some(project_id) {
+        (
+          load_run_events_cmd(
+            dispatch,
+            project_id,
+            run_id,
+            model.last_run_event_seq,
+          ),
+          model,
+        )
+      } else {
+        (@rabbita.none, model)
+      }
+    RunEventsLoaded(project_id, Ok(response)) => {
+      if model.selected_project_id != Some(project_id) {
+        return (@rabbita.none, model)
+      }
       let events = model.run_events.copy()
       let mut last_seq = model.last_run_event_seq
       for event in response.items {
@@ -679,14 +753,18 @@ fn update(
         },
       )
     }
-    RunEventsLoaded(Err(error)) =>
-      if is_unauthorized_error(error) {
+    RunEventsLoaded(project_id, Err(error)) =>
+      if model.selected_project_id != Some(project_id) {
+        (@rabbita.none, model)
+      } else if is_unauthorized_error(error) {
         auth_recovery(dispatch, model, "Your session expired. Sign in again.")
       } else {
         (@rabbita.none, model)
       }
-    RunLoaded(_, _, Err(error)) =>
-      if is_unauthorized_error(error) {
+    RunLoaded(project_id, _, Err(error)) =>
+      if model.selected_project_id != Some(project_id) {
+        (@rabbita.none, model)
+      } else if is_unauthorized_error(error) {
         auth_recovery(dispatch, model, "Your session expired. Sign in again.")
       } else {
         (
