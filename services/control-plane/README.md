@@ -5,7 +5,7 @@ This module is the local backend for the current MoonCraft prototype.
 Responsibilities:
 
 - persist users, sessions, projects, messages, runs, and workspace source snapshots
-- seed the initial MoonBit workspace under `data/runtime/projects/<id>/workspace`
+- initialize the MoonBit workspace under `data/runtime/projects/<id>/workspace`
 - serve the app-develop HTTP API
 - serve the main workspace page and platform bundle
 - serve file-backed control-plane HTML/CSS assets from `services/control-plane/assets`
@@ -15,7 +15,7 @@ Responsibilities:
 - rebuild and restart local previews
 - store preview URLs and last-known run state
 
-The platform no longer uses official app templates. Project rows do not carry template ids, and there is no template picker. Project creation copies the minimal native Mocket seed from `examples/project-seeds/native-mocket` so the workspace has a valid MoonBit preview contract before the first agent turn. The first user prompt still decides what the app becomes; the selected agent must replace the starter app rather than preserve it as a product template.
+The platform no longer uses official app templates. Project rows do not carry template ids, and there is no template picker. Project creation runs `moon new` deterministically and saves that plain MoonBit module as the first workspace snapshot. The first user prompt decides what the app becomes; the selected agent must create the native preview server as part of the requested app rather than preserve any platform-owned starter app.
 
 The current `AgentGateway` uses Docker-backed agent CLI runs. Projects are bound to one agent CLI at creation time: Codex, Claude Code, or Kimi Code. Codex projects keep one persistent `codex_thread_id` in the database and one platform-owned Codex home under `data/codex-sessions/<project-id>/.codex`; Claude Code and Kimi Code are stateless per turn and rely on the persisted workspace snapshot. Each new chat message starts a detached worker process through `moonbitlang/async/process`, runs the selected agent in the disposable container, validates the workspace with dependency fetches plus `moon fmt`, `moon check`, `moon build`, and `moon test`, then refreshes the preview. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
 
@@ -43,7 +43,7 @@ Static control-plane shells live under `services/control-plane/assets` instead o
 - `auth/github-callback/index.html` for the OAuth callback handoff page
 - `preview-fallback/index.html` and `preview-fallback/styles.css` for generated previews that do not provide their own shell
 
-These files are runtime assets. `moon build` builds both the Rabbita frontend bundle and the native control-plane executable through the workspace. The control plane does not run `moon` at startup; it serves the prebuilt frontend bundle from `_build/js/<profile>/build/mooncraft/web/web.js`. The supported local walkthrough runs from the repository root through `just serve`, which builds the workspace before starting the executable. The Docker image also builds the workspace at image build time before the entrypoint starts the prebuilt control-plane executable.
+These files are runtime assets. `moon build` builds both the Rabbita frontend bundle and the native control-plane executable through the workspace. The control plane does not run `moon` at startup; it serves the prebuilt frontend bundle from `_build/js/<profile>/build/mooncraft/web/web.js`. Project creation does require the MoonBit CLI because MoonCraft initializes each generated workspace with `moon new` before saving the first workspace snapshot. The supported local walkthrough runs from the repository root through `just serve`, which builds the workspace before starting the executable. The Docker app image installs the MoonBit CLI, builds the workspace at image build time, and keeps `moon` available for project initialization after startup.
 
 If you run a compiled `control-plane.exe` from another directory, keep `services/control-plane/assets` available under that working directory or the file-backed HTML pages will not render.
 

@@ -94,6 +94,7 @@ test "preview executable discovery excludes debug symbols" {
   let command = preview_executable_find_command("_build/native/debug/build")
   assert_true(command.contains("-name '*.exe'"))
   assert_true(command.contains("! -path '*.dSYM/*'"))
+  assert_true(command.contains("! -path '*/cmd/*'"))
 }
 
 ///|
@@ -155,59 +156,35 @@ test "workspace contract requires root MoonBit project" {
 }
 
 ///|
-test "new project workspace seed is a valid native preview substrate" {
-  let seed_dir = configured_project_seed_dir()
-  debug_inspect(project_seed_error(seed_dir), content="None")
-  for file in required_project_seed_files() {
-    assert_true(@fs.path_exists(seed_dir + "/" + file))
-  }
-  let moon_mod = safe_read_string_or(seed_dir + "/moon.mod.json", "")
-  let moon_pkg = safe_read_string_or(seed_dir + "/moon.pkg", "")
-  let main = safe_read_string_or(seed_dir + "/main.mbt", "")
-  assert_true(main.contains("/api/health"))
-  assert_true(main.contains("MoonCraft Starter"))
-  assert_true(moon_pkg.contains("supported_targets = \"native\""))
-  assert_true(
-    moon_mod.contains(
-      "\"moonbitlang/async\": \"" +
-      required_reference_module_version("moonbitlang/async") +
-      "\"",
-    ),
-  )
-  assert_true(
-    moon_mod.contains(
-      "\"moonbitlang/x\": \"" +
-      required_reference_module_version("moonbitlang/x") +
-      "\"",
-    ),
-  )
-  assert_true(
-    moon_mod.contains(
-      "\"oboard/mocket\": \"" +
-      required_reference_module_version("oboard/mocket") +
-      "\"",
-    ),
-  )
-}
-
-///|
-test "project workspace seed can be copied into a workspace" {
+test "project workspace is initialized with plain moon new output" {
   let root = @env.current_dir().unwrap_or(".") +
     "/data/control-plane-test-roots/" +
-    next_id("project-seed-copy")
-  let workspace = root + "/workspace"
+    next_id("project-moon-new")
+  let project_id = next_id("project")
+  let workspace = project_workspace(root, project_id)
   safe_remove_tree(root)
-  ensure_dir(workspace)
-  match copy_project_seed(configured_project_seed_dir(), workspace) {
+  match create_moon_new_project_workspace(root, project_id, workspace) {
     Ok(_) => ignore(())
     Err(message) => abort(message)
   }
-  for file in required_project_seed_files() {
+  for
+    file in [
+      ".gitignore", "README.md", "README.mbt.md", "moon.mod.json", "moon.pkg", "generated_app.mbt",
+      "generated_app_test.mbt", "generated_app_wbtest.mbt", "cmd/main/main.mbt",
+      "cmd/main/moon.pkg",
+    ] {
     assert_true(@fs.path_exists(workspace + "/" + file))
   }
-  assert_true(
-    safe_read_string_or(workspace + "/main.mbt", "").contains("/api/health"),
+  assert_false(@fs.path_exists(workspace + "/.git"))
+  assert_false(@fs.path_exists(workspace + "/.github"))
+  assert_false(@fs.path_exists(workspace + "/.githooks"))
+  assert_false(@fs.path_exists(workspace + "/main.mbt"))
+  assert_false(
+    safe_read_string_or(workspace + "/cmd/main/main.mbt", "").contains(
+      "/api/health",
+    ),
   )
+  assert_false(workspace_app_sources_contain(workspace, "MoonCraft Starter"))
   safe_remove_tree(root)
 }
 
@@ -227,7 +204,7 @@ test "workspace contract repair prompt is self-contained" {
       "Do not read skills, examples, or dependency internals before editing the workspace.",
     ),
   )
-  assert_true(prompt.contains("replace that starter page"))
+  assert_true(prompt.contains("replace it with the user's requested app"))
   assert_true(prompt.contains("Do not send progress messages"))
   assert_true(prompt.contains("moon build --target native"))
   assert_false(prompt.contains("mooncraft-preview.sh"))

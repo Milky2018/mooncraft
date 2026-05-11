@@ -20,7 +20,7 @@ This means the host must have Docker installed and the MoonCraft service contain
 - /var/run/docker.sock:/var/run/docker.sock
 ```
 
-The MoonCraft app image installs `docker-ce-cli`; it does not run a Docker daemon inside the container.
+The MoonCraft app image installs `docker-ce-cli` and the MoonBit CLI. It does not run a Docker daemon inside the container. The MoonBit CLI must remain available at runtime because `POST /api/projects` initializes each generated project workspace with `moon new` before the first agent turn.
 
 Because the Docker daemon is on the host, every source path in `docker run -v ...` is resolved on the host, not inside the MoonCraft container. MoonCraft therefore requires `MOONCRAFT_HOST_DATA_DIR`: an absolute host path mounted into the app container as `/app/data`. The app stores runtime workspaces under `/app/data/...` and translates those paths back to `${MOONCRAFT_HOST_DATA_DIR}/...` before starting agent runtime containers.
 

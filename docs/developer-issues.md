@@ -74,8 +74,8 @@ Agents do not edit this. This file is maintainable by human developers.
       - [ ] max run duration
     - [ ] Add account deletion later, but project deletion must be complete and audited.
     - [ ] Keep AI keys out of user accounts and environment files; production keys must be configured through the admin page.
-- [ ] IDLE/RUNNING/CHECKNEED
-- [ ] change model by user 
-- [ ] Bug: if there is a running agent, other chat will also show it
+- [x] IDLE/RUNNING/CHECKNEED
+- [x] change model by user 
+- [x] Bug: if there is a running agent, other chat will also show it
 - [ ] We should provide AGENTS.md for system prompt
 - [ ] Admin manages Users and projects and runs 

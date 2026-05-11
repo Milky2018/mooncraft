@@ -1,13 +1,11 @@
 # Examples
 
-This directory contains runnable reference projects and platform seed material.
+This directory contains runnable reference projects.
 
-## Project Seeds
+MoonCraft no longer stores generated-project seed modules in this directory.
+New projects are initialized by running `moon new` only. The first real user
+message is responsible for turning that plain MoonBit module into a previewable
+app.
 
-`project-seeds/native-mocket` is copied into every new generated project
-workspace before the first builder turn. It is not a user-facing template picker;
-it is the minimal valid MoonBit native preview contract that gives the builder a
-working root project to replace.
-
-Keep seed projects runnable with `moon -C <seed-dir> check`, `moon -C <seed-dir>
-build --target native`, and `moon -C <seed-dir> test`.
+Do not add app templates here for the product flow. Reference projects are for
+humans and agents to read, not for automatic project creation.

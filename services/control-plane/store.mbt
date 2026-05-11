@@ -2881,7 +2881,7 @@ fn preview_health_attempts() -> Int {
 fn preview_executable_find_command(executable_dir : String) -> String {
   "find " +
   shell_quote(executable_dir) +
-  " -name '*.exe' -type f ! -path '*.dSYM/*' | head -n 1"
+  " -name '*.exe' -type f ! -path '*.dSYM/*' ! -path '*/cmd/*' | head -n 1"
 }
 
 ///|

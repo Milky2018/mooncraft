@@ -103,7 +103,7 @@ Why this is the right first hosted shape:
 
 1. Create an EC2 instance role that supports Systems Manager.
 2. Install Docker and Docker Compose.
-3. Build or load the local `mooncraft:local` and agent runtime images.
+3. Build or load the local `mooncraft:local` and agent runtime images. The MoonCraft app image must include the MoonBit CLI because project creation runs `moon new` inside the app container.
 4. Set deployment environment variables in your service manager or shell: `MOONCRAFT_PUBLIC_BASE_URL` and `MOONCRAFT_POSTGRES_PASSWORD`.
 5. Run `just deploy-test` for the test route or `just deploy-prod` for the production route. These commands pull the configured agent runtime image before starting Compose.
 

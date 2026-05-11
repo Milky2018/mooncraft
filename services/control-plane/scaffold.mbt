@@ -131,62 +131,51 @@ fn scaffold_write_file(path : String, content : String) -> Result[Unit, String] 
 }
 
 ///|
-fn default_project_seed_dir() -> String {
-  @env.current_dir().unwrap_or(".") + "/examples/project-seeds/native-mocket"
+fn moon_new_project_name() -> String {
+  "generated_app"
 }
 
 ///|
-fn configured_project_seed_dir() -> String {
-  match @env.get_env_var("MOONCRAFT_PROJECT_SEED_DIR") {
-    Some(value) if value.trim() != "" => trim_mount_path(value)
-    _ => default_project_seed_dir()
-  }
-}
-
-///|
-fn required_project_seed_files() -> Array[String] {
-  [
-    ".gitignore", "README.md", "moon.mod.json", "moon.pkg", "main.mbt", "main_wbtest.mbt",
-  ]
-}
-
-///|
-fn project_seed_error(seed_dir : String) -> String? {
-  if !@fs.path_exists(seed_dir) {
-    return Some("MoonCraft project seed directory does not exist: \{seed_dir}")
-  }
-  for file in required_project_seed_files() {
-    let path = seed_dir + "/" + file
-    if !@fs.path_exists(path) {
-      return Some("MoonCraft project seed is missing required file: \{path}")
-    }
-  }
-  None
-}
-
-///|
-fn copy_project_seed(
-  seed_dir : String,
+fn create_moon_new_project_workspace(
+  root : String,
+  project_id : String,
   workspace_path : String,
 ) -> Result[Unit, String] {
-  match project_seed_error(seed_dir) {
-    Some(message) => return Err(message)
-    None => ignore(())
-  }
-  ensure_dir(workspace_path)
+  let temp_dir = project_root(root, project_id) + "/.mooncraft-moon-new"
+  let source_dir = temp_dir + "/source"
+  safe_remove_tree(temp_dir)
+  safe_remove_tree(workspace_path)
+  ensure_dir(temp_dir)
   let status = shell_status(
-    "cp -R " +
-    shell_quote(trim_mount_path(seed_dir) + "/.") +
-    " " +
-    shell_quote(trim_mount_path(workspace_path) + "/"),
+    "cd " +
+    shell_quote(temp_dir) +
+    " && moon new --user mooncraft --name " +
+    shell_quote(moon_new_project_name()) +
+    " source >/dev/null 2>&1",
   )
-  if status == 0 {
-    Ok(())
-  } else {
-    Err(
-      "Failed to copy MoonCraft project seed from \{seed_dir} to \{workspace_path}.",
+  if status != 0 {
+    safe_remove_tree(temp_dir)
+    return Err(
+      "MoonCraft could not initialize a new MoonBit project with `moon new`.",
     )
   }
+  ensure_dir(workspace_path)
+  let copy_status = shell_status(
+    "cp -R " +
+    shell_quote(source_dir + "/.") +
+    " " +
+    shell_quote(workspace_path + "/"),
+  )
+  safe_remove_tree(temp_dir)
+  if copy_status != 0 {
+    return Err(
+      "MoonCraft could not copy the `moon new` workspace into the project directory.",
+    )
+  }
+  safe_remove_tree(workspace_path + "/.git")
+  safe_remove_tree(workspace_path + "/.github")
+  safe_remove_tree(workspace_path + "/.githooks")
+  Ok(())
 }
 
 ///|
@@ -195,8 +184,8 @@ async fn AppContext::materialize_project_workspace(
   project : @sdk.ProjectDetail,
 ) -> Result[Unit, String] noraise {
   let workspace_path = project_workspace(self.root, project.id)
-  ensure_dir(workspace_path)
-  match copy_project_seed(configured_project_seed_dir(), workspace_path) {
+  match
+    create_moon_new_project_workspace(self.root, project.id, workspace_path) {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
