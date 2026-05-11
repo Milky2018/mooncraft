@@ -79,3 +79,6 @@ Agents do not edit this. This file is maintainable by human developers.
 - [x] Bug: if there is a running agent, other chat will also show it
 - [x] We should provide AGENTS.md for system prompt
 - [ ] Admin manages Users and projects and runs 
+- [ ] worktree management
+- [ ] admin configure LLM list for users to choose
+- [ ] 

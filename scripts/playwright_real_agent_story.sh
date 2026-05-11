@@ -93,6 +93,7 @@ const expectedPreviewTerms = (process.env.MOONCRAFT_PLAYWRIGHT_REAL_AGENT_EXPECT
   .split(",")
   .map((term) => term.trim().toLowerCase())
   .filter(Boolean)
+const projectName = process.env.MOONCRAFT_PLAYWRIGHT_REAL_AGENT_PROJECT_NAME || "Real Agent Project"
 
 if (!baseUrl) throw new Error("MOONCRAFT_PLAYWRIGHT_BASE_URL is required")
 if (!artifactDir) throw new Error("MOONCRAFT_PLAYWRIGHT_ARTIFACT_DIR is required")
@@ -155,8 +156,10 @@ async function main() {
     screenshots.push(screenshot("02-signed-in.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
 
-    await page.getByPlaceholder("Project name").first().fill("Snake Game")
-    await page.getByRole("button", { name: "Create Project" }).first().click()
+    await page.getByRole("button", { name: /\+ New|Create Project/ }).first().click()
+    await page.getByPlaceholder(/Project name|Snake game|Team CRM|Launch page/i).first().fill(projectName)
+    await page.getByRole("button", { name: "Create Project" }).last().click()
+    await page.locator("textarea").waitFor()
     await page.locator("textarea").fill(prompt)
     screenshots.push(screenshot("03-real-agent-prompt.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
@@ -166,7 +169,18 @@ async function main() {
         response.url().includes("/runs") &&
         response.request().method() === "POST"
     })
-    await page.getByRole("button", { name: /Build With MoonCraft|Send Request/ }).click()
+    await page.locator("textarea").evaluate((textarea) => {
+      const textareaRect = textarea.getBoundingClientRect()
+      const candidates = Array.from(document.querySelectorAll("button"))
+        .filter((button) => !button.disabled)
+        .map((button) => ({ button, rect: button.getBoundingClientRect() }))
+        .filter(({ rect }) => rect.top >= textareaRect.top && rect.left > textareaRect.left)
+        .sort((left, right) => left.rect.left - right.rect.left)
+      if (candidates.length === 0) {
+        throw new Error("No enabled send button found beside the composer")
+      }
+      candidates[0].button.click()
+    })
     screenshots.push(screenshot("04-real-agent-run-started.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
 
@@ -212,6 +226,7 @@ async function main() {
 - Provider: \`OpenRouter (platform key pool)\`
 - Model: \`${model}\`
 - User: \`${email}\`
+- Project Name: \`${projectName}\`
 - Project ID: \`${projectId}\`
 - Run ID: \`${runId}\`
 - Preview URL: \`${run.preview.url}\`

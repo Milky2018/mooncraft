@@ -11,11 +11,11 @@ Responsibilities:
 - serve file-backed control-plane HTML/CSS assets from `services/control-plane/assets`
 - authenticate users through GitHub OAuth and cookie sessions
 - launch durable asynchronous agent workers against generated workspaces
-- fetch approved MoonBit registry modules before validation and preview builds
+- fetch approved MoonBit registry modules before validation and preview startup
 - rebuild and restart local previews
 - store preview URLs and last-known run state
 
-The platform no longer uses official app templates. Project rows do not carry template ids, and there is no template picker. Project creation runs `moon new` deterministically and saves that plain MoonBit module as the first workspace snapshot. The first user prompt decides what the app becomes; the selected agent must create the native preview server as part of the requested app rather than preserve any platform-owned starter app.
+The platform no longer uses official app templates. Project rows do not carry template ids, and there is no template picker. Project creation runs `moon new` deterministically and saves that plain MoonBit module as the first workspace snapshot. The first user prompt decides what the app becomes; the selected agent must set `preferred-target` in `moon.mod.json` and create `mooncraft-preview.sh` as part of the requested app rather than preserve any platform-owned starter app.
 
 The current `AgentGateway` uses Docker-backed agent CLI runs. Projects are bound to one agent CLI at creation time: Codex, Claude Code, or Kimi Code. Codex projects keep one persistent `codex_thread_id` in the database and one platform-owned Codex home under `data/codex-sessions/<project-id>/.codex`; Claude Code and Kimi Code are stateless per turn and rely on the persisted workspace snapshot. Each new chat message starts a detached worker process through `moonbitlang/async/process`, runs the selected agent in the disposable container, validates the workspace with dependency fetches plus `moon fmt`, `moon check`, `moon build`, and `moon test`, then refreshes the preview. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
 
@@ -29,7 +29,7 @@ SQLite is a required dependency for the control plane. If the database cannot be
 
 ## Dependency Fetches
 
-Before agent runs, validation, and preview builds, generated user projects run `moon fetch --no-update` for the pinned modules listed in `config/user_project_reference_modules.txt`. That file is the single source of truth for user-project reference packages and versions.
+Before agent runs, validation, and preview startup, generated user projects run `moon fetch --no-update` for the pinned modules listed in `config/user_project_reference_modules.txt`. That file is the single source of truth for user-project reference packages and versions.
 
 For real Docker-backed runs, the MoonCraft agent runtime image initializes the MoonBit registry at image build time, installs the supported agent CLIs, seeds MoonBit skills from `https://github.com/moonbitlang/skills`, and adds the MoonCraft-generated-app skill plus runtime system instructions before every command. Normal user prompts are not wrapped with the generated-app contract; that project-aware knowledge lives in the runtime skill/system layer. Runtime validation avoids `moon update` by default because MoonBit may fail while rotating its symbols directory across Docker mount boundaries.
 
@@ -55,9 +55,9 @@ Automated local tests can set `MOONCRAFT_ENABLE_DEV_AUTH=1` to enable `POST /api
 
 ## Preview Flow
 
-Generated previews are executable-backed. The control plane builds the generated workspace, starts the built native executable with `<port>` as its first argument on a private local port, and exposes it through `/p/<preview_public_id>/`.
+Generated previews are script-backed. The control plane starts the root `mooncraft-preview.sh` script with `<port>` as its first argument on a private local port and exposes the result through `/p/<preview_public_id>/`.
 
-The generated app must keep `/api/health` available so the preview manager can verify readiness, and it must serve the user-facing app at `/`.
+The generated app must serve the user-facing app at `/`. `/api/health` is the preferred readiness endpoint, and `/` is accepted as a fallback for static or browser-only previews. If the preview script is missing, exits too early, or does not become reachable, MoonCraft asks the agent to repair the preview setup.
 
 ## Validation
 

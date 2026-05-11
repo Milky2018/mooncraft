@@ -27,9 +27,9 @@ Each user project is created under:
 That directory is runtime scratch, not durable storage. The control plane keeps the authoritative workspace source snapshot in SQLite and hydrates it into scratch paths for agent runs and preview rebuilds.
 The old `data/projects` location is not a fallback source; startup removes that legacy scratch root instead of migrating or restoring from it.
 
-Each generated project chooses its own MoonBit structure. The control plane does not create or require `frontend/`, `backend/`, or `shared/` directories; it only requires valid root-level MoonBit commands and one native runnable app that accepts the preview port as its first CLI argument.
+Each generated project chooses its own MoonBit structure. The control plane does not create or require `frontend/`, `backend/`, or `shared/` directories. It requires a valid root MoonBit module with `preferred-target` set in `moon.mod.json`, plain root-level MoonBit commands that pass, and a project-owned `mooncraft-preview.sh` script that starts the live preview.
 
-New projects start from a deterministic plain `moon new` module. MoonCraft does not add a platform-owned starter web app. The selected agent creates the native preview server as part of satisfying the first user request.
+New projects start from a deterministic plain `moon new` module. MoonCraft does not add a platform-owned starter web app. The selected agent creates the app runtime and preview script as part of satisfying the first user request.
 
 This keeps the live preview tied to a real generated app instead of a fake demo panel without forcing every app into one final scaffold.
 
@@ -38,7 +38,7 @@ This keeps the live preview tied to a real generated app instead of a fake demo 
 1. `POST /api/projects` creates project metadata, runs `moon new`, and saves the plain module as the first workspace snapshot.
 2. `POST /api/projects/:id/runs` stores the user message, opens a run, and locks the project.
 3. `AgentGateway` runs the project's selected agent in the project workspace. For the first app turn, the agent is instructed to turn the plain MoonBit module into the requested previewable app.
-4. `PreviewManager` fetches approved MoonBit modules, rebuilds the generated app, and starts the built native executable on a stable local port.
+4. `PreviewManager` fetches approved MoonBit modules, runs the project-owned `mooncraft-preview.sh` on a stable local port, and verifies the HTTP preview.
 5. The control plane marks the run as succeeded or failed and stores the latest preview target.
 6. `apps/web` polls run status and refreshes project state.
 
@@ -78,10 +78,11 @@ The control plane owns only the runtime boundary, not the app's source layout. E
 
 - new projects start from plain `moon new` output, not an official app template
 - normal user prompts are passed as task intent; MoonCraft app contract knowledge lives in the agent runtime skill/system layer
-- the selected agent creates the requested real app and its native preview server
+- the selected agent creates the requested real app and its preview startup script
+- the root `moon.mod.json` must set `preferred-target`
 - root-level `moon fmt`, `moon check`, `moon test`, and `moon build` must remain valid
-- the generated app must build one native runnable executable
-- the executable receives the preview port as its first CLI argument, starts the app server, serves `/`, and returns success from `/api/health`
+- `mooncraft-preview.sh` receives the preview port as its first CLI argument, starts the app server, keeps the preview process in the foreground, and serves `/`
+- `/api/health` is preferred for readiness, while `/` is accepted as a fallback for browser-only/static previews
 - source snapshots are persisted after creation and after successful agent edits
 
 There are no official app templates, no template ids, and no template picker in this slice. Reusable examples should live in documentation or external MoonBit projects, not as platform-owned scaffold variants.
@@ -124,7 +125,7 @@ This separation matters because the frontend, persistence model, and preview lif
 
 - stable port allocation
 - old preview shutdown
-- rebuild and restart
+- preview script startup
 - health checks
 
 The current preview path is same-origin and exposed through:
@@ -132,7 +133,7 @@ The current preview path is same-origin and exposed through:
 - stored `preview.url` values like `/p/<preview_public_id>/`
 - `ALL /p/:preview_public_id/*` reverse proxy handling in the control plane
 
-Generated projects run their built native executable on a private local port. The control plane builds the workspace, finds the native executable under `_build/native/<profile>/build`, runs it with `<port>` as the first argument, proxies browser traffic through `/p/<preview_public_id>/`, and health-checks `/api/health`.
+Generated projects run their own `mooncraft-preview.sh` on a private local port. The control plane passes `<port>` as the first argument, proxies browser traffic through `/p/<preview_public_id>/`, and health-checks `/api/health` with `/` as a fallback.
 
 ## Why This Shape
 

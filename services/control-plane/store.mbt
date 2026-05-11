@@ -52,7 +52,6 @@ pub(all) struct PreviewRuntime {
 struct PreviewManager {
   root : String
   runtimes : Map[String, PreviewRuntime]
-  build_profile : BuildProfile
 }
 
 ///|
@@ -312,14 +311,6 @@ fn BuildProfile::build_dir(self : BuildProfile) -> String {
 }
 
 ///|
-fn BuildProfile::cli_flag(self : BuildProfile) -> String {
-  match self {
-    Debug => ""
-    Release => "--release "
-  }
-}
-
-///|
 fn run_state_to_db(state : @sdk.RunState) -> String {
   match state {
     Idle => "idle"
@@ -433,13 +424,13 @@ fn project_workspace(root : String, project_id : String) -> String {
 }
 
 ///|
-fn preview_executable_missing_message() -> String {
-  "The app compiled, but MoonCraft could not find a native executable to run for the live preview."
+fn preview_script_missing_message() -> String {
+  "MoonCraft could not find `mooncraft-preview.sh` at the project root."
 }
 
 ///|
 fn preview_error_needs_startup_repair(message : String) -> Bool {
-  message == preview_executable_missing_message() ||
+  message == preview_script_missing_message() ||
   message == "The preview process could not be started." ||
   message ==
   "The preview process started, but it did not become healthy in time."
@@ -2765,11 +2756,8 @@ async fn Store::recover_interrupted_runs(self : Store) -> Unit noraise {
 }
 
 ///|
-fn PreviewManager::new(
-  root : String,
-  build_profile : BuildProfile,
-) -> PreviewManager {
-  { root, runtimes: {}, build_profile }
+fn PreviewManager::new(root : String) -> PreviewManager {
+  { root, runtimes: {} }
 }
 
 ///|
@@ -2845,14 +2833,21 @@ fn PreviewManager::is_healthy(
 }
 
 ///|
-fn PreviewManager::wait_until_healthy(
+fn PreviewManager::is_preview_reachable(
   self : PreviewManager,
   port : Int,
-  health_path : String,
+) -> Bool {
+  self.is_healthy(port, preview_health_path()) || self.is_healthy(port, "/")
+}
+
+///|
+fn PreviewManager::wait_until_preview_reachable(
+  self : PreviewManager,
+  port : Int,
   attempts : Int,
 ) -> Bool {
   for _ in 0..<attempts {
-    if self.is_healthy(port, health_path) {
+    if self.is_preview_reachable(port) {
       return true
     }
     ignore(shell_status("sleep 1"))
@@ -2878,10 +2873,13 @@ fn preview_health_attempts() -> Int {
 }
 
 ///|
-fn preview_executable_find_command(executable_dir : String) -> String {
-  "find " +
-  shell_quote(executable_dir) +
-  " -name '*.exe' -type f ! -path '*.dSYM/*' ! -path '*/cmd/*' | head -n 1"
+fn preview_script_relative_path() -> String {
+  "./mooncraft-preview.sh"
+}
+
+///|
+fn preview_script_log_path(project_id : String) -> String {
+  "/tmp/mooncraft-preview-\{project_id}.log"
 }
 
 ///|
@@ -2894,28 +2892,14 @@ fn PreviewManager::rebuild_and_restart(
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
-  let build_code = shell_status(
+  let script_probe_code = shell_status(
     "cd " +
     shell_quote(workspace_path) +
-    " && moon build --target native \{self.build_profile.cli_flag()}>/dev/null 2>&1",
+    " && test -f " +
+    shell_quote(preview_script_relative_path()),
   )
-  if build_code != 0 {
-    return Err(
-      "The updated app did not compile yet, so the preview could not be refreshed.",
-    )
-  }
-  let executable_dir = "_build/native/" +
-    self.build_profile.build_dir() +
-    "/build"
-  let executable_probe_code = shell_status(
-    "cd " +
-    shell_quote(workspace_path) +
-    " && test -n \"$(" +
-    preview_executable_find_command(executable_dir) +
-    ")\"",
-  )
-  if executable_probe_code != 0 {
-    return Err(preview_executable_missing_message())
+  if script_probe_code != 0 {
+    return Err(preview_script_missing_message())
   }
   let preferred_port = project.preview.map(fn(target) { target.port })
   let port = self.allocate_port(
@@ -2926,20 +2910,18 @@ fn PreviewManager::rebuild_and_restart(
   let start_code = shell_status(
     "cd " +
     shell_quote(workspace_path) +
-    " && exe=\"$(" +
-    preview_executable_find_command(executable_dir) +
-    ")\"" +
-    " && nohup \"$exe\" \{port} " +
-    " >/tmp/mooncraft-preview-\{project.id}.log 2>&1 &",
+    " && chmod +x " +
+    shell_quote(preview_script_relative_path()) +
+    " && nohup " +
+    shell_quote(preview_script_relative_path()) +
+    " \{port} >" +
+    shell_quote(preview_script_log_path(project.id)) +
+    " 2>&1 &",
   )
   if start_code != 0 {
     return Err("The preview process could not be started.")
   }
-  if !self.wait_until_healthy(
-      port,
-      preview_health_path(),
-      preview_health_attempts(),
-    ) {
+  if !self.wait_until_preview_reachable(port, preview_health_attempts()) {
     return Err(
       "The preview process started, but it did not become healthy in time.",
     )
@@ -2976,7 +2958,7 @@ async fn AppContext::try_new_for_worker_async(
     root,
     build_profile,
     store,
-    previews: PreviewManager::new(root, build_profile),
+    previews: PreviewManager::new(root),
     agent_gateway: new(root),
   })
 }
@@ -3000,7 +2982,7 @@ fn AppContext::try_new_with_recovery(
     root,
     build_profile,
     store,
-    previews: PreviewManager::new(root, build_profile),
+    previews: PreviewManager::new(root),
     agent_gateway: new(root),
   }
   ignore(recover_interrupted)

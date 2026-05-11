@@ -382,7 +382,7 @@ fn preview_setup_repair_prompt() -> String {
   (
     #|MoonCraft preview startup failed. Repair the existing app so it satisfies the MoonCraft generated-app runtime contract.
     #|
-    #|Use the installed `mooncraft-generated-app` skill or runtime instructions for the exact contract. Preserve the user's app behavior except for changes required to make the preview start and pass health checks.
+    #|Use the installed `mooncraft-generated-app` skill or runtime instructions for the exact contract. Preserve the user's app behavior except for changes required to make `mooncraft-preview.sh` start and pass HTTP health checks.
   )
 }
 
@@ -418,7 +418,7 @@ fn workspace_contract_repair_prompt(
   (
     #|
     #|
-    #|Repair the workspace so it satisfies the MoonCraft generated-app runtime contract. Use the installed `mooncraft-generated-app` skill or runtime instructions for the exact contract. Preserve the user's requested app behavior.
+    #|Repair the workspace so it satisfies the MoonCraft generated-app runtime contract. Use the installed `mooncraft-generated-app` skill or runtime instructions for the exact contract, including `preferred-target` and `mooncraft-preview.sh`. Preserve the user's requested app behavior.
   )
 }
 
@@ -495,6 +495,21 @@ fn workspace_has_root_moon_project(workspace_path : String) -> Bool {
 }
 
 ///|
+fn workspace_has_preferred_target(workspace_path : String) -> Bool {
+  let manifest_path = workspace_path + "/moon.mod.json"
+  if !@fs.path_exists(manifest_path) {
+    return false
+  }
+  let manifest = safe_read_string_or(manifest_path, "")
+  manifest.contains("\"preferred-target\"")
+}
+
+///|
+fn workspace_has_preview_script(workspace_path : String) -> Bool {
+  @fs.path_exists(workspace_path + "/mooncraft-preview.sh")
+}
+
+///|
 fn workspace_moonbit_source_find_command(workspace_path : String) -> String {
   let workspace = trim_mount_path(workspace_path)
   "find " +
@@ -520,20 +535,6 @@ fn workspace_has_user_moonbit_source(workspace_path : String) -> Bool {
 }
 
 ///|
-fn workspace_moonbit_sources_contain(
-  workspace_path : String,
-  needle : String,
-) -> Bool {
-  shell_status(
-    workspace_moonbit_source_find_command(workspace_path) +
-    " -exec grep -F -q " +
-    shell_quote(needle) +
-    " {} \\; -print -quit | grep -q .",
-  ) ==
-  0
-}
-
-///|
 fn workspace_app_sources_contain(
   workspace_path : String,
   needle : String,
@@ -553,13 +554,17 @@ fn workspace_contract_error(workspace_path : String) -> String? {
     Some(
       "The builder did not create a MoonBit project at the workspace root. Expected `moon.mod.json`, `moon.mod`, or `moon.work` directly under \{workspace_path}.",
     )
+  } else if !workspace_has_preferred_target(workspace_path) {
+    Some(
+      "The generated app must set `preferred-target` in the root `moon.mod.json` so MoonCraft can validate it with plain `moon` commands.",
+    )
   } else if !workspace_has_user_moonbit_source(workspace_path) {
     Some(
       "The builder created a root MoonBit manifest but did not create any MoonBit source files under \{workspace_path}.",
     )
-  } else if !workspace_moonbit_sources_contain(workspace_path, "/api/health") {
+  } else if !workspace_has_preview_script(workspace_path) {
     Some(
-      "The generated app does not expose the required `/api/health` preview health endpoint.",
+      "The generated app must provide a root `mooncraft-preview.sh` script that starts the live preview server.",
     )
   } else if workspace_app_sources_contain(workspace_path, "MoonCraft Starter") {
     Some(
@@ -883,6 +888,17 @@ fn fake_codex_update_workspace(
         #|  app.get("/", _ => @mocket.HttpResponse::new(OK, headers={ "Content-Type": "text/html; charset=utf-8" }).body(app_page_html()))
         #|  app.listen("0.0.0.0:\{port}")
         #|}
+      ),
+    ),
+    (
+      "/mooncraft-preview.sh",
+      (
+        #|#!/bin/sh
+        #|set -eu
+        #|port="${1:-4300}"
+        #|moon build
+        #|exe="$(find ./_build -name '*.exe' -type f ! -path '*.dSYM/*' ! -path '*/cmd/*' | head -n 1)"
+        #|exec "$exe" "$port"
       ),
     ),
     (
@@ -1966,7 +1982,7 @@ fn validation_shell_script(include_update~ : Bool) -> String {
   }
   commands.push("moon fmt")
   commands.push("moon check")
-  commands.push("moon build --target native")
+  commands.push("moon build")
   commands.push("moon test")
   let lines : Array[String] = []
   lines.push("set -e")
@@ -2095,8 +2111,8 @@ async fn run_local_validation_sequence(
       None,
       workspace_path,
       artifacts,
-      "moon build",
-      ["moon", "build", "--target", "native"],
+      "moon check",
+      ["moon", "check"],
       thread_id,
     ) {
     Ok(_) => ignore(())
@@ -2108,8 +2124,8 @@ async fn run_local_validation_sequence(
       None,
       workspace_path,
       artifacts,
-      "moon check",
-      ["moon", "check"],
+      "moon build",
+      ["moon", "build"],
       thread_id,
     ) {
     Ok(_) => ignore(())

@@ -67,7 +67,7 @@ test "success summary copy is shared across run completion paths" {
 ///|
 test "preview startup failures use user-safe copy" {
   inspect(
-    preview_error_needs_startup_repair(preview_executable_missing_message()),
+    preview_error_needs_startup_repair(preview_script_missing_message()),
     content="true",
   )
   assert_true(
@@ -81,7 +81,7 @@ test "preview startup failures use user-safe copy" {
   assert_false(
     preview_setup_repair_prompt().contains("Do not send progress messages"),
   )
-  assert_false(preview_setup_repair_prompt().contains("mooncraft-preview.sh"))
+  assert_true(preview_setup_repair_prompt().contains("mooncraft-preview.sh"))
   assert_false(
     preview_refresh_failed_assistant_message().contains("mooncraft-preview.sh"),
   )
@@ -93,11 +93,12 @@ test "preview startup failures use user-safe copy" {
 }
 
 ///|
-test "preview executable discovery excludes debug symbols" {
-  let command = preview_executable_find_command("_build/native/debug/build")
-  assert_true(command.contains("-name '*.exe'"))
-  assert_true(command.contains("! -path '*.dSYM/*'"))
-  assert_true(command.contains("! -path '*/cmd/*'"))
+test "preview script contract uses root script" {
+  inspect(preview_script_relative_path(), content="./mooncraft-preview.sh")
+  inspect(
+    preview_script_log_path("project-1"),
+    content="/tmp/mooncraft-preview-project-1.log",
+  )
 }
 
 ///|
@@ -120,25 +121,26 @@ test "workspace contract requires root MoonBit project" {
   safe_write_string(workspace + "/moon.mod.json", "{\"name\":\"test/app\"}\n")
   debug_inspect(
     workspace_contract_error(workspace).map(fn(message) {
-      message.contains("did not create any MoonBit source files")
+      message.contains("preferred-target")
     }),
     content="Some(true)",
+  )
+  safe_write_string(
+    workspace + "/moon.mod.json",
+    "{\"name\":\"test/app\",\"preferred-target\":\"native\"}\n",
   )
   safe_write_string(workspace + "/main.mbt", "fn main { println(\"Hello\") }\n")
   debug_inspect(
     workspace_contract_error(workspace).map(fn(message) {
-      message.contains("/api/health")
+      message.contains("mooncraft-preview.sh")
     }),
     content="Some(true)",
   )
-  safe_write_string(
-    workspace + "/main.mbt",
-    "fn main { let _ = \"/api/health\" }\n",
-  )
+  safe_write_string(workspace + "/mooncraft-preview.sh", "#!/bin/sh\n")
   debug_inspect(workspace_contract_error(workspace), content="None")
   safe_write_string(
     workspace + "/main.mbt",
-    "fn main { let _ = \"/api/health MoonCraft Starter\" }\n",
+    "fn main { let _ = \"MoonCraft Starter\" }\n",
   )
   debug_inspect(
     workspace_contract_error(workspace).map(fn(message) {
@@ -146,10 +148,7 @@ test "workspace contract requires root MoonBit project" {
     }),
     content="Some(true)",
   )
-  safe_write_string(
-    workspace + "/main.mbt",
-    "fn main { let _ = \"/api/health Snake\" }\n",
-  )
+  safe_write_string(workspace + "/main.mbt", "fn main { let _ = \"Snake\" }\n")
   safe_write_string(
     workspace + "/main_wbtest.mbt",
     "test \"starter absent\" { assert_false(\"Snake\".contains(\"MoonCraft Starter\")) }\n",
@@ -202,8 +201,11 @@ test "agent runtime ships MoonCraft generated app knowledge" {
   assert_true(@fs.path_exists(system_prompt_path))
   let skill = safe_read_string_or(skill_path, "")
   assert_true(skill.contains("MoonCraft Generated App Contract"))
+  assert_true(skill.contains("preferred-target"))
+  assert_true(skill.contains("mooncraft-preview.sh"))
   assert_true(skill.contains("/api/health"))
-  assert_true(skill.contains("moon build --target native"))
+  assert_true(skill.contains("moon build"))
+  assert_false(skill.contains("moon build --target native"))
   assert_true(skill.contains("first CLI argument as the port"))
 }
 
@@ -223,7 +225,7 @@ test "workspace contract repair prompt is self-contained" {
   assert_false(prompt.contains("app_page_html"))
   assert_false(prompt.contains("@env.args()"))
   assert_false(prompt.contains("moon build --target native"))
-  assert_false(prompt.contains("mooncraft-preview.sh"))
+  assert_true(prompt.contains("mooncraft-preview.sh"))
   assert_false(prompt.contains("implementation-required"))
 }
 
@@ -365,6 +367,7 @@ test "docker validation uses initialized image registry in one shell" {
   assert_true(script.contains("moon check"))
   assert_true(script.contains("moon build"))
   assert_true(script.contains("moon test"))
+  assert_false(script.contains("--target native"))
 }
 
 ///|
@@ -697,7 +700,7 @@ async test "delete project removes persisted agent homes" {
     root,
     build_profile: Debug,
     store,
-    previews: PreviewManager::new(root, Debug),
+    previews: PreviewManager::new(root),
     agent_gateway: new(root),
   }
   let project_id = next_id("project")
@@ -1208,7 +1211,7 @@ async test "builder snapshot persistence saves invalid contract workspaces" {
   )
   debug_inspect(
     workspace_contract_error(workspace_path).map(fn(message) {
-      message.contains("/api/health")
+      message.contains("preferred-target")
     }),
     content="Some(true)",
   )
