@@ -17,6 +17,7 @@ ENV PATH=/opt/moon/bin:/opt/kimi-cli/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin
 
 COPY docker/agent-runtime/bin/ /usr/local/bin/
 COPY docker/agent-runtime/install/ /opt/mooncraft/install/
+COPY docker/agent-runtime/mooncraft-agent-system.md /opt/mooncraft/mooncraft-agent-system.md
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates curl git bash ripgrep jq coreutils python3 \
@@ -33,6 +34,8 @@ RUN CODEX_CLI_VERSION="${CODEX_CLI_VERSION}" /opt/mooncraft/install/install-node
 RUN /opt/mooncraft/install/install-kimi.sh
 
 RUN /opt/mooncraft/install/install-moonbit-skills.sh
+
+COPY docker/agent-runtime/skills/ /opt/codex-skill-seed/skills/
 
 WORKDIR /workspace
 

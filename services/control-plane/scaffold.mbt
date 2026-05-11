@@ -36,23 +36,6 @@ fn required_user_project_fetches() -> Array[String] {
 }
 
 ///|
-fn reference_modules_sentence() -> String {
-  let modules = required_user_project_fetches()
-  if modules.length() == 0 {
-    "the configured reference modules"
-  } else {
-    modules.join(", ")
-  }
-}
-
-///|
-fn reference_modules_prompt_rule() -> String {
-  "- The runtime has already fetched reference MoonBit packages with `moon fetch`; inspect `.repos` or `.mooncakes` when useful for examples from " +
-  reference_modules_sentence() +
-  "."
-}
-
-///|
 fn moon_fetch_no_update_command(module_name : String) -> String {
   "moon fetch --no-update " + shell_quote(module_name)
 }

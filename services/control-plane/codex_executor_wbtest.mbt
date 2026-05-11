@@ -17,6 +17,16 @@ test "stateless agent summary parser extracts streamed assistant text" {
 }
 
 ///|
+test "normal prompts keep user text unwrapped" {
+  inspect(bootstrap_prompt("Build a todo app"), content="Build a todo app")
+  inspect(followup_prompt("Add labels"), content="Add labels")
+  inspect(
+    recovery_prompt("Build a todo app", "Add labels"),
+    content="Add labels",
+  )
+}
+
+///|
 test "raw codex commands do not wrap compact repair prompts" {
   let repair = workspace_contract_repair_prompt(
     "missing root manifest", "Build a counter", "Make it previewable",
@@ -33,10 +43,9 @@ test "raw codex commands do not wrap compact repair prompts" {
 }
 
 ///|
-test "fake codex extracts only the user request from wrapped prompts" {
+test "fake codex accepts unwrapped prompts" {
   let bootstrap = bootstrap_prompt("Build a todo app")
   inspect(fake_codex_user_request(bootstrap), content="Build a todo app")
-  assert_false(fake_codex_user_request(bootstrap).contains("Working rules"))
   let followup = followup_prompt("Add labels and due dates")
   inspect(fake_codex_user_request(followup), content="Add labels and due dates")
   let recovery = recovery_prompt("Build a todo app", "Add labels and due dates")
@@ -62,20 +71,14 @@ test "preview startup failures use user-safe copy" {
     content="true",
   )
   assert_true(
-    preview_setup_repair_prompt().contains(
-      "built native executable starts the server",
-    ),
+    preview_setup_repair_prompt().contains("MoonCraft preview startup failed"),
   )
-  assert_true(
-    preview_setup_repair_prompt().contains(
-      "replace it with a native HTTP server",
-    ),
-  )
-  assert_true(preview_setup_repair_prompt().contains("@env.args()"))
-  assert_true(
+  assert_true(preview_setup_repair_prompt().contains("mooncraft-generated-app"))
+  assert_false(preview_setup_repair_prompt().contains("@env.args()"))
+  assert_false(
     preview_setup_repair_prompt().contains("moon build --target native"),
   )
-  assert_true(
+  assert_false(
     preview_setup_repair_prompt().contains("Do not send progress messages"),
   )
   assert_false(preview_setup_repair_prompt().contains("mooncraft-preview.sh"))
@@ -189,6 +192,22 @@ test "project workspace is initialized with plain moon new output" {
 }
 
 ///|
+test "agent runtime ships MoonCraft generated app knowledge" {
+  let root = @env.current_dir().unwrap_or(".")
+  let skill_path = root +
+    "/docker/agent-runtime/skills/mooncraft-generated-app/SKILL.md"
+  let system_prompt_path = root +
+    "/docker/agent-runtime/mooncraft-agent-system.md"
+  assert_true(@fs.path_exists(skill_path))
+  assert_true(@fs.path_exists(system_prompt_path))
+  let skill = safe_read_string_or(skill_path, "")
+  assert_true(skill.contains("MoonCraft Generated App Contract"))
+  assert_true(skill.contains("/api/health"))
+  assert_true(skill.contains("moon build --target native"))
+  assert_true(skill.contains("first CLI argument as the port"))
+}
+
+///|
 test "workspace contract repair prompt is self-contained" {
   let prompt = workspace_contract_repair_prompt(
     "The root MoonBit project is missing.", "Build a Snake game", "Make it browser-playable",
@@ -198,15 +217,12 @@ test "workspace contract repair prompt is self-contained" {
   assert_true(prompt.contains("Build a Snake game"))
   assert_true(prompt.contains("Latest user request"))
   assert_true(prompt.contains("Make it browser-playable"))
-  assert_true(prompt.contains("You must edit files in this workspace"))
-  assert_true(
-    prompt.contains(
-      "Do not read skills, examples, or dependency internals before editing the workspace.",
-    ),
-  )
-  assert_true(prompt.contains("replace it with the user's requested app"))
-  assert_true(prompt.contains("Do not send progress messages"))
-  assert_true(prompt.contains("moon build --target native"))
+  assert_true(prompt.contains("mooncraft-generated-app"))
+  assert_false(prompt.contains("You must edit files in this workspace"))
+  assert_false(prompt.contains("Do not read skills"))
+  assert_false(prompt.contains("app_page_html"))
+  assert_false(prompt.contains("@env.args()"))
+  assert_false(prompt.contains("moon build --target native"))
   assert_false(prompt.contains("mooncraft-preview.sh"))
   assert_false(prompt.contains("implementation-required"))
 }
@@ -758,12 +774,12 @@ test "codex display events hide protocol noise" {
 }
 
 ///|
-test "recovery prompt includes original and latest requests" {
+test "recovery prompt keeps only latest user request" {
   let prompt = recovery_prompt("Build a todo app", "Add labels and due dates")
-  assert_true(prompt.contains("Original project requirement"))
-  assert_true(prompt.contains("Build a todo app"))
-  assert_true(prompt.contains("Latest user request"))
-  assert_true(prompt.contains("Add labels and due dates"))
+  inspect(prompt, content="Add labels and due dates")
+  assert_false(prompt.contains("Original project requirement"))
+  assert_false(prompt.contains("Build a todo app"))
+  assert_false(prompt.contains("Latest user request"))
 }
 
 ///|

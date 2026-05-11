@@ -5,11 +5,17 @@ codex_home="${CODEX_HOME:-${HOME:-/root}/.codex}"
 export CODEX_HOME="$codex_home"
 mkdir -p "$codex_home"
 
+system_prompt_path="/opt/mooncraft/mooncraft-agent-system.md"
+
 if [[ -d /opt/codex-skill-seed/skills ]]; then
   if [[ ! -e "$codex_home/skills" || -d "$codex_home/skills" ]]; then
     mkdir -p "$codex_home/skills"
     cp -R /opt/codex-skill-seed/skills/. "$codex_home/skills/"
   fi
+fi
+
+if [[ -f "$system_prompt_path" ]]; then
+  cp "$system_prompt_path" "$codex_home/AGENTS.md"
 fi
 
 provider="${MOONCRAFT_AI_PROVIDER:-openrouter}"
@@ -58,6 +64,10 @@ EOF
   kimi_code)
     kimi_share_dir="${KIMI_SHARE_DIR:-${HOME:-/root}/.kimi}"
     mkdir -p "$kimi_share_dir"
+    if [[ -d /opt/codex-skill-seed/skills ]]; then
+      mkdir -p "$kimi_share_dir/skills"
+      cp -R /opt/codex-skill-seed/skills/. "$kimi_share_dir/skills/"
+    fi
     cat >"$kimi_share_dir/config.toml" <<EOF
 default_model = "mooncraft-openrouter"
 default_thinking = false
