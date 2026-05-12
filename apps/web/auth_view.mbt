@@ -61,7 +61,7 @@ fn render_auth_screen(
   let _ = model.auth_notice
   @html.div(
     style=[
-      "min-height: 100vh", "position: relative", "padding: 16px", "background-image: linear-gradient(rgba(2, 6, 23, 0.58), rgba(2, 6, 23, 0.70)), url('/assets/factory.png')",
+      "min-height: 100vh", "position: relative", "padding: 16px", "background-image: linear-gradient(rgba(2, 6, 23, 0.58), rgba(2, 6, 23, 0.70)), url('/assets/factory.webp')",
       "background-size: cover", "background-position: center", "box-sizing: border-box",
     ],
   ) <| [
