@@ -7,16 +7,29 @@
     <style>
       :root {
         color-scheme: light;
-        font-family: "IBM Plex Sans", "Avenir Next", "Helvetica Neue", sans-serif;
-        --font-title: 24px;
-        --font-mid: 14px;
-        --text-title: 700 var(--font-title) / 1.12 "IBM Plex Sans", "Avenir Next", "Helvetica Neue", sans-serif;
-        --text-normal: 500 var(--font-mid) / 1.55 "IBM Plex Sans", "Avenir Next", "Helvetica Neue", sans-serif;
-        --text-value: 600 var(--font-mid) / 1.45 "IBM Plex Sans", "Avenir Next", "Helvetica Neue", sans-serif;
-        --color-title: #172033;
-        --color-normal: #5e6a7d;
-        --color-value: #172033;
-        background: #f4f6f8;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        --background: oklch(0.98 0.003 265);
+        --foreground: oklch(0.185 0.01 270);
+        --foreground-rgb: 38, 36, 42;
+        --accent: oklch(0.62 0.13 293);
+        --success: oklch(0.55 0.17 145);
+        --destructive: oklch(0.58 0.24 28);
+        --foreground-3: color-mix(in oklch, var(--foreground) 3%, var(--background));
+        --foreground-5: color-mix(in oklch, var(--foreground) 5%, var(--background));
+        --foreground-10: color-mix(in oklch, var(--foreground) 10%, var(--background));
+        --foreground-50: color-mix(in oklch, var(--foreground) 50%, var(--background));
+        --foreground-70: color-mix(in oklch, var(--foreground) 70%, var(--background));
+        --font-title: 14px;
+        --font-mid: 13px;
+        --text-title: 600 var(--font-title) / 1.25 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --text-normal: 400 var(--font-mid) / 1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --text-value: 500 var(--font-mid) / 1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --color-title: var(--foreground);
+        --color-normal: var(--foreground-70);
+        --color-value: var(--foreground);
+        --border: oklch(from var(--foreground) l c h / 0.06);
+        --shadow: rgba(var(--foreground-rgb), 0.06) 0px 0px 0px 1px, rgba(0, 0, 0, 0.06) 0px 1px 1px -0.5px, rgba(0, 0, 0, 0.06) 0px 3px 3px -1.5px;
+        background: var(--background);
         color: var(--color-normal);
       }
 
@@ -29,15 +42,13 @@
         min-height: 100vh;
         font: var(--text-normal);
         color: var(--color-normal);
-        background:
-          radial-gradient(circle at top left, rgba(40, 124, 108, 0.14), transparent 34rem),
-          linear-gradient(135deg, #f7f8fa, #edf2f7);
+        background: var(--background);
       }
 
       main {
-        width: min(1220px, calc(100vw - 48px));
+        width: min(1220px, calc(100vw - 24px));
         margin: 0 auto;
-        padding: 34px 0 56px;
+        padding: 12px 0 32px;
       }
 
       h1,
@@ -67,9 +78,9 @@
       input,
       select {
         width: 100%;
-        border: 1px solid rgba(23, 32, 51, 0.14);
-        border-radius: 10px;
-        background: #ffffff;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--background);
         color: var(--color-value);
         padding: 9px 11px;
         font: var(--text-value);
@@ -78,22 +89,22 @@
 
       button {
         border: 0;
-        border-radius: 10px;
-        padding: 9px 11px;
+        border-radius: 6px;
+        padding: 7px 10px;
         font: var(--text-value);
         cursor: pointer;
-        background: #21665d;
-        color: #ffffff;
+        background: var(--foreground);
+        color: var(--background);
       }
 
       button.secondary {
-        background: #eef2f6;
-        color: #243044;
+        background: var(--foreground-5);
+        color: var(--foreground);
       }
 
       button.danger {
-        background: #fff1f0;
-        color: #a3312b;
+        background: oklch(from var(--destructive) l c h / 0.10);
+        color: var(--destructive);
       }
 
       button:disabled {
@@ -103,14 +114,14 @@
 
       .hero,
       .card {
-        border: 1px solid rgba(23, 32, 51, 0.1);
-        border-radius: 16px;
-        background: rgba(255, 255, 255, 0.92);
-        box-shadow: 0 24px 80px rgba(23, 32, 51, 0.08);
+        border: 0;
+        border-radius: 10px;
+        background: var(--background);
+        box-shadow: var(--shadow);
       }
 
       .hero {
-        padding: 22px;
+        padding: 12px;
         display: flex;
         justify-content: space-between;
         gap: 18px;
@@ -125,18 +136,18 @@
       .stack {
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 8px;
       }
 
       .grid {
         display: grid;
         grid-template-columns: minmax(0, 1fr);
-        gap: 14px;
-        margin-top: 14px;
+        gap: 6px;
+        margin-top: 6px;
       }
 
       .card {
-        padding: 18px;
+        padding: 12px;
       }
 
       .section-head,
@@ -145,7 +156,7 @@
       .node-actions,
       .row {
         display: flex;
-        gap: 10px;
+        gap: 6px;
         align-items: center;
       }
 
@@ -161,28 +172,28 @@
       }
 
       .icon-button {
-        width: 48px;
-        height: 48px;
+        width: 32px;
+        height: 32px;
         padding: 0;
-        border-radius: 14px;
+        border-radius: 6px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
       }
 
       .icon-button svg {
-        width: 22px;
-        height: 22px;
+        width: 16px;
+        height: 16px;
       }
 
       .icon-button.refresh {
-        background: #e8f8f1;
-        color: #17654f;
+        background: oklch(from var(--success) l c h / 0.12);
+        color: var(--success);
       }
 
       .icon-button.logout {
-        background: #fff1f0;
-        color: #a3312b;
+        background: oklch(from var(--destructive) l c h / 0.10);
+        color: var(--destructive);
       }
 
       .sr-only {
@@ -198,16 +209,16 @@
       }
 
       .notice {
-        border-radius: 12px;
-        padding: 11px 12px;
-        background: #ecfdf5;
-        color: #17654f;
+        border-radius: 6px;
+        padding: 8px 10px;
+        background: oklch(from var(--success) l c h / 0.12);
+        color: var(--success);
         font: var(--text-normal);
       }
 
       .notice.error {
-        background: #fff1f0;
-        color: #a3312b;
+        background: oklch(from var(--destructive) l c h / 0.10);
+        color: var(--destructive);
       }
 
       .notice[hidden],
@@ -220,17 +231,17 @@
       .tree {
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 4px;
       }
 
       .node {
-        border: 1px solid rgba(23, 32, 51, 0.1);
-        border-radius: 14px;
-        background: #ffffff;
+        border: 0;
+        border-radius: 8px;
+        background: var(--foreground-3);
       }
 
       .node-head {
-        padding: 12px;
+        padding: 8px;
       }
 
       .node-main {
@@ -247,73 +258,73 @@
       }
 
       .node-children {
-        margin: 0 12px 12px;
-        padding-left: 16px;
-        border-left: 2px solid rgba(33, 102, 93, 0.16);
+        margin: 0 8px 8px;
+        padding-left: 12px;
+        border-left: 1px solid var(--foreground-10);
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 4px;
       }
 
       .project-node {
-        background: #f8fafc;
+        background: var(--background);
       }
 
       .run-node {
-        background: #ffffff;
+        background: var(--background);
       }
 
       .node-actions button,
       .node-actions a {
-        border-radius: 10px;
-        padding: 8px 10px;
+        border-radius: 6px;
+        padding: 7px 9px;
         font: var(--text-value);
         text-decoration: none;
       }
 
       .node-actions a {
-        background: #eef2f6;
-        color: #243044;
+        background: var(--foreground-5);
+        color: var(--foreground);
       }
 
       .disclosure {
-        min-width: 40px;
+        min-width: 32px;
       }
 
       .badge {
         display: inline-flex;
         width: fit-content;
-        border-radius: 999px;
-        padding: 4px 8px;
-        background: #eef2f6;
-        color: #49566b;
+        border-radius: 6px;
+        padding: 2px 6px;
+        background: var(--foreground-5);
+        color: var(--foreground-50);
         font: var(--text-value);
       }
 
       .badge.running {
-        background: #ecfdf5;
-        color: #17654f;
+        background: oklch(from var(--success) l c h / 0.12);
+        color: var(--success);
       }
 
       .badge.failed {
-        background: #fff1f0;
-        color: #a3312b;
+        background: oklch(from var(--destructive) l c h / 0.10);
+        color: var(--destructive);
       }
 
       .empty-state {
-        border: 1px dashed rgba(23, 32, 51, 0.18);
-        border-radius: 14px;
-        background: rgba(255, 255, 255, 0.72);
-        padding: 18px;
+        border: 1px dashed var(--foreground-10);
+        border-radius: 8px;
+        background: var(--foreground-3);
+        padding: 12px;
         font: var(--text-normal);
         color: var(--color-normal);
       }
 
       .drawer {
-        border: 1px solid rgba(33, 102, 93, 0.18);
-        border-radius: 14px;
-        background: #f6fbf9;
-        padding: 14px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--foreground-3);
+        padding: 10px;
       }
 
       .row > * {
@@ -330,7 +341,7 @@
       }
 
       code {
-        font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+        font-family: "SFMono-Regular", Menlo, Consolas, monospace;
         font: var(--text-value);
         color: var(--color-value);
       }

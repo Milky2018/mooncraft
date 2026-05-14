@@ -30,10 +30,10 @@ fn project_action_button_style(
   let cursor = if enabled { "pointer" } else { "not-allowed" }
   let opacity = if enabled { "1" } else { "0.45" }
   [
-    "width: 32px",
-    "height: 32px",
+    "width: 28px",
+    "height: 28px",
     "padding: 0",
-    "border: 1px solid transparent",
+    "border: 0",
     "border-radius: var(--radius-control)",
     "background: " + background,
     "color: " + foreground,
@@ -198,8 +198,7 @@ fn sidebar_project_item(
   project : @sdk.ProjectSummary,
 ) -> @rabbita.Html {
   let selected = model.selected_project_id == Some(project.id)
-  let background = if selected { "var(--surface-2)" } else { "transparent" }
-  let border_color = if selected { "var(--border-soft)" } else { "transparent" }
+  let background = if selected { "var(--foreground-5)" } else { "transparent" }
   let deleting = model.delete_project_pending == Some(project.id)
   let confirming = model.delete_project_confirming == Some(project.id)
   let renaming = selected && model.rename_project_editing
@@ -213,14 +212,14 @@ fn sidebar_project_item(
   }
   @html.div(
     style=[
-      "border: 1px solid " + border_color,
+      "border: 0",
       "border-radius: var(--radius-control)",
       "background: " + background,
       "box-shadow: none",
-      "padding: 8px",
+      "padding: 5px 8px",
       "display: flex",
       "align-items: center",
-      "gap: 4px",
+      "gap: 6px",
     ],
   ) <| [
     if renaming {
@@ -242,7 +241,7 @@ fn sidebar_project_item(
             on_input=fn(value) { dispatch(RenameProjectNameChanged(value)) },
             style=input_style(model.rename_project_pending) +
               [
-                "height: 32px", "min-width: 0", "padding: 4px 8px", "border-radius: var(--radius-control)",
+                "height: 28px", "min-width: 0", "padding: 4px 8px", "border-radius: var(--radius-control)",
               ],
             "",
           ),
@@ -355,12 +354,12 @@ fn render_account_panel(
       }
       @html.div(
         style=[
-          "position: absolute", "right: 0", "top: calc(100% + 8px)", "width: min(320px, calc(100vw - 32px))",
-          "padding: 8px", "display: flex", "flex-direction: column", "gap: 4px",
+          "position: absolute", "right: 0", "top: calc(100% + 6px)", "width: min(280px, calc(100vw - 24px))",
+          "padding: 6px", "display: flex", "flex-direction: column", "gap: 4px",
           "z-index: 100", "max-height: calc(100vh - 90px)", "overflow-y: auto", "background: var(--surface-raised)",
           "background-color: var(--surface-raised)", "background-image: none", "border: 1px solid var(--border-soft)",
-          "border-radius: var(--radius-control)", "box-shadow: 0 16px 48px rgba(15, 23, 42, 0.14)",
-          "backdrop-filter: none", "isolation: isolate",
+          "border-radius: var(--radius-panel)", "box-shadow: var(--shadow)", "backdrop-filter: none",
+          "isolation: isolate",
         ],
       ) <| [
         @html.div(style=["display: flex", "align-items: center", "gap: 8px"], [
@@ -404,7 +403,7 @@ fn render_account_panel(
               "var(--text-2)",
               !model.logout_pending,
             ) +
-            ["width: 100%", "justify-content: flex-start"],
+            ["width: 100%", "justify-content: flex-start", "height: 30px"],
           if model.logout_pending {
             "Logging out..."
           } else {
@@ -427,14 +426,14 @@ fn render_account_toolbar(
       @html.div(
         style=[
           "position: relative", "padding: 0", "display: flex", "align-items: center",
-          "justify-content: flex-end", "gap: 8px", "flex-wrap: wrap", "flex-shrink: 0",
+          "justify-content: flex-end", "gap: 6px", "flex-wrap: wrap", "flex-shrink: 0",
           "overflow: visible", "z-index: 20",
         ],
       ) <| [
         @html.div(
           style=[
             "display: flex", "align-items: center", "justify-content: flex-end",
-            "gap: 8px", "flex-wrap: wrap", "position: relative",
+            "gap: 6px", "flex-wrap: wrap", "position: relative",
           ],
           [
             tun_poc_link(),
@@ -443,7 +442,7 @@ fn render_account_toolbar(
               on_click=dispatch(ToggleAccountPanel),
               style=secondary_button_style(true) +
                 [
-                  "height: 32px", "padding: 0 8px", "justify-content: flex-start",
+                  "height: 28px", "padding: 0 7px", "justify-content: flex-start",
                   "min-width: 0",
                 ],
               [
@@ -485,13 +484,13 @@ fn render_project_sidebar(
   })
   @html.div(
     style=[
-      "width: 296px", "height: 100vh", "min-height: 0", "padding: 8px", "display: flex",
-      "flex-direction: column", "gap: 8px", "background: var(--sidebar-bg)", "border-right: 0",
-      "box-sizing: border-box", "flex-shrink: 0", "overflow: hidden", "backdrop-filter: blur(24px)",
+      "width: 284px", "height: 100vh", "min-height: 0", "padding: 6px", "display: flex",
+      "flex-direction: column", "gap: 6px", "background: var(--sidebar-bg)", "border-right: 1px solid var(--border-soft)",
+      "box-sizing: border-box", "flex-shrink: 0", "overflow: hidden", "backdrop-filter: none",
     ],
   ) <| [
     @html.div(style=["display: flex", "align-items: center", "gap: 8px"], [
-      brand_logo(32),
+      brand_logo(28),
       @html.div(
         style=[
           "min-width: 0", "display: flex", "flex-direction: column", "gap: 4px",
@@ -510,14 +509,14 @@ fn render_project_sidebar(
           type_="button",
           disabled=false,
           on_click=dispatch(OpenNewProjectDialog),
-          style=primary_button_style(true) + ["height: 32px", "padding: 0 12px"],
+          style=primary_button_style(true) + ["height: 28px", "padding: 0 10px"],
           "+ New",
         ),
       ],
     ),
     @html.div(
       style=[
-        "display: flex", "flex-direction: column", "gap: 4px", "min-height: 0", "overflow-y: auto",
+        "display: flex", "flex-direction: column", "gap: 2px", "min-height: 0", "overflow-y: auto",
         "overscroll-behavior: contain", "flex: 1",
       ],
       project_items,
@@ -553,14 +552,14 @@ fn render_workspace_shell(
     render_project_sidebar(dispatch, model),
     @html.div(
       style=[
-        "flex: 1", "min-width: 0", "padding: 8px", "display: flex", "flex-direction: column",
-        "gap: 8px", "box-sizing: border-box", "min-height: 0", "overflow: hidden",
+        "flex: 1", "min-width: 0", "padding: 6px", "display: flex", "flex-direction: column",
+        "gap: 6px", "box-sizing: border-box", "min-height: 0", "overflow: hidden",
       ],
       [
         render_account_toolbar(dispatch, model),
         @html.div(
           style=[
-            "flex: 1", "min-width: 0", "min-height: 0", "display: flex", "gap: 8px",
+            "flex: 1", "min-width: 0", "min-height: 0", "display: flex", "gap: 6px",
             "align-items: stretch", "overflow: hidden",
           ],
           workspace_body,

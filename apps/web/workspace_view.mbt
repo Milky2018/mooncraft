@@ -2,35 +2,31 @@
 fn render_message(message : @sdk.ChatMessage) -> @rabbita.Html {
   let is_user = message.role is User
   let bubble_background = if is_user {
-    "linear-gradient(135deg, var(--action-strong), var(--action))"
+    "var(--foreground-5)"
   } else {
-    "var(--surface-2)"
+    "transparent"
   }
   let bubble_foreground = if is_user {
-    "var(--on-action)"
+    "var(--text-1)"
   } else {
     "var(--text-1)"
   }
   let justify = if is_user { "flex-end" } else { "flex-start" }
-  let bubble_border = if is_user {
-    "rgba(255,255,255,0.08)"
-  } else {
-    "var(--border-soft)"
-  }
+  let bubble_border = if is_user { "transparent" } else { "transparent" }
   @html.div(style=["display: flex", "justify-content: " + justify]) <| (@html.div(
     style=[
-      "max-width: min(720px, 88%)",
-      "padding: 8px 12px",
-      "border-radius: var(--radius-control)",
+      "max-width: min(720px, 82%)",
+      "padding: 8px 10px",
+      "border-radius: 12px",
       "background: " + bubble_background,
       "color: " + bubble_foreground,
       "border: 1px solid " + bubble_border,
-      "box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08)",
+      "box-shadow: none",
     ],
   ) <| [
     @html.div(
       style=normal_text_style() +
-        ["opacity: 0.86", "margin-bottom: 8px", "color: " + bubble_foreground],
+        ["opacity: 0.55", "margin-bottom: 4px", "color: " + bubble_foreground],
       message.role.label(),
     ),
     if is_user {
@@ -95,9 +91,8 @@ fn render_run_events(model : Model) -> @rabbita.Html {
   }
   @html.div(style=["display: flex", "justify-content: flex-start"]) <| (@html.div(
     style=[
-      "max-width: min(760px, 92%)", "padding: 8px 12px", "border-radius: var(--radius-control)",
-      "background: var(--surface-2)", "box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06)",
-      "display: flex", "flex-direction: column", "gap: 8px",
+      "max-width: min(760px, 92%)", "padding: 8px 10px", "border-radius: 12px", "background: var(--foreground-3)",
+      "box-shadow: none", "display: flex", "flex-direction: column", "gap: 8px",
     ],
   ) <| [
     @html.div(
@@ -106,8 +101,8 @@ fn render_run_events(model : Model) -> @rabbita.Html {
     ),
     @html.div(
       style=[
-        "display: flex", "align-items: center", "gap: 8px", "padding: 8px", "border-radius: var(--radius-control)",
-        "background: var(--surface-3)",
+        "display: flex", "align-items: center", "gap: 8px", "padding: 6px 8px", "border-radius: var(--radius-control)",
+        "background: var(--background)",
       ],
       [
         @html.div(
@@ -135,9 +130,9 @@ fn render_run_banner(model : Model) -> @rabbita.Html {
     Some(run) =>
       @html.div(
         style=[
-          "padding: 8px 10px", "border-radius: var(--radius-control)", "background: var(--action-soft)",
-          "border: 1px solid var(--border-soft)", "display: flex", "justify-content: space-between",
-          "align-items: center", "gap: 8px",
+          "padding: 6px 8px", "border-radius: var(--radius-control)", "background: var(--foreground-3)",
+          "border: 0", "display: flex", "justify-content: space-between", "align-items: center",
+          "gap: 8px",
         ],
       ) <| [
         @html.div(style=value_text_style(), "Building your app..."),
@@ -379,7 +374,8 @@ fn render_new_project_more(
 ) -> @rabbita.Html {
   @html.div(
     style=[
-      "border-radius: var(--radius-control)", "background: var(--surface-2)", "overflow: hidden",
+      "border-radius: var(--radius-control)", "background: var(--foreground-3)",
+      "overflow: hidden",
     ],
   ) <| [
     @html.button(
@@ -447,8 +443,8 @@ fn render_new_project_dialog(
       @html.div(
         style=[
           "width: min(460px, 100%)", "background: var(--surface-raised)", "border: 1px solid var(--border-soft)",
-          "border-radius: var(--radius-control)", "box-shadow: 0 28px 80px rgba(15, 23, 42, 0.22)",
-          "padding: 8px", "display: flex", "flex-direction: column", "gap: 8px",
+          "border-radius: var(--radius-panel)", "box-shadow: var(--shadow)", "padding: 10px",
+          "display: flex", "flex-direction: column", "gap: 8px",
         ],
       ) <| [
         @html.div(
@@ -468,9 +464,7 @@ fn render_new_project_dialog(
             disabled=model.create_project_pending,
             on_click=dispatch(CloseNewProjectDialog),
             style=secondary_button_style(!model.create_project_pending) +
-              [
-                "width: 38px", "height: 38px", "padding: 0", "border-radius: 999px",
-              ],
+              ["width: 30px", "height: 30px", "padding: 0"],
             "x",
           ),
         ],
@@ -522,14 +516,22 @@ fn render_workspace_empty(
   match model.selected_project_id {
     None =>
       @html.div(
-        style=inset_panel_style() +
-          [
-            "padding: 8px", "display: flex", "align-items: center", "min-height: 120px",
-          ],
+        style=[
+          "flex: 1", "min-height: 0", "display: grid", "place-items: center", "padding: 24px",
+        ],
       ) <| [
         @html.div(
-          style=["display: flex", "align-items: center", "padding-top: 4px"],
+          style=[
+            "display: flex", "flex-direction: column", "align-items: center", "gap: 10px",
+            "width: min(360px, 100%)", "padding: 16px", "border-radius: var(--radius-panel)",
+            "background: var(--foreground-3)", "box-shadow: var(--shadow)", "text-align: center",
+          ],
         ) <| [
+          @html.div(style=title_text_style(), "No project selected"),
+          @html.div(
+            style=normal_text_style(),
+            "Create a project to start building.",
+          ),
           render_open_project_button(dispatch, "Create Project", false),
         ],
       ]
@@ -681,7 +683,7 @@ fn preview_split_icon() -> @rabbita.Html {
 ///|
 fn preview_action_button_style() -> Array[String] {
   secondary_button_style(true) +
-  ["width: 32px", "height: 32px", "padding: 0", "justify-content: center"]
+  ["width: 28px", "height: 28px", "padding: 0", "justify-content: center"]
 }
 
 ///|
@@ -692,7 +694,7 @@ fn render_show_preview_button(
     type_="button",
     title="Show preview",
     on_click=dispatch(SetPreviewPanelMode(PreviewSplit)),
-    style=secondary_button_style(true) + ["height: 32px", "padding: 0 8px"],
+    style=secondary_button_style(true) + ["height: 28px", "padding: 0 8px"],
     [preview_show_icon(), @html.span("Preview")],
   )
 }
@@ -734,10 +736,10 @@ fn render_workspace_panel(
   let action_style = match running_run {
     Some(_) =>
       button_style("var(--danger)", "var(--on-action)", action_enabled) +
-      ["width: 40px", "height: 40px", "padding: 0", "color: var(--on-action)"]
+      ["width: 36px", "height: 36px", "padding: 0", "color: var(--on-action)"]
     None =>
       primary_button_style(send_enabled) +
-      ["width: 40px", "height: 40px", "padding: 0", "color: var(--on-action)"]
+      ["width: 36px", "height: 36px", "padding: 0", "color: var(--on-action)"]
   }
   let action_title = match running_run {
     Some(_) => "Stop"
@@ -769,14 +771,14 @@ fn render_workspace_panel(
     style=panel_style() +
       [
         "flex: 1.08 1 640px", "min-width: 420px", "display: flex", "flex-direction: column",
-        "min-height: 0", "overflow: hidden",
+        "min-height: 0", "overflow: hidden", "border-right: 1px solid var(--border-soft)",
       ],
   ) <| [
     @html.div(
       style=[
-        "padding: 8px", "border-bottom: 1px solid var(--border-soft)", "display: flex",
-        "justify-content: space-between", "align-items: flex-start", "gap: 8px",
-        "flex-wrap: wrap",
+        "height: 50px", "padding: 0 12px", "border-bottom: 1px solid var(--border-soft)",
+        "display: flex", "justify-content: space-between", "align-items: center",
+        "gap: 8px", "flex-wrap: wrap",
       ],
       [
         @html.div(
@@ -804,7 +806,7 @@ fn render_workspace_panel(
     ),
     @html.div(
       style=[
-        "padding: 8px 12px 0", "display: flex", "flex-direction: column", "gap: 8px",
+        "padding: 8px 12px 0", "display: flex", "flex-direction: column", "gap: 6px",
       ],
       [
         render_notice_card(model.notice, "var(--warning-soft)"),
@@ -824,8 +826,8 @@ fn render_workspace_panel(
     } else {
       @html.div(
         style=[
-          "padding: 8px 12px", "border-top: 1px solid var(--border-soft)", "display: flex",
-          "flex-direction: column", "gap: 8px",
+          "padding: 8px 12px 12px", "border-top: 0", "display: flex", "flex-direction: column",
+          "gap: 8px",
         ],
         [
           @html.textarea(
@@ -837,7 +839,8 @@ fn render_workspace_panel(
             attrs=composer_keydown_attrs(dispatch, send_enabled),
             style=input_style(active_run(model) is Some(_)) +
               [
-                "min-height: 132px", "resize: vertical", "box-shadow: 0 16px 40px rgba(15, 23, 42, 0.07)",
+                "min-height: 112px", "resize: vertical", "box-shadow: var(--shadow)",
+                "border-radius: 12px",
               ],
             "",
           ),
@@ -902,13 +905,14 @@ fn render_preview_panel(
       size_style +
       [
         "display: flex", "flex-direction: column", "min-height: 0", "overflow: hidden",
+        "border-left: 1px solid var(--border-soft)",
       ],
   ) <| [
     @html.div(
       style=[
-        "padding: 8px 12px", "border-bottom: 1px solid var(--border-soft)", "display: flex",
-        "justify-content: space-between", "align-items: flex-start", "gap: 8px",
-        "flex-wrap: wrap",
+        "height: 50px", "padding: 0 12px", "border-bottom: 1px solid var(--border-soft)",
+        "display: flex", "justify-content: space-between", "align-items: center",
+        "gap: 8px", "flex-wrap: wrap",
       ],
       [
         @html.div(
@@ -960,13 +964,13 @@ fn render_preview_panel(
     ),
     @html.div(
       style=[
-        "flex: 1", "min-height: 0", "padding: 8px", "background: linear-gradient(180deg, var(--surface-2), var(--surface-3))",
+        "flex: 1", "min-height: 0", "padding: 6px", "background: var(--foreground-2)",
       ],
       @html.div(
         style=[
-          "height: 100%", "border-radius: var(--radius-control)", "overflow: hidden",
-          "background: var(--surface-raised)", "box-shadow: 0 12px 36px rgba(15, 23, 42, 0.10)",
-          "display: flex", "flex-direction: column",
+          "height: 100%", "border-radius: var(--radius-panel)", "overflow: hidden",
+          "background: var(--surface-raised)", "box-shadow: var(--shadow)", "display: flex",
+          "flex-direction: column",
         ],
         [
           preview_browser_chrome(preview),
@@ -999,8 +1003,8 @@ fn preview_browser_chrome(preview : @sdk.PreviewTarget?) -> @rabbita.Html {
   }
   @html.div(
     style=[
-      "height: 44px", "display: flex", "align-items: center", "gap: 8px", "padding: 0 12px",
-      "background: rgba(255, 255, 255, 0.72)", "border-bottom: 1px solid var(--border-soft)",
+      "height: 36px", "display: flex", "align-items: center", "gap: 8px", "padding: 0 10px",
+      "background: var(--foreground-3)", "border-bottom: 1px solid var(--border-soft)",
     ],
   ) <| [
     @html.div(style=["display: flex", "gap: 5px"], [
@@ -1011,8 +1015,8 @@ fn preview_browser_chrome(preview : @sdk.PreviewTarget?) -> @rabbita.Html {
     @html.div(
       style=normal_text_style() +
         [
-          "flex: 1", "min-width: 0", "padding: 7px 10px", "border-radius: 999px",
-          "background: rgba(248, 250, 252, 0.96)", "white-space: nowrap", "overflow: hidden",
+          "flex: 1", "min-width: 0", "padding: 4px 8px", "border-radius: var(--radius-control)",
+          "background: var(--background)", "white-space: nowrap", "overflow: hidden",
           "text-overflow: ellipsis",
         ],
       url_text,
@@ -1024,8 +1028,8 @@ fn preview_browser_chrome(preview : @sdk.PreviewTarget?) -> @rabbita.Html {
 fn browser_dot(color : String) -> @rabbita.Html {
   @html.div(
     style=[
-      "width: 10px",
-      "height: 10px",
+      "width: 8px",
+      "height: 8px",
       "border-radius: 999px",
       "background: " + color,
     ],
@@ -1044,7 +1048,7 @@ fn preview_empty_state(model : Model) -> @rabbita.Html {
   @html.div(
     style=[
       "flex: 1", "min-height: 0", "display: grid", "place-items: center", "padding: 14px",
-      "background: radial-gradient(circle at 50% 24%, var(--accent-soft), transparent 34%), var(--preview-bg)",
+      "background: var(--preview-bg)",
     ],
   ) <| (@html.div(
     style=[
@@ -1054,8 +1058,8 @@ fn preview_empty_state(model : Model) -> @rabbita.Html {
   ) <| [
     @html.div(
       style=[
-        "width: 58px", "height: 58px", "border-radius: var(--radius-control)", "background: linear-gradient(135deg, var(--accent), #2563eb)",
-        "box-shadow: 0 16px 34px rgba(15, 118, 110, 0.18)",
+        "width: 40px", "height: 40px", "border-radius: var(--radius-control)", "background: var(--accent-soft)",
+        "box-shadow: none",
       ],
       "",
     ),

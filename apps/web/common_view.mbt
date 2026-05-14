@@ -10,10 +10,11 @@ fn status_badge(state : @sdk.RunState) -> @rabbita.Html {
   @html.div(
     style=value_text_style() +
       [
-        "padding: 4px 8px",
+        "padding: 2px 6px",
         "border-radius: var(--radius-control)",
         "background: " + background,
         "color: " + foreground,
+        "font-size: 11px",
       ],
   ) <| state.label()
 }
@@ -93,7 +94,7 @@ fn tun_poc_link() -> @rabbita.Html {
     target=Blank,
     rel="noopener noreferrer",
     style=secondary_button_style(true) +
-      ["text-decoration: none", "height: 32px", "padding: 0 8px"],
+      ["text-decoration: none", "height: 28px", "padding: 0 8px"],
     [external_link_icon(), @html.span("tun-poc")],
   )
 }
