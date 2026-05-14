@@ -74,9 +74,27 @@ fn friendly_run_event_text(text : String) -> String {
 }
 
 ///|
-fn run_spinner_frame(tick : Int) -> String {
-  let frames = ["●", "●", "●", "●", "●", "●", "●", "●"]
-  frames[tick % frames.length()]
+fn run_spinner_cube() -> @rabbita.Html {
+  @html.span(class="spinner-cube", "")
+}
+
+///|
+fn run_spinner() -> @rabbita.Html {
+  @html.span(
+    class="spinner",
+    attrs=@html.Attrs::build().role("status").aria_label("Loading"),
+    [
+      run_spinner_cube(),
+      run_spinner_cube(),
+      run_spinner_cube(),
+      run_spinner_cube(),
+      run_spinner_cube(),
+      run_spinner_cube(),
+      run_spinner_cube(),
+      run_spinner_cube(),
+      run_spinner_cube(),
+    ],
+  )
 }
 
 ///|
@@ -84,36 +102,30 @@ fn render_run_events(model : Model) -> @rabbita.Html {
   if active_run(model) is None {
     return @html.nothing
   }
-  @html.div(style=["display: flex", "justify-content: flex-start"]) <| (@html.div(
-    style=[
-      "max-width: min(760px, 92%)", "padding: 8px 10px", "border-radius: 12px", "background: var(--foreground-3)",
-      "box-shadow: none", "display: flex", "flex-direction: column", "gap: 8px",
-    ],
-  ) <| [
-    @html.div(style=normal_text_style() + ["opacity: 0.86"], "Working"),
-    @html.div(
-      style=[
-        "display: flex", "align-items: center", "gap: 8px", "padding: 6px 8px", "border-radius: var(--radius-control)",
-        "background: var(--background)",
-      ],
+  @html.div(
+    style=normal_text_style() +
       [
-        @html.div(
-          style=title_text_style() +
-            [
-              "width: 28px", "height: 28px", "border-radius: 999px", "display: grid",
-              "place-items: center", "color: var(--accent)", "background: var(--accent-soft)",
-              "flex-shrink: 0",
-            ],
-          run_spinner_frame(model.run_spinner_tick),
-        ),
-        @html.div(
-          style=value_text_style() +
-            ["white-space: pre-wrap", "overflow-wrap: anywhere"],
-          latest_run_event_text(model.run_events),
-        ),
+        "display: flex", "align-items: center", "gap: 8px", "padding: 4px 12px",
+        "margin-bottom: -4px",
       ],
-    ),
-  ])
+    [
+      @html.div(
+        style=[
+          "width: 12px", "height: 12px", "display: flex", "align-items: center",
+          "justify-content: center", "color: var(--accent)", "flex-shrink: 0",
+        ],
+        run_spinner(),
+      ),
+      @html.span(
+        style=normal_text_style() +
+          [
+            "height: 20px", "display: flex", "align-items: center", "white-space: pre-wrap",
+            "overflow-wrap: anywhere",
+          ],
+        latest_run_event_text(model.run_events),
+      ),
+    ],
+  )
 }
 
 ///|

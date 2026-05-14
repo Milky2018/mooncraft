@@ -476,7 +476,7 @@ test "github oauth helpers build token request and parse access token" {
     ),
   )
   assert_true(body.contains("code_verifier=verifier%20value"))
-  inspect(
+  @debug.debug_inspect(
     github_access_token_from_response(
       "{\"access_token\":\"token-123\",\"token_type\":\"bearer\"}",
     ),
@@ -634,16 +634,19 @@ test "claude docker command mounts non-root home" {
 
 ///|
 test "docker host architecture maps to supported container platforms" {
-  inspect(
+  @debug.debug_inspect(
     normalize_docker_architecture("amd64\n"),
     content="Ok(\"linux/amd64\")",
   )
-  inspect(
+  @debug.debug_inspect(
     normalize_docker_architecture("x86_64"),
     content="Ok(\"linux/amd64\")",
   )
-  inspect(normalize_docker_architecture("arm64"), content="Ok(\"linux/arm64\")")
-  inspect(
+  @debug.debug_inspect(
+    normalize_docker_architecture("arm64"),
+    content="Ok(\"linux/arm64\")",
+  )
+  @debug.debug_inspect(
     normalize_docker_architecture("aarch64"),
     content="Ok(\"linux/arm64\")",
   )

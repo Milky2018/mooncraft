@@ -751,7 +751,7 @@ fn Store::sql(self : Store, sql : String) -> String {
 ///|
 fn open(db_path : String) -> Result[StoreSQLiteEngine, String] {
   Ok({ conn: @morm_sqlite.Connection::open(db_path) }) catch {
-    SqliteError(err) => Err(err.to_string())
+    SqliteError(err) => Err(@debug.to_string(err))
   }
 }
 
@@ -837,7 +837,7 @@ fn StoreSQLiteEngine::exec_raw(
     }
     stmt.finalize()
   } catch {
-    SqliteError(err) => error = Some(err.to_string())
+    SqliteError(err) => error = Some(@debug.to_string(err))
   }
   {
     ok: error is None,

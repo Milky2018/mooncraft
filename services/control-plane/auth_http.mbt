@@ -33,14 +33,14 @@ fn mooncraft_development_mode() -> Bool {
 struct GitHubCallbackPayload {
   code : String
   state : String
-} derive(Debug, FromJson)
+} derive(Debug, @json.FromJson)
 
 ///|
 struct DevAuthRequest {
   email : String
   display_name : String?
   github_login : String?
-} derive(Debug, FromJson)
+} derive(Debug, @json.FromJson)
 
 ///|
 struct GitHubUserProfile {
@@ -55,7 +55,7 @@ struct GitHubUserEmail {
   email : String
   primary : Bool
   verified : Bool
-} derive(Debug, FromJson)
+} derive(Debug, @json.FromJson)
 
 ///|
 fn unix_millis_string() -> String {
@@ -348,7 +348,7 @@ fn github_api_headers(access_token : String) -> Map[String, String] {
 }
 
 ///|
-fn[T : FromJson] decode_json_text(text : String) -> Result[T, String] {
+fn[T : @json.FromJson] decode_json_text(text : String) -> Result[T, String] {
   let parsed = @json.parse(text) catch {
     _ => return Err("The upstream response was not valid JSON.")
   }

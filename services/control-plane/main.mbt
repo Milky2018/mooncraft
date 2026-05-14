@@ -277,7 +277,7 @@ fn clear_admin_session_cookie(response : @mocket.HttpResponse) -> Unit {
 ///|
 struct AdminLoginRequest {
   token : String
-} derive(Debug, FromJson)
+} derive(Debug, @json.FromJson)
 
 ///|
 fn public_run_error_message(run : @sdk.RunStatusResponse) -> String? {

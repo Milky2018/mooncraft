@@ -101,7 +101,6 @@ fn update(
           run_status: None,
           run_events: [],
           last_run_event_seq: 0,
-          run_spinner_tick: 0,
           rename_project_editing: false,
           rename_project_name: "",
           rename_project_pending: false,
@@ -134,7 +133,6 @@ fn update(
           run_status: None,
           run_events: [],
           last_run_event_seq: 0,
-          run_spinner_tick: 0,
           stopping_run_id: None,
           delete_project_confirming: None,
           rename_project_editing: false,
@@ -400,7 +398,6 @@ fn update(
           run_status: None,
           run_events: [],
           last_run_event_seq: 0,
-          run_spinner_tick: 0,
           delete_project_confirming: None,
         },
       )
@@ -431,7 +428,6 @@ fn update(
           run_status: None,
           run_events: [],
           last_run_event_seq: 0,
-          run_spinner_tick: 0,
           draft: "",
           rename_project_editing: false,
           rename_project_name: "",
@@ -509,7 +505,6 @@ fn update(
               messages: append_local_user_message(model, project_id, content),
               run_events: [],
               last_run_event_seq: 0,
-              run_spinner_tick: 0,
               stopping_run_id: None,
             },
           )
@@ -551,7 +546,6 @@ fn update(
                 sending_message: false,
                 run_events: [],
                 last_run_event_seq: 0,
-                run_spinner_tick: 0,
                 stopping_run_id: None,
               },
             )
@@ -733,12 +727,7 @@ fn update(
       }
       (
         @rabbita.none,
-        {
-          ..model,
-          run_events: events,
-          last_run_event_seq: last_seq,
-          run_spinner_tick: model.run_spinner_tick + 1,
-        },
+        { ..model, run_events: events, last_run_event_seq: last_seq },
       )
     }
     RunEventsLoaded(project_id, Err(error)) =>

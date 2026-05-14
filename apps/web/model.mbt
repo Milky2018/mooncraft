@@ -33,7 +33,6 @@ struct Model {
   run_status : @sdk.RunStatusResponse?
   run_events : Array[@sdk.RunEvent]
   last_run_event_seq : Int
-  run_spinner_tick : Int
   draft : String
   new_project_modal_open : Bool
   new_project_name : String
@@ -182,7 +181,6 @@ fn initial_model() -> Model {
     run_status: None,
     run_events: [],
     last_run_event_seq: 0,
-    run_spinner_tick: 0,
     draft: "",
     new_project_modal_open: false,
     new_project_name: "",
