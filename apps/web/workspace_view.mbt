@@ -768,7 +768,7 @@ fn render_workspace_panel(
     style=panel_style() +
       [
         "flex: 1.08 1 640px", "min-width: 420px", "display: flex", "flex-direction: column",
-        "min-height: 0", "overflow: hidden", "border-right: 1px solid var(--border-soft)",
+        "min-height: 0", "overflow: hidden",
       ],
   ) <| [
     @html.div(
@@ -902,7 +902,6 @@ fn render_preview_panel(
       size_style +
       [
         "display: flex", "flex-direction: column", "min-height: 0", "overflow: hidden",
-        "border-left: 1px solid var(--border-soft)",
       ],
   ) <| [
     @html.div(

@@ -485,8 +485,8 @@ fn render_project_sidebar(
   @html.div(
     style=[
       "width: 284px", "height: 100vh", "min-height: 0", "padding: 6px", "display: flex",
-      "flex-direction: column", "gap: 6px", "background: var(--sidebar-bg)", "border-right: 1px solid var(--border-soft)",
-      "box-sizing: border-box", "flex-shrink: 0", "overflow: hidden", "backdrop-filter: none",
+      "flex-direction: column", "gap: 6px", "background: var(--sidebar-bg)", "box-sizing: border-box",
+      "flex-shrink: 0", "overflow: hidden", "backdrop-filter: none",
     ],
   ) <| [
     @html.div(style=["display: flex", "align-items: center", "gap: 8px"], [
