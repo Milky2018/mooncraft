@@ -139,7 +139,7 @@ curl -fsS http://127.0.0.1:8089/api/health
 
 Users do not configure LLM providers or API keys.
 
-Admins provide OpenRouter keys through the admin page at `/admin`. Browser access to `/admin` redirects to `/admin/login` until the operator enters `MOONCRAFT_ADMIN_TOKEN`; the server stores an HTTP-only admin session cookie after a successful login. The worker leases one active OpenRouter key from the database for each run and injects it into the isolated agent runtime container only for that run. Key values are accepted on create/update and are never returned by the API; list responses show only a masked hint.
+Admins use the admin page at `/admin` to inspect users, manage projects, inspect recent runs, and provide OpenRouter keys. Browser access to `/admin` redirects to `/admin/login` until the operator enters `MOONCRAFT_ADMIN_TOKEN`; the server stores an HTTP-only admin session cookie after a successful login. The worker leases one active OpenRouter key from the database for each run and injects it into the isolated agent runtime container only for that run. Key values are accepted on create/update and are never returned by the API; list responses show only a masked hint.
 
 MoonCraft only supports OpenRouter keys for generated-app runs. The runtime model picker loads the live OpenRouter text model catalog from `GET https://openrouter.ai/api/v1/models` using an active saved OpenRouter key, then saves the selected default model and allowed model list in SQLite.
 
@@ -243,11 +243,16 @@ GET /api/admin/runs/recent/<limit>
 GET /api/admin/runs/<run-id>
 GET /api/admin/runs/<run-id>/events/<after-seq>
 GET /api/admin/runs/<run-id>/logs
+GET /api/admin/users/recent/<limit>
+GET /api/admin/users/<user-id>
+GET /api/admin/users/<user-id>/projects
 GET /api/admin/projects/recent/<limit>
 GET /api/admin/projects/<project-id>
+GET /api/admin/projects/<project-id>/messages
+DELETE /api/admin/projects/<project-id>
 ```
 
-`<limit>` is clamped to `1..200`. These endpoints are for operators only; do not expose the admin token to browsers or normal users.
+`<limit>` is clamped to `1..200`. Admin project deletion uses the same cleanup path as user project deletion and refuses to delete a project while it is running. These endpoints are for operators only; do not expose the admin token to normal users.
 
 Show service status:
 

@@ -74,7 +74,7 @@ Required agent runtime configuration:
 
 The default runtime image is stored in `config/agent_runtime_image.txt` and is currently `docker.io/moonbitcloud/mooncraft-agent-runtime:0.1.0`. Override it through `MOONCRAFT_AGENT_RUNTIME_IMAGE` when testing local images, PR images, rollbacks, or digest-pinned production deployments. `MOONCRAFT_CODEX_DOCKER_IMAGE` remains a temporary compatibility fallback for older deployments.
 
-The runtime intentionally does not mount a host AI tool home and users do not configure provider keys. Admins log in at `/admin/login` with `MOONCRAFT_ADMIN_TOKEN` and configure OpenRouter keys through `/admin`; the API stores the key value, returns only a masked hint, and the worker passes one leased key into the isolated agent runtime container only for the active run. OpenRouter is the only supported AI provider for generated-app runs.
+The runtime intentionally does not mount a host AI tool home and users do not configure provider keys. Admins log in at `/admin/login` with `MOONCRAFT_ADMIN_TOKEN` and use `/admin` to inspect users, manage projects, inspect recent runs, and configure OpenRouter keys. The key API stores the key value, returns only a masked hint, and the worker passes one leased key into the isolated agent runtime container only for the active run. OpenRouter is the only supported AI provider for generated-app runs.
 
 Use `just agent-runtime-config` to inspect the effective runtime configuration. Build the runtime image locally with `just build-agent-runtime-image <repository> <version> <platform>` and publish the shared multi-arch runtime image with `just docker-agent-runtime-publish <repository> <version> <platforms>` after `docker login`.
 

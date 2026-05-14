@@ -968,11 +968,20 @@ async test "run events append and list after sequence" {
 async test "admin run and project listings are project agnostic" {
   let root = @env.current_dir().unwrap_or(".")
   let (store, db_path) = new_test_store(root, "admin-listings")
+  let owner = store
+    .create_user(
+      "admin-owner@example.com",
+      None,
+      "Admin Owner",
+      Some("admin-owner"),
+      true,
+    )
+    .unwrap()
   let project_id = next_id("project")
   ignore(
     store.create_project(
       project_id,
-      "user-1",
+      owner.id,
       "preview-" + project_id,
       "Admin Listings",
       "codex",
@@ -995,9 +1004,25 @@ async test "admin run and project listings are project agnostic" {
   let project_runs = store.list_project_runs(project_id, 10)
   inspect(project_runs.length(), content="1")
   inspect(project_runs[0].project_id, content=project_id)
-  let recent_projects = store.list_recent_projects(10)
+  let recent_projects = store.list_recent_admin_project_summaries(10)
   inspect(recent_projects.length(), content="1")
-  inspect(recent_projects[0].id, content=project_id)
+  inspect(recent_projects[0].project.id, content=project_id)
+  let recent_owner_id = match recent_projects[0].owner {
+    Some(user) => user.id
+    None => ""
+  }
+  inspect(recent_owner_id, content=owner.id)
+  let users = store.list_admin_users(10)
+  inspect(users.length(), content="1")
+  inspect(users[0].user.id, content=owner.id)
+  inspect(users[0].project_count, content="1")
+  let user_detail = store.get_admin_user_detail(owner.id).unwrap()
+  inspect(user_detail.user.email, content="admin-owner@example.com")
+  inspect(user_detail.project_count, content="1")
+  inspect(user_detail.oauth_providers.length(), content="0")
+  let user_projects = store.list_admin_project_summaries_for_user(owner.id)
+  inspect(user_projects.length(), content="1")
+  inspect(user_projects[0].run_count, content="1")
   cleanup_test_db(db_path)
 }
 

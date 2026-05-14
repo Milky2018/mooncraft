@@ -1,6 +1,11 @@
 :root {
   color-scheme: light;
   font-family: "IBM Plex Sans", "Avenir Next", "Helvetica Neue", sans-serif;
+  --font-title: 24px;
+  --font-mid: 14px;
+  --text-title: 700 var(--font-title) / 1.12 "IBM Plex Sans", "Avenir Next", "Helvetica Neue", sans-serif;
+  --text-normal: 500 var(--font-mid) / 1.55 "IBM Plex Sans", "Avenir Next", "Helvetica Neue", sans-serif;
+  --text-value: 600 var(--font-mid) / 1.45 "IBM Plex Sans", "Avenir Next", "Helvetica Neue", sans-serif;
   background: #f6f7f9;
   color: #18212f;
 }
@@ -15,6 +20,7 @@ body {
   display: grid;
   place-items: center;
   padding: 24px;
+  font: var(--text-normal);
   background: #f6f7f9;
 }
 
@@ -29,14 +35,13 @@ body {
 
 h1 {
   margin: 0 0 10px;
-  font-size: 28px;
-  line-height: 1.1;
+  font: var(--text-title);
 }
 
 p {
   margin: 0;
+  font: var(--text-normal);
   color: #667085;
-  line-height: 1.6;
 }
 
 input,
@@ -65,7 +70,7 @@ a.button {
   background: #1f6feb;
   border: 1px solid rgba(24, 33, 47, 0.10);
   text-decoration: none;
-  font-weight: 700;
+  font: var(--text-value);
   cursor: pointer;
 }
 

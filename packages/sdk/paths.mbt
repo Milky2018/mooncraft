@@ -252,6 +252,36 @@ pub fn admin_recent_projects_path(limit : Int) -> String {
 }
 
 ///|
+pub fn admin_users_route() -> RouteSpec {
+  route(GET, "/api/admin/users/recent/:limit", Ok)
+}
+
+///|
+pub fn admin_users_path(limit : Int) -> String {
+  "/api/admin/users/recent/\{limit}"
+}
+
+///|
+pub fn admin_user_route() -> RouteSpec {
+  route(GET, "/api/admin/users/:user_id", Ok)
+}
+
+///|
+pub fn admin_user_path(user_id : String) -> String {
+  "/api/admin/users/\{user_id}"
+}
+
+///|
+pub fn admin_user_projects_route() -> RouteSpec {
+  route(GET, "/api/admin/users/:user_id/projects", Ok)
+}
+
+///|
+pub fn admin_user_projects_path(user_id : String) -> String {
+  "/api/admin/users/\{user_id}/projects"
+}
+
+///|
 pub fn admin_project_route() -> RouteSpec {
   route(GET, "/api/admin/projects/:project_id", Ok)
 }
@@ -259,6 +289,21 @@ pub fn admin_project_route() -> RouteSpec {
 ///|
 pub fn admin_project_path(project_id : String) -> String {
   "/api/admin/projects/\{project_id}"
+}
+
+///|
+pub fn admin_project_messages_route() -> RouteSpec {
+  route(GET, "/api/admin/projects/:project_id/messages", Ok)
+}
+
+///|
+pub fn admin_project_messages_path(project_id : String) -> String {
+  "/api/admin/projects/\{project_id}/messages"
+}
+
+///|
+pub fn delete_admin_project_route() -> RouteSpec {
+  route(DELETE, "/api/admin/projects/:project_id", NoContent)
 }
 
 ///|

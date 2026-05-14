@@ -179,15 +179,66 @@ pub(all) struct AdminListRunsResponse {
 } derive(Debug, ToJson, FromJson)
 
 ///|
-pub(all) struct AdminProjectDiagnosticsResponse {
+pub(all) struct AdminUserSummary {
+  user : UserSummary
+  project_count : Int
+  running_project_count : Int
+  latest_project_updated_at : String?
+  latest_run_started_at : String?
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct AdminUserDetail {
+  user : UserSummary
+  project_count : Int
+  running_project_count : Int
+  session_count : Int
+  oauth_providers : Array[String]
+  latest_project_updated_at : String?
+  latest_run_started_at : String?
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct AdminProjectSummary {
   project : ProjectDetail
+  owner : UserSummary?
+  message_count : Int
+  run_count : Int
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct AdminListUsersResponse {
+  items : Array[AdminUserSummary]
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct AdminUserDetailResponse {
+  user : AdminUserDetail
+  projects : Array[AdminProjectSummary]
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct AdminUserProjectsResponse {
+  user : UserSummary
+  projects : Array[AdminProjectSummary]
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct AdminProjectDiagnosticsResponse {
+  project : AdminProjectSummary
   messages : Array[ChatMessage]
   runs : Array[RunStatusResponse]
 } derive(Debug, ToJson, FromJson)
 
 ///|
 pub(all) struct AdminListProjectsResponse {
-  items : Array[ProjectDetail]
+  items : Array[AdminProjectSummary]
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct AdminProjectMessagesResponse {
+  project : AdminProjectSummary
+  messages : Array[ChatMessage]
 } derive(Debug, ToJson, FromJson)
 
 ///|

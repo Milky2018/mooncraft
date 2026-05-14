@@ -466,12 +466,12 @@ fn admin_limit_param(event : @mocket.MocketEvent) -> Int {
 ///|
 async fn admin_project_diagnostics_response(
   ctx : AppContext,
-  project : @sdk.ProjectDetail,
+  project : @sdk.AdminProjectSummary,
 ) -> @sdk.AdminProjectDiagnosticsResponse noraise {
   {
     project,
-    messages: ctx.store.list_messages(project.id),
-    runs: ctx.store.list_project_runs(project.id, 50),
+    messages: ctx.store.list_messages(project.project.id),
+    runs: ctx.store.list_project_runs(project.project.id, 50),
   }
 }
 
@@ -911,8 +911,57 @@ fn main {
       Err(response) => return response
     }
     json_ok(@sdk.AdminListProjectsResponse::{
-      items: ctx.store.list_recent_projects(admin_limit_param(event)),
+      items: ctx.store.list_recent_admin_project_summaries(
+        admin_limit_param(event),
+      ),
     })
+  })
+  app.get(@sdk.admin_users_route().path_pattern, event => {
+    match require_admin_token(event) {
+      Ok(_) => ignore(())
+      Err(response) => return response
+    }
+    json_ok(@sdk.AdminListUsersResponse::{
+      items: ctx.store.list_admin_users(admin_limit_param(event)),
+    })
+  })
+  app.get(@sdk.admin_user_route().path_pattern, event => {
+    match require_admin_token(event) {
+      Ok(_) => ignore(())
+      Err(response) => return response
+    }
+    let user_id = match path_param(event, "user_id") {
+      Ok(value) => value
+      Err(response) => return response
+    }
+    match ctx.store.get_admin_user_detail(user_id) {
+      Some(user) =>
+        json_ok(@sdk.AdminUserDetailResponse::{
+          user,
+          projects: ctx.store.list_admin_project_summaries_for_user(
+            user.user.id,
+          ),
+        })
+      None => api_error_response(NotFound, NotFound, "User not found.")
+    }
+  })
+  app.get(@sdk.admin_user_projects_route().path_pattern, event => {
+    match require_admin_token(event) {
+      Ok(_) => ignore(())
+      Err(response) => return response
+    }
+    let user_id = match path_param(event, "user_id") {
+      Ok(value) => value
+      Err(response) => return response
+    }
+    match ctx.store.get_user_by_id(user_id) {
+      Some(user) =>
+        json_ok(@sdk.AdminUserProjectsResponse::{
+          user,
+          projects: ctx.store.list_admin_project_summaries_for_user(user.id),
+        })
+      None => api_error_response(NotFound, NotFound, "User not found.")
+    }
   })
   app.get(@sdk.admin_project_route().path_pattern, async fn(event) noraise {
     match require_admin_token(event) {
@@ -923,9 +972,50 @@ fn main {
       Ok(value) => value
       Err(response) => return response
     }
-    match ctx.store.get_project_detail(project_id) {
+    match ctx.store.get_admin_project_summary(project_id) {
       Some(project) => json_ok(admin_project_diagnostics_response(ctx, project))
       None => api_error_response(NotFound, NotFound, "Project not found.")
+    }
+  })
+  app.get(@sdk.admin_project_messages_route().path_pattern, async fn(
+    event,
+  ) noraise {
+    match require_admin_token(event) {
+      Ok(_) => ignore(())
+      Err(response) => return response
+    }
+    let project_id = match path_param(event, "project_id") {
+      Ok(value) => value
+      Err(response) => return response
+    }
+    match ctx.store.get_admin_project_summary(project_id) {
+      Some(project) =>
+        json_ok(@sdk.AdminProjectMessagesResponse::{
+          messages: ctx.store.list_messages(project.project.id),
+          project,
+        })
+      None => api_error_response(NotFound, NotFound, "Project not found.")
+    }
+  })
+  app.delete(@sdk.delete_admin_project_route().path_pattern, async fn(
+    event,
+  ) noraise {
+    match require_admin_token(event) {
+      Ok(_) => ignore(())
+      Err(response) => return response
+    }
+    let project_id = match path_param(event, "project_id") {
+      Ok(value) => value
+      Err(response) => return response
+    }
+    match ctx.delete_project(project_id) {
+      Ok(_) => json_no_content()
+      Err(message) =>
+        if message == "Project not found." {
+          api_error_response(NotFound, NotFound, message)
+        } else {
+          api_error_response(Conflict, Conflict, message)
+        }
     }
   })
   app.post(@sdk.logout_path(), async fn(event) noraise {

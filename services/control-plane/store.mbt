@@ -1662,44 +1662,6 @@ async fn Store::get_project_detail(
 }
 
 ///|
-async fn Store::list_recent_projects(
-  self : Store,
-  limit : Int,
-) -> Array[@sdk.ProjectDetail] noraise {
-  let rows = self.query_rows(
-    (
-      #|SELECT
-      #|  p.id,
-      #|  p.preview_public_id,
-      #|  p.display_name,
-      #|  COALESCE(p.agent_cli, 'codex') AS agent_cli,
-      #|  COALESCE(p.ai_model, '') AS ai_model,
-      #|  p.workspace_path,
-      #|  COALESCE(p.codex_thread_id, '') AS codex_thread_id,
-      #|  p.status,
-      #|  COALESCE(p.preview_url, '') AS preview_url,
-      #|  COALESCE(p.preview_port, 0) AS preview_port,
-      #|  p.preview_healthy,
-      #|  COALESCE(p.last_error, '') AS last_error,
-      #|  COALESCE(p.current_run_id, '') AS current_run_id,
-      #|  COALESCE(r.phase, 'none') AS current_run_phase,
-      #|  p.created_at,
-      #|  p.updated_at
-      #|FROM projects p
-      #|LEFT JOIN runs r ON r.id = p.current_run_id AND r.project_id = p.id
-      #|ORDER BY p.updated_at DESC
-      #|LIMIT ?;
-    ),
-    params=[Int(limit)],
-  )
-  let items : Array[@sdk.ProjectDetail] = []
-  for row in rows {
-    items.push(project_detail_from_row(row))
-  }
-  items
-}
-
-///|
 async fn Store::list_messages(
   self : Store,
   project_id : String,

@@ -7,6 +7,10 @@
   --preview-text: #18212f;
   --preview-muted: #667085;
   --preview-shadow: 0 10px 24px rgba(24, 33, 47, 0.08);
+  --font-title: 24px;
+  --font-mid: 14px;
+  --text-title: 700 var(--font-title) / 1.12 "IBM Plex Sans", "Avenir Next", "Helvetica Neue", sans-serif;
+  --text-normal: 500 var(--font-mid) / 1.55 "IBM Plex Sans", "Avenir Next", "Helvetica Neue", sans-serif;
   background: var(--preview-bg);
   color: var(--preview-text);
 }
@@ -18,6 +22,7 @@
 body {
   margin: 0;
   min-height: 100vh;
+  font: var(--text-normal);
   background: var(--preview-bg);
 }
 
@@ -39,14 +44,13 @@ body {
 
 .preview-title {
   margin: 0 0 12px;
-  font-size: 38px;
-  line-height: 1.05;
+  font: var(--text-title);
+  color: var(--preview-text);
 }
 
 .preview-copy {
   margin: 0;
-  font-size: 16px;
-  line-height: 1.6;
+  font: var(--text-normal);
 }
 
 .preview-copy.muted {

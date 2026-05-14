@@ -97,6 +97,7 @@ for _ in $(seq 1 "$run_poll_limit"); do
 done
 
 preview_url="$(printf '%s' "$final_run" | sed -n 's/.*"url":"\([^"]*\)".*/\1/p')"
+preview_port="$(printf '%s' "$final_run" | sed -n 's/.*"port":\([0-9][0-9]*\).*/\1/p')"
 if ! printf '%s' "$final_run" | grep -q '"state":"Succeeded"'; then
   echo "Expected first smoke run to succeed, got: $final_run" >&2
   exit 1
@@ -133,6 +134,10 @@ fi
 
 runtime_project_dir="data/runtime/projects/$project_id"
 [[ -d "$runtime_project_dir/workspace" ]]
+if [[ -n "$preview_port" ]] && command -v lsof >/dev/null 2>&1; then
+  lsof -tiTCP:"$preview_port" -sTCP:LISTEN | xargs kill >/dev/null 2>&1 || true
+fi
+chmod -R u+w "$runtime_project_dir/workspace" >/dev/null 2>&1 || true
 rm -rf "$runtime_project_dir/workspace"
 
 run_response_2="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X POST "$base_url/api/projects/$project_id/runs" -H 'Content-Type: application/json' -d '{"content":"Add recovery badge"}')"

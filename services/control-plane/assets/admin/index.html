@@ -8,8 +8,16 @@
       :root {
         color-scheme: light;
         font-family: "IBM Plex Sans", "Avenir Next", "Helvetica Neue", sans-serif;
+        --font-title: 24px;
+        --font-mid: 14px;
+        --text-title: 700 var(--font-title) / 1.12 "IBM Plex Sans", "Avenir Next", "Helvetica Neue", sans-serif;
+        --text-normal: 500 var(--font-mid) / 1.55 "IBM Plex Sans", "Avenir Next", "Helvetica Neue", sans-serif;
+        --text-value: 600 var(--font-mid) / 1.45 "IBM Plex Sans", "Avenir Next", "Helvetica Neue", sans-serif;
+        --color-title: #172033;
+        --color-normal: #5e6a7d;
+        --color-value: #172033;
         background: #f4f6f8;
-        color: #172033;
+        color: var(--color-normal);
       }
 
       * {
@@ -19,109 +27,60 @@
       body {
         margin: 0;
         min-height: 100vh;
+        font: var(--text-normal);
+        color: var(--color-normal);
         background:
           radial-gradient(circle at top left, rgba(40, 124, 108, 0.14), transparent 34rem),
           linear-gradient(135deg, #f7f8fa, #edf2f7);
       }
 
       main {
-        width: min(1120px, calc(100vw - 48px));
+        width: min(1220px, calc(100vw - 48px));
         margin: 0 auto;
-        padding: 42px 0 64px;
+        padding: 34px 0 56px;
       }
 
       h1,
       h2,
+      h3,
       p {
         margin: 0;
       }
 
       h1 {
-        font-size: 44px;
-        letter-spacing: -0.05em;
-        line-height: 1;
+        font: var(--text-title);
+        color: var(--color-title);
       }
 
-      h2 {
-        font-size: 18px;
-        letter-spacing: -0.02em;
+      h2,
+      h3 {
+        font: var(--text-title);
+        color: var(--color-title);
       }
 
-      .hero,
-      .card {
-        border: 1px solid rgba(23, 32, 51, 0.1);
-        border-radius: 24px;
-        background: rgba(255, 255, 255, 0.88);
-        box-shadow: 0 24px 80px rgba(23, 32, 51, 0.08);
-      }
-
-      .hero {
-        padding: 28px;
-        display: flex;
-        justify-content: space-between;
-        gap: 24px;
-        align-items: end;
-      }
-
-      .hero p,
-      .muted {
-        color: #5e6a7d;
-        line-height: 1.6;
-      }
-
-      .grid {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr);
-        gap: 18px;
-        margin-top: 18px;
-      }
-
-      .card {
-        padding: 22px;
-      }
-
-      .stack {
-        display: flex;
-        flex-direction: column;
-        gap: 14px;
-      }
-
-      label {
-        display: flex;
-        flex-direction: column;
-        gap: 7px;
-        font-size: 12px;
-        font-weight: 700;
-        color: #5e6a7d;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
+      button,
+      input,
+      select {
+        font: inherit;
       }
 
       input,
-      textarea,
       select {
         width: 100%;
         border: 1px solid rgba(23, 32, 51, 0.14);
-        border-radius: 14px;
+        border-radius: 10px;
         background: #ffffff;
-        color: #172033;
-        padding: 12px 13px;
-        font: inherit;
-        font-size: 14px;
+        color: var(--color-value);
+        padding: 9px 11px;
+        font: var(--text-value);
         outline: none;
-      }
-
-      textarea {
-        min-height: 104px;
-        resize: vertical;
       }
 
       button {
         border: 0;
-        border-radius: 14px;
-        padding: 12px 15px;
-        font: inherit;
-        font-weight: 700;
+        border-radius: 10px;
+        padding: 9px 11px;
+        font: var(--text-value);
         cursor: pointer;
         background: #21665d;
         color: #ffffff;
@@ -137,27 +96,83 @@
         color: #a3312b;
       }
 
-      .icon-actions {
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
+      .hero,
+      .card {
+        border: 1px solid rgba(23, 32, 51, 0.1);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.92);
+        box-shadow: 0 24px 80px rgba(23, 32, 51, 0.08);
+      }
+
+      .hero {
+        padding: 22px;
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        align-items: end;
+      }
+
+      .muted {
+        font: var(--text-normal);
+        color: var(--color-normal);
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 14px;
+        margin-top: 14px;
+      }
+
+      .card {
+        padding: 18px;
+      }
+
+      .section-head,
+      .hero-actions,
+      .node-head,
+      .node-actions,
+      .row {
         display: flex;
         gap: 10px;
         align-items: center;
+      }
+
+      .section-head,
+      .hero-actions,
+      .node-head {
+        justify-content: space-between;
+      }
+
+      .hero-actions,
+      .node-actions {
         flex: 0 0 auto;
       }
 
       .icon-button {
-        width: 56px;
-        height: 56px;
+        width: 48px;
+        height: 48px;
         padding: 0;
-        border-radius: 18px;
+        border-radius: 14px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        box-shadow: inset 0 0 0 1px rgba(23, 32, 51, 0.04);
       }
 
       .icon-button svg {
-        width: 24px;
-        height: 24px;
+        width: 22px;
+        height: 22px;
       }
 
       .icon-button.refresh {
@@ -182,54 +197,12 @@
         border: 0;
       }
 
-      button:disabled {
-        cursor: not-allowed;
-        opacity: 0.55;
-      }
-
-      .row {
-        display: flex;
-        gap: 10px;
-        align-items: center;
-      }
-
-      .row > * {
-        flex: 1;
-      }
-
-      .section-head {
-        display: flex;
-        justify-content: space-between;
-        gap: 16px;
-        align-items: start;
-      }
-
-      .section-head .stack {
-        flex: 1;
-      }
-
-      .section-head button {
-        flex: 0 0 auto;
-      }
-
-      .drawer {
-        border: 1px solid rgba(33, 102, 93, 0.18);
-        border-radius: 18px;
-        background: #f6fbf9;
-        padding: 16px;
-      }
-
-      .drawer[hidden] {
-        display: none;
-      }
-
       .notice {
-        border-radius: 14px;
-        padding: 12px 13px;
+        border-radius: 12px;
+        padding: 11px 12px;
         background: #ecfdf5;
         color: #17654f;
-        font-size: 13px;
-        line-height: 1.5;
+        font: var(--text-normal);
       }
 
       .notice.error {
@@ -237,103 +210,134 @@
         color: #a3312b;
       }
 
-      .key-table,
-      .usage-list {
+      .notice[hidden],
+      .node-children[hidden],
+      .drawer[hidden],
+      .key-edit[hidden] {
+        display: none;
+      }
+
+      .tree {
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 8px;
       }
 
-      .usage-item {
+      .node {
         border: 1px solid rgba(23, 32, 51, 0.1);
-        border-radius: 16px;
+        border-radius: 14px;
         background: #ffffff;
-        padding: 14px;
+      }
+
+      .node-head {
+        padding: 12px;
+      }
+
+      .node-main {
+        min-width: 0;
         display: grid;
-        gap: 10px;
+        gap: 4px;
       }
 
-      .usage-head {
-        display: flex;
-        justify-content: space-between;
-        gap: 12px;
-        align-items: start;
-      }
-
-      .key-table-head,
-      .key-row {
-        display: grid;
-        grid-template-columns: 1.35fr 0.95fr 0.72fr 0.55fr 1fr;
-        gap: 12px;
-        align-items: center;
-      }
-
-      .key-table-head {
-        padding: 0 4px;
-        color: #7c8798;
-        font-size: 11px;
-        font-weight: 800;
-        letter-spacing: 0.09em;
-        text-transform: uppercase;
-      }
-
-      .key-item {
-        border: 1px solid rgba(23, 32, 51, 0.1);
-        border-radius: 16px;
-        background: #ffffff;
-        padding: 14px;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-      }
-
-      .key-row strong,
-      .key-row code {
+      .node-main strong,
+      .node-main code {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
 
-      .key-actions {
+      .node-children {
+        margin: 0 12px 12px;
+        padding-left: 16px;
+        border-left: 2px solid rgba(33, 102, 93, 0.16);
         display: flex;
+        flex-direction: column;
         gap: 8px;
-        justify-content: flex-end;
       }
 
-      .key-actions button {
-        padding: 9px 11px;
+      .project-node {
+        background: #f8fafc;
       }
 
-      .key-edit {
-        border-top: 1px solid rgba(23, 32, 51, 0.08);
-        padding-top: 12px;
+      .run-node {
+        background: #ffffff;
       }
 
-      .key-edit[hidden] {
-        display: none;
+      .node-actions button,
+      .node-actions a {
+        border-radius: 10px;
+        padding: 8px 10px;
+        font: var(--text-value);
+        text-decoration: none;
+      }
+
+      .node-actions a {
+        background: #eef2f6;
+        color: #243044;
+      }
+
+      .disclosure {
+        min-width: 40px;
+      }
+
+      .badge {
+        display: inline-flex;
+        width: fit-content;
+        border-radius: 999px;
+        padding: 4px 8px;
+        background: #eef2f6;
+        color: #49566b;
+        font: var(--text-value);
+      }
+
+      .badge.running {
+        background: #ecfdf5;
+        color: #17654f;
+      }
+
+      .badge.failed {
+        background: #fff1f0;
+        color: #a3312b;
       }
 
       .empty-state {
         border: 1px dashed rgba(23, 32, 51, 0.18);
-        border-radius: 16px;
+        border-radius: 14px;
         background: rgba(255, 255, 255, 0.72);
-        padding: 20px;
-        color: #5e6a7d;
-        line-height: 1.6;
+        padding: 18px;
+        font: var(--text-normal);
+        color: var(--color-normal);
       }
 
-      .badge {
-        border-radius: 999px;
-        padding: 5px 9px;
-        background: #eef2f6;
-        color: #49566b;
-        font-size: 12px;
-        font-weight: 700;
+      .drawer {
+        border: 1px solid rgba(33, 102, 93, 0.18);
+        border-radius: 14px;
+        background: #f6fbf9;
+        padding: 14px;
+      }
+
+      .row > * {
+        flex: 1;
+      }
+
+      label {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        font: var(--text-normal);
+        color: var(--color-normal);
+        text-transform: none;
       }
 
       code {
         font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
-        color: #49566b;
+        font: var(--text-value);
+        color: var(--color-value);
+      }
+
+      strong {
+        font: var(--text-value);
+        color: var(--color-value);
       }
     </style>
   </head>
@@ -342,10 +346,9 @@
       <section class="hero">
         <div class="stack">
           <p class="muted">MoonCraft Admin</p>
-          <h1>OpenRouter Keys</h1>
-          <p>Manage the API keys MoonCraft uses to build apps. Users choose models in their own workspace.</p>
+          <h1>Operations Tree</h1>
         </div>
-        <div class="icon-actions">
+        <div class="hero-actions">
           <button class="icon-button refresh" id="refresh" aria-label="Refresh admin data" title="Refresh">
             <span class="sr-only">Refresh</span>
             <svg viewBox="0 0 24 24" aria-hidden="true" fill="none">
@@ -365,62 +368,56 @@
       </section>
 
       <section class="grid">
-        <div class="stack">
-          <div id="notice" class="notice" hidden></div>
-          <div class="card stack">
+        <div id="notice" class="notice" hidden></div>
+        <div class="card stack">
+          <div class="section-head">
+            <h2>Users -> Projects -> Runs</h2>
+            <span id="tree-count" class="badge">0 users</span>
+          </div>
+          <div id="tree" class="tree"></div>
+        </div>
+
+        <div class="card stack">
+          <div class="section-head">
+            <h2>OpenRouter Keys</h2>
+            <button id="open-key-drawer">Add Key</button>
+          </div>
+          <div id="key-drawer" class="drawer stack" hidden>
             <div class="section-head">
-              <div class="stack">
-                <h2>OpenRouter Keys</h2>
-                <p class="muted">MoonCraft uses active keys when building apps.</p>
-              </div>
-              <button id="open-key-drawer">Add Key</button>
+              <h3>Add OpenRouter Key</h3>
+              <button class="secondary" id="cancel-create-key">Cancel</button>
             </div>
-            <div id="key-drawer" class="drawer stack" hidden>
-              <div class="section-head">
-                <div class="stack">
-                  <h2>Add OpenRouter Key</h2>
-                  <p class="muted">The key is stored privately and never returned by the API.</p>
-                </div>
-                <button class="secondary" id="cancel-create-key">Cancel</button>
-              </div>
-              <div class="row">
-                <label>
-                  Label
-                  <input id="new-label" placeholder="Production key" />
-                </label>
-                <label>
-                  Priority
-                  <input id="new-priority" type="number" value="100" />
-                </label>
-              </div>
+            <div class="row">
               <label>
-                API key
-                <input id="new-key" type="password" autocomplete="off" placeholder="sk-or-v1-..." />
+                Label
+                <input id="new-label" placeholder="Production key" />
               </label>
-              <button id="create-key">Save Key</button>
+              <label>
+                Priority
+                <input id="new-priority" type="number" value="100" />
+              </label>
             </div>
-            <div class="key-table-head">
-              <span>Label</span>
-              <span>Hint</span>
-              <span>Status</span>
-              <span>Priority</span>
-              <span>Actions</span>
-            </div>
-            <div id="keys" class="key-table"></div>
+            <label>
+              API key
+              <input id="new-key" type="password" autocomplete="off" placeholder="sk-or-v1-..." />
+            </label>
+            <button id="create-key">Save Key</button>
           </div>
-          <div class="card stack">
-            <h2>Recent Usage</h2>
-            <div id="usages" class="usage-list"></div>
-          </div>
+          <div id="keys" class="tree"></div>
         </div>
       </section>
     </main>
 
     <script>
       const notice = document.querySelector("#notice")
+      const tree = document.querySelector("#tree")
       const keys = document.querySelector("#keys")
-      const usages = document.querySelector("#usages")
       const keyDrawer = document.querySelector("#key-drawer")
+      const expandedUsers = new Set()
+      const expandedProjects = new Set()
+      let usersData = []
+      let userProjects = new Map()
+      let projectRuns = new Map()
 
       function showNotice(message, error = false) {
         notice.textContent = message
@@ -448,54 +445,249 @@
         return payload
       }
 
-      function keyItem(key) {
+      async function refresh() {
+        try {
+          const [userList, keyList] = await Promise.all([
+            api("/api/admin/users/recent/100"),
+            api("/api/admin/ai/keys"),
+          ])
+          usersData = userList.items || []
+          document.querySelector("#tree-count").textContent = `${usersData.length} users`
+          renderTree()
+          renderKeys(keyList.items || [])
+          showNotice("Admin data loaded.")
+        } catch (error) {
+          showNotice(error.message, true)
+        }
+      }
+
+      function renderTree() {
+        tree.replaceChildren(...(usersData.length === 0 ? [emptyState("No users found.")] : usersData.map(userNode)))
+      }
+
+      function userNode(item) {
+        const user = item.user
+        const open = expandedUsers.has(user.id)
         const node = document.createElement("div")
-        node.className = "key-item"
+        node.className = "node"
+        node.innerHTML = `
+          <div class="node-head">
+            <div class="node-main">
+              <strong>${escapeHtml(user.display_name)}</strong>
+              <code>${escapeHtml(user.email)}</code>
+              <span class="muted">${Number(item.project_count || 0)} projects · ${Number(item.running_project_count || 0)} running</span>
+            </div>
+            <div class="node-actions">
+              ${user.github_login ? `<span class="badge">${escapeHtml(user.github_login)}</span>` : ""}
+              <button class="secondary disclosure" data-action="toggle">${open ? "Hide" : "Open"}</button>
+            </div>
+          </div>
+          <div class="node-children" ${open ? "" : "hidden"}></div>
+        `
+        const children = node.querySelector(".node-children")
+        if (open) {
+          renderUserProjects(children, user.id)
+        }
+        node.querySelector('[data-action="toggle"]').addEventListener("click", () => toggleUser(user.id))
+        return node
+      }
+
+      async function toggleUser(userId) {
+        if (expandedUsers.has(userId)) {
+          expandedUsers.delete(userId)
+          renderTree()
+          return
+        }
+        expandedUsers.add(userId)
+        if (!userProjects.has(userId)) {
+          userProjects.set(userId, null)
+          renderTree()
+          try {
+            const detail = await api(`/api/admin/users/${encodeURIComponent(userId)}`)
+            userProjects.set(userId, detail.projects || [])
+          } catch (error) {
+            userProjects.delete(userId)
+            showNotice(error.message, true)
+          }
+        }
+        renderTree()
+      }
+
+      function renderUserProjects(container, userId) {
+        const items = userProjects.get(userId)
+        if (items === null) {
+          container.replaceChildren(emptyState("Loading projects..."))
+        } else if (!items || items.length === 0) {
+          container.replaceChildren(emptyState("This user has no projects."))
+        } else {
+          container.replaceChildren(...items.map(projectNode))
+        }
+      }
+
+      function projectNode(item) {
+        const project = item.project
+        const owner = item.owner
+        const open = expandedProjects.has(project.id)
+        const preview = project.preview?.url
+        const node = document.createElement("div")
+        node.className = "node project-node"
+        node.innerHTML = `
+          <div class="node-head">
+            <div class="node-main">
+              <strong>${escapeHtml(project.display_name)}</strong>
+              <code>${escapeHtml(project.id)}</code>
+              <span class="muted">${escapeHtml(owner?.email || "owner missing")} · ${escapeHtml(project.agent_cli)} · ${escapeHtml(project.model || "default model")}</span>
+            </div>
+            <div class="node-actions">
+              <span class="badge ${project.status === "Running" ? "running" : project.status === "Failed" ? "failed" : ""}">${escapeHtml(project.status)}</span>
+              ${preview ? `<a href="${escapeAttr(preview)}" target="_blank" rel="noreferrer">Preview</a>` : ""}
+              <button class="secondary" data-action="toggle">${open ? "Hide Runs" : "Runs"}</button>
+              <button class="secondary" data-action="diagnostics">Diagnostics</button>
+              <button class="danger" data-action="delete">Delete</button>
+            </div>
+          </div>
+          <div class="node-children" ${open ? "" : "hidden"}></div>
+        `
+        const children = node.querySelector(".node-children")
+        if (open) {
+          renderProjectRuns(children, project.id)
+        }
+        node.querySelector('[data-action="toggle"]').addEventListener("click", () => toggleProject(project.id))
+        node.querySelector('[data-action="diagnostics"]').addEventListener("click", () => {
+          window.open(`/api/admin/projects/${encodeURIComponent(project.id)}`, "_blank", "noopener")
+        })
+        node.querySelector('[data-action="delete"]').addEventListener("click", () => deleteProject(project))
+        return node
+      }
+
+      async function toggleProject(projectId) {
+        if (expandedProjects.has(projectId)) {
+          expandedProjects.delete(projectId)
+          renderTree()
+          return
+        }
+        expandedProjects.add(projectId)
+        if (!projectRuns.has(projectId)) {
+          projectRuns.set(projectId, null)
+          renderTree()
+          try {
+            const diagnostics = await api(`/api/admin/projects/${encodeURIComponent(projectId)}`)
+            projectRuns.set(projectId, diagnostics.runs || [])
+          } catch (error) {
+            projectRuns.delete(projectId)
+            showNotice(error.message, true)
+          }
+        }
+        renderTree()
+      }
+
+      function renderProjectRuns(container, projectId) {
+        const items = projectRuns.get(projectId)
+        if (items === null) {
+          container.replaceChildren(emptyState("Loading runs..."))
+        } else if (!items || items.length === 0) {
+          container.replaceChildren(emptyState("This project has no runs."))
+        } else {
+          container.replaceChildren(...items.map(runNode))
+        }
+      }
+
+      function runNode(run) {
+        const node = document.createElement("div")
+        node.className = "node run-node"
+        node.innerHTML = `
+          <div class="node-head">
+            <div class="node-main">
+              <strong>${escapeHtml(run.state)}</strong>
+              <code>${escapeHtml(run.run_id)}</code>
+              <span class="muted">${escapeHtml(run.phase || "NoPhase")} · started ${escapeHtml(run.started_at)}</span>
+            </div>
+            <div class="node-actions">
+              <button class="secondary" data-action="events">Events</button>
+              <button class="secondary" data-action="logs">Logs</button>
+            </div>
+          </div>
+        `
+        node.querySelector('[data-action="events"]').addEventListener("click", () => {
+          window.open(`/api/admin/runs/${encodeURIComponent(run.run_id)}/events/0`, "_blank", "noopener")
+        })
+        node.querySelector('[data-action="logs"]').addEventListener("click", () => {
+          window.open(`/api/admin/runs/${encodeURIComponent(run.run_id)}/logs`, "_blank", "noopener")
+        })
+        return node
+      }
+
+      async function deleteProject(project) {
+        if (!confirm(`Delete project "${project.display_name}"?`)) return
+        try {
+          await api(`/api/admin/projects/${encodeURIComponent(project.id)}`, { method: "DELETE" })
+          showNotice("Project deleted.")
+          for (const [userId, projects] of userProjects.entries()) {
+            if (Array.isArray(projects)) {
+              userProjects.set(userId, projects.filter((item) => item.project.id !== project.id))
+            }
+          }
+          projectRuns.delete(project.id)
+          await refresh()
+        } catch (error) {
+          showNotice(error.message, true)
+        }
+      }
+
+      function renderKeys(items) {
+        keys.replaceChildren(...(items.length === 0 ? [emptyState("No keys yet.")] : items.map(keyNode)))
+      }
+
+      function keyNode(key) {
+        const node = document.createElement("div")
+        node.className = "node"
         const toggleStatus = key.status === "active" ? "disabled" : "active"
         const toggleLabel = key.status === "active" ? "Disable" : "Enable"
         node.innerHTML = `
-          <div class="key-row">
-            <strong>${escapeHtml(key.label)}</strong>
-            <code>${escapeHtml(key.key_hint || "saved key")}</code>
-            <span class="badge">${escapeHtml(key.status)}</span>
-            <span>${Number(key.priority || 0)}</span>
-            <div class="key-actions">
+          <div class="node-head">
+            <div class="node-main">
+              <strong>${escapeHtml(key.label)}</strong>
+              <code>${escapeHtml(key.key_hint || "saved key")}</code>
+              ${key.last_error ? `<span class="notice error">${escapeHtml(key.last_error)}</span>` : ""}
+              <div class="key-edit stack" hidden>
+                <div class="row">
+                  <label>
+                    Label
+                    <input data-field="label" value="${escapeAttr(key.label)}" />
+                  </label>
+                  <label>
+                    Priority
+                    <input data-field="priority" type="number" value="${key.priority}" />
+                  </label>
+                </div>
+                <div class="row">
+                  <label>
+                    New API key
+                    <input data-field="api_key" type="password" placeholder="Leave blank to keep current key" />
+                  </label>
+                  <label>
+                    Status
+                    <select data-field="status">
+                      ${["active", "disabled", "exhausted", "error"].map((status) => `
+                        <option value="${status}" ${status === key.status ? "selected" : ""}>${status}</option>
+                      `).join("")}
+                    </select>
+                  </label>
+                </div>
+                <div class="row">
+                  <button data-action="save">Save Changes</button>
+                  <button data-action="cancel" class="secondary">Cancel</button>
+                </div>
+              </div>
+            </div>
+            <div class="node-actions">
+              <span class="badge">${escapeHtml(key.status)}</span>
+              <span class="badge">${Number(key.priority || 0)}</span>
               <button data-action="edit" class="secondary">Edit</button>
               <button data-action="toggle" class="secondary">${toggleLabel}</button>
               <button data-action="delete" class="danger">Delete</button>
             </div>
           </div>
-          <div class="key-edit stack" hidden>
-            <div class="row">
-              <label>
-                Label
-                <input data-field="label" value="${escapeAttr(key.label)}" />
-              </label>
-              <label>
-                Priority
-                <input data-field="priority" type="number" value="${key.priority}" />
-              </label>
-            </div>
-            <div class="row">
-              <label>
-                New API key
-                <input data-field="api_key" type="password" placeholder="Leave blank to keep current key" />
-              </label>
-              <label>
-                Status
-                <select data-field="status">
-                  ${["active", "disabled", "exhausted", "error"].map((status) => `
-                    <option value="${status}" ${status === key.status ? "selected" : ""}>${status}</option>
-                  `).join("")}
-                </select>
-              </label>
-            </div>
-            <div class="row">
-              <button data-action="save">Save Changes</button>
-              <button data-action="cancel" class="secondary">Cancel</button>
-            </div>
-          </div>
-          ${key.last_error ? `<div class="notice error">${escapeHtml(key.last_error)}</div>` : ""}
         `
         const editPanel = node.querySelector(".key-edit")
         node.querySelector('[data-action="edit"]').addEventListener("click", () => {
@@ -524,37 +716,6 @@
           if (confirm(`Delete ${key.label}?`)) await deleteKey(key.id)
         })
         return node
-      }
-
-      function usageItem(usage) {
-        const node = document.createElement("div")
-        node.className = "usage-item"
-        node.innerHTML = `
-          <div class="usage-head">
-            <strong>${escapeHtml(usage.state)}</strong>
-            <span class="badge">${escapeHtml(usage.model)}</span>
-          </div>
-          <div class="muted">Run <code>${escapeHtml(usage.run_id)}</code></div>
-          <div class="muted">Project <code>${escapeHtml(usage.project_id)}</code></div>
-          ${usage.error_code ? `<div class="notice error">${escapeHtml(usage.error_code)}</div>` : ""}
-        `
-        return node
-      }
-
-      async function refresh() {
-        try {
-          const [keyList, usageList] = await Promise.all([
-            api("/api/admin/ai/keys"),
-            api("/api/admin/ai/usages/recent/20"),
-          ])
-          const keyItems = keyList.items || []
-          const usageItems = usageList.items || []
-          keys.replaceChildren(...(keyItems.length === 0 ? [emptyState("No keys yet. Add an OpenRouter key to enable app building.")] : keyItems.map(keyItem)))
-          usages.replaceChildren(...(usageItems.length === 0 ? [emptyState("No key usage has been recorded yet.")] : usageItems.map(usageItem)))
-          showNotice("Admin data loaded.")
-        } catch (error) {
-          showNotice(error.message, true)
-        }
       }
 
       async function createKey() {
