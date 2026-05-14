@@ -356,8 +356,7 @@
     <main>
       <section class="hero">
         <div class="stack">
-          <p class="muted">MoonCraft Admin</p>
-          <h1>Operations Tree</h1>
+          <h1>Admin</h1>
         </div>
         <div class="hero-actions">
           <button class="icon-button refresh" id="refresh" aria-label="Refresh admin data" title="Refresh">
@@ -382,7 +381,7 @@
         <div id="notice" class="notice" hidden></div>
         <div class="card stack">
           <div class="section-head">
-            <h2>Users -> Projects -> Runs</h2>
+            <h2>Users</h2>
             <span id="tree-count" class="badge">0 users</span>
           </div>
           <div id="tree" class="tree"></div>
@@ -390,18 +389,18 @@
 
         <div class="card stack">
           <div class="section-head">
-            <h2>OpenRouter Keys</h2>
+            <h2>Keys</h2>
             <button id="open-key-drawer">Add Key</button>
           </div>
           <div id="key-drawer" class="drawer stack" hidden>
             <div class="section-head">
-              <h3>Add OpenRouter Key</h3>
+              <h3>Add Key</h3>
               <button class="secondary" id="cancel-create-key">Cancel</button>
             </div>
             <div class="row">
               <label>
                 Label
-                <input id="new-label" placeholder="Production key" />
+                <input id="new-label" placeholder="Key label" />
               </label>
               <label>
                 Priority
@@ -412,7 +411,7 @@
               API key
               <input id="new-key" type="password" autocomplete="off" placeholder="sk-or-v1-..." />
             </label>
-            <button id="create-key">Save Key</button>
+            <button id="create-key">Save</button>
           </div>
           <div id="keys" class="tree"></div>
         </div>
@@ -466,14 +465,14 @@
           document.querySelector("#tree-count").textContent = `${usersData.length} users`
           renderTree()
           renderKeys(keyList.items || [])
-          showNotice("Admin data loaded.")
+          showNotice("Loaded.")
         } catch (error) {
           showNotice(error.message, true)
         }
       }
 
       function renderTree() {
-        tree.replaceChildren(...(usersData.length === 0 ? [emptyState("No users found.")] : usersData.map(userNode)))
+        tree.replaceChildren(...(usersData.length === 0 ? [emptyState("No users.")] : usersData.map(userNode)))
       }
 
       function userNode(item) {
@@ -527,9 +526,9 @@
       function renderUserProjects(container, userId) {
         const items = userProjects.get(userId)
         if (items === null) {
-          container.replaceChildren(emptyState("Loading projects..."))
+          container.replaceChildren(emptyState("Loading..."))
         } else if (!items || items.length === 0) {
-          container.replaceChildren(emptyState("This user has no projects."))
+          container.replaceChildren(emptyState("No projects."))
         } else {
           container.replaceChildren(...items.map(projectNode))
         }
@@ -547,13 +546,13 @@
             <div class="node-main">
               <strong>${escapeHtml(project.display_name)}</strong>
               <code>${escapeHtml(project.id)}</code>
-              <span class="muted">${escapeHtml(owner?.email || "owner missing")} · ${escapeHtml(project.agent_cli)} · ${escapeHtml(project.model || "default model")}</span>
+              <span class="muted">${escapeHtml(owner?.email || "No owner")} · ${escapeHtml(project.agent_cli)} · ${escapeHtml(project.model || "default")}</span>
             </div>
             <div class="node-actions">
               <span class="badge ${project.status === "Running" ? "running" : project.status === "Failed" ? "failed" : ""}">${escapeHtml(project.status)}</span>
               ${preview ? `<a href="${escapeAttr(preview)}" target="_blank" rel="noreferrer">Preview</a>` : ""}
-              <button class="secondary" data-action="toggle">${open ? "Hide Runs" : "Runs"}</button>
-              <button class="secondary" data-action="diagnostics">Diagnostics</button>
+              <button class="secondary" data-action="toggle">${open ? "Hide" : "Runs"}</button>
+              <button class="secondary" data-action="diagnostics">Details</button>
               <button class="danger" data-action="delete">Delete</button>
             </div>
           </div>
@@ -595,9 +594,9 @@
       function renderProjectRuns(container, projectId) {
         const items = projectRuns.get(projectId)
         if (items === null) {
-          container.replaceChildren(emptyState("Loading runs..."))
+          container.replaceChildren(emptyState("Loading..."))
         } else if (!items || items.length === 0) {
-          container.replaceChildren(emptyState("This project has no runs."))
+          container.replaceChildren(emptyState("No runs."))
         } else {
           container.replaceChildren(...items.map(runNode))
         }
@@ -646,7 +645,7 @@
       }
 
       function renderKeys(items) {
-        keys.replaceChildren(...(items.length === 0 ? [emptyState("No keys yet.")] : items.map(keyNode)))
+        keys.replaceChildren(...(items.length === 0 ? [emptyState("No keys.")] : items.map(keyNode)))
       }
 
       function keyNode(key) {
@@ -674,7 +673,7 @@
                 <div class="row">
                   <label>
                     New API key
-                    <input data-field="api_key" type="password" placeholder="Leave blank to keep current key" />
+                    <input data-field="api_key" type="password" placeholder="Keep current key" />
                   </label>
                   <label>
                     Status
@@ -686,7 +685,7 @@
                   </label>
                 </div>
                 <div class="row">
-                  <button data-action="save">Save Changes</button>
+                  <button data-action="save">Save</button>
                   <button data-action="cancel" class="secondary">Cancel</button>
                 </div>
               </div>

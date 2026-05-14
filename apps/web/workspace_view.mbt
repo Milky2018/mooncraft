@@ -24,11 +24,6 @@ fn render_message(message : @sdk.ChatMessage) -> @rabbita.Html {
       "box-shadow: none",
     ],
   ) <| [
-    @html.div(
-      style=normal_text_style() +
-        ["opacity: 0.55", "margin-bottom: 4px", "color: " + bubble_foreground],
-      message.role.label(),
-    ),
     if is_user {
       @html.div(
         style=value_text_style() +
@@ -43,7 +38,7 @@ fn render_message(message : @sdk.ChatMessage) -> @rabbita.Html {
 
 ///|
 fn latest_run_event_text(events : Array[@sdk.RunEvent]) -> String {
-  let mut text = "Starting the builder..."
+  let mut text = "Starting"
   for event in events {
     if event.content != "" {
       text = event.content
@@ -56,23 +51,23 @@ fn latest_run_event_text(events : Array[@sdk.RunEvent]) -> String {
 fn friendly_run_event_text(text : String) -> String {
   if text.contains("Fetching MoonBit project dependencies") ||
     text.contains("moon fetch") {
-    "Gathering the app building blocks."
+    "Fetching"
   } else if text.contains("Formatting") || text.contains("moon fmt") {
-    "Tidying the project files."
+    "Formatting"
   } else if text.contains("Checking") || text.contains("moon check") {
-    "Checking that the app is consistent."
+    "Checking"
   } else if text.contains("Running tests") || text.contains("moon test") {
-    "Testing the generated app."
+    "Testing"
   } else if text.contains("Refreshing MoonBit registry") ||
     text.contains("moon update") {
-    "Refreshing the MoonBit package index."
+    "Updating"
   } else if text.contains("Updated project files") {
-    "Updated the app files."
+    "Updated"
   } else if text.contains("Started the builder session") ||
     text.contains("Planning") {
-    "Planning the next version."
+    "Planning"
   } else if text.contains("Running local builder") {
-    "Drafting the app locally."
+    "Building"
   } else {
     text
   }
@@ -95,10 +90,7 @@ fn render_run_events(model : Model) -> @rabbita.Html {
       "box-shadow: none", "display: flex", "flex-direction: column", "gap: 8px",
     ],
   ) <| [
-    @html.div(
-      style=normal_text_style() + ["opacity: 0.86"],
-      "Crafting your app",
-    ),
+    @html.div(style=normal_text_style() + ["opacity: 0.86"], "Working"),
     @html.div(
       style=[
         "display: flex", "align-items: center", "gap: 8px", "padding: 6px 8px", "border-radius: var(--radius-control)",
@@ -135,7 +127,7 @@ fn render_run_banner(model : Model) -> @rabbita.Html {
           "gap: 8px",
         ],
       ) <| [
-        @html.div(style=value_text_style(), "Building your app..."),
+        @html.div(style=value_text_style(), "Working..."),
         status_badge(run.state),
       ]
     None => @html.nothing
@@ -209,7 +201,7 @@ fn render_run_failure_detail(
   match details {
     Some(text) if text != "" && text != summary =>
       @html.div(style=["display: flex", "flex-direction: column", "gap: 8px"], [
-        @html.div(style=value_text_style(), "Failure detail"),
+        @html.div(style=value_text_style(), "Details"),
         @html.div(
           style=normal_text_style() +
             [
@@ -239,7 +231,7 @@ fn render_run_failure_card(model : Model) -> @rabbita.Html {
           "display: flex", "flex-direction: column", "gap: 8px",
         ],
       ) <| [
-        @html.div(style=value_text_style(), "Run failed"),
+        @html.div(style=value_text_style(), "Failed"),
         @html.div(style=value_text_style() + ["white-space: pre-wrap"], summary),
         render_run_failure_debug(run),
         render_run_failure_detail(summary, run.error_message),
@@ -339,9 +331,7 @@ fn render_model_select_options(model : Model) -> Array[@rabbita.Html] {
   let selected_model = model.new_project_model
   let items : Array[@rabbita.Html] = []
   if model.ai_models_loading && model.ai_models.length() == 0 {
-    items.push(
-      @html.option(value="", selected=true, "Loading OpenRouter models..."),
-    )
+    items.push(@html.option(value="", selected=true, "Loading models..."))
   } else {
     if selected_model != "" &&
       !model_list_contains(model.ai_models, selected_model) {
@@ -361,7 +351,7 @@ fn render_model_select_options(model : Model) -> Array[@rabbita.Html] {
       }
     }
     if items.length() == 0 {
-      items.push(@html.option(value="", selected=true, "Use admin default"))
+      items.push(@html.option(value="", selected=true, "Default"))
     }
   }
   items
@@ -389,7 +379,7 @@ fn render_new_project_more(
           "gap: 8px", "cursor: pointer",
         ],
     ) <| [
-      @html.span("More options"),
+      @html.span("Options"),
       render_disclosure_icon(model.new_project_more_open),
     ],
     if model.new_project_more_open {
@@ -456,8 +446,7 @@ fn render_new_project_dialog(
           @html.div(
             style=["display: flex", "flex-direction: column", "gap: 8px"],
           ) <| [
-            @html.div(style=section_label_style(), "New project"),
-            @html.div(style=title_text_style(), "Name the workspace"),
+            @html.div(style=title_text_style(), "New project"),
           ],
           @html.button(
             type_="button",
@@ -471,7 +460,7 @@ fn render_new_project_dialog(
         @html.input(
           input_type=Text,
           value=model.new_project_name,
-          placeholder="Snake game, Team CRM, Launch page...",
+          placeholder="Project name",
           read_only=model.create_project_pending,
           on_input=fn(value) { dispatch(NewProjectNameChanged(value)) },
           style=input_style(model.create_project_pending) +
@@ -499,7 +488,7 @@ fn render_new_project_dialog(
             if model.create_project_pending {
               "Creating..."
             } else {
-              "Create Project"
+              "Create"
             },
           ),
         ],
@@ -528,11 +517,7 @@ fn render_workspace_empty(
           ],
         ) <| [
           @html.div(style=title_text_style(), "No project selected"),
-          @html.div(
-            style=normal_text_style(),
-            "Create a project to start building.",
-          ),
-          render_open_project_button(dispatch, "Create Project", false),
+          render_open_project_button(dispatch, "New project", false),
         ],
       ]
     Some(_) => @html.nothing
@@ -743,7 +728,7 @@ fn render_workspace_panel(
   }
   let action_title = match running_run {
     Some(_) => "Stop"
-    None => "Build with MoonCraft"
+    None => "Send"
   }
   let action_click = match running_run {
     Some(run) => dispatch(StopRun(run.project_id, run.run_id))
@@ -754,9 +739,9 @@ fn render_workspace_panel(
     None => send_arrow_icon()
   }
   let composer_placeholder = if model.selected_project_id is Some(_) {
-    "Tell MoonCraft what to build or change..."
+    "What would you like to build?"
   } else {
-    "Create a project first."
+    "Select a project"
   }
   let messages = if model.messages.length() == 0 {
     [render_workspace_empty(dispatch, model)]
@@ -917,7 +902,7 @@ fn render_preview_panel(
       [
         @html.div(
           style=["display: flex", "flex-direction: column", "gap: 8px"],
-          [@html.div(style=title_text_style(), "Live preview")],
+          [@html.div(style=title_text_style(), "Preview")],
         ),
         @html.div(
           style=[
@@ -999,7 +984,7 @@ fn render_preview_panel(
 fn preview_browser_chrome(preview : @sdk.PreviewTarget?) -> @rabbita.Html {
   let url_text = match preview {
     Some(target) => target.url
-    None => "No preview"
+    None => "Preview"
   }
   @html.div(
     style=[
@@ -1039,11 +1024,11 @@ fn browser_dot(color : String) -> @rabbita.Html {
 ///|
 fn preview_empty_state(model : Model) -> @rabbita.Html {
   let title = if active_run(model) is Some(_) {
-    "Building the first preview"
+    "Building"
   } else if model.selected_project_id is Some(_) {
-    "No preview yet"
+    "No preview"
   } else {
-    "Create a project first"
+    "No project selected"
   }
   @html.div(
     style=[

@@ -42,9 +42,7 @@ fn update(
           ..clear_workspace(model),
           session_ready: true,
           current_user: None,
-          auth_notice: Some(
-            error_notice("Session state could not be loaded.", error),
-          ),
+          auth_notice: Some(error_notice("Failed to load session.", error)),
         },
       )
     Logout =>
@@ -74,8 +72,8 @@ fn update(
         {
           ..model,
           logout_pending: false,
-          auth_notice: Some(error_notice("Sign-out failed.", error)),
-          notice: Some(error_notice("Sign-out failed.", error)),
+          auth_notice: Some(error_notice("Failed to log out.", error)),
+          notice: Some(error_notice("Failed to log out.", error)),
         },
       )
     ToggleAccountPanel =>
@@ -121,7 +119,7 @@ fn update(
           @rabbita.none,
           {
             ..model,
-            notice: Some(error_notice("Projects could not be loaded.", error)),
+            notice: Some(error_notice("Failed to load projects.", error)),
           },
         )
       }
@@ -180,9 +178,7 @@ fn update(
           @rabbita.none,
           {
             ..model,
-            notice: Some(
-              error_notice("Project details could not be loaded.", error),
-            ),
+            notice: Some(error_notice("Failed to load project.", error)),
           },
         )
       }
@@ -202,9 +198,7 @@ fn update(
           @rabbita.none,
           {
             ..model,
-            notice: Some(
-              error_notice("Chat history could not be loaded.", error),
-            ),
+            notice: Some(error_notice("Failed to load messages.", error)),
           },
         )
       }
@@ -423,9 +417,7 @@ fn update(
             new_project_modal_open: true,
             rename_project_pending: false,
             delete_project_confirming: None,
-            notice: Some(
-              error_notice("A new project could not be created.", error),
-            ),
+            notice: Some(error_notice("Failed to create project.", error)),
           },
         )
       }
@@ -485,9 +477,7 @@ fn update(
           {
             ..model,
             rename_project_pending: false,
-            notice: Some(
-              error_notice("The project could not be renamed.", error),
-            ),
+            notice: Some(error_notice("Failed to rename project.", error)),
           },
         )
       }
@@ -501,9 +491,7 @@ fn update(
             ..model,
             delete_project_confirming: None,
             delete_project_pending: None,
-            notice: Some(
-              error_notice("The project could not be deleted.", error),
-            ),
+            notice: Some(error_notice("Failed to delete project.", error)),
           },
         )
       }
@@ -625,7 +613,7 @@ fn update(
             ..model,
             sending_message: false,
             stopping_run_id: None,
-            notice: Some(error_notice("The request could not be sent.", error)),
+            notice: Some(error_notice("Failed to send message.", error)),
           },
         )
       }
@@ -664,7 +652,7 @@ fn update(
           {
             ..model,
             stopping_run_id: None,
-            notice: Some(error_notice("The run could not be stopped.", error)),
+            notice: Some(error_notice("Failed to stop run.", error)),
           },
         )
       }
@@ -771,9 +759,7 @@ fn update(
           @rabbita.none,
           {
             ..model,
-            notice: Some(
-              error_notice("Run status could not be refreshed.", error),
-            ),
+            notice: Some(error_notice("Failed to refresh run.", error)),
           },
         )
       }
