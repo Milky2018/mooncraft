@@ -223,8 +223,8 @@
 
       .notice[hidden],
       .node-children[hidden],
-      .drawer[hidden],
-      .key-edit[hidden] {
+      .key-edit-row[hidden],
+      .action-menu[hidden] {
         display: none;
       }
 
@@ -320,15 +320,141 @@
         color: var(--color-normal);
       }
 
-      .drawer {
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        background: var(--foreground-3);
-        padding: 10px;
-      }
-
       .row > * {
         flex: 1;
+      }
+
+      .table-wrap {
+        width: 100%;
+        overflow: visible;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--background);
+      }
+
+      .key-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .key-table th,
+      .key-table td {
+        padding: 9px 10px;
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+        vertical-align: middle;
+      }
+
+      .key-table th {
+        color: var(--color-normal);
+        font: var(--text-normal);
+        background: var(--foreground-3);
+      }
+
+      .key-table td {
+        color: var(--color-value);
+        font: var(--text-value);
+      }
+
+      .key-table tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .key-table .muted {
+        color: var(--color-normal);
+      }
+
+      .key-table .error-text {
+        color: var(--destructive);
+      }
+
+      .key-table .actions-cell {
+        position: relative;
+        width: 44px;
+        text-align: right;
+      }
+
+      .key-table .create-actions {
+        width: 148px;
+        white-space: nowrap;
+      }
+
+      .key-table .create-actions button {
+        margin-left: 4px;
+      }
+
+      .key-table input,
+      .key-table select {
+        padding: 7px 8px;
+      }
+
+      .key-create-row td {
+        background: var(--foreground-3);
+      }
+
+      .table-empty {
+        padding: 18px;
+        color: var(--color-normal);
+        font: var(--text-normal);
+        text-align: center;
+      }
+
+      .dots-button {
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        border-radius: 6px;
+        background: var(--foreground-5);
+        color: var(--foreground);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .dots-button svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      .action-menu {
+        position: absolute;
+        top: 32px;
+        right: 0;
+        z-index: 10;
+        min-width: 124px;
+        padding: 4px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--background);
+        box-shadow: var(--shadow);
+      }
+
+      .menu-item {
+        width: 100%;
+        padding: 7px 8px;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--foreground);
+        text-align: left;
+      }
+
+      .menu-item:hover {
+        background: var(--foreground-5);
+      }
+
+      .menu-item.danger {
+        background: transparent;
+        color: var(--destructive);
+      }
+
+      .menu-item.danger:hover {
+        background: oklch(from var(--destructive) l c h / 0.10);
+      }
+
+      .key-edit-panel {
+        padding: 10px;
+        border-radius: 8px;
+        background: var(--foreground-3);
       }
 
       label {
@@ -390,30 +516,9 @@
         <div class="card stack">
           <div class="section-head">
             <h2>Keys</h2>
-            <button id="open-key-drawer">Add Key</button>
+            <button id="add-key-row">Add Key</button>
           </div>
-          <div id="key-drawer" class="drawer stack" hidden>
-            <div class="section-head">
-              <h3>Add Key</h3>
-              <button class="secondary" id="cancel-create-key">Cancel</button>
-            </div>
-            <div class="row">
-              <label>
-                Label
-                <input id="new-label" placeholder="Key label" />
-              </label>
-              <label>
-                Priority
-                <input id="new-priority" type="number" value="100" />
-              </label>
-            </div>
-            <label>
-              API key
-              <input id="new-key" type="password" autocomplete="off" placeholder="sk-or-v1-..." />
-            </label>
-            <button id="create-key">Save</button>
-          </div>
-          <div id="keys" class="tree"></div>
+          <div id="keys"></div>
         </div>
       </section>
     </main>
@@ -422,12 +527,14 @@
       const notice = document.querySelector("#notice")
       const tree = document.querySelector("#tree")
       const keys = document.querySelector("#keys")
-      const keyDrawer = document.querySelector("#key-drawer")
       const expandedUsers = new Set()
       const expandedProjects = new Set()
       let usersData = []
       let userProjects = new Map()
       let projectRuns = new Map()
+      let keyData = new Map()
+      let keyItems = []
+      let creatingKey = false
 
       function showNotice(message, error = false) {
         notice.textContent = message
@@ -645,21 +752,82 @@
       }
 
       function renderKeys(items) {
-        keys.replaceChildren(...(items.length === 0 ? [emptyState("No keys.")] : items.map(keyNode)))
+        keyItems = items
+        keyData = new Map(items.map((key) => [key.id, key]))
+        keys.innerHTML = `
+          <div class="table-wrap">
+            <table class="key-table">
+              <thead>
+                <tr>
+                  <th>Label</th>
+                  <th>Key hint</th>
+                  <th>Status</th>
+                  <th>Priority</th>
+                  <th>Last used</th>
+                  <th>Last error</th>
+                  <th>Updated</th>
+                  <th aria-label="Actions"></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${creatingKey ? createKeyRow() : ""}
+                ${items.map(keyRows).join("")}
+                ${items.length === 0 && !creatingKey ? `<tr><td colspan="8"><div class="table-empty">No keys.</div></td></tr>` : ""}
+              </tbody>
+            </table>
+          </div>
+        `
       }
 
-      function keyNode(key) {
-        const node = document.createElement("div")
-        node.className = "node"
-        const toggleStatus = key.status === "active" ? "disabled" : "active"
+      function createKeyRow() {
+        return `
+          <tr class="key-create-row">
+            <td><input data-create-field="label" placeholder="Label" /></td>
+            <td><input data-create-field="api_key" type="password" autocomplete="off" placeholder="OpenRouter API key" /></td>
+            <td><span class="badge running">active</span></td>
+            <td><input data-create-field="priority" type="number" value="100" /></td>
+            <td class="muted">-</td>
+            <td class="muted">-</td>
+            <td class="muted">-</td>
+            <td class="actions-cell create-actions">
+              <button data-action="save-create-key">Save</button>
+              <button data-action="cancel-create-key" class="secondary">Cancel</button>
+            </td>
+          </tr>
+        `
+      }
+
+      function keyRows(key) {
+        const escapedId = escapeAttr(key.id)
+        const nextStatus = key.status === "active" ? "disabled" : "active"
         const toggleLabel = key.status === "active" ? "Disable" : "Enable"
-        node.innerHTML = `
-          <div class="node-head">
-            <div class="node-main">
-              <strong>${escapeHtml(key.label)}</strong>
-              <code>${escapeHtml(key.key_hint || "saved key")}</code>
-              ${key.last_error ? `<span class="notice error">${escapeHtml(key.last_error)}</span>` : ""}
-              <div class="key-edit stack" hidden>
+        return `
+          <tr class="key-row" data-key-id="${escapedId}">
+            <td><strong>${escapeHtml(key.label)}</strong></td>
+            <td><code>${escapeHtml(key.key_hint || "saved key")}</code></td>
+            <td><span class="badge ${key.status === "active" ? "running" : key.status === "error" ? "failed" : ""}">${escapeHtml(key.status)}</span></td>
+            <td>${Number(key.priority || 0)}</td>
+            <td class="muted">${emptyCell(key.last_used_at)}</td>
+            <td>${key.last_error ? `<span class="error-text">${escapeHtml(key.last_error)}</span>` : `<span class="muted">-</span>`}</td>
+            <td class="muted">${emptyCell(key.updated_at)}</td>
+            <td class="actions-cell">
+              <button class="dots-button" data-action="key-menu" aria-label="Open key actions" aria-expanded="false">
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none">
+                  <circle cx="5" cy="12" r="1.8" fill="currentColor"></circle>
+                  <circle cx="12" cy="12" r="1.8" fill="currentColor"></circle>
+                  <circle cx="19" cy="12" r="1.8" fill="currentColor"></circle>
+                </svg>
+              </button>
+              <div class="action-menu" hidden>
+                <button class="menu-item" data-action="edit-key">Edit</button>
+                <button class="menu-item" data-action="toggle-key" data-next-status="${nextStatus}">${toggleLabel}</button>
+                <button class="menu-item danger" data-action="delete-key">Delete</button>
+              </div>
+            </td>
+          </tr>
+          <tr class="key-edit-row" data-key-edit-id="${escapedId}" hidden>
+            <td colspan="8">
+              <div class="key-edit-panel stack">
                 <div class="row">
                   <label>
                     Label
@@ -667,7 +835,7 @@
                   </label>
                   <label>
                     Priority
-                    <input data-field="priority" type="number" value="${key.priority}" />
+                    <input data-field="priority" type="number" value="${Number(key.priority || 0)}" />
                   </label>
                 </div>
                 <div class="row">
@@ -685,63 +853,105 @@
                   </label>
                 </div>
                 <div class="row">
-                  <button data-action="save">Save</button>
-                  <button data-action="cancel" class="secondary">Cancel</button>
+                  <button data-action="save-key">Save</button>
+                  <button data-action="cancel-key" class="secondary">Cancel</button>
                 </div>
               </div>
-            </div>
-            <div class="node-actions">
-              <span class="badge">${escapeHtml(key.status)}</span>
-              <span class="badge">${Number(key.priority || 0)}</span>
-              <button data-action="edit" class="secondary">Edit</button>
-              <button data-action="toggle" class="secondary">${toggleLabel}</button>
-              <button data-action="delete" class="danger">Delete</button>
-            </div>
-          </div>
+            </td>
+          </tr>
         `
-        const editPanel = node.querySelector(".key-edit")
-        node.querySelector('[data-action="edit"]').addEventListener("click", () => {
-          editPanel.hidden = false
-        })
-        node.querySelector('[data-action="cancel"]').addEventListener("click", () => {
-          editPanel.hidden = true
-        })
-        node.querySelector('[data-action="save"]').addEventListener("click", async () => {
-          await updateKey(key.id, {
-            label: node.querySelector('[data-field="label"]').value,
-            api_key: node.querySelector('[data-field="api_key"]').value,
-            status: node.querySelector('[data-field="status"]').value,
-            priority: Number(node.querySelector('[data-field="priority"]').value || "0"),
-          })
-        })
-        node.querySelector('[data-action="toggle"]').addEventListener("click", async () => {
-          await updateKey(key.id, {
-            label: key.label,
-            api_key: "",
-            status: toggleStatus,
-            priority: key.priority,
-          })
-        })
-        node.querySelector('[data-action="delete"]').addEventListener("click", async () => {
-          if (confirm(`Delete ${key.label}?`)) await deleteKey(key.id)
-        })
-        return node
       }
 
-      async function createKey() {
+      function closeActionMenus(exceptMenu = null) {
+        keys.querySelectorAll(".action-menu").forEach((menu) => {
+          if (menu !== exceptMenu) {
+            menu.hidden = true
+            const button = menu.parentElement?.querySelector('[data-action="key-menu"]')
+            if (button) button.setAttribute("aria-expanded", "false")
+          }
+        })
+      }
+
+      function keyEditRow(id) {
+        return Array.from(keys.querySelectorAll(".key-edit-row")).find((row) => row.dataset.keyEditId === id)
+      }
+
+      function handleKeyAction(event) {
+        const button = event.target.closest("[data-action]")
+        if (!button || !keys.contains(button)) return
+        const action = button.dataset.action
+        if (action === "key-menu") {
+          event.stopPropagation()
+          const menu = button.parentElement.querySelector(".action-menu")
+          const nextHidden = !menu.hidden
+          closeActionMenus(menu)
+          menu.hidden = nextHidden
+          button.setAttribute("aria-expanded", String(!menu.hidden))
+          return
+        }
+        if (action === "cancel-create-key") {
+          creatingKey = false
+          renderKeys(keyItems)
+          return
+        }
+        if (action === "save-create-key") {
+          createKeyFromRow(button.closest(".key-create-row"))
+          return
+        }
+        const row = button.closest("[data-key-id], .key-edit-row")
+        const id = row?.dataset.keyId || row?.dataset.keyEditId
+        if (!id) return
+        const key = keyData.get(id)
+        if (action === "edit-key") {
+          closeActionMenus()
+          const editRow = keyEditRow(id)
+          if (editRow) editRow.hidden = false
+          return
+        }
+        if (action === "cancel-key") {
+          row.hidden = true
+          return
+        }
+        if (action === "save-key") {
+          updateKey(id, {
+            label: row.querySelector('[data-field="label"]').value,
+            api_key: row.querySelector('[data-field="api_key"]').value,
+            status: row.querySelector('[data-field="status"]').value,
+            priority: Number(row.querySelector('[data-field="priority"]').value || "0"),
+          })
+          return
+        }
+        if (action === "toggle-key" && key) {
+          closeActionMenus()
+          updateKey(id, {
+            label: key.label,
+            api_key: "",
+            status: button.dataset.nextStatus,
+            priority: key.priority,
+          })
+          return
+        }
+        if (action === "delete-key" && key) {
+          closeActionMenus()
+          if (confirm(`Delete ${key.label}?`)) deleteKey(id)
+        }
+      }
+
+      function emptyCell(value) {
+        return value ? escapeHtml(value) : "-"
+      }
+
+      async function createKeyFromRow(row) {
         try {
           await api("/api/admin/ai/keys", {
             method: "POST",
             body: JSON.stringify({
-              label: document.querySelector("#new-label").value,
-              api_key: document.querySelector("#new-key").value,
-              priority: Number(document.querySelector("#new-priority").value || "0"),
+              label: row.querySelector('[data-create-field="label"]').value,
+              api_key: row.querySelector('[data-create-field="api_key"]').value,
+              priority: Number(row.querySelector('[data-create-field="priority"]').value || "0"),
             }),
           })
-          document.querySelector("#new-key").value = ""
-          document.querySelector("#new-label").value = ""
-          document.querySelector("#new-priority").value = "100"
-          keyDrawer.hidden = true
+          creatingKey = false
           showNotice("Key added.")
           await refresh()
         } catch (error) {
@@ -798,14 +1008,15 @@
         await fetch("/api/admin/logout", { method: "POST" })
         window.location.assign("/admin/login")
       })
-      document.querySelector("#open-key-drawer").addEventListener("click", () => {
-        keyDrawer.hidden = false
-        document.querySelector("#new-label").focus()
+      document.querySelector("#add-key-row").addEventListener("click", () => {
+        creatingKey = true
+        renderKeys(keyItems)
+        keys.querySelector('[data-create-field="label"]')?.focus()
       })
-      document.querySelector("#cancel-create-key").addEventListener("click", () => {
-        keyDrawer.hidden = true
+      keys.addEventListener("click", handleKeyAction)
+      document.addEventListener("click", (event) => {
+        if (!event.target.closest(".actions-cell")) closeActionMenus()
       })
-      document.querySelector("#create-key").addEventListener("click", createKey)
       refresh()
     </script>
   </body>
