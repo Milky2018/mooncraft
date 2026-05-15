@@ -104,6 +104,8 @@ fn update(
           rename_project_editing: false,
           rename_project_name: "",
           rename_project_pending: false,
+          project_action_menu_open: None,
+          delete_project_confirming: None,
         }
       } else {
         { ..model, projects, selected_project_id }
@@ -135,6 +137,7 @@ fn update(
           last_run_event_seq: 0,
           stopping_run_id: None,
           delete_project_confirming: None,
+          project_action_menu_open: None,
           rename_project_editing: false,
           rename_project_name: "",
           rename_project_pending: false,
@@ -162,6 +165,8 @@ fn update(
             rename_project_editing: false,
             rename_project_name: project.display_name,
             rename_project_pending: false,
+            project_action_menu_open: None,
+            delete_project_confirming: None,
             notice: None,
           },
         )
@@ -213,6 +218,7 @@ fn update(
           new_project_model: model.ai_models_default_model,
           ai_models_loading: true,
           delete_project_confirming: None,
+          project_action_menu_open: None,
           notice: None,
         },
       )
@@ -293,10 +299,30 @@ fn update(
             create_project_pending: true,
             new_project_modal_open: true,
             delete_project_confirming: None,
+            project_action_menu_open: None,
             notice: None,
           },
         )
       }
+    ToggleProjectActionMenu(project_id) =>
+      (
+        @rabbita.none,
+        {
+          ..model,
+          project_action_menu_open: if model.project_action_menu_open ==
+            Some(project_id) {
+            None
+          } else {
+            Some(project_id)
+          },
+          delete_project_confirming: if model.project_action_menu_open ==
+            Some(project_id) {
+            model.delete_project_confirming
+          } else {
+            None
+          },
+        },
+      )
     StartProjectRename(display_name) =>
       match model.selected_project_id {
         Some(_) =>
@@ -306,6 +332,7 @@ fn update(
               ..model,
               rename_project_editing: true,
               rename_project_name: display_name,
+              project_action_menu_open: None,
               notice: None,
             },
           )
@@ -323,6 +350,7 @@ fn update(
                 ..model,
                 rename_project_editing: false,
                 rename_project_name: project.display_name,
+                project_action_menu_open: None,
               },
             )
           None =>
@@ -332,6 +360,7 @@ fn update(
                 ..model,
                 rename_project_editing: false,
                 rename_project_name: "",
+                project_action_menu_open: None,
               },
             )
         }
@@ -357,7 +386,12 @@ fn update(
       } else {
         (
           @rabbita.none,
-          { ..model, delete_project_confirming: Some(project_id), notice: None },
+          {
+            ..model,
+            delete_project_confirming: Some(project_id),
+            project_action_menu_open: Some(project_id),
+            notice: None,
+          },
         )
       }
     ConfirmDeleteProject(project_id) =>
@@ -370,6 +404,7 @@ fn update(
           {
             ..model,
             delete_project_confirming: None,
+            project_action_menu_open: None,
             delete_project_pending: Some(project_id),
             notice: None,
           },
@@ -399,6 +434,7 @@ fn update(
           run_events: [],
           last_run_event_seq: 0,
           delete_project_confirming: None,
+          project_action_menu_open: None,
         },
       )
     }
@@ -414,6 +450,7 @@ fn update(
             new_project_modal_open: true,
             rename_project_pending: false,
             delete_project_confirming: None,
+            project_action_menu_open: None,
             notice: Some(error_notice("Failed to create project.", error)),
           },
         )
@@ -433,12 +470,14 @@ fn update(
           rename_project_name: "",
           rename_project_pending: false,
           delete_project_confirming: None,
+          project_action_menu_open: None,
           delete_project_pending: None,
         }
       } else {
         {
           ..model,
           delete_project_confirming: None,
+          project_action_menu_open: None,
           delete_project_pending: None,
         }
       }
@@ -460,6 +499,7 @@ fn update(
           rename_project_editing: false,
           rename_project_name: project.display_name,
           rename_project_pending: false,
+          project_action_menu_open: None,
           notice: None,
         },
       )
@@ -486,6 +526,7 @@ fn update(
           {
             ..model,
             delete_project_confirming: None,
+            project_action_menu_open: None,
             delete_project_pending: None,
             notice: Some(error_notice("Failed to delete project.", error)),
           },

@@ -88,14 +88,81 @@ fn external_link_icon() -> @rabbita.Html {
 }
 
 ///|
+fn plus_icon() -> @rabbita.Html {
+  @svg.svg(
+    width=16,
+    height=16,
+    view_box="0 0 24 24",
+    style=["display: block"],
+    [
+      @svg.path(
+        d="M12 5v14M5 12h14",
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+    ],
+  )
+}
+
+///|
+fn theme_icon() -> @rabbita.Html {
+  @svg.svg(
+    width=16,
+    height=16,
+    view_box="0 0 24 24",
+    style=["display: block"],
+    [
+      @svg.path(
+        d="M12 3a9 9 0 1 0 9 9 6.5 6.5 0 0 1-9-9z",
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+    ],
+  )
+}
+
+///|
+fn logout_icon() -> @rabbita.Html {
+  @svg.svg(
+    width=16,
+    height=16,
+    view_box="0 0 24 24",
+    style=["display: block"],
+    [
+      @svg.path(
+        d="M9 21H5V3h4",
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+      @svg.path(
+        d="M16 17l5-5-5-5",
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+      @svg.path(
+        d="M21 12H9",
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+    ],
+  )
+}
+
+///|
 fn tun_poc_link() -> @rabbita.Html {
   @html.a(
     href="https://tun-poc.moonbitlang.com",
     target=Blank,
     rel="noopener noreferrer",
+    title="tun-poc",
     style=secondary_button_style(true) +
-      ["text-decoration: none", "height: 28px", "padding: 0 8px"],
-    [external_link_icon(), @html.span("tun-poc")],
+      ["text-decoration: none", "width: 28px", "height: 28px", "padding: 0"],
+    [external_link_icon()],
   )
 }
 

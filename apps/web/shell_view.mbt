@@ -47,50 +47,16 @@ fn project_action_button_style(
 }
 
 ///|
-fn project_edit_icon() -> @rabbita.Html {
+fn project_more_icon() -> @rabbita.Html {
   @svg.svg(
     width=16,
     height=16,
     view_box="0 0 24 24",
     style=["display: block"],
     [
-      @svg.path(
-        d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z",
-        fill="none",
-        stroke="currentColor",
-        stroke_width=2,
-      ),
-      @svg.path(
-        d="M13.5 8.5l2 2",
-        fill="none",
-        stroke="currentColor",
-        stroke_width=2,
-      ),
-    ],
-  )
-}
-
-///|
-fn project_delete_icon() -> @rabbita.Html {
-  @svg.svg(
-    width=16,
-    height=16,
-    view_box="0 0 24 24",
-    style=["display: block"],
-    [
-      @svg.path(d="M4 7h16", fill="none", stroke="currentColor", stroke_width=2),
-      @svg.path(
-        d="M9 7V4h6v3",
-        fill="none",
-        stroke="currentColor",
-        stroke_width=2,
-      ),
-      @svg.path(
-        d="M6 7l1 14h10l1-14",
-        fill="none",
-        stroke="currentColor",
-        stroke_width=2,
-      ),
+      @svg.circle(cx=5, cy=12, r=2, fill="currentColor"),
+      @svg.circle(cx=12, cy=12, r=2, fill="currentColor"),
+      @svg.circle(cx=19, cy=12, r=2, fill="currentColor"),
     ],
   )
 }
@@ -135,6 +101,43 @@ fn project_cancel_icon() -> @rabbita.Html {
       ),
     ],
   )
+}
+
+///|
+fn project_action_menu_style() -> Array[String] {
+  [
+    "position: absolute", "right: 0", "top: 34px", "z-index: 40", "padding: 4px",
+    "border-radius: var(--radius-control)", "background: var(--surface-raised)",
+    "box-shadow: var(--shadow)", "display: flex", "flex-direction: column", "gap: 4px",
+    "min-width: 132px",
+  ]
+}
+
+///|
+fn project_menu_item_style(
+  foreground : String,
+  background : String,
+  enabled : Bool,
+) -> Array[String] {
+  let cursor = if enabled { "pointer" } else { "not-allowed" }
+  let opacity = if enabled { "1" } else { "0.45" }
+  value_text_style() +
+  [
+    "width: 100%",
+    "height: 30px",
+    "padding: 0 8px",
+    "border: 0",
+    "border-radius: var(--radius-control)",
+    "background: " + background,
+    "color: " + foreground,
+    "display: flex",
+    "align-items: center",
+    "justify-content: flex-start",
+    "cursor: " + cursor,
+    "opacity: " + opacity,
+    "text-align: left",
+    "white-space: nowrap",
+  ]
 }
 
 ///|
@@ -202,6 +205,7 @@ fn sidebar_project_item(
   let deleting = model.delete_project_pending == Some(project.id)
   let confirming = model.delete_project_confirming == Some(project.id)
   let renaming = selected && model.rename_project_editing
+  let menu_open = model.project_action_menu_open == Some(project.id)
   let delete_enabled = !(project.status is Running || deleting)
   let edit_enabled = !deleting
   let delete_foreground = if confirming { "#ffffff" } else { "var(--danger)" }
@@ -220,6 +224,8 @@ fn sidebar_project_item(
       "display: flex",
       "align-items: center",
       "gap: 6px",
+      "position: relative",
+      "overflow: visible",
     ],
   ) <| [
     if renaming {
@@ -303,36 +309,56 @@ fn sidebar_project_item(
           [project_cancel_icon()],
         ),
       ]
-    } else if selected || deleting {
+    } else if selected || deleting || menu_open {
       @html.div(style=["display: flex", "align-items: center", "gap: 4px"]) <| [
         @html.button(
           type_="button",
-          title="Rename project",
-          disabled=!edit_enabled,
-          on_click=dispatch(StartProjectRename(project.display_name)),
+          title="Project actions",
+          disabled=false,
+          on_click=dispatch(ToggleProjectActionMenu(project.id)),
           style=project_action_button_style(
-            "var(--text-2)", "transparent", edit_enabled,
+            "var(--text-1)", "var(--foreground-5)", true,
           ),
-          [project_edit_icon()],
+          [project_more_icon()],
         ),
-        @html.button(
-          type_="button",
-          title=if confirming {
-            "Confirm delete project"
-          } else {
-            "Delete project"
-          },
-          disabled=!delete_enabled,
-          on_click=if confirming {
-            dispatch(ConfirmDeleteProject(project.id))
-          } else {
-            dispatch(RequestDeleteProject(project.id))
-          },
-          style=project_action_button_style(
-            delete_foreground, delete_background, delete_enabled,
-          ),
-          [project_delete_icon()],
-        ),
+        if menu_open {
+          @html.div(style=project_action_menu_style()) <| [
+            @html.button(
+              type_="button",
+              title="Rename project",
+              disabled=!edit_enabled,
+              on_click=dispatch(StartProjectRename(project.display_name)),
+              style=project_menu_item_style(
+                "var(--text-2)", "transparent", edit_enabled,
+              ),
+              "Rename",
+            ),
+            @html.button(
+              type_="button",
+              title=if confirming {
+                "Confirm delete project"
+              } else {
+                "Delete project"
+              },
+              disabled=!delete_enabled,
+              on_click=if confirming {
+                dispatch(ConfirmDeleteProject(project.id))
+              } else {
+                dispatch(RequestDeleteProject(project.id))
+              },
+              style=project_menu_item_style(
+                delete_foreground, delete_background, delete_enabled,
+              ),
+              if confirming {
+                "Confirm delete"
+              } else {
+                "Delete"
+              },
+            ),
+          ]
+        } else {
+          @html.nothing
+        },
       ]
     } else {
       @html.nothing
@@ -397,18 +423,15 @@ fn render_account_panel(
         @html.button(
           type_="button",
           disabled=model.logout_pending,
+          title=if model.logout_pending { "Logging out" } else { "Log out" },
           on_click=dispatch(Logout),
           style=button_style(
               "var(--surface-2)",
               "var(--text-2)",
               !model.logout_pending,
             ) +
-            ["width: 100%", "justify-content: flex-start", "height: 30px"],
-          if model.logout_pending {
-            "Logging out..."
-          } else {
-            "Log Out"
-          },
+            ["width: 30px", "height: 30px", "padding: 0"],
+          [logout_icon()],
         ),
       ]
     }
@@ -508,9 +531,11 @@ fn render_project_sidebar(
         @html.button(
           type_="button",
           disabled=false,
+          title="New project",
           on_click=dispatch(OpenNewProjectDialog),
-          style=primary_button_style(true) + ["height: 28px", "padding: 0 10px"],
-          "+ New",
+          style=primary_button_style(true) +
+            ["width: 28px", "height: 28px", "padding: 0"],
+          [plus_icon()],
         ),
       ],
     ),

@@ -42,13 +42,12 @@
         min-height: 100vh;
         font: var(--text-normal);
         color: var(--color-normal);
-        background: var(--background);
+        background: var(--foreground-3);
       }
 
       main {
-        width: min(1220px, calc(100vw - 24px));
-        margin: 0 auto;
-        padding: 12px 0 32px;
+        min-height: 100vh;
+        width: 100%;
       }
 
       h1,
@@ -112,20 +111,11 @@
         opacity: 0.55;
       }
 
-      .hero,
       .card {
         border: 0;
         border-radius: 10px;
         background: var(--background);
         box-shadow: var(--shadow);
-      }
-
-      .hero {
-        padding: 12px;
-        display: flex;
-        justify-content: space-between;
-        gap: 18px;
-        align-items: end;
       }
 
       .muted {
@@ -139,21 +129,12 @@
         gap: 8px;
       }
 
-      .grid {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr);
-        gap: 6px;
-        margin-top: 6px;
-      }
-
       .card {
         padding: 12px;
       }
 
       .section-head,
-      .hero-actions,
-      .node-head,
-      .node-actions,
+      .sidebar-actions,
       .row {
         display: flex;
         gap: 6px;
@@ -161,19 +142,95 @@
       }
 
       .section-head,
-      .hero-actions,
-      .node-head {
+      .sidebar-actions {
         justify-content: space-between;
       }
 
-      .hero-actions,
-      .node-actions {
+      .admin-layout {
+        display: grid;
+        grid-template-columns: 240px minmax(0, 1fr);
+        min-height: 100vh;
+      }
+
+      .admin-sidebar {
+        min-height: 100vh;
+        padding: 12px;
+        position: sticky;
+        top: 0;
+        align-self: start;
+        background: var(--foreground-3);
+        border-right: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .sidebar-brand {
+        padding: 2px 4px 10px;
+      }
+
+      .sidebar-actions {
+        margin-top: auto;
+        padding: 10px 0 0;
+        border-top: 1px solid var(--border);
+      }
+
+      .admin-nav {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .nav-button {
+        width: 100%;
+        min-height: 34px;
+        padding: 0 8px;
+        border-radius: 4px;
+        background: transparent;
+        color: var(--color-normal);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        text-align: left;
+      }
+
+      .nav-button::before {
+        content: "";
+        width: 2px;
+        height: 18px;
+        border-radius: 2px;
+        background: transparent;
+        margin-right: 7px;
         flex: 0 0 auto;
       }
 
+      .nav-button span {
+        flex: 1;
+      }
+
+      .nav-button:hover,
+      .nav-button.active {
+        background: var(--foreground-10);
+        color: var(--color-value);
+      }
+
+      .nav-button.active::before {
+        background: var(--accent);
+      }
+
+      .admin-content {
+        min-width: 0;
+        padding: 12px;
+        background: var(--background);
+      }
+
+      .admin-view[hidden] {
+        display: none;
+      }
+
       .icon-button {
-        width: 32px;
-        height: 32px;
+        width: 28px;
+        height: 28px;
         padding: 0;
         border-radius: 6px;
         display: inline-flex;
@@ -222,69 +279,13 @@
       }
 
       .notice[hidden],
-      .node-children[hidden],
       .key-edit-row[hidden],
       .action-menu[hidden] {
         display: none;
       }
 
       .tree {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-      }
-
-      .node {
-        border: 0;
-        border-radius: 8px;
-        background: var(--foreground-3);
-      }
-
-      .node-head {
-        padding: 8px;
-      }
-
-      .node-main {
-        min-width: 0;
-        display: grid;
-        gap: 4px;
-      }
-
-      .node-main strong,
-      .node-main code {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      .node-children {
-        margin: 0 8px 8px;
-        padding-left: 12px;
-        border-left: 1px solid var(--foreground-10);
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-      }
-
-      .project-node {
-        background: var(--background);
-      }
-
-      .run-node {
-        background: var(--background);
-      }
-
-      .node-actions button,
-      .node-actions a {
-        border-radius: 6px;
-        padding: 7px 9px;
-        font: var(--text-value);
-        text-decoration: none;
-      }
-
-      .node-actions a {
-        background: var(--foreground-5);
-        color: var(--foreground);
+        width: 100%;
       }
 
       .disclosure {
@@ -374,8 +375,29 @@
         text-align: right;
       }
 
+      .key-table .nested-cell {
+        padding: 0;
+        background: var(--foreground-3);
+      }
+
+      .nested-wrap {
+        padding: 8px;
+      }
+
+      .nested-wrap .table-wrap {
+        border-color: var(--foreground-10);
+      }
+
+      .nested-wrap .key-table th {
+        background: var(--foreground-5);
+      }
+
+      .nested-wrap .nested-wrap {
+        padding: 6px;
+      }
+
       .key-table .create-actions {
-        width: 148px;
+        width: 76px;
         white-space: nowrap;
       }
 
@@ -421,21 +443,32 @@
         top: 32px;
         right: 0;
         z-index: 10;
-        min-width: 124px;
+        min-width: 132px;
         padding: 4px;
         border-radius: 8px;
         border: 1px solid var(--border);
         background: var(--background);
         box-shadow: var(--shadow);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
       }
 
       .menu-item {
         width: 100%;
-        padding: 7px 8px;
+        height: 30px;
+        padding: 0 8px;
         border-radius: 6px;
+        border: 0;
         background: transparent;
         color: var(--foreground);
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-start;
+        font: var(--text-value);
+        text-decoration: none;
         text-align: left;
+        white-space: nowrap;
       }
 
       .menu-item:hover {
@@ -451,10 +484,10 @@
         background: oklch(from var(--destructive) l c h / 0.10);
       }
 
-      .key-edit-panel {
-        padding: 10px;
-        border-radius: 8px;
-        background: var(--foreground-3);
+      .menu-item.confirming,
+      .menu-item.danger.confirming {
+        background: var(--destructive);
+        color: var(--background);
       }
 
       label {
@@ -480,45 +513,62 @@
   </head>
   <body>
     <main>
-      <section class="hero">
-        <div class="stack">
-          <h1>Admin</h1>
-        </div>
-        <div class="hero-actions">
-          <button class="icon-button refresh" id="refresh" aria-label="Refresh admin data" title="Refresh">
-            <span class="sr-only">Refresh</span>
-            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none">
-              <path d="M20 5v5h-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
-              <path d="M19 10a7 7 0 1 0 1.3 4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path>
-            </svg>
-          </button>
-          <button class="icon-button logout" id="logout" aria-label="Log out" title="Log out">
-            <span class="sr-only">Log Out</span>
-            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none">
-              <path d="M10 6H6.5A2.5 2.5 0 0 0 4 8.5v7A2.5 2.5 0 0 0 6.5 18H10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path>
-              <path d="M14 8l4 4-4 4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
-              <path d="M18 12H9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path>
-            </svg>
-          </button>
-        </div>
-      </section>
-
-      <section class="grid">
-        <div id="notice" class="notice" hidden></div>
-        <div class="card stack">
-          <div class="section-head">
-            <h2>Users</h2>
-            <span id="tree-count" class="badge">0 users</span>
+      <div id="notice" class="notice" hidden></div>
+      <section class="admin-layout">
+        <aside class="admin-sidebar">
+          <div class="sidebar-brand">
+            <h1>Admin</h1>
           </div>
-          <div id="tree" class="tree"></div>
-        </div>
-
-        <div class="card stack">
-          <div class="section-head">
-            <h2>Keys</h2>
-            <button id="add-key-row">Add Key</button>
+          <nav class="admin-nav" aria-label="Admin sections">
+            <button class="nav-button active" type="button" data-view-target="users">
+              <span>Users</span>
+              <strong id="nav-users-count">0</strong>
+            </button>
+            <button class="nav-button" type="button" data-view-target="keys">
+              <span>OpenRouter Keys</span>
+              <strong id="nav-keys-count">0</strong>
+            </button>
+          </nav>
+          <div class="sidebar-actions">
+            <button class="icon-button refresh" id="refresh" aria-label="Refresh admin data" title="Refresh">
+              <span class="sr-only">Refresh</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none">
+                <path d="M20 5v5h-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
+                <path d="M19 10a7 7 0 1 0 1.3 4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path>
+              </svg>
+            </button>
+            <button class="icon-button logout" id="logout" aria-label="Log out" title="Log out">
+              <span class="sr-only">Log Out</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none">
+                <path d="M10 6H6.5A2.5 2.5 0 0 0 4 8.5v7A2.5 2.5 0 0 0 6.5 18H10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path>
+                <path d="M14 8l4 4-4 4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
+                <path d="M18 12H9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path>
+              </svg>
+            </button>
           </div>
-          <div id="keys"></div>
+        </aside>
+        <div class="admin-content">
+          <section class="admin-view card stack" id="view-users" data-view="users">
+            <div class="section-head">
+              <h2>Users</h2>
+              <span id="tree-count" class="badge">0 users</span>
+            </div>
+            <div id="tree" class="tree"></div>
+          </section>
+
+          <section class="admin-view card stack" id="view-keys" data-view="keys" hidden>
+            <div class="section-head">
+              <h2>OpenRouter Keys</h2>
+              <button class="icon-button" id="add-key-row" aria-label="Add key" title="Add key">
+                <span class="sr-only">Add key</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none">
+                  <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path>
+                </svg>
+              </button>
+            </div>
+            <span id="key-count" class="badge">0 keys</span>
+            <div id="keys"></div>
+          </section>
         </div>
       </section>
     </main>
@@ -527,6 +577,12 @@
       const notice = document.querySelector("#notice")
       const tree = document.querySelector("#tree")
       const keys = document.querySelector("#keys")
+      const navButtons = Array.from(document.querySelectorAll("[data-view-target]"))
+      const adminViews = Array.from(document.querySelectorAll("[data-view]"))
+      const treeCount = document.querySelector("#tree-count")
+      const keyCount = document.querySelector("#key-count")
+      const navUsersCount = document.querySelector("#nav-users-count")
+      const navKeysCount = document.querySelector("#nav-keys-count")
       const expandedUsers = new Set()
       const expandedProjects = new Set()
       let usersData = []
@@ -535,11 +591,64 @@
       let keyData = new Map()
       let keyItems = []
       let creatingKey = false
+      let confirmingProjectDeleteId = ""
+      let confirmingKeyDeleteId = ""
+      let activeMenuKey = ""
+      let activeView = "users"
+
+      function icon(name) {
+        const paths = {
+          more: `<circle cx="5" cy="12" r="1.8" fill="currentColor"></circle><circle cx="12" cy="12" r="1.8" fill="currentColor"></circle><circle cx="19" cy="12" r="1.8" fill="currentColor"></circle>`,
+          plus: `<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path>`,
+          check: `<path d="M5 12.5l4 4L19 6.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>`,
+          x: `<path d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path>`,
+          edit: `<path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"></path><path d="M13.5 8.5l2 2" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path>`,
+          trash: `<path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>`,
+          eye: `<path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"></path><path d="M12 9.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z" stroke="currentColor" stroke-width="2.2"></path>`,
+          list: `<path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path>`,
+          file: `<path d="M7 3h7l4 4v14H7z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"></path><path d="M14 3v5h5" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"></path>`,
+          activity: `<path d="M4 12h4l2-6 4 12 2-6h4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>`,
+        }
+        return `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none">${paths[name] || paths.more}</svg>`
+      }
+
+      function iconButton(action, title, iconName, className = "secondary", attrs = "") {
+        return `<button class="icon-button ${className}" data-action="${action}" aria-label="${escapeAttr(title)}" title="${escapeAttr(title)}" ${attrs}>${icon(iconName)}</button>`
+      }
+
+      function menuButton(action, title, label, className = "menu-item", attrs = "") {
+        return `<button class="${className}" data-action="${action}" aria-label="${escapeAttr(title)}" title="${escapeAttr(title)}" ${attrs}>${escapeHtml(label)}</button>`
+      }
+
+      function menuLink(href, title, label) {
+        return `<a class="menu-item" href="${escapeAttr(href)}" target="_blank" rel="noreferrer" aria-label="${escapeAttr(title)}" title="${escapeAttr(title)}">${escapeHtml(label)}</a>`
+      }
+
+      function menuStateAttrs(menuKey) {
+        return activeMenuKey === menuKey ? `aria-expanded="true"` : `aria-expanded="false"`
+      }
+
+      function menuHiddenAttr(menuKey) {
+        return activeMenuKey === menuKey ? "" : "hidden"
+      }
 
       function showNotice(message, error = false) {
         notice.textContent = message
         notice.className = error ? "notice error" : "notice"
         notice.hidden = false
+      }
+
+      function setActiveView(view, updateHash = true) {
+        activeView = view === "keys" ? "keys" : "users"
+        adminViews.forEach((node) => {
+          node.hidden = node.dataset.view !== activeView
+        })
+        navButtons.forEach((button) => {
+          button.classList.toggle("active", button.dataset.viewTarget === activeView)
+        })
+        if (updateHash && window.location.hash !== `#${activeView}`) {
+          history.replaceState(null, "", `#${activeView}`)
+        }
       }
 
       async function api(path, options = {}) {
@@ -564,49 +673,69 @@
 
       async function refresh() {
         try {
+          confirmingProjectDeleteId = ""
+          confirmingKeyDeleteId = ""
+          activeMenuKey = ""
           const [userList, keyList] = await Promise.all([
             api("/api/admin/users/recent/100"),
             api("/api/admin/ai/keys"),
           ])
           usersData = userList.items || []
-          document.querySelector("#tree-count").textContent = `${usersData.length} users`
+          keyItems = keyList.items || []
+          treeCount.textContent = `${usersData.length} users`
+          keyCount.textContent = `${keyItems.length} keys`
+          navUsersCount.textContent = String(usersData.length)
+          navKeysCount.textContent = String(keyItems.length)
           renderTree()
-          renderKeys(keyList.items || [])
-          showNotice("Loaded.")
+          renderKeys(keyItems)
         } catch (error) {
           showNotice(error.message, true)
         }
       }
 
       function renderTree() {
-        tree.replaceChildren(...(usersData.length === 0 ? [emptyState("No users.")] : usersData.map(userNode)))
+        tree.innerHTML = `
+          <div class="table-wrap">
+            <table class="key-table">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Email</th>
+                  <th>Projects</th>
+                  <th>Running</th>
+                  <th>GitHub</th>
+                  <th aria-label="Actions"></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${usersData.length === 0 ? `<tr><td colspan="6"><div class="table-empty">No users.</div></td></tr>` : usersData.map(userRows).join("")}
+              </tbody>
+            </table>
+          </div>
+        `
+        wireAdminTreeActions()
       }
 
-      function userNode(item) {
+      function userRows(item) {
         const user = item.user
         const open = expandedUsers.has(user.id)
-        const node = document.createElement("div")
-        node.className = "node"
-        node.innerHTML = `
-          <div class="node-head">
-            <div class="node-main">
-              <strong>${escapeHtml(user.display_name)}</strong>
-              <code>${escapeHtml(user.email)}</code>
-              <span class="muted">${Number(item.project_count || 0)} projects · ${Number(item.running_project_count || 0)} running</span>
-            </div>
-            <div class="node-actions">
-              ${user.github_login ? `<span class="badge">${escapeHtml(user.github_login)}</span>` : ""}
-              <button class="secondary disclosure" data-action="toggle">${open ? "Hide" : "Open"}</button>
-            </div>
-          </div>
-          <div class="node-children" ${open ? "" : "hidden"}></div>
+        const menuKey = `user:${user.id}`
+        return `
+          <tr data-user-id="${escapeAttr(user.id)}">
+            <td><strong>${escapeHtml(user.display_name)}</strong></td>
+            <td><code>${escapeHtml(user.email)}</code></td>
+            <td>${Number(item.project_count || 0)}</td>
+            <td>${Number(item.running_project_count || 0)}</td>
+            <td class="muted">${user.github_login ? escapeHtml(user.github_login) : "-"}</td>
+            <td class="actions-cell">
+              ${iconButton("user-menu", "User actions", "more", "dots-button", menuStateAttrs(menuKey))}
+              <div class="action-menu" ${menuHiddenAttr(menuKey)}>
+                ${menuButton("toggle-user", open ? "Hide projects" : "Open projects", open ? "Hide projects" : "Open projects")}
+              </div>
+            </td>
+          </tr>
+          ${open ? `<tr><td class="nested-cell" colspan="6">${renderUserProjects(user.id)}</td></tr>` : ""}
         `
-        const children = node.querySelector(".node-children")
-        if (open) {
-          renderUserProjects(children, user.id)
-        }
-        node.querySelector('[data-action="toggle"]').addEventListener("click", () => toggleUser(user.id))
-        return node
       }
 
       async function toggleUser(userId) {
@@ -630,51 +759,61 @@
         renderTree()
       }
 
-      function renderUserProjects(container, userId) {
+      function renderUserProjects(userId) {
         const items = userProjects.get(userId)
         if (items === null) {
-          container.replaceChildren(emptyState("Loading..."))
-        } else if (!items || items.length === 0) {
-          container.replaceChildren(emptyState("No projects."))
-        } else {
-          container.replaceChildren(...items.map(projectNode))
+          return `<div class="nested-wrap"><div class="table-empty">Loading...</div></div>`
         }
-      }
-
-      function projectNode(item) {
-        const project = item.project
-        const owner = item.owner
-        const open = expandedProjects.has(project.id)
-        const preview = project.preview?.url
-        const node = document.createElement("div")
-        node.className = "node project-node"
-        node.innerHTML = `
-          <div class="node-head">
-            <div class="node-main">
-              <strong>${escapeHtml(project.display_name)}</strong>
-              <code>${escapeHtml(project.id)}</code>
-              <span class="muted">${escapeHtml(owner?.email || "No owner")} · ${escapeHtml(project.agent_cli)} · ${escapeHtml(project.model || "default")}</span>
-            </div>
-            <div class="node-actions">
-              <span class="badge ${project.status === "Running" ? "running" : project.status === "Failed" ? "failed" : ""}">${escapeHtml(project.status)}</span>
-              ${preview ? `<a href="${escapeAttr(preview)}" target="_blank" rel="noreferrer">Preview</a>` : ""}
-              <button class="secondary" data-action="toggle">${open ? "Hide" : "Runs"}</button>
-              <button class="secondary" data-action="diagnostics">Details</button>
-              <button class="danger" data-action="delete">Delete</button>
+        if (!items || items.length === 0) {
+          return `<div class="nested-wrap"><div class="table-empty">No projects.</div></div>`
+        }
+        return `
+          <div class="nested-wrap">
+            <div class="table-wrap">
+              <table class="key-table">
+                <thead>
+                  <tr>
+                    <th>Project</th>
+                    <th>ID</th>
+                    <th>Agent</th>
+                    <th>Model</th>
+                    <th>Status</th>
+                    <th aria-label="Actions"></th>
+                  </tr>
+                </thead>
+                <tbody>${items.map(projectRows).join("")}</tbody>
+              </table>
             </div>
           </div>
-          <div class="node-children" ${open ? "" : "hidden"}></div>
         `
-        const children = node.querySelector(".node-children")
-        if (open) {
-          renderProjectRuns(children, project.id)
-        }
-        node.querySelector('[data-action="toggle"]').addEventListener("click", () => toggleProject(project.id))
-        node.querySelector('[data-action="diagnostics"]').addEventListener("click", () => {
-          window.open(`/api/admin/projects/${encodeURIComponent(project.id)}`, "_blank", "noopener")
-        })
-        node.querySelector('[data-action="delete"]').addEventListener("click", () => deleteProject(project))
-        return node
+      }
+
+      function projectRows(item) {
+        const project = item.project
+        const open = expandedProjects.has(project.id)
+        const preview = project.preview?.url
+        const menuKey = `project:${project.id}`
+        const statusClass = project.status === "Running" ? "running" : project.status === "Failed" ? "failed" : ""
+        const confirming = confirmingProjectDeleteId === project.id
+        return `
+          <tr data-project-id="${escapeAttr(project.id)}">
+            <td><strong>${escapeHtml(project.display_name)}</strong></td>
+            <td><code>${escapeHtml(project.id)}</code></td>
+            <td>${escapeHtml(project.agent_cli)}</td>
+            <td class="muted">${escapeHtml(project.model || "default")}</td>
+            <td><span class="badge ${statusClass}">${escapeHtml(project.status)}</span></td>
+            <td class="actions-cell">
+              ${iconButton("project-menu", "Project actions", "more", "dots-button", menuStateAttrs(menuKey))}
+              <div class="action-menu" ${menuHiddenAttr(menuKey)}>
+                ${preview ? menuLink(preview, "Open preview", "Preview") : ""}
+                ${menuButton("toggle-project", open ? "Hide runs" : "Show runs", open ? "Hide runs" : "Runs")}
+                ${menuButton("diagnostics", "Project details", "Details")}
+                ${menuButton("delete-project", confirming ? "Confirm delete project" : "Delete project", confirming ? "Confirm delete" : "Delete", `menu-item danger ${confirming ? "confirming" : ""}`)}
+              </div>
+            </td>
+          </tr>
+          ${open ? `<tr><td class="nested-cell" colspan="6">${renderProjectRuns(project.id)}</td></tr>` : ""}
+        `
       }
 
       async function toggleProject(projectId) {
@@ -698,53 +837,118 @@
         renderTree()
       }
 
-      function renderProjectRuns(container, projectId) {
+      function renderProjectRuns(projectId) {
         const items = projectRuns.get(projectId)
         if (items === null) {
-          container.replaceChildren(emptyState("Loading..."))
-        } else if (!items || items.length === 0) {
-          container.replaceChildren(emptyState("No runs."))
-        } else {
-          container.replaceChildren(...items.map(runNode))
+          return `<div class="nested-wrap"><div class="table-empty">Loading...</div></div>`
         }
-      }
-
-      function runNode(run) {
-        const node = document.createElement("div")
-        node.className = "node run-node"
-        node.innerHTML = `
-          <div class="node-head">
-            <div class="node-main">
-              <strong>${escapeHtml(run.state)}</strong>
-              <code>${escapeHtml(run.run_id)}</code>
-              <span class="muted">${escapeHtml(run.phase || "NoPhase")} · started ${escapeHtml(run.started_at)}</span>
-            </div>
-            <div class="node-actions">
-              <button class="secondary" data-action="events">Events</button>
-              <button class="secondary" data-action="logs">Logs</button>
+        if (!items || items.length === 0) {
+          return `<div class="nested-wrap"><div class="table-empty">No runs.</div></div>`
+        }
+        return `
+          <div class="nested-wrap">
+            <div class="table-wrap">
+              <table class="key-table">
+                <thead>
+                  <tr>
+                    <th>State</th>
+                    <th>Run</th>
+                    <th>Phase</th>
+                    <th>Started</th>
+                    <th aria-label="Actions"></th>
+                  </tr>
+                </thead>
+                <tbody>${items.map(runRows).join("")}</tbody>
+              </table>
             </div>
           </div>
         `
-        node.querySelector('[data-action="events"]').addEventListener("click", () => {
-          window.open(`/api/admin/runs/${encodeURIComponent(run.run_id)}/events/0`, "_blank", "noopener")
-        })
-        node.querySelector('[data-action="logs"]').addEventListener("click", () => {
-          window.open(`/api/admin/runs/${encodeURIComponent(run.run_id)}/logs`, "_blank", "noopener")
-        })
-        return node
       }
 
-      async function deleteProject(project) {
-        if (!confirm(`Delete project "${project.display_name}"?`)) return
+      function runRows(run) {
+        const menuKey = `run:${run.run_id}`
+        return `
+          <tr data-run-id="${escapeAttr(run.run_id)}">
+            <td><strong>${escapeHtml(run.state)}</strong></td>
+            <td><code>${escapeHtml(run.run_id)}</code></td>
+            <td class="muted">${escapeHtml(run.phase || "NoPhase")}</td>
+            <td class="muted">${escapeHtml(run.started_at)}</td>
+            <td class="actions-cell">
+              ${iconButton("run-menu", "Run actions", "more", "dots-button", menuStateAttrs(menuKey))}
+              <div class="action-menu" ${menuHiddenAttr(menuKey)}>
+                ${menuButton("events", "Run events", "Events")}
+                ${menuButton("logs", "Run logs", "Logs")}
+              </div>
+            </td>
+          </tr>
+        `
+      }
+
+      function wireAdminTreeActions() {
+        tree.querySelectorAll('[data-action="user-menu"], [data-action="project-menu"], [data-action="run-menu"]').forEach((button) => {
+          wireMenuButton(button)
+        })
+        tree.querySelectorAll('[data-action="toggle-user"]').forEach((button) => {
+          button.addEventListener("click", () => {
+            closeActionMenus()
+            const userId = button.closest("[data-user-id]")?.dataset.userId
+            if (userId) toggleUser(userId)
+          })
+        })
+        tree.querySelectorAll('[data-action="toggle-project"]').forEach((button) => {
+          button.addEventListener("click", () => {
+            closeActionMenus()
+            const projectId = button.closest("[data-project-id]")?.dataset.projectId
+            if (projectId) toggleProject(projectId)
+          })
+        })
+        tree.querySelectorAll('[data-action="diagnostics"]').forEach((button) => {
+          button.addEventListener("click", () => {
+            closeActionMenus()
+            const projectId = button.closest("[data-project-id]")?.dataset.projectId
+            if (projectId) window.open(`/api/admin/projects/${encodeURIComponent(projectId)}`, "_blank", "noopener")
+          })
+        })
+        tree.querySelectorAll('[data-action="delete-project"]').forEach((button) => {
+          button.addEventListener("click", () => {
+            const projectId = button.closest("[data-project-id]")?.dataset.projectId
+            if (projectId) deleteProject(projectId)
+          })
+        })
+        tree.querySelectorAll('[data-action="events"]').forEach((button) => {
+          button.addEventListener("click", () => {
+            closeActionMenus()
+            const runId = button.closest("[data-run-id]")?.dataset.runId
+            if (runId) window.open(`/api/admin/runs/${encodeURIComponent(runId)}/events/0`, "_blank", "noopener")
+          })
+        })
+        tree.querySelectorAll('[data-action="logs"]').forEach((button) => {
+          button.addEventListener("click", () => {
+            closeActionMenus()
+            const runId = button.closest("[data-run-id]")?.dataset.runId
+            if (runId) window.open(`/api/admin/runs/${encodeURIComponent(runId)}/logs`, "_blank", "noopener")
+          })
+        })
+      }
+
+      async function deleteProject(projectId) {
+        if (confirmingProjectDeleteId !== projectId) {
+          confirmingProjectDeleteId = projectId
+          activeMenuKey = `project:${projectId}`
+          renderTree()
+          return
+        }
         try {
-          await api(`/api/admin/projects/${encodeURIComponent(project.id)}`, { method: "DELETE" })
+          await api(`/api/admin/projects/${encodeURIComponent(projectId)}`, { method: "DELETE" })
+          confirmingProjectDeleteId = ""
+          activeMenuKey = ""
           showNotice("Project deleted.")
           for (const [userId, projects] of userProjects.entries()) {
             if (Array.isArray(projects)) {
-              userProjects.set(userId, projects.filter((item) => item.project.id !== project.id))
+              userProjects.set(userId, projects.filter((item) => item.project.id !== projectId))
             }
           }
-          projectRuns.delete(project.id)
+          projectRuns.delete(projectId)
           await refresh()
         } catch (error) {
           showNotice(error.message, true)
@@ -790,8 +994,8 @@
             <td class="muted">-</td>
             <td class="muted">-</td>
             <td class="actions-cell create-actions">
-              <button data-action="save-create-key">Save</button>
-              <button data-action="cancel-create-key" class="secondary">Cancel</button>
+              ${iconButton("save-create-key", "Save key", "check")}
+              ${iconButton("cancel-create-key", "Cancel", "x", "secondary")}
             </td>
           </tr>
         `
@@ -801,6 +1005,7 @@
         const escapedId = escapeAttr(key.id)
         const nextStatus = key.status === "active" ? "disabled" : "active"
         const toggleLabel = key.status === "active" ? "Disable" : "Enable"
+        const confirming = confirmingKeyDeleteId === key.id
         return `
           <tr class="key-row" data-key-id="${escapedId}">
             <td><strong>${escapeHtml(key.label)}</strong></td>
@@ -811,64 +1016,56 @@
             <td>${key.last_error ? `<span class="error-text">${escapeHtml(key.last_error)}</span>` : `<span class="muted">-</span>`}</td>
             <td class="muted">${emptyCell(key.updated_at)}</td>
             <td class="actions-cell">
-              <button class="dots-button" data-action="key-menu" aria-label="Open key actions" aria-expanded="false">
-                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none">
-                  <circle cx="5" cy="12" r="1.8" fill="currentColor"></circle>
-                  <circle cx="12" cy="12" r="1.8" fill="currentColor"></circle>
-                  <circle cx="19" cy="12" r="1.8" fill="currentColor"></circle>
-                </svg>
-              </button>
-              <div class="action-menu" hidden>
-                <button class="menu-item" data-action="edit-key">Edit</button>
-                <button class="menu-item" data-action="toggle-key" data-next-status="${nextStatus}">${toggleLabel}</button>
-                <button class="menu-item danger" data-action="delete-key">Delete</button>
+              ${iconButton("key-menu", "Key actions", "more", "dots-button", menuStateAttrs(`key:${key.id}`))}
+              <div class="action-menu" ${menuHiddenAttr(`key:${key.id}`)}>
+                ${menuButton("edit-key", "Edit key", "Edit")}
+                ${menuButton("toggle-key", toggleLabel, toggleLabel, "menu-item", `data-next-status="${nextStatus}"`)}
+                ${menuButton("delete-key", confirming ? "Confirm delete key" : "Delete key", confirming ? "Confirm delete" : "Delete", `menu-item danger ${confirming ? "confirming" : ""}`)}
               </div>
             </td>
           </tr>
           <tr class="key-edit-row" data-key-edit-id="${escapedId}" hidden>
-            <td colspan="8">
-              <div class="key-edit-panel stack">
-                <div class="row">
-                  <label>
-                    Label
-                    <input data-field="label" value="${escapeAttr(key.label)}" />
-                  </label>
-                  <label>
-                    Priority
-                    <input data-field="priority" type="number" value="${Number(key.priority || 0)}" />
-                  </label>
-                </div>
-                <div class="row">
-                  <label>
-                    New API key
-                    <input data-field="api_key" type="password" placeholder="Keep current key" />
-                  </label>
-                  <label>
-                    Status
-                    <select data-field="status">
-                      ${["active", "disabled", "exhausted", "error"].map((status) => `
-                        <option value="${status}" ${status === key.status ? "selected" : ""}>${status}</option>
-                      `).join("")}
-                    </select>
-                  </label>
-                </div>
-                <div class="row">
-                  <button data-action="save-key">Save</button>
-                  <button data-action="cancel-key" class="secondary">Cancel</button>
-                </div>
-              </div>
+            <td><input data-field="label" value="${escapeAttr(key.label)}" aria-label="Key label" /></td>
+            <td><input data-field="api_key" type="password" placeholder="Keep current key" aria-label="New API key" /></td>
+            <td>
+              <select data-field="status" aria-label="Key status">
+                ${["active", "disabled", "exhausted", "error"].map((status) => `
+                  <option value="${status}" ${status === key.status ? "selected" : ""}>${status}</option>
+                `).join("")}
+              </select>
+            </td>
+            <td><input data-field="priority" type="number" value="${Number(key.priority || 0)}" aria-label="Key priority" /></td>
+            <td class="muted">-</td>
+            <td class="muted">-</td>
+            <td class="muted">-</td>
+            <td class="actions-cell create-actions">
+              ${iconButton("save-key", "Save key", "check")}
+              ${iconButton("cancel-key", "Cancel", "x", "secondary")}
             </td>
           </tr>
         `
       }
 
       function closeActionMenus(exceptMenu = null) {
-        keys.querySelectorAll(".action-menu").forEach((menu) => {
+        if (!exceptMenu) activeMenuKey = ""
+        document.querySelectorAll(".action-menu").forEach((menu) => {
           if (menu !== exceptMenu) {
             menu.hidden = true
-            const button = menu.parentElement?.querySelector('[data-action="key-menu"]')
+            const button = menu.parentElement?.querySelector('[aria-expanded]')
             if (button) button.setAttribute("aria-expanded", "false")
           }
+        })
+      }
+
+      function wireMenuButton(button) {
+        const menu = button?.parentElement?.querySelector(".action-menu")
+        if (!button || !menu) return
+        button.addEventListener("click", (event) => {
+          event.stopPropagation()
+          const nextHidden = !menu.hidden
+          closeActionMenus(menu)
+          menu.hidden = nextHidden
+          button.setAttribute("aria-expanded", String(!menu.hidden))
         })
       }
 
@@ -932,8 +1129,13 @@
           return
         }
         if (action === "delete-key" && key) {
-          closeActionMenus()
-          if (confirm(`Delete ${key.label}?`)) deleteKey(id)
+          if (confirmingKeyDeleteId === id) {
+            deleteKey(id)
+          } else {
+            confirmingKeyDeleteId = id
+            activeMenuKey = `key:${id}`
+            renderKeys(keyItems)
+          }
         }
       }
 
@@ -975,6 +1177,8 @@
       async function deleteKey(id) {
         try {
           await api(`/api/admin/ai/keys/${encodeURIComponent(id)}`, { method: "DELETE" })
+          confirmingKeyDeleteId = ""
+          activeMenuKey = ""
           showNotice("Key deleted.")
           await refresh()
         } catch (error) {
@@ -996,13 +1200,6 @@
         return escapeHtml(value)
       }
 
-      function emptyState(message) {
-        const node = document.createElement("div")
-        node.className = "empty-state"
-        node.textContent = message
-        return node
-      }
-
       document.querySelector("#refresh").addEventListener("click", refresh)
       document.querySelector("#logout").addEventListener("click", async () => {
         await fetch("/api/admin/logout", { method: "POST" })
@@ -1010,13 +1207,23 @@
       })
       document.querySelector("#add-key-row").addEventListener("click", () => {
         creatingKey = true
+        setActiveView("keys")
         renderKeys(keyItems)
         keys.querySelector('[data-create-field="label"]')?.focus()
+      })
+      navButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          setActiveView(button.dataset.viewTarget)
+        })
+      })
+      window.addEventListener("hashchange", () => {
+        setActiveView(window.location.hash.replace("#", ""), false)
       })
       keys.addEventListener("click", handleKeyAction)
       document.addEventListener("click", (event) => {
         if (!event.target.closest(".actions-cell")) closeActionMenus()
       })
+      setActiveView(window.location.hash.replace("#", ""), false)
       refresh()
     </script>
   </body>

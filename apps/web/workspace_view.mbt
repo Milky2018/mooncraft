@@ -263,9 +263,11 @@ fn render_open_project_button(
   @html.button(
     type_="button",
     disabled=false,
+    title=label,
     on_click=dispatch(OpenNewProjectDialog),
-    style=primary_button_style(true) + ["width: " + width],
-    label,
+    style=primary_button_style(true) +
+      ["width: " + width, "min-width: 32px", "height: 32px", "padding: 0"],
+    [plus_icon()],
   )
 }
 
@@ -382,16 +384,16 @@ fn render_new_project_more(
   ) <| [
     @html.button(
       type_="button",
+      title="Options",
       disabled=model.create_project_pending,
       on_click=dispatch(ToggleNewProjectMore),
       style=value_text_style() +
         [
           "width: 100%", "border: 0", "background: transparent", "padding: 8px 10px",
-          "display: flex", "align-items: center", "justify-content: space-between",
-          "gap: 8px", "cursor: pointer",
+          "display: flex", "align-items: center", "justify-content: flex-end", "gap: 8px",
+          "cursor: pointer",
         ],
     ) <| [
-      @html.span("Options"),
       render_disclosure_icon(model.new_project_more_open),
     ],
     if model.new_project_more_open {
@@ -462,11 +464,12 @@ fn render_new_project_dialog(
           ],
           @html.button(
             type_="button",
+            title="Close",
             disabled=model.create_project_pending,
             on_click=dispatch(CloseNewProjectDialog),
             style=secondary_button_style(!model.create_project_pending) +
               ["width: 30px", "height: 30px", "padding: 0"],
-            "x",
+            [project_cancel_icon()],
           ),
         ],
         @html.input(
@@ -487,21 +490,25 @@ fn render_new_project_dialog(
         ) <| [
           @html.button(
             type_="button",
+            title="Cancel",
             disabled=model.create_project_pending,
             on_click=dispatch(CloseNewProjectDialog),
-            style=secondary_button_style(!model.create_project_pending),
-            "Cancel",
+            style=secondary_button_style(!model.create_project_pending) +
+              ["width: 32px", "height: 32px", "padding: 0"],
+            [project_cancel_icon()],
           ),
           @html.button(
             type_="button",
-            disabled=!enabled,
-            on_click=dispatch(CreateProject),
-            style=primary_button_style(enabled),
-            if model.create_project_pending {
-              "Creating..."
+            title=if model.create_project_pending {
+              "Creating"
             } else {
               "Create"
             },
+            disabled=!enabled,
+            on_click=dispatch(CreateProject),
+            style=primary_button_style(enabled) +
+              ["width: 32px", "height: 32px", "padding: 0"],
+            [plus_icon()],
           ),
         ],
       ],
@@ -691,8 +698,9 @@ fn render_show_preview_button(
     type_="button",
     title="Show preview",
     on_click=dispatch(SetPreviewPanelMode(PreviewSplit)),
-    style=secondary_button_style(true) + ["height: 28px", "padding: 0 8px"],
-    [preview_show_icon(), @html.span("Preview")],
+    style=secondary_button_style(true) +
+      ["width: 28px", "height: 28px", "padding: 0"],
+    [preview_show_icon()],
   )
 }
 
