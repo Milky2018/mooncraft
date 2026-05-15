@@ -369,6 +369,11 @@
         color: var(--destructive);
       }
 
+      .key-table .numeric {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+
       .key-table .actions-cell {
         position: relative;
         width: 44px;
@@ -1033,6 +1038,27 @@
         return item.name && item.name !== item.id ? `${item.name} - ${item.id}` : item.id
       }
 
+      function formatContextLength(value) {
+        const number = Number(value || 0)
+        if (!Number.isFinite(number) || number <= 0) return "-"
+        if (number >= 1000000) return `${formatCompactNumber(number / 1000000)}M`
+        if (number >= 1000) return `${formatCompactNumber(number / 1000)}K`
+        return String(number)
+      }
+
+      function formatCompactNumber(value) {
+        if (Number.isInteger(value)) return String(value)
+        return value.toFixed(1).replace(/\\.0$/, "")
+      }
+
+      function formatTokenPrice(value) {
+        const number = Number(value || 0)
+        if (!Number.isFinite(number) || number <= 0) return "-"
+        const perMillion = number * 1000000
+        const amount = perMillion >= 1 ? perMillion.toFixed(2) : perMillion.toFixed(4)
+        return `$${amount.replace(/\\.00$/, "")} / 1M`
+      }
+
       function allowedModelRows() {
         return aiConfig.allowed_models.map((id) => {
           const item = modelById(id)
@@ -1044,9 +1070,9 @@
               <td><strong>${escapeHtml(modelLabel(id))}</strong></td>
               <td><code>${escapeHtml(id)}</code></td>
               <td>${isDefault ? `<span class="badge running">default</span>` : `<span class="muted">-</span>`}</td>
-              <td>${item ? Number(item.context_length || 0) : "-"}</td>
-              <td class="muted">${item ? escapeHtml(item.prompt_price || "-") : "-"}</td>
-              <td class="muted">${item ? escapeHtml(item.completion_price || "-") : "-"}</td>
+              <td class="numeric">${item ? escapeHtml(formatContextLength(item.context_length)) : "-"}</td>
+              <td class="numeric muted">${item ? escapeHtml(formatTokenPrice(item.prompt_price)) : "-"}</td>
+              <td class="numeric muted">${item ? escapeHtml(formatTokenPrice(item.completion_price)) : "-"}</td>
               <td class="actions-cell">
                 ${iconButton("model-menu", "Model actions", "more", "dots-button", menuStateAttrs(menuKey))}
                 <div class="action-menu" ${menuHiddenAttr(menuKey)}>
@@ -1071,9 +1097,9 @@
               </select>
             </td>
             <td class="muted">-</td>
-            <td class="muted">-</td>
-            <td class="muted">-</td>
-            <td class="muted">-</td>
+            <td class="numeric muted">-</td>
+            <td class="numeric muted">-</td>
+            <td class="numeric muted">-</td>
             <td class="actions-cell create-actions">
               ${iconButton("save-create-model", "Save model", "check", "secondary", available.length === 0 ? "disabled" : "")}
               ${iconButton("cancel-create-model", "Cancel", "x", "secondary")}
@@ -1094,9 +1120,9 @@
                   <th>Model</th>
                   <th>ID</th>
                   <th>Default</th>
-                  <th>Context</th>
-                  <th>Prompt</th>
-                  <th>Completion</th>
+                  <th class="numeric">Context</th>
+                  <th class="numeric">Input</th>
+                  <th class="numeric">Output</th>
                   <th aria-label="Actions"></th>
                 </tr>
               </thead>
