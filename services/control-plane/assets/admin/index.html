@@ -528,6 +528,10 @@
               <span>OpenRouter Keys</span>
               <strong id="nav-keys-count">0</strong>
             </button>
+            <button class="nav-button" type="button" data-view-target="models">
+              <span>Models</span>
+              <strong id="nav-models-count">0</strong>
+            </button>
           </nav>
           <div class="sidebar-actions">
             <button class="icon-button refresh" id="refresh" aria-label="Refresh admin data" title="Refresh">
@@ -569,6 +573,20 @@
             <span id="key-count" class="badge">0 keys</span>
             <div id="keys"></div>
           </section>
+
+          <section class="admin-view card stack" id="view-models" data-view="models" hidden>
+            <div class="section-head">
+              <h2>Models</h2>
+              <button class="icon-button" id="add-model-row" aria-label="Add model" title="Add model">
+                <span class="sr-only">Add model</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none">
+                  <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path>
+                </svg>
+              </button>
+            </div>
+            <span id="model-count" class="badge">0 models</span>
+            <div id="models"></div>
+          </section>
         </div>
       </section>
     </main>
@@ -577,12 +595,15 @@
       const notice = document.querySelector("#notice")
       const tree = document.querySelector("#tree")
       const keys = document.querySelector("#keys")
+      const models = document.querySelector("#models")
       const navButtons = Array.from(document.querySelectorAll("[data-view-target]"))
       const adminViews = Array.from(document.querySelectorAll("[data-view]"))
       const treeCount = document.querySelector("#tree-count")
       const keyCount = document.querySelector("#key-count")
+      const modelCount = document.querySelector("#model-count")
       const navUsersCount = document.querySelector("#nav-users-count")
       const navKeysCount = document.querySelector("#nav-keys-count")
+      const navModelsCount = document.querySelector("#nav-models-count")
       const expandedUsers = new Set()
       const expandedProjects = new Set()
       let usersData = []
@@ -590,9 +611,14 @@
       let projectRuns = new Map()
       let keyData = new Map()
       let keyItems = []
+      let aiConfig = { default_model: "", allowed_models: [], updated_at: "" }
+      let adminModelItems = []
+      let adminModelsError = ""
       let creatingKey = false
+      let creatingModel = false
       let confirmingProjectDeleteId = ""
       let confirmingKeyDeleteId = ""
+      let confirmingModelRemoveId = ""
       let activeMenuKey = ""
       let activeView = "users"
 
@@ -639,7 +665,7 @@
       }
 
       function setActiveView(view, updateHash = true) {
-        activeView = view === "keys" ? "keys" : "users"
+        activeView = view === "keys" || view === "models" ? view : "users"
         adminViews.forEach((node) => {
           node.hidden = node.dataset.view !== activeView
         })
@@ -675,19 +701,33 @@
         try {
           confirmingProjectDeleteId = ""
           confirmingKeyDeleteId = ""
+          confirmingModelRemoveId = ""
           activeMenuKey = ""
-          const [userList, keyList] = await Promise.all([
+          const [userList, keyList, configResult, modelResult] = await Promise.all([
             api("/api/admin/users/recent/100"),
             api("/api/admin/ai/keys"),
+            api("/api/admin/ai/config"),
+            api("/api/admin/ai/models").catch((error) => ({ error: error.message })),
           ])
           usersData = userList.items || []
           keyItems = keyList.items || []
+          aiConfig = configResult
+          if (modelResult.error) {
+            adminModelItems = []
+            adminModelsError = modelResult.error
+          } else {
+            adminModelItems = modelResult.items || []
+            adminModelsError = ""
+          }
           treeCount.textContent = `${usersData.length} users`
           keyCount.textContent = `${keyItems.length} keys`
+          modelCount.textContent = `${aiConfig.allowed_models.length} models`
           navUsersCount.textContent = String(usersData.length)
           navKeysCount.textContent = String(keyItems.length)
+          navModelsCount.textContent = String(aiConfig.allowed_models.length)
           renderTree()
           renderKeys(keyItems)
+          renderModels()
         } catch (error) {
           showNotice(error.message, true)
         }
@@ -983,6 +1023,93 @@
         `
       }
 
+      function modelById(id) {
+        return adminModelItems.find((item) => item.id === id)
+      }
+
+      function modelLabel(id) {
+        const item = modelById(id)
+        if (!item) return id
+        return item.name && item.name !== item.id ? `${item.name} - ${item.id}` : item.id
+      }
+
+      function allowedModelRows() {
+        return aiConfig.allowed_models.map((id) => {
+          const item = modelById(id)
+          const menuKey = `model:${id}`
+          const isDefault = id === aiConfig.default_model
+          const confirming = confirmingModelRemoveId === id
+          return `
+            <tr data-model-id="${escapeAttr(id)}">
+              <td><strong>${escapeHtml(modelLabel(id))}</strong></td>
+              <td><code>${escapeHtml(id)}</code></td>
+              <td>${isDefault ? `<span class="badge running">default</span>` : `<span class="muted">-</span>`}</td>
+              <td>${item ? Number(item.context_length || 0) : "-"}</td>
+              <td class="muted">${item ? escapeHtml(item.prompt_price || "-") : "-"}</td>
+              <td class="muted">${item ? escapeHtml(item.completion_price || "-") : "-"}</td>
+              <td class="actions-cell">
+                ${iconButton("model-menu", "Model actions", "more", "dots-button", menuStateAttrs(menuKey))}
+                <div class="action-menu" ${menuHiddenAttr(menuKey)}>
+                  ${isDefault ? "" : menuButton("set-default-model", "Set default model", "Set default")}
+                  ${menuButton("remove-model", confirming ? "Confirm remove model" : "Remove model", confirming ? "Confirm remove" : "Remove", `menu-item danger ${confirming ? "confirming" : ""}`)}
+                </div>
+              </td>
+            </tr>
+          `
+        }).join("")
+      }
+
+      function modelCreateRow() {
+        const available = adminModelItems.filter((item) => !aiConfig.allowed_models.includes(item.id))
+        return `
+          <tr class="key-create-row">
+            <td colspan="2">
+              <select data-create-model="id" aria-label="Model">
+                ${available.length === 0 ? `<option value="">No available models</option>` : available.map((item) => `
+                  <option value="${escapeAttr(item.id)}">${escapeHtml(modelLabel(item.id))}</option>
+                `).join("")}
+              </select>
+            </td>
+            <td class="muted">-</td>
+            <td class="muted">-</td>
+            <td class="muted">-</td>
+            <td class="muted">-</td>
+            <td class="actions-cell create-actions">
+              ${iconButton("save-create-model", "Save model", "check", "secondary", available.length === 0 ? "disabled" : "")}
+              ${iconButton("cancel-create-model", "Cancel", "x", "secondary")}
+            </td>
+          </tr>
+        `
+      }
+
+      function renderModels() {
+        modelCount.textContent = `${aiConfig.allowed_models.length} models`
+        navModelsCount.textContent = String(aiConfig.allowed_models.length)
+        models.innerHTML = `
+          ${adminModelsError ? `<div class="notice error">${escapeHtml(adminModelsError)}</div>` : ""}
+          <div class="table-wrap">
+            <table class="key-table">
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th>ID</th>
+                  <th>Default</th>
+                  <th>Context</th>
+                  <th>Prompt</th>
+                  <th>Completion</th>
+                  <th aria-label="Actions"></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${creatingModel ? modelCreateRow() : ""}
+                ${allowedModelRows()}
+                ${aiConfig.allowed_models.length === 0 && !creatingModel ? `<tr><td colspan="7"><div class="table-empty">No models.</div></td></tr>` : ""}
+              </tbody>
+            </table>
+          </div>
+        `
+      }
+
       function createKeyRow() {
         return `
           <tr class="key-create-row">
@@ -1139,6 +1266,49 @@
         }
       }
 
+      function handleModelAction(event) {
+        const button = event.target.closest("[data-action]")
+        if (!button || !models.contains(button)) return
+        const action = button.dataset.action
+        if (action === "model-menu") {
+          event.stopPropagation()
+          const menu = button.parentElement.querySelector(".action-menu")
+          const nextHidden = !menu.hidden
+          closeActionMenus(menu)
+          menu.hidden = nextHidden
+          button.setAttribute("aria-expanded", String(!menu.hidden))
+          return
+        }
+        if (action === "cancel-create-model") {
+          creatingModel = false
+          renderModels()
+          return
+        }
+        if (action === "save-create-model") {
+          const id = button.closest("tr")?.querySelector("[data-create-model]")?.value || ""
+          if (id) saveModelConfig(aiConfig.default_model || id, aiConfig.allowed_models.concat([id]))
+          return
+        }
+        const id = button.closest("[data-model-id]")?.dataset.modelId
+        if (!id) return
+        if (action === "set-default-model") {
+          closeActionMenus()
+          saveModelConfig(id, aiConfig.allowed_models)
+          return
+        }
+        if (action === "remove-model") {
+          if (confirmingModelRemoveId === id) {
+            const nextAllowed = aiConfig.allowed_models.filter((model) => model !== id)
+            const nextDefault = aiConfig.default_model === id ? (nextAllowed[0] || "") : aiConfig.default_model
+            saveModelConfig(nextDefault, nextAllowed)
+          } else {
+            confirmingModelRemoveId = id
+            activeMenuKey = `model:${id}`
+            renderModels()
+          }
+        }
+      }
+
       function emptyCell(value) {
         return value ? escapeHtml(value) : "-"
       }
@@ -1186,6 +1356,25 @@
         }
       }
 
+      async function saveModelConfig(defaultModel, allowedModels) {
+        try {
+          await api("/api/admin/ai/config", {
+            method: "PUT",
+            body: JSON.stringify({
+              default_model: defaultModel,
+              allowed_models: allowedModels,
+            }),
+          })
+          creatingModel = false
+          confirmingModelRemoveId = ""
+          activeMenuKey = ""
+          showNotice("Models updated.")
+          await refresh()
+        } catch (error) {
+          showNotice(error.message, true)
+        }
+      }
+
       function escapeHtml(value) {
         return String(value ?? "").replace(/[&<>"']/g, (char) => ({
           "&": "&amp;",
@@ -1211,6 +1400,12 @@
         renderKeys(keyItems)
         keys.querySelector('[data-create-field="label"]')?.focus()
       })
+      document.querySelector("#add-model-row").addEventListener("click", () => {
+        creatingModel = true
+        setActiveView("models")
+        renderModels()
+        models.querySelector("[data-create-model]")?.focus()
+      })
       navButtons.forEach((button) => {
         button.addEventListener("click", () => {
           setActiveView(button.dataset.viewTarget)
@@ -1220,6 +1415,7 @@
         setActiveView(window.location.hash.replace("#", ""), false)
       })
       keys.addEventListener("click", handleKeyAction)
+      models.addEventListener("click", handleModelAction)
       document.addEventListener("click", (event) => {
         if (!event.target.closest(".actions-cell")) closeActionMenus()
       })

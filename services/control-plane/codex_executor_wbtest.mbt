@@ -297,6 +297,37 @@ test "OpenRouter model list parser keeps usable model metadata" {
 }
 
 ///|
+test "public AI model list only exposes admin allowed models" {
+  let fetched : @sdk.AdminListAiModelsResponse = {
+    items: [
+      {
+        id: "anthropic/claude-sonnet-4.5",
+        name: "Claude Sonnet 4.5",
+        context_length: 200000,
+        prompt_price: "0.000003",
+        completion_price: "0.000015",
+      },
+      {
+        id: "openai/gpt-5.5",
+        name: "GPT 5.5",
+        context_length: 128000,
+        prompt_price: "0.000001",
+        completion_price: "0.000004",
+      },
+    ],
+    fetched_at: "now",
+  }
+  let config : @sdk.AdminAiConfigResponse = {
+    default_model: "openai/gpt-5.5",
+    allowed_models: ["openai/gpt-5.5"],
+    updated_at: "now",
+  }
+  let public_models = public_ai_model_list(fetched, config)
+  inspect(public_models.length(), content="1")
+  inspect(public_models[0].id, content="openai/gpt-5.5")
+}
+
+///|
 test "admin log reader returns structured file content" {
   let root = @env.current_dir().unwrap_or(".") +
     "/data/test-admin-logs/" +

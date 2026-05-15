@@ -67,6 +67,65 @@ fn selected_project_model(
 }
 
 ///|
+fn model_allowed(model : String, allowed_models : Array[String]) -> Bool {
+  let normalized = normalize_openrouter_model(model)
+  for allowed in allowed_models {
+    if normalize_openrouter_model(allowed) == normalized {
+      return true
+    }
+  }
+  false
+}
+
+///|
+fn public_ai_model_list(
+  response : @sdk.AdminListAiModelsResponse,
+  config : @sdk.AdminAiConfigResponse,
+) -> Array[@sdk.AiModelSummary] {
+  let items : Array[@sdk.AiModelSummary] = []
+  for model in response.items {
+    if model_allowed(model.id, config.allowed_models) {
+      items.push(ai_model_summary_from_admin(model))
+    }
+  }
+  items
+}
+
+///|
+fn openrouter_catalog_contains(
+  items : Array[@sdk.AdminAiModelSummary],
+  model : String,
+) -> Bool {
+  let normalized = normalize_openrouter_model(model)
+  for item in items {
+    if normalize_openrouter_model(item.id) == normalized {
+      return true
+    }
+  }
+  false
+}
+
+///|
+fn normalized_config_models(
+  default_model : String,
+  allowed_models : Array[String],
+) -> Array[String] {
+  let normalized_default = normalize_openrouter_model(default_model)
+  let normalized_allowed = normalize_allowed_models(allowed_models)
+  if normalized_allowed.length() == 0 {
+    [normalized_default]
+  } else if normalized_allowed.contains(normalized_default) {
+    normalized_allowed
+  } else {
+    let next = [normalized_default]
+    for model in normalized_allowed {
+      next.push(model)
+    }
+    next
+  }
+}
+
+///|
 fn selected_project_agent_cli(
   request_agent_cli : String?,
 ) -> Result[String, String] {
@@ -1145,10 +1204,7 @@ fn main {
     let config = ctx.store.get_admin_ai_config()
     match ctx.fetch_openrouter_models() {
       Ok(response) => {
-        let items : Array[@sdk.AiModelSummary] = []
-        for model in response.items {
-          items.push(ai_model_summary_from_admin(model))
-        }
+        let items = public_ai_model_list(response, config)
         json_ok(@sdk.ListAiModelsResponse::{
           default_agent_cli: default_agent_cli(),
           default_model: config.default_model,
@@ -1169,6 +1225,28 @@ fn main {
       decode_json_body(event) {
       Ok(request) => request
       Err(response) => return response
+    }
+    let catalog = match ctx.fetch_openrouter_models() {
+      Ok(response) => response.items
+      Err(message) =>
+        return api_error_response(
+          UnprocessableEntity,
+          ValidationFailed,
+          message,
+        )
+    }
+    for
+      model in normalized_config_models(
+        request.default_model,
+        request.allowed_models,
+      ) {
+      if !openrouter_catalog_contains(catalog, model) {
+        return api_error_response(
+          UnprocessableEntity,
+          ValidationFailed,
+          "Model must be available from OpenRouter.",
+        )
+      }
     }
     match
       ctx.store.update_admin_ai_config(
@@ -1246,6 +1324,13 @@ fn main {
       request.model,
       config.default_model,
     )
+    if !model_allowed(selected_model, config.allowed_models) {
+      return api_error_response(
+        UnprocessableEntity,
+        ValidationFailed,
+        "That model is not available in this workspace.",
+      )
+    }
     if selected_model.length() > 160 {
       return api_error_response(
         UnprocessableEntity,
