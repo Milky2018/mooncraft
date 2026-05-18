@@ -54,5 +54,6 @@ docker run --rm \
       moon fetch --no-update "$module"
     done
     test -d "${CODEX_HOME:-${HOME:-/root}/.codex}/skills"
+    test -d /opt/mooncraft/templates
     echo "Agent runtime dependency and skill seed check completed."
   '

@@ -35,6 +35,8 @@ RUN /opt/mooncraft/install/install-kimi.sh
 
 RUN /opt/mooncraft/install/install-moonbit-skills.sh
 
+RUN /opt/mooncraft/install/install-mooncraft-templates.sh
+
 WORKDIR /workspace
 
 ENTRYPOINT ["mooncraft-agent-entrypoint"]

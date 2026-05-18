@@ -198,21 +198,36 @@ test "agent runtime installs public MoonBit skills and compact contract" {
   let root = @env.current_dir().unwrap_or(".")
   let install_script_path = root +
     "/docker/agent-runtime/install/install-moonbit-skills.sh"
+  let templates_script_path = root +
+    "/docker/agent-runtime/install/install-mooncraft-templates.sh"
+  let dockerfile_path = root + "/docker/agent-runtime/Dockerfile"
   let system_prompt_path = root +
     "/docker/agent-runtime/mooncraft-agent-system.md"
   let removed_skill_path = root +
     "/docker/agent-runtime/skills/mooncraft-generated-app/SKILL.md"
   assert_false(@fs.path_exists(removed_skill_path))
   assert_true(@fs.path_exists(install_script_path))
+  assert_true(@fs.path_exists(templates_script_path))
   assert_true(@fs.path_exists(system_prompt_path))
   let install_script = safe_read_string_or(install_script_path, "")
+  let templates_script = safe_read_string_or(templates_script_path, "")
+  let dockerfile = safe_read_string_or(dockerfile_path, "")
   assert_true(
     install_script.contains("https://github.com/moonbitlang/skills.git"),
   )
   assert_true(install_script.contains("/opt/codex-skill-seed/skills"))
+  assert_true(
+    templates_script.contains(
+      "https://github.com/moonbitlang/mooncraft-templates.git",
+    ),
+  )
+  assert_true(templates_script.contains("/opt/mooncraft/templates"))
+  assert_true(dockerfile.contains("install-mooncraft-templates.sh"))
   let system_prompt = safe_read_string_or(system_prompt_path, "")
   assert_true(system_prompt.contains("preferred-target"))
   assert_true(system_prompt.contains("mooncraft-preview.sh"))
+  assert_true(system_prompt.contains("/opt/mooncraft/templates"))
+  assert_true(system_prompt.contains("runtime profile knowledge"))
   assert_true(system_prompt.contains("/api/health"))
   assert_true(system_prompt.contains("moon build"))
   assert_true(system_prompt.contains("multiple-target"))

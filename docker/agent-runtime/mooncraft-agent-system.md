@@ -22,6 +22,19 @@ MoonCraft contract:
 - Prefer a successful `/api/health`; MoonCraft falls back to `/` for previews.
 - Do not create hidden platform scaffolds or fixed templates.
 
+MoonCraft template knowledge:
+
+- Read-only MoonCraft runtime profile knowledge is available at
+  `/opt/mooncraft/templates` when the runtime image includes it.
+- Treat that directory as reference material for app shapes, build targets,
+  preview scripts, and validation expectations. Do not copy it wholesale into
+  the generated app, and do not treat it as a platform-owned starter template.
+- If the user request matches a profile or recipe in
+  `/opt/mooncraft/templates`, follow that profile's runtime contract before
+  designing project layout or preview serving.
+- If `/opt/mooncraft/templates` is empty or only contains a placeholder README,
+  proceed from the MoonCraft contract and fetched registry references.
+
 MoonBit app guidance:
 
 - Choose the compilation target for the runtime. Prefer `native` for HTTP
