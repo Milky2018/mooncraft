@@ -220,7 +220,7 @@ test "agent runtime installs public MoonBit skills and compact contract" {
   assert_true(
     system_prompt.contains("/workspace/.repos/<author>/<module>/<version>/"),
   )
-  assert_true(system_prompt.contains("/workspace/.repos/oboard/mocket/0.7.1/"))
+  assert_true(system_prompt.contains("/workspace/.repos/oboard/mocket/"))
   assert_true(system_prompt.contains("pkg.generated.mbti"))
   assert_true(system_prompt.contains("oboard/mocket"))
   assert_true(system_prompt.contains("Milky2018/selene"))
@@ -421,6 +421,8 @@ test "docker validation uses initialized image registry in one shell" {
   assert_true(script.contains("moon check"))
   assert_true(script.contains("moon build"))
   assert_true(script.contains("moon test"))
+  assert_true(script.contains("moon test --build-only"))
+  assert_true(script.contains("\"preferred-target\""))
   assert_false(script.contains("--target native"))
 }
 
@@ -462,17 +464,13 @@ test "agent runtime doctor bypasses project fetch wrapper" {
 }
 
 ///|
-test "reference module versions come from the single config file" {
-  let mocket_version = required_reference_module_version("oboard/mocket")
-  let x_version = required_reference_module_version("moonbitlang/x")
-  assert_true(mocket_version.length() > 0)
-  assert_true(x_version.length() > 0)
-  assert_true(
-    required_user_project_fetches().contains("oboard/mocket@" + mocket_version),
-  )
-  assert_true(
-    required_user_project_fetches().contains("moonbitlang/x@" + x_version),
-  )
+test "reference module fetches are unpinned" {
+  let fetches = required_user_project_fetches()
+  assert_true(fetches.contains("oboard/mocket"))
+  assert_true(fetches.contains("moonbitlang/x"))
+  for fetch in fetches {
+    assert_false(fetch.contains("@"))
+  }
 }
 
 ///|

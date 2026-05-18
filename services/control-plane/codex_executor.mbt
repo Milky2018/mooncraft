@@ -822,9 +822,9 @@ fn fake_codex_update_workspace(
     fake_codex_user_request(prompt),
     "MoonCraft update",
   )
-  let async_version = required_reference_module_version("moonbitlang/async")
-  let mocket_version = required_reference_module_version("oboard/mocket")
-  let x_version = required_reference_module_version("moonbitlang/x")
+  let async_version = "0.18.1"
+  let mocket_version = "0.7.1"
+  let x_version = "0.4.43"
   let files : Array[(String, String)] = [
     (
       "/moon.mod.json",
@@ -1983,7 +1983,7 @@ fn validation_shell_script(include_update~ : Bool) -> String {
   commands.push("moon fmt")
   commands.push("moon check")
   commands.push("moon build")
-  commands.push("moon test")
+  commands.push(validation_test_command())
   let lines : Array[String] = []
   lines.push("set -e")
   for command in commands {
@@ -1991,6 +1991,13 @@ fn validation_shell_script(include_update~ : Bool) -> String {
     lines.push(command)
   }
   lines.join("\n")
+}
+
+///|
+fn validation_test_command() -> String {
+  (
+    #|if [ -f moon.mod.json ] && grep -Eq '"preferred-target"[[:space:]]*:[[:space:]]*"js"' moon.mod.json; then moon test --build-only; else moon test; fi
+  )
 }
 
 ///|
@@ -2138,7 +2145,7 @@ async fn run_local_validation_sequence(
       workspace_path,
       artifacts,
       "moon test",
-      ["moon", "test"],
+      ["sh", "-lc", validation_test_command()],
       thread_id,
     ) {
     Ok(_) => ignore(())

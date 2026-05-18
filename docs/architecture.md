@@ -80,7 +80,7 @@ The control plane owns only the runtime boundary, not the app's source layout. E
 - normal user prompts are passed as task intent; MoonCraft app contract knowledge lives in the agent runtime system layer
 - the selected agent creates the requested real app and its preview startup script
 - the root `moon.mod.json` must set `preferred-target`
-- root-level `moon fmt`, `moon check`, `moon test`, and `moon build` must remain valid
+- root-level `moon fmt`, `moon check`, and `moon build` must remain valid; browser-only JavaScript apps must also pass `moon test --build-only`, while other apps must pass `moon test`
 - `mooncraft-preview.sh` receives the preview port as its first CLI argument, starts the app server, keeps the preview process in the foreground, and serves `/`
 - `/api/health` is preferred for readiness, while `/` is accepted as a fallback for browser-only/static previews
 - source snapshots are persisted after creation and after successful agent edits

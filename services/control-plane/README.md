@@ -17,7 +17,7 @@ Responsibilities:
 
 The platform no longer uses official app templates. Project rows do not carry template ids, and there is no template picker. Project creation runs `moon new` deterministically and saves that plain MoonBit module as the first workspace snapshot. The first user prompt decides what the app becomes; the selected agent must set `preferred-target` in `moon.mod.json` and create `mooncraft-preview.sh` as part of the requested app rather than preserve any platform-owned starter app.
 
-The current `AgentGateway` uses Docker-backed agent CLI runs. Projects are bound to one agent CLI at creation time: Codex, Claude Code, or Kimi Code. Codex projects keep one persistent `codex_thread_id` in the database and one platform-owned Codex home under `data/codex-sessions/<project-id>/.codex`; Claude Code and Kimi Code are stateless per turn and rely on the persisted workspace snapshot. Each new chat message starts a detached worker process through `moonbitlang/async/process`, runs the selected agent in the disposable container, validates the workspace with dependency fetches plus `moon fmt`, `moon check`, `moon build`, and `moon test`, then refreshes the preview. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
+The current `AgentGateway` uses Docker-backed agent CLI runs. Projects are bound to one agent CLI at creation time: Codex, Claude Code, or Kimi Code. Codex projects keep one persistent `codex_thread_id` in the database and one platform-owned Codex home under `data/codex-sessions/<project-id>/.codex`; Claude Code and Kimi Code are stateless per turn and rely on the persisted workspace snapshot. Each new chat message starts a detached worker process through `moonbitlang/async/process`, runs the selected agent in the disposable container, validates the workspace with dependency fetches plus `moon fmt`, `moon check`, `moon build`, and a target-aware test step, then refreshes the preview. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
 
 Workspace directories are no longer durable state. The control plane saves the latest source archive in SQLite after initial workspace generation and after agent edits. Each run hydrates that database snapshot into an isolated runtime workspace before starting the selected agent, then restores the local preview cache from the saved snapshot.
 
@@ -29,9 +29,11 @@ SQLite is a required dependency for the control plane. If the database cannot be
 
 ## Dependency Fetches
 
-Before agent runs, validation, and preview startup, generated user projects run `moon fetch --no-update` for the pinned modules listed in `config/user_project_reference_modules.txt`. That file is the single source of truth for user-project reference packages and versions.
+Before agent runs, validation, and preview startup, generated user projects run `moon fetch --no-update` for the unpinned modules listed in `config/user_project_reference_modules.txt`. The MoonBit registry resolves the concrete versions at fetch time.
 
 For real Docker-backed runs, the MoonCraft agent runtime image initializes the MoonBit registry at image build time, installs the supported agent CLIs, seeds MoonBit skills from `https://github.com/moonbitlang/skills`, and installs compact MoonCraft runtime system instructions before every command. Normal user prompts are not wrapped with the generated-app contract; that project-aware contract lives in the runtime system layer. Runtime validation avoids `moon update` by default because MoonBit may fail while rotating its symbols directory across Docker mount boundaries.
+
+For browser-only JavaScript apps, validation uses `moon test --build-only` instead of executing tests under Node. This keeps compile-time test coverage while avoiding false failures from DOM/WebGPU packages that require browser globals such as `window`.
 
 If Mooncakes returns a transient network error such as a TLS handshake EOF during dependency fetch, the run fails cleanly, preserves the previous preview, records the artifact logs for operators, and returns a plain-English retry message to the user instead of exposing raw registry output as the main chat response.
 

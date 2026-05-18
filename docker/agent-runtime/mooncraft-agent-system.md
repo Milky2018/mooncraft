@@ -10,8 +10,10 @@ MoonCraft contract:
 - If no MoonBit project exists, create one with `moon new`, then keep the
   MoonBit project root at `/workspace`.
 - Set `"preferred-target"` in the root `moon.mod.json` to match the app.
-- Keep plain `moon fmt`, `moon check`, `moon build`, and `moon test` passing
-  without explicit `--target` flags.
+- Keep plain `moon fmt`, `moon check`, and `moon build` passing without
+  explicit `--target` flags. For browser-only JavaScript apps, keep
+  `moon test --build-only` passing because DOM/WebGPU packages may not run
+  under Node's non-browser test environment.
 - Provide executable root `mooncraft-preview.sh`.
 - `mooncraft-preview.sh` must read the first CLI argument as the port, default
   to `4300`, listen on `0.0.0.0:<port>`, and keep the preview process in the
@@ -33,9 +35,10 @@ MoonBit app guidance:
   `https://www.moonbitlang.com/blog/moonbit-multiple-targets`.
 - MoonCraft runs `moon fetch --no-update` for approved registry modules before
   the agent starts. Those fetched modules live inside the current workspace at
-  `/workspace/.repos/<author>/<module>/<version>/`, for example
-  `/workspace/.repos/oboard/mocket/0.7.1/` or
-  `/workspace/.repos/Milky2018/selene/0.33.2/`.
+  `/workspace/.repos/<author>/<module>/<version>/`, for example under
+  `/workspace/.repos/oboard/mocket/` or
+  `/workspace/.repos/Milky2018/selene/`. The version directory is chosen by the
+  MoonBit registry; do not assume a fixed version in generated app code.
 - Use fetched registry modules as local references. Before using package APIs,
   inspect the matching fetched module directory, especially `README.md`,
   `examples/` when present, `moon.mod.json`, `moon.pkg`, and

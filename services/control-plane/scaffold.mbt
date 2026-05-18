@@ -60,30 +60,6 @@ fn user_project_fetch_commands() -> Array[String] {
 }
 
 ///|
-fn reference_module_version(module_name : String) -> String? {
-  let prefix = module_name + "@"
-  for fetch_spec in required_user_project_fetches() {
-    match fetch_spec.strip_prefix(prefix) {
-      Some(version) => return Some(version.to_owned())
-      None => ignore(())
-    }
-  }
-  None
-}
-
-///|
-fn required_reference_module_version(module_name : String) -> String {
-  match reference_module_version(module_name) {
-    Some(version) => version
-    None =>
-      abort(
-        "required user-project reference module is missing from config/user_project_reference_modules.txt: " +
-        module_name,
-      )
-  }
-}
-
-///|
 fn fetch_user_project_dependencies(
   workspace_path : String,
 ) -> Result[Unit, String] {
