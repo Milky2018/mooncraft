@@ -73,7 +73,10 @@ test "preview startup failures use user-safe copy" {
   assert_true(
     preview_setup_repair_prompt().contains("MoonCraft preview startup failed"),
   )
-  assert_true(preview_setup_repair_prompt().contains("mooncraft-generated-app"))
+  assert_true(preview_setup_repair_prompt().contains("runtime instructions"))
+  assert_false(
+    preview_setup_repair_prompt().contains("mooncraft-generated-app"),
+  )
   assert_false(preview_setup_repair_prompt().contains("@env.args()"))
   assert_false(
     preview_setup_repair_prompt().contains("moon build --target native"),
@@ -191,22 +194,29 @@ test "project workspace is initialized with plain moon new output" {
 }
 
 ///|
-test "agent runtime ships MoonCraft generated app knowledge" {
+test "agent runtime installs public MoonBit skills and compact contract" {
   let root = @env.current_dir().unwrap_or(".")
-  let skill_path = root +
-    "/docker/agent-runtime/skills/mooncraft-generated-app/SKILL.md"
+  let install_script_path = root +
+    "/docker/agent-runtime/install/install-moonbit-skills.sh"
   let system_prompt_path = root +
     "/docker/agent-runtime/mooncraft-agent-system.md"
-  assert_true(@fs.path_exists(skill_path))
+  let removed_skill_path = root +
+    "/docker/agent-runtime/skills/mooncraft-generated-app/SKILL.md"
+  assert_false(@fs.path_exists(removed_skill_path))
+  assert_true(@fs.path_exists(install_script_path))
   assert_true(@fs.path_exists(system_prompt_path))
-  let skill = safe_read_string_or(skill_path, "")
-  assert_true(skill.contains("MoonCraft Generated App Contract"))
-  assert_true(skill.contains("preferred-target"))
-  assert_true(skill.contains("mooncraft-preview.sh"))
-  assert_true(skill.contains("/api/health"))
-  assert_true(skill.contains("moon build"))
-  assert_false(skill.contains("moon build --target native"))
-  assert_true(skill.contains("first CLI argument as the port"))
+  let install_script = safe_read_string_or(install_script_path, "")
+  assert_true(
+    install_script.contains("https://github.com/moonbitlang/skills.git"),
+  )
+  assert_true(install_script.contains("/opt/codex-skill-seed/skills"))
+  let system_prompt = safe_read_string_or(system_prompt_path, "")
+  assert_true(system_prompt.contains("preferred-target"))
+  assert_true(system_prompt.contains("mooncraft-preview.sh"))
+  assert_true(system_prompt.contains("/api/health"))
+  assert_true(system_prompt.contains("moon build"))
+  assert_false(system_prompt.contains("moon build --target native"))
+  assert_false(system_prompt.contains("mooncraft-generated-app"))
 }
 
 ///|
@@ -219,7 +229,8 @@ test "workspace contract repair prompt is self-contained" {
   assert_true(prompt.contains("Build a Snake game"))
   assert_true(prompt.contains("Latest user request"))
   assert_true(prompt.contains("Make it browser-playable"))
-  assert_true(prompt.contains("mooncraft-generated-app"))
+  assert_true(prompt.contains("runtime instructions"))
+  assert_false(prompt.contains("mooncraft-generated-app"))
   assert_false(prompt.contains("You must edit files in this workspace"))
   assert_false(prompt.contains("Do not read skills"))
   assert_false(prompt.contains("app_page_html"))

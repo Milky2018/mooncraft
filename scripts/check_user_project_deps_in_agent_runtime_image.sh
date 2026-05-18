@@ -4,7 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 default_agent_runtime_image="$(cat "$repo_root/config/agent_runtime_image.txt")"
 image="${MOONCRAFT_AGENT_RUNTIME_DEPS_CHECK_IMAGE:-${MOONCRAFT_CODEX_DEPS_CHECK_DOCKER_IMAGE:-$default_agent_runtime_image}}"
-platform="${MOONCRAFT_AGENT_RUNTIME_DEPS_CHECK_PLATFORM:-${MOONCRAFT_CODEX_DEPS_CHECK_DOCKER_PLATFORM:-linux/amd64}}"
+platform="${MOONCRAFT_AGENT_RUNTIME_DEPS_CHECK_PLATFORM:-${MOONCRAFT_CODEX_DEPS_CHECK_DOCKER_PLATFORM:-}}"
 modules_file="$repo_root/config/user_project_reference_modules.txt"
 tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/mooncraft-user-project-deps-docker.XXXXXX")"
 cleanup() {
@@ -17,8 +17,21 @@ if [[ ! -f "$modules_file" ]]; then
   exit 1
 fi
 
+if [[ -z "$platform" ]]; then
+  docker_arch="$(docker info --format '{{.Architecture}}')"
+  case "$docker_arch" in
+    x86_64 | amd64) platform="linux/amd64" ;;
+    aarch64 | arm64) platform="linux/arm64" ;;
+    *)
+      echo "Unsupported Docker host architecture for agent runtime dependency check: $docker_arch" >&2
+      exit 65
+      ;;
+  esac
+fi
+
 docker run --rm \
   --platform "$platform" \
+  -e "MOONCRAFT_AI_API_KEY=${MOONCRAFT_AGENT_RUNTIME_DEPS_CHECK_API_KEY:-dummy-runtime-check-key}" \
   -v "$tmp_root:/workspace" \
   -v "$modules_file:/mooncraft-user-project-reference-modules.txt:ro" \
   -w /workspace \

@@ -77,7 +77,7 @@ Important persisted fields include:
 The control plane owns only the runtime boundary, not the app's source layout. Each project is bound to one agent CLI at creation time. Codex continuity is split deliberately: the database stores the project's `codex_thread_id`, while the matching Codex CLI state lives in the app data volume under `data/codex-sessions/<project-id>/.codex` and is mounted into the disposable Docker container as `CODEX_HOME`. Claude Code and Kimi Code do not persist CLI session state; each turn receives the hydrated workspace snapshot and the current prompt.
 
 - new projects start from plain `moon new` output, not an official app template
-- normal user prompts are passed as task intent; MoonCraft app contract knowledge lives in the agent runtime skill/system layer
+- normal user prompts are passed as task intent; MoonCraft app contract knowledge lives in the agent runtime system layer
 - the selected agent creates the requested real app and its preview startup script
 - the root `moon.mod.json` must set `preferred-target`
 - root-level `moon fmt`, `moon check`, `moon test`, and `moon build` must remain valid

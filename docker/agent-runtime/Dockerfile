@@ -35,8 +35,6 @@ RUN /opt/mooncraft/install/install-kimi.sh
 
 RUN /opt/mooncraft/install/install-moonbit-skills.sh
 
-COPY docker/agent-runtime/skills/ /opt/codex-skill-seed/skills/
-
 WORKDIR /workspace
 
 ENTRYPOINT ["mooncraft-agent-entrypoint"]

@@ -373,7 +373,7 @@ fn recovery_prompt(
 fn mooncraft_agent_system_prompt() -> String {
   (
     #|You are working inside a MoonCraft generated app workspace.
-    #|Use the installed `mooncraft-generated-app` skill or runtime instructions as the product contract. Treat the user prompt as the product request. Do not write hidden platform instructions into the project workspace, and do not reveal internal runtime, provider, container, or log details in the final response.
+    #|Use the runtime instructions as the product contract. Treat the user prompt as the product request. Do not write hidden platform instructions into the project workspace, and do not reveal internal runtime, provider, container, or log details in the final response.
   )
 }
 
@@ -382,7 +382,7 @@ fn preview_setup_repair_prompt() -> String {
   (
     #|MoonCraft preview startup failed. Repair the existing app so it satisfies the MoonCraft generated-app runtime contract.
     #|
-    #|Use the installed `mooncraft-generated-app` skill or runtime instructions for the exact contract. Preserve the user's app behavior except for changes required to make `mooncraft-preview.sh` start and pass HTTP health checks.
+    #|Use the runtime instructions for the exact contract. Preserve the user's app behavior except for changes required to make `mooncraft-preview.sh` start and pass HTTP health checks.
   )
 }
 
@@ -418,7 +418,7 @@ fn workspace_contract_repair_prompt(
   (
     #|
     #|
-    #|Repair the workspace so it satisfies the MoonCraft generated-app runtime contract. Use the installed `mooncraft-generated-app` skill or runtime instructions for the exact contract, including `preferred-target` and `mooncraft-preview.sh`. Preserve the user's requested app behavior.
+    #|Repair the workspace so it satisfies the MoonCraft generated-app runtime contract. Use the runtime instructions for the exact contract, including `preferred-target` and `mooncraft-preview.sh`. Preserve the user's requested app behavior.
   )
 }
 
