@@ -215,6 +215,18 @@ test "agent runtime installs public MoonBit skills and compact contract" {
   assert_true(system_prompt.contains("mooncraft-preview.sh"))
   assert_true(system_prompt.contains("/api/health"))
   assert_true(system_prompt.contains("moon build"))
+  assert_true(system_prompt.contains("multiple-target"))
+  assert_true(system_prompt.contains(".repos"))
+  assert_true(
+    system_prompt.contains("/workspace/.repos/<author>/<module>/<version>/"),
+  )
+  assert_true(system_prompt.contains("/workspace/.repos/oboard/mocket/0.7.1/"))
+  assert_true(system_prompt.contains("pkg.generated.mbti"))
+  assert_true(system_prompt.contains("oboard/mocket"))
+  assert_true(system_prompt.contains("Milky2018/selene"))
+  assert_true(system_prompt.contains("Milky2018/selene_webgpu"))
+  assert_true(system_prompt.contains("app.listen(\"0.0.0.0:"))
+  assert_true(system_prompt.contains("Use `let mut` only when rebinding"))
   assert_false(system_prompt.contains("moon build --target native"))
   assert_false(system_prompt.contains("mooncraft-generated-app"))
 }
