@@ -435,9 +435,12 @@ test "docker validation uses initialized image registry in one shell" {
   assert_true(script.contains("moon fmt"))
   assert_true(script.contains("moon check"))
   assert_true(script.contains("moon build"))
+  assert_true(script.contains("moon test (soft)"))
   assert_true(script.contains("moon test"))
-  assert_true(script.contains("moon test --build-only"))
-  assert_true(script.contains("\"preferred-target\""))
+  assert_false(script.contains("moon test --build-only"))
+  assert_false(script.contains("\"preferred-target\""))
+  assert_true(script.contains("moon run --release"))
+  assert_true(script.contains("is-main"))
   assert_false(script.contains("--target native"))
 }
 

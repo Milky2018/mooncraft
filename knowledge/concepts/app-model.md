@@ -35,7 +35,7 @@ The first platform model is:
 - Platform users own projects explicitly; project access must stay owner-scoped.
 - The app must remain runnable through the platform runner.
 - The app should use the MoonBit project structure that fits the request; MoonCraft must not assume every app has `frontend/`, `backend/`, and `shared/` directories.
-- The workspace root must keep `moon fmt`, `moon check`, and `moon build` valid. Browser-only JavaScript apps must also pass `moon test --build-only`; other apps must pass `moon test`.
+- The workspace root must keep `moon fmt`, `moon check`, and `moon build` valid. It must also provide a runnable release app entry package, probed with `moon run --release <package>`. `moon test` failures are recorded as a soft signal and should not block preview refresh by themselves.
 - The workspace root must provide `mooncraft-preview.sh` so MoonCraft can start the live preview.
 - Public previews must stay tied to opaque preview identifiers, not predictable project ids.
 - Tenant-aware apps must scope data explicitly.

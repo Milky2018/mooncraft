@@ -423,6 +423,44 @@ fn workspace_contract_repair_prompt(
 }
 
 ///|
+fn validation_repair_prompt(
+  validation_error : String,
+  initial_project_prompt : String,
+  user_prompt : String,
+) -> String {
+  (
+    #|MoonCraft validation failed before the preview could be refreshed.
+    #|
+    #|This is a mandatory repair task.
+    #|
+    #|Hard gates: `moon fmt`, `moon check`, `moon build`, and the release run probe must pass. `moon test` is a soft gate: fix failing tests when practical, but do not block the preview solely on test execution failures.
+    #|
+    #|Validation failure:
+    #|
+  ) +
+  validation_error +
+  (
+    #|
+    #|
+    #|Original project requirement:
+    #|
+  ) +
+  initial_project_prompt +
+  (
+    #|
+    #|
+    #|Latest user request:
+    #|
+  ) +
+  user_prompt +
+  (
+    #|
+    #|
+    #|Repair the existing workspace. Preserve the user's requested app behavior and keep the MoonCraft runtime contract intact.
+  )
+}
+
+///|
 fn workspace_contract_failed_assistant_message() -> String {
   "The builder did not finish creating a valid app workspace. Send another message to retry."
 }
@@ -1972,6 +2010,28 @@ async fn run_validation_command(
 }
 
 ///|
+async fn run_soft_local_validation_command(
+  workspace_path : String,
+  artifacts : RunArtifacts,
+  label : String,
+  command : Array[String],
+) -> Unit noraise {
+  let result = match
+    collect_local_output(command[0], command_args(command), workspace_path) {
+    Ok(result) => result
+    Err(message) => (127, message)
+  }
+  let (exit_code, output) = result
+  append_command_log(
+    artifacts.validation_log_path,
+    label,
+    command,
+    exit_code,
+    output,
+  )
+}
+
+///|
 fn validation_shell_script(include_update~ : Bool) -> String {
   let commands : Array[String] = []
   if include_update {
@@ -1983,20 +2043,70 @@ fn validation_shell_script(include_update~ : Bool) -> String {
   commands.push("moon fmt")
   commands.push("moon check")
   commands.push("moon build")
-  commands.push(validation_test_command())
   let lines : Array[String] = []
   lines.push("set -e")
   for command in commands {
     lines.push("echo '== " + command + " =='")
     lines.push(command)
   }
+  lines.push("echo '== moon test (soft) =='")
+  lines.push(soft_validation_test_command())
+  lines.push("echo '== moon run --release probe =='")
+  lines.push(release_run_probe_command())
   lines.join("\n")
 }
 
 ///|
-fn validation_test_command() -> String {
+fn soft_validation_test_command() -> String {
   (
-    #|if [ -f moon.mod.json ] && grep -Eq '"preferred-target"[[:space:]]*:[[:space:]]*"js"' moon.mod.json; then moon test --build-only; else moon test; fi
+    #|if moon test; then echo 'moon test passed.'; else status=$?; echo "moon test failed with exit code ${status}; continuing because moon test is a soft gate."; fi
+  )
+}
+
+///|
+fn release_run_probe_command() -> String {
+  (
+    #|MOONCRAFT_RELEASE_RUN_TIMEOUT_SECONDS="${MOONCRAFT_RELEASE_RUN_TIMEOUT_SECONDS:-10}"
+    #|
+    #|mooncraft_run_release_package() {
+    #|  package="$1"
+    #|  echo "== moon run --release ${package} =="
+    #|  moon run --release "$package" &
+    #|  pid=$!
+    #|  elapsed=0
+    #|  while kill -0 "$pid" 2>/dev/null; do
+    #|    if [ "$elapsed" -ge "$MOONCRAFT_RELEASE_RUN_TIMEOUT_SECONDS" ]; then
+    #|      echo "moon run --release ${package} is still running after ${MOONCRAFT_RELEASE_RUN_TIMEOUT_SECONDS}s; treating it as a live long-running app."
+    #|      kill "$pid" >/dev/null 2>&1 || true
+    #|      wait "$pid" >/dev/null 2>&1 || true
+    #|      return 0
+    #|    fi
+    #|    sleep 1
+    #|    elapsed=$((elapsed + 1))
+    #|  done
+    #|  wait "$pid"
+    #|}
+    #|
+    #|main_packages="$(find . \( -path './.mooncakes' -o -path './.mooncakes/*' -o -path './.repos' -o -path './.repos/*' -o -path './_build' -o -path './_build/*' -o -path './preview-dist' -o -path './preview-dist/*' \) -prune -o -name moon.pkg -type f -print | sort | while IFS= read -r pkg; do
+    #|  if grep -Eq '"is-main"[[:space:]]*:[[:space:]]*true' "$pkg"; then
+    #|    dir="${pkg%/moon.pkg}"
+    #|    if [ "$dir" = "." ]; then
+    #|      printf '.\n'
+    #|    else
+    #|      printf '%s\n' "${dir#./}"
+    #|    fi
+    #|  fi
+    #|done)"
+    #|
+    #|if [ -z "$main_packages" ]; then
+    #|  echo 'No MoonBit main package found. Add options("is-main": true) to the app entry package.'
+    #|  exit 1
+    #|fi
+    #|
+    #|printf '%s\n' "$main_packages" | while IFS= read -r package; do
+    #|  [ -n "$package" ] || continue
+    #|  mooncraft_run_release_package "$package" || exit $?
+    #|done
   )
 }
 
@@ -2138,14 +2248,20 @@ async fn run_local_validation_sequence(
     Ok(_) => ignore(())
     Err(failure) => return Err(failure)
   }
+  run_soft_local_validation_command(
+    workspace_path,
+    artifacts,
+    "moon test (soft)",
+    ["sh", "-lc", soft_validation_test_command()],
+  )
   match
     run_validation_command(
       root,
       None,
       workspace_path,
       artifacts,
-      "moon test",
-      ["sh", "-lc", validation_test_command()],
+      "moon run --release probe",
+      ["sh", "-lc", release_run_probe_command()],
       thread_id,
     ) {
     Ok(_) => ignore(())
@@ -2367,7 +2483,7 @@ async fn AgentGateway::run_turn(
     }
     None => ignore(())
   }
-  let artifacts = codex_result.artifacts
+  let mut artifacts = codex_result.artifacts
   let persist_validated_workspace = async fn() noraise {
     match
       persist_builder_workspace_snapshot(
@@ -2395,7 +2511,78 @@ async fn AgentGateway::run_turn(
     Ok(_) => ignore(())
     Err(failure) => {
       ignore(persist_validated_workspace())
-      return Err(failure)
+      store.append_run_event(
+        project.id,
+        run_id,
+        "status",
+        "Repairing failed validation.",
+      )
+      let repair_project = if agent_cli == "codex" {
+        { ..project, codex_thread_id: Some(codex_result.thread_id) }
+      } else {
+        project
+      }
+      let repair_result = match
+        (if agent_cli == "codex" {
+          run_codex_turn(
+            store,
+            self.root,
+            config,
+            repair_project,
+            initial_project_prompt,
+            workspace_path,
+            run_id,
+            validation_repair_prompt(
+              failure.error_message,
+              initial_project_prompt,
+              user_prompt,
+            ),
+            reset_logs=false,
+            raw_prompt=true,
+            resume_existing=false,
+          )
+        } else {
+          run_stateless_agent_turn(
+            store,
+            self.root,
+            config,
+            repair_project,
+            workspace_path,
+            run_id,
+            validation_repair_prompt(
+              failure.error_message,
+              initial_project_prompt,
+              user_prompt,
+            ),
+            reset_logs=false,
+            raw_prompt=true,
+          )
+        }) {
+        Ok(result) => result
+        Err(repair_failure) => return Err(repair_failure)
+      }
+      codex_result = repair_result
+      artifacts = codex_result.artifacts
+      match persist_validated_workspace() {
+        Ok(_) => ignore(())
+        Err(repair_snapshot_failure) => return Err(repair_snapshot_failure)
+      }
+      safe_write_string(artifacts.validation_log_path, "")
+      store.set_run_phase(project.id, run_id, Checking)
+      match
+        run_validation_sequence(
+          self.root,
+          config,
+          workspace_path,
+          artifacts,
+          codex_result.thread_id,
+        ) {
+        Ok(_) => ignore(())
+        Err(repair_validation_failure) => {
+          ignore(persist_validated_workspace())
+          return Err(repair_validation_failure)
+        }
+      }
     }
   }
   match persist_validated_workspace() {

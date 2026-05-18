@@ -11,9 +11,15 @@ MoonCraft contract:
   MoonBit project root at `/workspace`.
 - Set `"preferred-target"` in the root `moon.mod.json` to match the app.
 - Keep plain `moon fmt`, `moon check`, and `moon build` passing without
-  explicit `--target` flags. For browser-only JavaScript apps, keep
-  `moon test --build-only` passing because DOM/WebGPU packages may not run
-  under Node's non-browser test environment.
+  explicit `--target` flags.
+- Provide at least one `options("is-main": true)` app entry package that can be
+  probed with `moon run --release <package>`. Long-running servers may keep
+  running; MoonCraft treats a release run that stays alive as a valid app
+  process.
+- Treat `moon test` as useful validation, but not as the preview gate.
+  Browser-only JavaScript packages may fail under Node's non-browser test
+  environment; fix test failures when practical, but prioritize successful
+  `moon check`, release execution, and visible preview.
 - Provide executable root `mooncraft-preview.sh`.
 - `mooncraft-preview.sh` must read the first CLI argument as the port, default
   to `4300`, listen on `0.0.0.0:<port>`, and keep the preview process in the
