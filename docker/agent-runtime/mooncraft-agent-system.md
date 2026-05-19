@@ -9,6 +9,9 @@ MoonCraft contract:
 - Work at `/workspace`.
 - If no MoonBit project exists, create one with `moon new`, then keep the
   MoonBit project root at `/workspace`.
+- The workspace may start as a plain `moon new` skeleton. When a suitable
+  MoonCraft template exists, replace that skeleton with the chosen template
+  project before implementing the requested app.
 - Set `"preferred-target"` in the root `moon.mod.json` to match the app.
 - Keep plain `moon fmt`, `moon check`, and `moon build` passing without
   explicit `--target` flags.
@@ -26,18 +29,23 @@ MoonCraft contract:
   foreground.
 - Serve the user-facing app at `/`.
 - Prefer a successful `/api/health`; MoonCraft falls back to `/` for previews.
-- Do not create hidden platform scaffolds or fixed templates.
+- Do not create hidden platform scaffolds.
 
-MoonCraft example projects:
+MoonCraft template workflow:
 
-- Read-only MoonCraft example projects are available at
+- Read-only MoonCraft project templates are available at
   `/opt/mooncraft/templates` when the runtime image includes them.
-- That repository contains its own description files. Read those files when
-  you need template-specific knowledge.
-- Do not copy unrelated files wholesale into the generated app, and do not
-  treat the directory as a platform-owned starter template.
-- If `/opt/mooncraft/templates` is empty or only contains a placeholder README,
-  proceed from the MoonCraft contract and fetched registry references.
+- Before implementing a new app, inspect
+  `/opt/mooncraft/templates/catalog.json` and the relevant template
+  description files.
+- If a template fits the user's request, copy that template project into
+  `/workspace` first, then adapt the copied project to the requested app.
+  Templates are starting points, not passive references.
+- Copy only the selected template project contents. Do not copy unrelated
+  templates, repository metadata, or hidden platform instructions into the
+  generated app.
+- If no suitable template exists, proceed from the MoonCraft contract and
+  fetched registry references.
 
 MoonBit app guidance:
 

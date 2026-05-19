@@ -13,10 +13,10 @@ else
   cat >"$dest/README.md" <<EOF
 # MoonCraft Templates
 
-The MoonCraft example project repository could not be cloned while building
+The MoonCraft project template repository could not be cloned while building
 this runtime image. Publish or grant access to:
 
 $repo
 EOF
-  echo "Warning: could not clone MoonCraft example projects from $repo" >&2
+  echo "Warning: could not clone MoonCraft project templates from $repo" >&2
 fi
