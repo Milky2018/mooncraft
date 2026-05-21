@@ -1,7 +1,13 @@
 Agents do not edit this. This file is maintainable by human developers.
 
+- [x] admin configure LLM list for users to choose
+- [x] IDLE/RUNNING/CHECKNEED
+- [x] change model by user 
+- [x] Bug: if there is a running agent, other chat will also show it
+- [x] We should provide AGENTS.md for system prompt
+- [x] Admin manages Users and projects and runs
 - [x] Why `/js/debug/` instead of `/js/release/`
-- [ ] React.ts frontend as backup
+- [x] React.ts frontend as backup
 - [x] Persist a workspace snapshot per project or per run, instead of treating workspace_path as the source of truth.
 - [x] Hydrate that snapshot into a temp directory before each Codex run.
 - [x] Run Codex against the hydrated temp workspace.
@@ -74,12 +80,7 @@ Agents do not edit this. This file is maintainable by human developers.
       - [ ] max run duration
     - [ ] Add account deletion later, but project deletion must be complete and audited.
     - [ ] Keep AI keys out of user accounts and environment files; production keys must be configured through the admin page.
-- [x] IDLE/RUNNING/CHECKNEED
-- [x] change model by user 
-- [x] Bug: if there is a running agent, other chat will also show it
-- [x] We should provide AGENTS.md for system prompt
-- [x] Admin manages Users and projects and runs
 - [ ] worktree management
-- [ ] admin configure LLM list for users to choose
 - [ ] static sharing 
-- [ ] 
+- [ ] github repo
+- [ ] history undo 
