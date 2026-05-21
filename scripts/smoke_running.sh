@@ -127,6 +127,11 @@ fi
 
 wait_for_ok "$base_url${preview_url}api/health"
 
+if [[ -n "$preview_port" ]] && command -v lsof >/dev/null 2>&1; then
+  lsof -tiTCP:"$preview_port" -sTCP:LISTEN | xargs kill >/dev/null 2>&1 || true
+  wait_for_ok "$base_url${preview_url}api/health"
+fi
+
 if [[ -z "${MOONCRAFT_DATABASE_URL:-}" ]]; then
   snapshot_count="$(sqlite3 data/control-plane/state-v2.sqlite "SELECT COUNT(*) FROM project_workspace_snapshots WHERE project_id = '$project_id';")"
   [[ "$snapshot_count" == "1" ]]

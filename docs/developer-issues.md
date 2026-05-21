@@ -80,7 +80,13 @@ Agents do not edit this. This file is maintainable by human developers.
       - [ ] max run duration
     - [ ] Add account deletion later, but project deletion must be complete and audited.
     - [ ] Keep AI keys out of user accounts and environment files; production keys must be configured through the admin page.
-- [ ] worktree management
-- [ ] static sharing 
+- [ ] 100% correct
+- [ ] experience, games are too primitive
+- [ ] image replacement, for iteration
+- [ ] static sharing
 - [ ] github repo
-- [ ] history undo 
+- [ ] history undo
+- [ ] admin page UI
+- [ ] planmode
+- [x] worktree management
+- [ ] Not ToD, To Children!

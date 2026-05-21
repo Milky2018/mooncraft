@@ -617,6 +617,41 @@ fn preview_target_path(remainder : String) -> String {
 }
 
 ///|
+async fn proxy_preview_response(
+  event : @mocket.MocketEvent,
+  preview : @sdk.PreviewTarget,
+  remainder : String,
+) -> Result[@mocket.HttpResponse, String] noraise {
+  let target_path = preview_target_path(remainder)
+  let target_url = "http://127.0.0.1:\{preview.port}\{target_path}"
+  let headers = proxy_request_headers(event)
+  let upstream = try {
+    if event.req.raw_body.length() == 0 {
+      @mocket.fetch(target_url, proxy_method(event.req.http_method), headers~)
+    } else {
+      let body = bytes_to_string(event.req.raw_body)
+      @mocket.fetch(
+        target_url,
+        proxy_method(event.req.http_method),
+        body~,
+        headers~,
+      )
+    }
+  } catch {
+    _ => return Err("The preview process is not reachable.")
+  } noraise {
+    response => response
+  }
+  Ok(
+    @mocket.HttpResponse::new(
+      upstream.status_code,
+      headers=proxy_response_headers(upstream),
+      raw_body=proxy_response_body(upstream),
+    ),
+  )
+}
+
+///|
 fn preview_asset_response(
   path : String,
   content_type : String,
@@ -1478,7 +1513,16 @@ fn main {
       Err(response) => return response
     }
     match ctx.store.get_project_detail_for_user(project_id, user.id) {
-      Some(project) => json_ok(project)
+      Some(project) =>
+        match ctx.ensure_project_preview_running(project) {
+          Ok(updated_project) => json_ok(updated_project)
+          Err(_) =>
+            match ctx.store.get_project_detail_for_user(project_id, user.id) {
+              Some(updated_project) => json_ok(updated_project)
+              None =>
+                api_error_response(NotFound, NotFound, "Project not found.")
+            }
+        }
       None => api_error_response(NotFound, NotFound, "Project not found.")
     }
   })
@@ -1642,41 +1686,38 @@ fn main {
       None => return text_response(NotFound, "Project not found.")
     }
     match project.preview {
-      Some(preview) => {
-        let target_path = preview_target_path(remainder)
-        let target_url = "http://127.0.0.1:\{preview.port}\{target_path}"
-        let headers = proxy_request_headers(event)
-        let upstream = try {
-          if event.req.raw_body.length() == 0 {
-            @mocket.fetch(
-              target_url,
-              proxy_method(event.req.http_method),
-              headers~,
-            )
-          } else {
-            let body = bytes_to_string(event.req.raw_body)
-            @mocket.fetch(
-              target_url,
-              proxy_method(event.req.http_method),
-              body~,
-              headers~,
-            )
+      Some(preview) =>
+        match proxy_preview_response(event, preview, remainder) {
+          Ok(response) => response
+          Err(_) => {
+            let updated_project = match
+              ctx.ensure_project_preview_running(project) {
+              Ok(project) => project
+              Err(message) =>
+                return text_response(
+                  BadGateway,
+                  "The saved preview could not be restarted: " + message,
+                )
+            }
+            match updated_project.preview {
+              Some(updated_preview) =>
+                match
+                  proxy_preview_response(event, updated_preview, remainder) {
+                  Ok(response) => response
+                  Err(_) =>
+                    text_response(
+                      BadGateway,
+                      "The preview process stopped and could not be reached after restart.",
+                    )
+                }
+              None =>
+                text_response(
+                  NotFound,
+                  "No preview is available for this project yet.",
+                )
+            }
           }
-        } catch {
-          _ =>
-            return text_response(
-              BadGateway,
-              "The preview is not reachable right now. Try rerunning the project.",
-            )
-        } noraise {
-          response => response
         }
-        @mocket.HttpResponse::new(
-          upstream.status_code,
-          headers=proxy_response_headers(upstream),
-          raw_body=proxy_response_body(upstream),
-        )
-      }
       None =>
         text_response(NotFound, "No preview is available for this project yet.")
     }

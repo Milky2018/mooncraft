@@ -798,6 +798,57 @@ async test "delete project removes persisted agent homes" {
 }
 
 ///|
+async test "unreachable persisted preview is marked unhealthy when snapshot restore fails" {
+  let root = @env.current_dir().unwrap_or(".") +
+    "/data/control-plane-test-roots/" +
+    next_id("preview-restart-missing-snapshot")
+  safe_remove_tree(root)
+  let db_path = root + "/data/control-plane/state-v2.sqlite"
+  ensure_dir(parent_dir(db_path))
+  let store = try_new_async(db_path).unwrap()
+  let ctx = AppContext::{
+    root,
+    build_profile: Debug,
+    store,
+    previews: PreviewManager::new(root),
+    agent_gateway: new(root),
+  }
+  let project_id = next_id("project")
+  let preview_public_id = "preview-" + project_id
+  ignore(
+    ctx.store.create_project(
+      project_id,
+      "user-1",
+      preview_public_id,
+      "Stale Preview Test",
+      "codex",
+      default_openrouter_model(),
+      project_workspace(root, project_id),
+    ),
+  )
+  ignore(
+    ctx.store.set_project_preview(project_id, {
+      url: public_preview_url(preview_public_id),
+      port: 1,
+      healthy: true,
+    }),
+  )
+  let project = ctx.store.get_project_detail(project_id).unwrap()
+  let result = ctx.ensure_project_preview_running(project)
+  inspect(result is Err(_), content="true")
+  let updated = ctx.store.get_project_detail(project_id).unwrap()
+  let healthy_text = match updated.preview {
+    Some(preview) => preview.healthy.to_string()
+    None => "none"
+  }
+  inspect(healthy_text, content="false")
+  assert_true(
+    updated.last_error.unwrap_or("").contains("Preview restart failed"),
+  )
+  safe_remove_tree(root)
+}
+
+///|
 test "codex display events hide protocol noise" {
   debug_inspect(
     codex_display_event("Reading additional input from stdin..."),

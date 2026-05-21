@@ -2307,6 +2307,68 @@ async fn Store::set_project_thread_id(
 }
 
 ///|
+async fn Store::set_project_preview(
+  self : Store,
+  project_id : String,
+  preview : @sdk.PreviewTarget,
+) -> @sdk.ProjectDetail? noraise {
+  let now = now_string()
+  ignore(
+    self.exec_or_error(
+      (
+        #|UPDATE projects
+        #|SET
+        #|  preview_url = ?,
+        #|  preview_port = ?,
+        #|  preview_healthy = ?,
+        #|  last_preview_url = ?,
+        #|  last_preview_port = ?,
+        #|  last_preview_healthy = ?,
+        #|  last_error = NULL,
+        #|  updated_at = ?
+        #|WHERE id = ?;
+      ),
+      "set project preview",
+      params=[
+        String(preview.url),
+        Int(preview.port),
+        Int(bool_to_int(preview.healthy)),
+        String(preview.url),
+        Int(preview.port),
+        Int(bool_to_int(preview.healthy)),
+        String(now),
+        String(project_id),
+      ],
+    ),
+  )
+  self.get_project_detail(project_id)
+}
+
+///|
+async fn Store::mark_project_preview_unreachable(
+  self : Store,
+  project_id : String,
+  message : String,
+) -> @sdk.ProjectDetail? noraise {
+  let now = now_string()
+  ignore(
+    self.exec_or_error(
+      (
+        #|UPDATE projects
+        #|SET
+        #|  preview_healthy = ?,
+        #|  last_error = ?,
+        #|  updated_at = ?
+        #|WHERE id = ?;
+      ),
+      "mark project preview unreachable",
+      params=[Int(0), String(message), String(now), String(project_id)],
+    ),
+  )
+  self.get_project_detail(project_id)
+}
+
+///|
 async fn Store::get_run_prompt(
   self : Store,
   project_id : String,
@@ -2899,6 +2961,54 @@ fn PreviewManager::rebuild_and_restart(
   }
   self.runtimes[project.id] = { port, pid: 0 }
   Ok({ url: public_preview_url(project.preview_public_id), port, healthy: true })
+}
+
+///|
+async fn AppContext::ensure_project_preview_running(
+  self : AppContext,
+  project : @sdk.ProjectDetail,
+) -> Result[@sdk.ProjectDetail, String] noraise {
+  if project.status is Running {
+    return Ok(project)
+  }
+  let preview = match project.preview {
+    Some(preview) => preview
+    None => return Ok(project)
+  }
+  if preview.healthy && self.previews.is_preview_reachable(preview.port) {
+    return Ok(project)
+  }
+  let workspace_path = project_workspace(self.root, project.id)
+  match
+    restore_workspace_snapshot(
+      self.store,
+      self.root,
+      project.id,
+      workspace_path,
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => {
+      let _ = self.store.mark_project_preview_unreachable(
+        project.id,
+        "Preview restart failed: " + message,
+      )
+      return Err(message)
+    }
+  }
+  match self.previews.rebuild_and_restart(project) {
+    Ok(next_preview) =>
+      match self.store.set_project_preview(project.id, next_preview) {
+        Some(updated_project) => Ok(updated_project)
+        None => Err("Project not found.")
+      }
+    Err(message) => {
+      let _ = self.store.mark_project_preview_unreachable(
+        project.id,
+        "Preview restart failed: " + message,
+      )
+      Err(message)
+    }
+  }
 }
 
 ///|
