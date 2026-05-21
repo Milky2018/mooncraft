@@ -10,13 +10,13 @@ default:
 
 # Format MoonBit code and regenerate public interfaces
 fmt:
-  moon -C . fmt
-  moon -C . info --target native
-  moon -C . info --target js
+  moon fmt
+  moon info --target native
+  moon info --target js
 
 # Build the whole workspace. Usage: `just build` or `just build release`
 build profile='debug': fmt
-  @if [ "{{profile}}" = release ]; then moon -C . build --release; else moon -C . build; fi
+  @if [ "{{profile}}" = release ]; then moon build --release; else moon build; fi
 
 # Serve locally. Usage: `just serve`, `just serve 8107`, or `just serve release`
 serve target='8080' profile='':
