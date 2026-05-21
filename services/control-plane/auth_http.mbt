@@ -613,5 +613,5 @@ async fn session_status_response(
 
 ///|
 fn github_callback_page_html(root : String) -> String {
-  control_plane_asset_string(root, "auth/github-callback/index.html", "")
+  web_static_asset_string(root, "auth/github-callback/index.html", "")
 }

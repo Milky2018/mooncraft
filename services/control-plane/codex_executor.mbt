@@ -927,7 +927,15 @@ fn fake_codex_resume_reset_marker(root : String, project_id : String) -> String 
 }
 
 ///|
+fn fake_codex_preview_html(root : String) -> String {
+  web_static_asset_string(
+    root, "smoke-preview/index.html", "MoonCraft smoke preview",
+  )
+}
+
+///|
 fn fake_codex_update_workspace(
+  root : String,
   workspace_path : String,
   prompt : String,
 ) -> Result[String, String] {
@@ -968,6 +976,7 @@ fn fake_codex_update_workspace(
         #|  "moonbitlang/async",
         #|  "oboard/mocket",
         #|  "moonbitlang/core/env",
+        #|  "moonbitlang/core/fs",
         #|  "moonbitlang/core/string",
         #|}
         #|
@@ -978,12 +987,15 @@ fn fake_codex_update_workspace(
         #|supported_targets = "native"
       ),
     ),
+    ("/index.html", fake_codex_preview_html(root)),
     (
       "/main.mbt",
       (
         #|///|
         #|fn app_page_html() -> String {
-        #|  "<!doctype html><html><head><meta charset='utf-8'><title>MoonCraft smoke preview</title></head><body><main><h1>MoonCraft smoke preview</h1><p>The fake builder generated a runnable preview.</p></main></body></html>"
+        #|  @fs.read_file_to_string("index.html") catch {
+        #|    _ => "MoonCraft smoke preview"
+        #|  }
         #|}
         #|
         #|///|
@@ -1101,14 +1113,16 @@ fn collect_fake_codex_output(
         ),
       )
     }
-    let summary = match fake_codex_update_workspace(workspace_path, prompt) {
+    let summary = match
+      fake_codex_update_workspace(root, workspace_path, prompt) {
       Ok(summary) => summary
       Err(message) => return Err(message)
     }
     Ok((0, "{\"type\":\"turn.completed\"}", Some(summary)))
   } else {
     let thread_id = next_id("fake-thread")
-    let summary = match fake_codex_update_workspace(workspace_path, prompt) {
+    let summary = match
+      fake_codex_update_workspace(root, workspace_path, prompt) {
       Ok(summary) => summary
       Err(message) => return Err(message)
     }

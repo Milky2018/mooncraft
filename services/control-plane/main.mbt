@@ -754,17 +754,17 @@ fn run_static_preview_mode(port : Int, static_dir : String) -> Unit {
 
 ///|
 fn workspace_page_html(root : String) -> String {
-  control_plane_asset_string(root, "platform/index.html", "")
+  web_static_asset_string(root, "platform/index.html", "")
 }
 
 ///|
 fn admin_page_html(root : String) -> String {
-  control_plane_asset_string(root, "admin/index.html", "")
+  web_static_asset_string(root, "admin/index.html", "")
 }
 
 ///|
 fn admin_login_page_html(root : String) -> String {
-  control_plane_asset_string(root, "admin-login/index.html", "")
+  web_static_asset_string(root, "admin-login/index.html", "")
 }
 
 ///|
@@ -812,7 +812,7 @@ fn AppContext::serve_platform_asset(
   match event.params.get("_") {
     Some(value) if value.to_owned() == "logo.svg" => self.serve_platform_logo()
     Some(value) =>
-      match safe_control_plane_asset_relative_path(value.to_owned()) {
+      match safe_web_static_asset_relative_path(value.to_owned()) {
         Some(relative) => {
           let asset_path = platform_asset_path(self.root, relative)
           if !(@fs.is_file(asset_path) catch { _ => false }) {
@@ -907,7 +907,7 @@ fn main {
       .get("_")
       .map(fn(value) { value.to_owned() })
       .unwrap_or("")
-    control_plane_asset_response(ctx.root, remainder)
+    web_static_asset_response(ctx.root, remainder)
   })
   app.get("/app", _ => ctx.serve_platform_bundle())
   app.get("/admin/app", event => {
