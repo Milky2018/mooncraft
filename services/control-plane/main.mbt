@@ -170,16 +170,6 @@ fn asset_response_bytes(
 }
 
 ///|
-fn platform_assets_root(root : String) -> String {
-  root + "/apps/web/assets"
-}
-
-///|
-fn platform_asset_path(root : String, relative : String) -> String {
-  platform_assets_root(root) + "/" + relative
-}
-
-///|
 fn unauthorized_response() -> @mocket.HttpResponse {
   api_error_response(Unauthorized, Unauthorized, "Sign in to continue.")
 }
@@ -754,17 +744,17 @@ fn run_static_preview_mode(port : Int, static_dir : String) -> Unit {
 
 ///|
 fn workspace_page_html(root : String) -> String {
-  web_static_asset_string(root, "platform/index.html", "")
+  web_public_string(root, "control-plane-assets/platform/index.html", "")
 }
 
 ///|
 fn admin_page_html(root : String) -> String {
-  web_static_asset_string(root, "admin/index.html", "")
+  web_public_string(root, "control-plane-assets/admin/index.html", "")
 }
 
 ///|
 fn admin_login_page_html(root : String) -> String {
-  web_static_asset_string(root, "admin-login/index.html", "")
+  web_public_string(root, "control-plane-assets/admin-login/index.html", "")
 }
 
 ///|
@@ -800,7 +790,7 @@ fn AppContext::serve_admin_bundle(self : AppContext) -> @mocket.HttpResponse {
 fn AppContext::serve_platform_logo(self : AppContext) -> @mocket.HttpResponse {
   asset_response_bytes(
     "image/svg+xml; charset=utf-8",
-    safe_read_bytes_or(platform_asset_path(self.root, "logo.svg"), b""),
+    safe_read_bytes_or(web_public_path(self.root, "assets/logo.svg"), b""),
   )
 }
 
@@ -812,9 +802,9 @@ fn AppContext::serve_platform_asset(
   match event.params.get("_") {
     Some(value) if value.to_owned() == "logo.svg" => self.serve_platform_logo()
     Some(value) =>
-      match safe_web_static_asset_relative_path(value.to_owned()) {
+      match safe_web_public_relative_path(value.to_owned()) {
         Some(relative) => {
-          let asset_path = platform_asset_path(self.root, relative)
+          let asset_path = web_public_path(self.root, "assets/" + relative)
           if !(@fs.is_file(asset_path) catch { _ => false }) {
             return text_response(NotFound, "Not found")
           }
@@ -907,7 +897,7 @@ fn main {
       .get("_")
       .map(fn(value) { value.to_owned() })
       .unwrap_or("")
-    web_static_asset_response(ctx.root, remainder)
+    web_public_response(ctx.root, "control-plane-assets/" + remainder)
   })
   app.get("/app", _ => ctx.serve_platform_bundle())
   app.get("/admin/app", event => {

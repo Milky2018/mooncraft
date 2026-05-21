@@ -1,24 +1,24 @@
 ///|
-fn web_static_assets_root(root : String) -> String {
-  root + "/apps/web/assets/control-plane"
+fn web_public_root(root : String) -> String {
+  root + "/apps/web/public"
 }
 
 ///|
-fn web_static_asset_path(root : String, relative : String) -> String {
-  web_static_assets_root(root) + "/" + relative
+fn web_public_path(root : String, relative : String) -> String {
+  web_public_root(root) + "/" + relative
 }
 
 ///|
-fn web_static_asset_string(
+fn web_public_string(
   root : String,
   relative : String,
   fallback : String,
 ) -> String {
-  safe_read_string_or(web_static_asset_path(root, relative), fallback)
+  safe_read_string_or(web_public_path(root, relative), fallback)
 }
 
 ///|
-fn safe_web_static_asset_relative_path(path : String) -> String? {
+fn safe_web_public_relative_path(path : String) -> String? {
   let parts = path.split("/").to_array()
   let safe_parts : Array[String] = []
   for part in parts {
@@ -39,13 +39,10 @@ fn safe_web_static_asset_relative_path(path : String) -> String? {
 }
 
 ///|
-fn web_static_asset_response(
-  root : String,
-  path : String,
-) -> @mocket.HttpResponse {
-  match safe_web_static_asset_relative_path(path) {
+fn web_public_response(root : String, path : String) -> @mocket.HttpResponse {
+  match safe_web_public_relative_path(path) {
     Some(relative) => {
-      let asset_path = web_static_asset_path(root, relative)
+      let asset_path = web_public_path(root, relative)
       if !(@fs.is_file(asset_path) catch { _ => false }) {
         return text_response(NotFound, "Not Found")
       }

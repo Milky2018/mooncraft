@@ -928,8 +928,8 @@ fn fake_codex_resume_reset_marker(root : String, project_id : String) -> String 
 
 ///|
 fn fake_codex_preview_html(root : String) -> String {
-  web_static_asset_string(
-    root, "smoke-preview/index.html", "MoonCraft smoke preview",
+  web_public_string(
+    root, "control-plane-assets/smoke-preview/index.html", "MoonCraft smoke preview",
   )
 }
 

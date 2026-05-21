@@ -38,18 +38,19 @@ If Mooncakes returns a transient network error such as a TLS handshake EOF durin
 
 ## Web Assets
 
-Frontend-owned static shells live under `apps/web/assets/control-plane`. This includes:
+Frontend-owned static files live under `apps/web/public`, which mirrors public URL paths. This includes:
 
-- `platform/index.html` and `platform/style.css` for the root app shell
-- `admin/index.html` for the admin app shell
-- `admin-login/index.html` for the admin session form
-- `auth/github-callback/index.html` for the OAuth callback handoff page
-- `preview-fallback/index.html` and `preview-fallback/styles.css` for generated previews that do not provide their own shell
-- `smoke-preview/index.html` for fake-agent preview smoke runs
+- `control-plane-assets/platform/index.html` and `control-plane-assets/platform/style.css` for the root app shell
+- `control-plane-assets/admin/index.html` for the admin app shell
+- `control-plane-assets/admin-login/index.html` for the admin session form
+- `control-plane-assets/auth/github-callback/index.html` for the OAuth callback handoff page
+- `control-plane-assets/preview-fallback/index.html` and `control-plane-assets/preview-fallback/styles.css` for generated previews that do not provide their own shell
+- `control-plane-assets/smoke-preview/index.html` for fake-agent preview smoke runs
+- `assets/logo.svg`, `assets/logo.png`, and `assets/factory.webp` for public web app imagery
 
 These files are runtime assets owned by `apps/web`, not control-plane source. `moon build` builds both the Rabbita frontend bundle and the native control-plane executable through the workspace. The control plane does not run `moon` at startup; it serves the prebuilt frontend bundle from `_build/js/<profile>/build/mooncraft/web/web.js`. Project creation does require the MoonBit CLI because MoonCraft initializes each generated workspace with `moon new` before saving the first workspace snapshot. The supported local walkthrough runs from the repository root through `just serve`, which builds the workspace before starting the executable. The Docker app image installs the MoonBit CLI, builds the workspace at image build time, and keeps `moon` available for project initialization after startup.
 
-If you run a compiled `control-plane.exe` from another directory, keep `apps/web/assets/control-plane` available under that working directory or the file-backed HTML pages will not render.
+If you run a compiled `control-plane.exe` from another directory, keep `apps/web/public` available under that working directory or the file-backed HTML pages will not render.
 
 ## Authentication
 
