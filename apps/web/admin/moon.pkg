@@ -1,0 +1,16 @@
+import {
+  "mooncraft/sdk" @sdk,
+  "moonbit-community/rabbita",
+  "moonbit-community/rabbita/cmd" @cmd,
+  "moonbit-community/rabbita/html" @html,
+  "moonbit-community/rabbita/svg" @svg,
+  "moonbit-community/rabbita/sub" @sub,
+  "moonbitlang/core/json",
+  "moonbitlang/core/string",
+}
+
+supported_targets = "js"
+
+options(
+  "is-main": true,
+)

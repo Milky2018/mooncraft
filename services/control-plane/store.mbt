@@ -513,6 +513,17 @@ fn platform_web_build_output_path(
 }
 
 ///|
+fn admin_web_build_output_path(
+  root : String,
+  build_profile : BuildProfile,
+) -> String {
+  root +
+  "/_build/js/" +
+  build_profile.build_dir() +
+  "/build/mooncraft/web/admin/admin.js"
+}
+
+///|
 fn control_plane_executable_path(
   root : String,
   build_profile : BuildProfile,

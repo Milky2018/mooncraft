@@ -784,6 +784,19 @@ fn AppContext::serve_platform_bundle(self : AppContext) -> @mocket.HttpResponse 
 }
 
 ///|
+fn AppContext::serve_admin_bundle(self : AppContext) -> @mocket.HttpResponse {
+  let bundle_path = admin_web_build_output_path(self.root, self.build_profile)
+  let bundle = safe_read_bytes_or(bundle_path, b"")
+  if bundle.length() == 0 {
+    return text_response(
+      ServiceUnavailable,
+      "The MoonCraft admin interface is temporarily unavailable.",
+    )
+  }
+  javascript_response(bundle)
+}
+
+///|
 fn AppContext::serve_platform_logo(self : AppContext) -> @mocket.HttpResponse {
   asset_response_bytes(
     "image/svg+xml; charset=utf-8",
@@ -897,6 +910,13 @@ fn main {
     control_plane_asset_response(ctx.root, remainder)
   })
   app.get("/app", _ => ctx.serve_platform_bundle())
+  app.get("/admin/app", event => {
+    if admin_page_authorized(event) {
+      ctx.serve_admin_bundle()
+    } else {
+      unauthorized_response()
+    }
+  })
   app.get("/assets/**", event => ctx.serve_platform_asset(event))
   app.get(@sdk.health_path(), async fn(_) noraise {
     if ctx.store.is_available() {
