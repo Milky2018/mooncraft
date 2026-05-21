@@ -327,7 +327,7 @@ fn sidebar_project_item(
               type_="button",
               title="Project info",
               disabled=!edit_enabled,
-              on_click=dispatch(OpenProjectInfo(project.id)),
+              on_click=dispatch(OpenProjectInfo),
               style=project_menu_item_style(
                 "var(--text-2)", "transparent", edit_enabled,
               ),

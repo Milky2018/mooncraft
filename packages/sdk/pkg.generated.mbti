@@ -55,6 +55,14 @@ pub fn admin_run_path(String) -> String
 
 pub fn admin_run_route() -> RouteSpec
 
+pub fn admin_runtime_path(String) -> String
+
+pub fn admin_runtime_route() -> RouteSpec
+
+pub fn admin_runtimes_path() -> String
+
+pub fn admin_runtimes_route() -> RouteSpec
+
 pub fn admin_user_path(String) -> String
 
 pub fn admin_user_projects_path(String) -> String
@@ -76,6 +84,8 @@ pub fn cancel_run_path(String, String) -> String
 pub fn cancel_run_route() -> RouteSpec
 
 pub fn create_admin_ai_key_route() -> RouteSpec
+
+pub fn create_admin_runtime_route() -> RouteSpec
 
 pub fn create_project_route() -> RouteSpec
 
@@ -122,6 +132,10 @@ pub fn projects_path() -> String
 pub fn run_events_path(String, String, Int) -> String
 
 pub fn run_path(String, String) -> String
+
+pub fn runtimes_path() -> String
+
+pub fn runtimes_route() -> RouteSpec
 
 pub fn session_path() -> String
 
@@ -191,6 +205,11 @@ pub(all) struct AdminListProjectsResponse {
 
 pub(all) struct AdminListRunsResponse {
   items : Array[RunStatusResponse]
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct AdminListRuntimesResponse {
+  default_runtime_id : String
+  items : Array[RuntimeDetail]
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct AdminListUsersResponse {
@@ -318,8 +337,16 @@ pub(all) struct CreateAdminAiKeyRequest {
   priority : Int
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
+pub(all) struct CreateAdminRuntimeRequest {
+  name : String
+  spec_json : String
+  enabled : Bool
+  is_default : Bool
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
 pub(all) struct CreateProjectRequest {
   display_name : String
+  runtime_id : String?
   agent_cli : String?
   model : String?
 } derive(ToJson, @debug.Debug, @json.FromJson)
@@ -368,6 +395,11 @@ pub(all) struct ListRunEventsResponse {
   items : Array[RunEvent]
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
+pub(all) struct ListRuntimesResponse {
+  default_runtime_id : String
+  items : Array[RuntimeSummary]
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
 pub(all) struct PreviewTarget {
   url : String
   port : Int
@@ -378,6 +410,11 @@ pub(all) struct ProjectDetail {
   id : String
   preview_public_id : String
   display_name : String
+  runtime_id : String
+  runtime_name : String
+  runtime_spec : RuntimeSpec?
+  agent_session_id : String
+  runtime_session_id : String?
   agent_cli : String
   model : String
   workspace_path : String
@@ -394,6 +431,9 @@ pub(all) struct ProjectDetail {
 pub(all) struct ProjectSummary {
   id : String
   display_name : String
+  runtime_id : String
+  runtime_name : String
+  agent_session_id : String
   agent_cli : String
   model : String
   status : RunState
@@ -454,6 +494,35 @@ pub(all) struct RunStatusResponse {
   finished_at : String?
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
+pub(all) struct RuntimeDetail {
+  id : String
+  name : String
+  spec : RuntimeSpec
+  spec_json : String
+  enabled : Bool
+  is_default : Bool
+  created_at : String
+  updated_at : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RuntimeSpec {
+  image : String
+  agent : String
+  model : String
+  send : Array[String]
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RuntimeSummary {
+  id : String
+  name : String
+  agent : String
+  model : String
+  enabled : Bool
+  is_default : Bool
+  created_at : String
+  updated_at : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
 pub(all) struct SessionResponse {
   authenticated : Bool
   user : UserSummary?
@@ -479,6 +548,13 @@ pub(all) struct UpdateAdminAiKeyRequest {
   api_key : String
   status : String
   priority : Int
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct UpdateAdminRuntimeRequest {
+  name : String
+  spec_json : String
+  enabled : Bool
+  is_default : Bool
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct UpdateProjectRequest {

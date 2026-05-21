@@ -79,6 +79,47 @@ fn remove_key(
 }
 
 ///|
+fn replace_runtime(
+  runtimes : Array[@sdk.RuntimeDetail],
+  replacement : @sdk.RuntimeDetail,
+) -> Array[@sdk.RuntimeDetail] {
+  let next = []
+  let mut found = false
+  for runtime in runtimes {
+    if runtime.id == replacement.id {
+      next.push(replacement)
+      found = true
+    } else if replacement.is_default {
+      next.push({ ..runtime, is_default: false })
+    } else {
+      next.push(runtime)
+    }
+  }
+  if !found {
+    next.push(replacement)
+  }
+  next
+}
+
+///|
+fn admin_bool_value(value : String) -> Bool {
+  value == "true"
+}
+
+///|
+fn runtime_by_id(
+  runtimes : Array[@sdk.RuntimeDetail],
+  id : String,
+) -> @sdk.RuntimeDetail? {
+  for runtime in runtimes {
+    if runtime.id == id {
+      return Some(runtime)
+    }
+  }
+  None
+}
+
+///|
 fn key_by_id(
   keys : Array[@sdk.AdminAiKeySummary],
   id : String,
@@ -175,6 +216,17 @@ fn update(
           notice: Some(api_notice("Failed to load keys.", error)),
         },
       )
+    RuntimesLoaded(Ok(response)) =>
+      (@rabbita.none, { ..model, runtimes: response.items, loading: false })
+    RuntimesLoaded(Err(error)) =>
+      (
+        @rabbita.none,
+        {
+          ..model,
+          loading: false,
+          notice: Some(api_notice("Failed to load Runtimes.", error)),
+        },
+      )
     ConfigLoaded(Ok(response)) =>
       (@rabbita.none, { ..model, ai_config: response, loading: false })
     ConfigLoaded(Err(error)) =>
@@ -209,6 +261,7 @@ fn update(
           creating_key: false,
           creating_model: false,
           editing_key_id: None,
+          editing_runtime_id: None,
           confirming_key_delete_id: None,
           confirming_model_remove_id: None,
           notice: None,
@@ -349,6 +402,85 @@ fn update(
       (
         @rabbita.none,
         { ..model, notice: Some(api_notice("Failed to delete key.", error)) },
+      )
+    StartEditRuntime(id) => {
+      let selected = runtime_by_id(model.runtimes, id)
+      match selected {
+        Some(runtime) =>
+          (
+            @rabbita.none,
+            {
+              ..model,
+              view: Runtimes,
+              editing_runtime_id: Some(id),
+              editing_runtime_name: runtime.name,
+              editing_runtime_spec_json: runtime.spec_json,
+              editing_runtime_enabled: if runtime.enabled {
+                "true"
+              } else {
+                "false"
+              },
+              editing_runtime_default: if runtime.is_default {
+                "true"
+              } else {
+                "false"
+              },
+              notice: None,
+            },
+          )
+        None => (@rabbita.none, model)
+      }
+    }
+    CancelEditRuntime =>
+      (
+        @rabbita.none,
+        {
+          ..model,
+          editing_runtime_id: None,
+          editing_runtime_name: "",
+          editing_runtime_spec_json: "",
+          editing_runtime_enabled: "true",
+          editing_runtime_default: "false",
+        },
+      )
+    RuntimeNameChanged(value) =>
+      (@rabbita.none, { ..model, editing_runtime_name: value })
+    RuntimeSpecChanged(value) =>
+      (@rabbita.none, { ..model, editing_runtime_spec_json: value })
+    RuntimeEnabledChanged(value) =>
+      (@rabbita.none, { ..model, editing_runtime_enabled: value })
+    RuntimeDefaultChanged(value) =>
+      (@rabbita.none, { ..model, editing_runtime_default: value })
+    SaveRuntime(id) =>
+      (
+        save_runtime_cmd(
+          dispatch,
+          id,
+          model.editing_runtime_name,
+          model.editing_runtime_spec_json,
+          admin_bool_value(model.editing_runtime_enabled),
+          admin_bool_value(model.editing_runtime_default),
+        ),
+        { ..model, notice: None },
+      )
+    RuntimeSaved(Ok(runtime)) =>
+      (
+        @rabbita.none,
+        {
+          ..model,
+          runtimes: replace_runtime(model.runtimes, runtime),
+          editing_runtime_id: None,
+          editing_runtime_name: "",
+          editing_runtime_spec_json: "",
+          editing_runtime_enabled: "true",
+          editing_runtime_default: "false",
+          notice: Some("Runtime saved."),
+        },
+      )
+    RuntimeSaved(Err(error)) =>
+      (
+        @rabbita.none,
+        { ..model, notice: Some(api_notice("Failed to save Runtime.", error)) },
       )
     OpenCreateModel =>
       (

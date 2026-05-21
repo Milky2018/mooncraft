@@ -44,10 +44,8 @@ fn load_projects_cmd(dispatch : @rabbita.Dispatch[Msg]) -> @rabbita.Cmd {
 }
 
 ///|
-fn load_ai_models_cmd(dispatch : @rabbita.Dispatch[Msg]) -> @rabbita.Cmd {
-  get_json(@sdk.ai_models_path(), fn(result) {
-    dispatch(AiModelsLoaded(result))
-  })
+fn load_runtimes_cmd(dispatch : @rabbita.Dispatch[Msg]) -> @rabbita.Cmd {
+  get_json(@sdk.runtimes_path(), fn(result) { dispatch(RuntimesLoaded(result)) })
 }
 
 ///|
@@ -77,10 +75,14 @@ fn load_project_cmd(
 fn create_project_cmd(
   dispatch : @rabbita.Dispatch[Msg],
   display_name : String,
-  agent_cli : String?,
-  model : String?,
+  runtime_id : String?,
 ) -> @rabbita.Cmd {
-  let payload : @sdk.CreateProjectRequest = { display_name, agent_cli, model }
+  let payload : @sdk.CreateProjectRequest = {
+    display_name,
+    runtime_id,
+    agent_cli: None,
+    model: None,
+  }
   post_json(@sdk.projects_path(), payload, fn(result) {
     dispatch(ProjectCreated(result))
   })
@@ -98,21 +100,6 @@ fn rename_project_cmd(
   }
   put_json(@sdk.project_path(project_id), payload, fn(result) {
     dispatch(ProjectRenamed(result))
-  })
-}
-
-///|
-fn update_project_model_cmd(
-  dispatch : @rabbita.Dispatch[Msg],
-  project_id : String,
-  model : String,
-) -> @rabbita.Cmd {
-  let payload : @sdk.UpdateProjectRequest = {
-    display_name: None,
-    model: Some(model),
-  }
-  put_json(@sdk.project_path(project_id), payload, fn(result) {
-    dispatch(ProjectModelUpdated(result))
   })
 }
 

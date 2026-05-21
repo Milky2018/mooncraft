@@ -1220,6 +1220,11 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
         #|  owner_user_id TEXT NOT NULL,
         #|  preview_public_id TEXT NOT NULL UNIQUE,
         #|  display_name TEXT NOT NULL,
+        #|  runtime_id TEXT NOT NULL DEFAULT 'agent-runtime-001',
+        #|  runtime_name TEXT NOT NULL DEFAULT 'Agent001',
+        #|  runtime_spec_json TEXT NOT NULL DEFAULT '',
+        #|  agent_session_id TEXT NOT NULL DEFAULT '',
+        #|  runtime_session_id TEXT,
         #|  agent_cli TEXT NOT NULL DEFAULT 'codex',
         #|  ai_model TEXT NOT NULL DEFAULT '',
         #|  workspace_path TEXT NOT NULL,
@@ -1288,6 +1293,38 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
   }
   match
     self.ensure_column("projects", "agent_cli", "TEXT NOT NULL DEFAULT 'codex'") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.ensure_column(
+      "projects", "runtime_id", "TEXT NOT NULL DEFAULT 'agent-runtime-001'",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.ensure_column(
+      "projects", "runtime_name", "TEXT NOT NULL DEFAULT 'Agent001'",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.ensure_column(
+      "projects", "runtime_spec_json", "TEXT NOT NULL DEFAULT ''",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.ensure_column(
+      "projects", "agent_session_id", "TEXT NOT NULL DEFAULT ''",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match self.ensure_column("projects", "runtime_session_id", "TEXT") {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
@@ -1522,9 +1559,10 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
         String(now_string()),
       ],
     ) {
-    Ok(_) => Ok(())
-    Err(message) => Err(message)
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
   }
+  self.ensure_agent_runtime_tables()
 }
 
 ///|
@@ -1539,6 +1577,15 @@ fn project_detail_from_row(row : Map[String, @db.Param]) -> @sdk.ProjectDetail {
     id: row_text(row, "id"),
     preview_public_id: row_text(row, "preview_public_id"),
     display_name: row_text(row, "display_name"),
+    runtime_id: row_text(row, "runtime_id"),
+    runtime_name: row_text(row, "runtime_name"),
+    runtime_spec: match
+      runtime_spec_from_json(row_text(row, "runtime_spec_json")) {
+      Ok(spec) => Some(spec)
+      Err(_) => None
+    },
+    agent_session_id: row_text(row, "agent_session_id"),
+    runtime_session_id: empty_to_none(row_text(row, "runtime_session_id")),
     agent_cli: row_text(row, "agent_cli"),
     model: row_text(row, "ai_model"),
     workspace_path: row_text(row, "workspace_path"),
@@ -1648,6 +1695,11 @@ async fn Store::get_project_detail(
         #|  p.id,
         #|  p.preview_public_id,
         #|  p.display_name,
+        #|  COALESCE(p.runtime_id, 'agent-runtime-001') AS runtime_id,
+        #|  COALESCE(p.runtime_name, 'Agent001') AS runtime_name,
+        #|  COALESCE(p.runtime_spec_json, '') AS runtime_spec_json,
+        #|  COALESCE(p.agent_session_id, '') AS agent_session_id,
+        #|  COALESCE(p.runtime_session_id, '') AS runtime_session_id,
         #|  COALESCE(p.agent_cli, 'codex') AS agent_cli,
         #|  COALESCE(p.ai_model, '') AS ai_model,
         #|  p.workspace_path,
@@ -2019,12 +2071,16 @@ async fn Store::fail_stale_running_runs_on_startup(self : Store) -> Int noraise 
 }
 
 ///|
-async fn Store::create_project(
+async fn Store::create_project_with_runtime(
   self : Store,
   project_id : String,
   owner_user_id : String,
   preview_public_id : String,
   display_name : String,
+  runtime_id : String,
+  runtime_name : String,
+  runtime_spec_json : String,
+  agent_session_id : String,
   agent_cli : String,
   model : String,
   workspace_path : String,
@@ -2038,13 +2094,17 @@ async fn Store::create_project(
         #|  owner_user_id,
         #|  preview_public_id,
         #|  display_name,
+        #|  runtime_id,
+        #|  runtime_name,
+        #|  runtime_spec_json,
+        #|  agent_session_id,
         #|  agent_cli,
         #|  ai_model,
         #|  workspace_path,
         #|  status,
         #|  created_at,
         #|  updated_at
-        #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
       ),
       "create project",
       params=[
@@ -2052,6 +2112,10 @@ async fn Store::create_project(
         String(owner_user_id),
         String(preview_public_id),
         String(display_name),
+        String(runtime_id),
+        String(runtime_name),
+        String(runtime_spec_json),
+        String(agent_session_id),
         String(agent_cli),
         String(model),
         String(workspace_path),
@@ -2092,6 +2156,30 @@ async fn Store::update_project_settings(
     ),
   )
   self.get_project_detail(project_id)
+}
+
+///|
+async fn Store::set_project_runtime_session_id(
+  self : Store,
+  project_id : String,
+  runtime_session_id : String,
+) -> Result[Unit, String] noraise {
+  self.exec_or_error(
+    (
+      #|UPDATE projects
+      #|SET runtime_session_id = ?,
+      #|    codex_thread_id = ?,
+      #|    updated_at = ?
+      #|WHERE id = ?;
+    ),
+    "update project runtime session id",
+    params=[
+      String(runtime_session_id),
+      String(runtime_session_id),
+      String(now_string()),
+      String(project_id),
+    ],
+  )
 }
 
 ///|
@@ -2310,9 +2398,14 @@ async fn Store::set_project_thread_id(
 ) -> Unit noraise {
   ignore(
     self.exec_or_error(
-      "UPDATE projects SET codex_thread_id = ? WHERE id = ?;",
+      (
+        #|UPDATE projects
+        #|SET codex_thread_id = ?,
+        #|    runtime_session_id = ?
+        #|WHERE id = ?;
+      ),
       "set project thread id",
-      params=[String(thread_id), String(project_id)],
+      params=[String(thread_id), String(thread_id), String(project_id)],
     ),
   )
 }

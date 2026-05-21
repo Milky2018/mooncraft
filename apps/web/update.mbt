@@ -106,7 +106,6 @@ fn update(
           rename_project_pending: false,
           project_action_menu_open: None,
           project_info_open: false,
-          project_info_model: "",
           project_info_pending: false,
           delete_project_confirming: None,
         }
@@ -142,7 +141,6 @@ fn update(
           delete_project_confirming: None,
           project_action_menu_open: None,
           project_info_open: false,
-          project_info_model: "",
           project_info_pending: false,
           rename_project_editing: false,
           rename_project_name: "",
@@ -173,7 +171,6 @@ fn update(
             rename_project_pending: false,
             project_action_menu_open: None,
             project_info_open: false,
-            project_info_model: "",
             project_info_pending: false,
             delete_project_confirming: None,
             notice: None,
@@ -217,19 +214,21 @@ fn update(
     DraftChanged(value) => (@rabbita.none, { ..model, draft: value })
     OpenNewProjectDialog =>
       (
-        load_ai_models_cmd(dispatch),
+        load_runtimes_cmd(dispatch),
         {
           ..model,
           new_project_modal_open: true,
           new_project_name: "",
-          new_project_agent_cli: "codex",
+          new_project_runtime_id: if model.default_runtime_id != "" {
+            model.default_runtime_id
+          } else {
+            model.new_project_runtime_id
+          },
           new_project_more_open: false,
-          new_project_model: model.ai_models_default_model,
-          ai_models_loading: true,
+          runtimes_loading: true,
           delete_project_confirming: None,
           project_action_menu_open: None,
           project_info_open: false,
-          project_info_model: "",
           project_info_pending: false,
           notice: None,
         },
@@ -244,56 +243,44 @@ fn update(
             ..model,
             new_project_modal_open: false,
             new_project_name: "",
-            new_project_agent_cli: "codex",
+            new_project_runtime_id: model.default_runtime_id,
             new_project_more_open: false,
           },
         )
       }
     NewProjectNameChanged(value) =>
       (@rabbita.none, { ..model, new_project_name: value })
+    NewProjectRuntimeChanged(value) =>
+      (@rabbita.none, { ..model, new_project_runtime_id: value })
     ToggleNewProjectMore =>
       (
         @rabbita.none,
         { ..model, new_project_more_open: !model.new_project_more_open },
       )
-    NewProjectAgentChanged(value) =>
+    RuntimesLoaded(Ok(response)) =>
       (
         @rabbita.none,
         {
           ..model,
-          new_project_agent_cli: value,
-          new_project_model: compatible_default_model(value, model),
+          runtimes: response.items,
+          default_runtime_id: response.default_runtime_id,
+          new_project_runtime_id: if model.new_project_runtime_id == "" {
+            response.default_runtime_id
+          } else {
+            model.new_project_runtime_id
+          },
+          runtimes_loading: false,
         },
       )
-    NewProjectModelChanged(value) =>
-      (@rabbita.none, { ..model, new_project_model: value })
-    AiModelsLoaded(Ok(response)) => {
-      let next_model = {
-        ..model,
-        ai_models: response.items,
-        ai_models_default_model: response.default_model,
-      }
-      let selected_model = compatible_default_model(
-        model.new_project_agent_cli,
-        next_model,
-      )
+    RuntimesLoaded(Err(error)) =>
       (
         @rabbita.none,
         {
           ..model,
-          ai_models: next_model.ai_models,
-          ai_models_default_model: response.default_model,
-          new_project_model: selected_model,
-          ai_models_loading: false,
+          runtimes_loading: false,
+          notice: Some(error_notice("Failed to load Runtimes.", error)),
         },
       )
-    }
-    AiModelsLoaded(Err(error)) =>
-      if is_unauthorized_error(error) {
-        auth_recovery(dispatch, model, "Your session expired. Sign in again.")
-      } else {
-        (@rabbita.none, { ..model, ai_models_loading: false })
-      }
     CreateProject =>
       if !can_create_project(model) {
         (@rabbita.none, model)
@@ -303,8 +290,7 @@ fn update(
           create_project_cmd(
             dispatch,
             display_name,
-            ui_empty_to_none(model.new_project_agent_cli),
-            ui_empty_to_none(model.new_project_model),
+            ui_empty_to_none(model.new_project_runtime_id),
           ),
           {
             ..model,
@@ -335,57 +321,26 @@ fn update(
           },
         },
       )
-    OpenProjectInfo(project_id) => {
-      let current_model = match model.project_detail {
-        Some(project) if project.id == project_id => project.model
-        _ =>
-          match project_summary_by_id(model.projects, project_id) {
-            Some(project) => project.model
-            None => ""
-          }
-      }
+    OpenProjectInfo =>
       (
-        load_ai_models_cmd(dispatch),
+        @rabbita.none,
         {
           ..model,
           project_action_menu_open: None,
           project_info_open: true,
-          project_info_model: current_model,
           project_info_pending: false,
-          ai_models_loading: true,
           delete_project_confirming: None,
           notice: None,
         },
       )
-    }
     CloseProjectInfo =>
       if model.project_info_pending {
         (@rabbita.none, model)
       } else {
         (
           @rabbita.none,
-          {
-            ..model,
-            project_info_open: false,
-            project_info_model: "",
-            project_info_pending: false,
-          },
+          { ..model, project_info_open: false, project_info_pending: false },
         )
-      }
-    ProjectInfoModelChanged(value) =>
-      (@rabbita.none, { ..model, project_info_model: value })
-    SaveProjectInfoModel =>
-      match selected_project_detail(model) {
-        Some(project) if can_update_project_model(model) =>
-          (
-            update_project_model_cmd(
-              dispatch,
-              project.id,
-              model.project_info_model.trim().to_owned(),
-            ),
-            { ..model, project_info_pending: true, notice: None },
-          )
-        _ => (@rabbita.none, model)
       }
     StartProjectRename(display_name) =>
       match model.selected_project_id {
@@ -398,7 +353,6 @@ fn update(
               rename_project_name: display_name,
               project_action_menu_open: None,
               project_info_open: false,
-              project_info_model: "",
               project_info_pending: false,
               notice: None,
             },
@@ -489,7 +443,6 @@ fn update(
           create_project_pending: false,
           new_project_modal_open: false,
           new_project_name: "",
-          new_project_agent_cli: "codex",
           new_project_more_open: false,
           selected_project_id: Some(project.id),
           project_detail: Some(project),
@@ -503,7 +456,6 @@ fn update(
           delete_project_confirming: None,
           project_action_menu_open: None,
           project_info_open: false,
-          project_info_model: "",
           project_info_pending: false,
         },
       )
@@ -522,7 +474,6 @@ fn update(
             delete_project_confirming: None,
             project_action_menu_open: None,
             project_info_open: false,
-            project_info_model: "",
             project_info_pending: false,
             notice: Some(error_notice("Failed to create project.", error)),
           },
@@ -545,7 +496,6 @@ fn update(
           delete_project_confirming: None,
           project_action_menu_open: None,
           project_info_open: false,
-          project_info_model: "",
           project_info_pending: false,
           delete_project_pending: None,
         }
@@ -555,7 +505,6 @@ fn update(
           delete_project_confirming: None,
           project_action_menu_open: None,
           project_info_open: false,
-          project_info_model: "",
           project_info_pending: false,
           delete_project_pending: None,
         }
@@ -593,39 +542,6 @@ fn update(
             ..model,
             rename_project_pending: false,
             notice: Some(error_notice("Failed to rename project.", error)),
-          },
-        )
-      }
-    ProjectModelUpdated(Ok(response)) => {
-      let project = response.project
-      let project_summary = project_summary_from_detail(project)
-      (
-        @rabbita.none,
-        {
-          ..model,
-          projects: replace_project_summary(model.projects, project_summary),
-          project_detail: if model.selected_project_id == Some(project.id) {
-            Some(project)
-          } else {
-            model.project_detail
-          },
-          project_info_open: true,
-          project_info_model: project.model,
-          project_info_pending: false,
-          notice: None,
-        },
-      )
-    }
-    ProjectModelUpdated(Err(error)) =>
-      if is_unauthorized_error(error) {
-        auth_recovery(dispatch, model, "Your session expired. Sign in again.")
-      } else {
-        (
-          @rabbita.none,
-          {
-            ..model,
-            project_info_pending: false,
-            notice: Some(error_notice("Failed to update project model.", error)),
           },
         )
       }

@@ -272,57 +272,6 @@ fn render_open_project_button(
 }
 
 ///|
-fn model_display_label(
-  item : @sdk.AiModelSummary,
-  default_model : String,
-) -> String {
-  let name = if item.name.trim() == "" { item.id } else { item.name }
-  let label = if name == item.id { item.id } else { name + " - " + item.id }
-  if item.id == default_model {
-    label + " (default)"
-  } else {
-    label
-  }
-}
-
-///|
-fn agent_cli_label(agent_cli : String) -> String {
-  match agent_cli {
-    "claude_code" => "Claude Code"
-    "kimi_code" => "Kimi Code"
-    _ => "Codex"
-  }
-}
-
-///|
-fn render_agent_select_options(model : Model) -> Array[@rabbita.Html] {
-  let items : Array[@rabbita.Html] = []
-  for agent_cli in ["codex", "claude_code", "kimi_code"] {
-    items.push(
-      @html.option(
-        value=agent_cli,
-        selected=agent_cli == model.new_project_agent_cli,
-        agent_cli_label(agent_cli),
-      ),
-    )
-  }
-  items
-}
-
-///|
-fn model_list_contains(
-  items : Array[@sdk.AiModelSummary],
-  model_id : String,
-) -> Bool {
-  for item in items {
-    if item.id == model_id {
-      return true
-    }
-  }
-  false
-}
-
-///|
 fn render_disclosure_icon(open : Bool) -> @rabbita.Html {
   @svg.svg(
     width=16,
@@ -341,46 +290,34 @@ fn render_disclosure_icon(open : Bool) -> @rabbita.Html {
 }
 
 ///|
-fn render_model_select_options_for(
-  model : Model,
-  agent_cli : String,
-  selected_model : String,
-) -> Array[@rabbita.Html] {
-  let items : Array[@rabbita.Html] = []
-  if model.ai_models_loading && model.ai_models.length() == 0 {
-    items.push(@html.option(value="", selected=true, "Loading models..."))
+fn runtime_display_label(item : @sdk.RuntimeSummary) -> String {
+  if item.is_default {
+    item.name + " (default)"
   } else {
-    if selected_model != "" &&
-      !model_list_contains(model.ai_models, selected_model) {
-      items.push(
-        @html.option(value=selected_model, selected=true, selected_model),
-      )
-    }
-    for item in model.ai_models {
-      if model_id_compatible_with_agent(agent_cli, item.id) {
-        items.push(
-          @html.option(
-            value=item.id,
-            selected=item.id == selected_model,
-            model_display_label(item, model.ai_models_default_model),
-          ),
-        )
-      }
-    }
-    if items.length() == 0 {
-      items.push(@html.option(value="", selected=true, "Default"))
-    }
+    item.name
   }
-  items
 }
 
 ///|
-fn render_model_select_options(model : Model) -> Array[@rabbita.Html] {
-  render_model_select_options_for(
-    model,
-    model.new_project_agent_cli,
-    model.new_project_model,
-  )
+fn render_runtime_select_options(model : Model) -> Array[@rabbita.Html] {
+  let items : Array[@rabbita.Html] = []
+  if model.runtimes_loading && model.runtimes.length() == 0 {
+    items.push(@html.option(value="", selected=true, "Loading Runtimes..."))
+  } else {
+    for item in model.runtimes {
+      items.push(
+        @html.option(
+          value=item.id,
+          selected=item.id == model.new_project_runtime_id,
+          runtime_display_label(item),
+        ),
+      )
+    }
+    if items.length() == 0 {
+      items.push(@html.option(value="", selected=true, "No Runtimes available"))
+    }
+  }
+  items
 }
 
 ///|
@@ -415,23 +352,16 @@ fn render_new_project_more(
           "flex-direction: column", "gap: 8px",
         ],
       ) <| [
-        @html.div(style=section_label_style(), "Agent"),
-        @html.select(
-          disabled=model.create_project_pending,
-          on_change=fn(value) { dispatch(NewProjectAgentChanged(value)) },
-          style=input_style(model.create_project_pending),
-          render_agent_select_options(model),
-        ),
-        @html.div(style=section_label_style(), "Model"),
+        @html.div(style=section_label_style(), "Runtime"),
         @html.select(
           disabled=model.create_project_pending ||
-            (model.ai_models_loading && model.ai_models.length() == 0),
-          on_change=fn(value) { dispatch(NewProjectModelChanged(value)) },
+            (model.runtimes_loading && model.runtimes.length() == 0),
+          on_change=fn(value) { dispatch(NewProjectRuntimeChanged(value)) },
           style=input_style(
             model.create_project_pending ||
-            (model.ai_models_loading && model.ai_models.length() == 0),
+            (model.runtimes_loading && model.runtimes.length() == 0),
           ),
-          render_model_select_options(model),
+          render_runtime_select_options(model),
         ),
       ]
     } else {
@@ -557,13 +487,7 @@ fn render_project_info_dialog(
     @html.nothing
   } else {
     match selected_project_detail(model) {
-      Some(project) => {
-        let loading_models = model.ai_models_loading &&
-          model.ai_models.length() == 0
-        let select_disabled = model.project_info_pending ||
-          loading_models ||
-          active_run(model) is Some(_)
-        let save_enabled = can_update_project_model(model)
+      Some(project) =>
         @html.div(
           style=[
             "position: fixed", "inset: 0", "z-index: 100", "display: flex", "align-items: center",
@@ -596,17 +520,12 @@ fn render_project_info_dialog(
               ),
             ],
             render_project_info_row("Project ID", project.id),
-            render_project_info_row("Agent", agent_cli_label(project.agent_cli)),
-            @html.div(style=section_label_style(), "Model"),
-            @html.select(
-              disabled=select_disabled,
-              on_change=fn(value) { dispatch(ProjectInfoModelChanged(value)) },
-              style=input_style(select_disabled),
-              render_model_select_options_for(
-                model,
-                project.agent_cli,
-                model.project_info_model,
-              ),
+            render_project_info_row("Runtime", project.runtime_name),
+            render_project_info_row("Runtime ID", project.runtime_id),
+            render_project_info_row("Agent session", project.agent_session_id),
+            render_project_info_row(
+              "Runtime session",
+              project.runtime_session_id.unwrap_or("-"),
             ),
             @html.div(
               style=[
@@ -622,23 +541,9 @@ fn render_project_info_dialog(
                   ["width: 32px", "height: 32px", "padding: 0"],
                 [project_cancel_icon()],
               ),
-              @html.button(
-                type_="button",
-                title=if model.project_info_pending {
-                  "Saving"
-                } else {
-                  "Save model"
-                },
-                disabled=!save_enabled,
-                on_click=dispatch(SaveProjectInfoModel),
-                style=primary_button_style(save_enabled) +
-                  ["width: 32px", "height: 32px", "padding: 0"],
-                [project_save_icon()],
-              ),
             ],
           ],
         ]
-      }
       None => @html.nothing
     }
   }

@@ -14,6 +14,10 @@ struct AgentTurnFailure {
 
 ///|
 struct AgentRuntimeConfig {
+  runtime_id : String
+  runtime_name : String
+  agent_session_id : String
+  runtime_session_id : String?
   image : String
   platform : String
   agent_cli : String
@@ -23,11 +27,11 @@ struct AgentRuntimeConfig {
   container_home : String
   container_data_dir : String
   host_data_dir : String?
+  send : Array[String]
 }
 
 ///|
 struct AgentRuntimeSpec {
-  label : String
   container_home : String
   runs_as_mooncraft_user : Bool
 }
@@ -36,39 +40,14 @@ struct AgentRuntimeSpec {
 fn agent_runtime_spec(agent_cli : String) -> AgentRuntimeSpec {
   match agent_cli {
     "claude_code" =>
-      {
-        label: "claude code",
-        container_home: "/home/mooncraft",
-        runs_as_mooncraft_user: true,
-      }
-    "kimi_code" =>
-      {
-        label: "kimi code",
-        container_home: "/root",
-        runs_as_mooncraft_user: false,
-      }
-    _ =>
-      { label: "codex", container_home: "/root", runs_as_mooncraft_user: false }
+      { container_home: "/home/mooncraft", runs_as_mooncraft_user: true }
+    "kimi_code" => { container_home: "/root", runs_as_mooncraft_user: false }
+    _ => { container_home: "/root", runs_as_mooncraft_user: false }
   }
 }
 
 ///|
 let default_agent_runtime_image = "docker.io/moonbitcloud/mooncraft-agent-runtime:0.1.0"
-
-///|
-fn configured_default_agent_runtime_image(root : String) -> String {
-  let configured = safe_read_string_or(
-      root + "/config/agent_runtime_image.txt",
-      default_agent_runtime_image,
-    )
-    .trim()
-    .to_owned()
-  if configured == "" {
-    default_agent_runtime_image
-  } else {
-    configured
-  }
-}
 
 ///|
 let default_codex_model = "gpt-5.5"
@@ -78,10 +57,34 @@ struct RunArtifacts {
   project_id : String
   run_id : String
   dir : String
+  prompt_path : String
+  runtime_context_path : String
+  result_path : String
   last_message_path : String
   agent_log_path : String
   validation_log_path : String
 }
+
+///|
+struct RuntimeContext {
+  project_id : String
+  run_id : String
+  agent_session_id : String
+  runtime_session_id : String?
+  prompt_file : String
+  workspace : String
+  artifacts : String
+  runtime_id : String
+  runtime_name : String
+  agent : String
+  model : String
+} derive(ToJson)
+
+///|
+struct RuntimeResult {
+  runtime_session_id : String
+  last_message : String?
+} derive(FromJson)
 
 ///|
 struct PreviewAuditResult {
@@ -117,6 +120,9 @@ fn RunArtifacts::new(
     project_id,
     run_id,
     dir,
+    prompt_path: dir + "/prompt.txt",
+    runtime_context_path: dir + "/runtime_context.json",
+    result_path: dir + "/result.json",
     last_message_path: dir + "/last_message.txt",
     agent_log_path: dir + "/agent.log",
     validation_log_path: dir + "/validation.log",
@@ -251,6 +257,86 @@ fn remove_docker_env_file(path : String) -> Unit {
 }
 
 ///|
+fn write_runtime_context(
+  config : AgentRuntimeConfig,
+  project : @sdk.ProjectDetail,
+  artifacts : RunArtifacts,
+  prompt : String,
+) -> Unit {
+  safe_write_string(artifacts.prompt_path, prompt)
+  let context : RuntimeContext = {
+    project_id: project.id,
+    run_id: artifacts.run_id,
+    agent_session_id: config.agent_session_id,
+    runtime_session_id: config.runtime_session_id,
+    prompt_file: agent_container_artifacts_dir() + "/prompt.txt",
+    workspace: agent_container_workspace_dir(),
+    artifacts: agent_container_artifacts_dir(),
+    runtime_id: config.runtime_id,
+    runtime_name: config.runtime_name,
+    agent: config.agent_cli,
+    model: config.model,
+  }
+  safe_write_string(
+    artifacts.runtime_context_path,
+    context.to_json().stringify(),
+  )
+}
+
+///|
+fn runtime_command_arg(
+  config : AgentRuntimeConfig,
+  artifacts : RunArtifacts,
+  value : String,
+) -> String {
+  match value {
+    "$prompt_file" => agent_container_artifacts_dir() + "/prompt.txt"
+    "$runtime_context" =>
+      agent_container_artifacts_dir() + "/runtime_context.json"
+    "$result_file" => agent_container_artifacts_dir() + "/result.json"
+    "$agent_session_id" => config.agent_session_id
+    "$runtime_session_id" => config.runtime_session_id.unwrap_or("")
+    "$workspace" => agent_container_workspace_dir()
+    "$artifacts" => agent_container_artifacts_dir()
+    "$project_id" => artifacts.project_id
+    "$run_id" => artifacts.run_id
+    "$model" => config.model
+    _ => value
+  }
+}
+
+///|
+fn runtime_send_command(
+  config : AgentRuntimeConfig,
+  artifacts : RunArtifacts,
+) -> Array[String] {
+  config.send.map(fn(value) { runtime_command_arg(config, artifacts, value) })
+}
+
+///|
+fn read_runtime_result(
+  artifacts : RunArtifacts,
+) -> Result[RuntimeResult, String] {
+  if !@fs.path_exists(artifacts.result_path) {
+    return Err("Runtime did not write /artifacts/result.json.")
+  }
+  let text = safe_read_string_or(artifacts.result_path, "")
+  let parsed = @json.parse(text) catch {
+    _ => return Err("Runtime result.json is not valid JSON.")
+  }
+  let result : RuntimeResult = @json.from_json(parsed) catch {
+    _ => return Err("Runtime result.json does not match the expected shape.")
+  }
+  if result.runtime_session_id.trim() == "" {
+    return Err("Runtime result.json did not include runtime_session_id.")
+  }
+  Ok({
+    runtime_session_id: result.runtime_session_id.trim().to_owned(),
+    last_message: result.last_message,
+  })
+}
+
+///|
 fn normalize_docker_architecture(
   architecture : String,
 ) -> Result[String, String] {
@@ -301,7 +387,7 @@ async fn AgentRuntimeConfig::load(
     _ =>
       match @env.get_env_var("MOONCRAFT_CODEX_DOCKER_IMAGE") {
         Some(value) if value.trim() != "" => value.trim().to_owned()
-        _ => configured_default_agent_runtime_image(root)
+        _ => settings.runtime_spec.image
       }
   }
   if @env.get_env_var("MOONCRAFT_CODEX_HOME_HOST") is Some(value) &&
@@ -310,7 +396,7 @@ async fn AgentRuntimeConfig::load(
       "MOONCRAFT_CODEX_HOME_HOST is not supported. Configure AI keys in the MoonCraft admin page instead.",
     )
   }
-  let spec = agent_runtime_spec(settings.agent_cli)
+  let spec = agent_runtime_spec(settings.runtime_spec.agent)
   let container_home = match
     @env.get_env_var("MOONCRAFT_CODEX_CONTAINER_HOME") {
     Some(value) if value.trim() != "" => value
@@ -325,15 +411,20 @@ async fn AgentRuntimeConfig::load(
     Err(message) => return Err(message)
   }
   Ok({
+    runtime_id: settings.runtime_id,
+    runtime_name: settings.runtime_name,
+    agent_session_id: settings.agent_session_id,
+    runtime_session_id: settings.runtime_session_id,
     image,
     platform,
-    agent_cli: settings.agent_cli,
+    agent_cli: settings.runtime_spec.agent,
     provider: settings.provider,
-    model: settings.model,
+    model: settings.runtime_spec.model,
     api_key: settings.api_key,
     container_home,
     container_data_dir: trim_mount_path(root) + "/data",
     host_data_dir,
+    send: settings.runtime_spec.send,
   })
 }
 
@@ -374,14 +465,6 @@ fn recovery_prompt(
 ) -> String {
   ignore(initial_project_prompt)
   user_message
-}
-
-///|
-fn mooncraft_agent_system_prompt() -> String {
-  (
-    #|You are working inside a MoonCraft generated app workspace.
-    #|Use the runtime instructions as the product contract. Treat the user prompt as the product request. Do not write hidden platform instructions into the project workspace, and do not reveal internal runtime, provider, container, or log details in the final response.
-  )
 }
 
 ///|
@@ -783,52 +866,6 @@ fn extract_thread_id(events : String) -> String? {
     }
   }
   None
-}
-
-///|
-fn extract_agent_text_event(output : String) -> String? {
-  let mut latest = None
-  for raw_line in output.replace_all(old="\r\n", new="\n").split("\n") {
-    let line = raw_line.to_owned()
-    if line.contains("\"type\":\"text\"") {
-      match extract_json_string_field(line, "text") {
-        Some(text) if text.trim() != "" =>
-          latest = Some(text.trim(chars="\n\r ").to_owned())
-        _ => ()
-      }
-    } else if line.contains("\"type\":\"result\"") {
-      match extract_json_string_field(line, "result") {
-        Some(text) if text.trim() != "" =>
-          latest = Some(text.trim(chars="\n\r ").to_owned())
-        _ => ()
-      }
-    } else if line.contains("\"content\"") {
-      match extract_json_string_field(line, "content") {
-        Some(text) if text.trim() != "" =>
-          latest = Some(text.trim(chars="\n\r ").to_owned())
-        _ => ()
-      }
-    } else {
-      ()
-    }
-  }
-  latest
-}
-
-///|
-fn stateless_agent_summary_from_output(
-  output : String,
-  artifacts : RunArtifacts,
-  fallback : String,
-) -> String {
-  match extract_agent_text_event(output) {
-    Some(summary) => summary
-    None =>
-      trim_or_default(
-        safe_read_string_or(artifacts.last_message_path, ""),
-        fallback,
-      )
-  }
 }
 
 ///|
@@ -1562,203 +1599,6 @@ fn codex_exec_raw_command(model : String, prompt : String) -> Array[String] {
 }
 
 ///|
-fn codex_resume_command(
-  model : String,
-  thread_id : String,
-  user_prompt : String,
-) -> Array[String] {
-  codex_resume_raw_command(model, thread_id, followup_prompt(user_prompt))
-}
-
-///|
-fn codex_resume_raw_command(
-  model : String,
-  thread_id : String,
-  prompt : String,
-) -> Array[String] {
-  [
-    "codex",
-    "exec",
-    "resume",
-    "--model",
-    model,
-    "--skip-git-repo-check",
-    "--json",
-    "--output-last-message",
-    agent_container_artifacts_dir() + "/last_message.txt",
-    "--dangerously-bypass-approvals-and-sandbox",
-    thread_id,
-    prompt,
-  ]
-}
-
-///|
-fn claude_code_command(model : String, prompt : String) -> Array[String] {
-  [
-    "claude",
-    "--bare",
-    "-p",
-    prompt,
-    "--model",
-    model,
-    "--append-system-prompt",
-    mooncraft_agent_system_prompt(),
-    "--output-format",
-    "stream-json",
-    "--verbose",
-    "--dangerously-skip-permissions",
-    "--no-session-persistence",
-  ]
-}
-
-///|
-fn kimi_code_command(prompt : String) -> Array[String] {
-  [
-    "kimi",
-    "--model",
-    "mooncraft-openrouter",
-    "--work-dir",
-    agent_container_workspace_dir(),
-    "--prompt",
-    prompt,
-    "--print",
-    "--output-format",
-    "stream-json",
-    "--yolo",
-    "--afk",
-  ]
-}
-
-///|
-fn stateless_agent_prompt(
-  workspace_path : String,
-  user_prompt : String,
-) -> String {
-  ignore(workspace_path)
-  user_prompt
-}
-
-///|
-fn agent_cli_label(agent_cli : String) -> String {
-  agent_runtime_spec(agent_cli).label
-}
-
-///|
-async fn run_stateless_agent_turn(
-  store : Store,
-  root : String,
-  config : AgentRuntimeConfig?,
-  project : @sdk.ProjectDetail,
-  workspace_path : String,
-  run_id : String,
-  user_prompt : String,
-  reset_logs? : Bool = true,
-  raw_prompt? : Bool = false,
-) -> Result[AgentExecutionResult, AgentTurnFailure] noraise {
-  let artifacts = RunArtifacts::new(root, project.id, run_id)
-  safe_write_string(artifacts.last_message_path, "")
-  if reset_logs {
-    safe_write_string(artifacts.agent_log_path, "")
-  }
-  let model = match config {
-    Some(config) => config.model
-    None => project.model
-  }
-  let agent_cli = match normalize_agent_cli(project.agent_cli) {
-    Ok(agent_cli) => agent_cli
-    Err(_) => default_agent_cli()
-  }
-  let prompt = if raw_prompt {
-    user_prompt
-  } else {
-    stateless_agent_prompt(workspace_path, user_prompt)
-  }
-  let command = match agent_cli {
-    "claude_code" => claude_code_command(model, prompt)
-    "kimi_code" => kimi_code_command(prompt)
-    _ => codex_exec_command(model, user_prompt)
-  }
-  match
-    run_agent_runtime_doctor(
-      root,
-      config,
-      project,
-      workspace_path,
-      artifacts,
-      None,
-    ) {
-    Ok(_) => ignore(())
-    Err(failure) => return Err(failure)
-  }
-  let result = match
-    collect_agent_command_output(
-      store, run_id, root, config, project, workspace_path, artifacts, command,
-    ) {
-    Ok(result) => result
-    Err(message) =>
-      return Err(
-        codex_failure_with_debug(
-          "The AI builder could not be started for that update.",
-          message,
-          None,
-          Some(
-            failure_debug(
-              "AI builder startup",
-              Some(command),
-              None,
-              Some(artifacts),
-            ),
-          ),
-        ),
-      )
-  }
-  let (exit_code, output, fake_summary) = result
-  append_command_log(
-    artifacts.agent_log_path,
-    agent_cli_label(agent_cli) + " execution",
-    command,
-    exit_code,
-    output,
-  )
-  let summary = match fake_summary {
-    Some(summary) => trim_or_default(summary, default_success_summary())
-    None =>
-      stateless_agent_summary_from_output(
-        output,
-        artifacts,
-        default_success_summary(),
-      )
-  }
-  if exit_code != 0 {
-    return Err(
-      codex_failure_with_debug(
-        ai_builder_failure_assistant_message(
-          model,
-          output,
-          default_failure_assistant_message(),
-        ),
-        stage_failure_message(
-          "AI builder execution",
-          exit_code,
-          artifacts.agent_log_path,
-          output,
-        ),
-        None,
-        Some(
-          failure_debug(
-            "AI builder execution",
-            Some(command),
-            Some(exit_code),
-            Some(artifacts),
-          ),
-        ),
-      ),
-    )
-  }
-  Ok({ summary, thread_id: run_id, artifacts })
-}
-
-///|
 fn codex_failure(
   assistant_message : String,
   error_message : String,
@@ -1805,23 +1645,27 @@ async fn run_codex_turn(
   if reset_logs {
     safe_write_string(artifacts.agent_log_path, "")
   }
-  let thread_id_before = project.codex_thread_id
+  let thread_id_before = match project.runtime_session_id {
+    Some(value) => Some(value)
+    None => project.codex_thread_id
+  }
   let model = match config {
     Some(config) => config.model
     None => default_codex_model
   }
-  let command = if raw_prompt {
-    match thread_id_before {
-      Some(thread_id) if resume_existing =>
-        codex_resume_raw_command(model, thread_id, user_prompt)
-      _ => codex_exec_raw_command(model, user_prompt)
-    }
+  let prompt = if raw_prompt {
+    user_prompt
+  } else if thread_id_before is Some(_) && resume_existing {
+    followup_prompt(user_prompt)
   } else {
-    match thread_id_before {
-      Some(thread_id) if resume_existing =>
-        codex_resume_command(model, thread_id, user_prompt)
-      _ => codex_exec_command(model, user_prompt)
+    bootstrap_prompt(user_prompt)
+  }
+  let command = match config {
+    Some(config) => {
+      write_runtime_context(config, project, artifacts, prompt)
+      runtime_send_command(config, artifacts)
     }
+    None => codex_exec_raw_command(model, prompt)
   }
   match
     run_agent_runtime_doctor(
@@ -1859,19 +1703,15 @@ async fn run_codex_turn(
   let mut fake_summary = initial_fake_summary
   append_command_log(
     artifacts.agent_log_path,
-    if thread_id_before is Some(_) {
-      "codex resume"
-    } else {
-      "codex exec"
-    },
+    "runtime send",
     active_command,
     exit_code,
     output,
   )
   let mut thread_id = thread_id_before
-  if thread_id_before is None {
-    thread_id = match extract_thread_id(output) {
-      Some(thread_id) => Some(thread_id)
+  if config is None && thread_id_before is None {
+    let thread_id = match extract_thread_id(output) {
+      Some(thread_id) => thread_id
       None =>
         return Err(
           codex_failure_with_debug(
@@ -1898,8 +1738,14 @@ async fn run_codex_turn(
           ),
         )
     }
+    let summary = trim_or_default(
+      safe_read_string_or(artifacts.last_message_path, ""),
+      default_success_summary(),
+    )
+    return Ok({ summary, thread_id, artifacts })
   }
-  if !raw_prompt &&
+  if config is None &&
+    !raw_prompt &&
     thread_id_before is Some(_) &&
     exit_code != 0 &&
     resume_session_missing(output) {
@@ -1971,17 +1817,52 @@ async fn run_codex_turn(
     fake_summary = recovery_fake_summary
     thread_id = Some(recovery_thread_id)
   }
-  let thread_id = match thread_id {
-    Some(thread_id) => thread_id
-    None =>
+  if config is None {
+    let thread_id = match thread_id {
+      Some(thread_id) => thread_id
+      None =>
+        return Err(
+          codex_failure_with_debug(
+            default_failure_assistant_message(),
+            "The builder session could not be restored for this run.",
+            None,
+            Some(
+              failure_debug(
+                "AI builder session startup",
+                Some(active_command),
+                Some(exit_code),
+                Some(artifacts),
+              ),
+            ),
+          ),
+        )
+    }
+    let summary = match fake_summary {
+      Some(summary) => trim_or_default(summary, default_success_summary())
+      None =>
+        trim_or_default(
+          safe_read_string_or(artifacts.last_message_path, ""),
+          default_success_summary(),
+        )
+    }
+    if exit_code != 0 {
       return Err(
         codex_failure_with_debug(
-          default_failure_assistant_message(),
-          "The builder session could not be restored for this run.",
-          None,
+          ai_builder_failure_assistant_message(
+            model,
+            output,
+            default_failure_assistant_message(),
+          ),
+          stage_failure_message(
+            "AI builder execution",
+            exit_code,
+            artifacts.agent_log_path,
+            output,
+          ),
+          Some(thread_id),
           Some(
             failure_debug(
-              "AI builder session startup",
+              "AI builder execution",
               Some(active_command),
               Some(exit_code),
               Some(artifacts),
@@ -1989,14 +1870,8 @@ async fn run_codex_turn(
           ),
         ),
       )
-  }
-  let summary = match fake_summary {
-    Some(summary) => trim_or_default(summary, default_success_summary())
-    None =>
-      trim_or_default(
-        safe_read_string_or(artifacts.last_message_path, ""),
-        default_success_summary(),
-      )
+    }
+    return Ok({ summary, thread_id, artifacts })
   }
   if exit_code != 0 {
     return Err(
@@ -2012,7 +1887,7 @@ async fn run_codex_turn(
           artifacts.agent_log_path,
           output,
         ),
-        Some(thread_id),
+        thread_id_before,
         Some(
           failure_debug(
             "AI builder execution",
@@ -2024,7 +1899,38 @@ async fn run_codex_turn(
       ),
     )
   }
-  Ok({ summary, thread_id, artifacts })
+  let runtime_result = match read_runtime_result(artifacts) {
+    Ok(result) => result
+    Err(message) =>
+      return Err(
+        codex_failure_with_debug(
+          default_failure_assistant_message(),
+          message,
+          thread_id_before,
+          Some(
+            failure_debug(
+              "AI builder result",
+              Some(active_command),
+              Some(exit_code),
+              Some(artifacts),
+            ),
+          ),
+        ),
+      )
+  }
+  let summary = match runtime_result.last_message {
+    Some(message) => trim_or_default(message, default_success_summary())
+    None =>
+      match fake_summary {
+        Some(summary) => trim_or_default(summary, default_success_summary())
+        None =>
+          trim_or_default(
+            safe_read_string_or(artifacts.last_message_path, ""),
+            default_success_summary(),
+          )
+      }
+  }
+  Ok({ summary, thread_id: runtime_result.runtime_session_id, artifacts })
 }
 
 ///|
@@ -2564,36 +2470,19 @@ async fn AgentGateway::run_turn(
         )
     }
   }
-  let agent_cli = match normalize_agent_cli(project.agent_cli) {
-    Ok(agent_cli) => agent_cli
-    Err(_) => default_agent_cli()
-  }
   let mut codex_result = match
-    (if agent_cli == "codex" {
-      run_codex_turn(
-        store,
-        self.root,
-        config,
-        project,
-        initial_project_prompt,
-        workspace_path,
-        run_id,
-        user_prompt,
-        raw_prompt~,
-        resume_existing~,
-      )
-    } else {
-      run_stateless_agent_turn(
-        store,
-        self.root,
-        config,
-        project,
-        workspace_path,
-        run_id,
-        user_prompt,
-        raw_prompt~,
-      )
-    }) {
+    run_codex_turn(
+      store,
+      self.root,
+      config,
+      project,
+      initial_project_prompt,
+      workspace_path,
+      run_id,
+      user_prompt,
+      raw_prompt~,
+      resume_existing~,
+    ) {
     Ok(result) => result
     Err(failure) => return Err(failure)
   }
@@ -2617,43 +2506,27 @@ async fn AgentGateway::run_turn(
         "status",
         "Repairing the project workspace.",
       )
-      let repair_project = if agent_cli == "codex" {
-        { ..project, codex_thread_id: Some(codex_result.thread_id) }
-      } else {
-        project
+      let repair_project = {
+        ..project,
+        codex_thread_id: Some(codex_result.thread_id),
+        runtime_session_id: Some(codex_result.thread_id),
       }
       let repair_result = match
-        (if agent_cli == "codex" {
-          run_codex_turn(
-            store,
-            self.root,
-            config,
-            repair_project,
-            initial_project_prompt,
-            workspace_path,
-            run_id,
-            workspace_contract_repair_prompt(
-              contract_error, initial_project_prompt, user_prompt,
-            ),
-            reset_logs=false,
-            raw_prompt=true,
-            resume_existing=false,
-          )
-        } else {
-          run_stateless_agent_turn(
-            store,
-            self.root,
-            config,
-            repair_project,
-            workspace_path,
-            run_id,
-            workspace_contract_repair_prompt(
-              contract_error, initial_project_prompt, user_prompt,
-            ),
-            reset_logs=false,
-            raw_prompt=true,
-          )
-        }) {
+        run_codex_turn(
+          store,
+          self.root,
+          config,
+          repair_project,
+          initial_project_prompt,
+          workspace_path,
+          run_id,
+          workspace_contract_repair_prompt(
+            contract_error, initial_project_prompt, user_prompt,
+          ),
+          reset_logs=false,
+          raw_prompt=true,
+          resume_existing=true,
+        ) {
         Ok(result) => result
         Err(failure) => return Err(failure)
       }
@@ -2676,11 +2549,7 @@ async fn AgentGateway::run_turn(
             codex_failure_with_debug(
               workspace_contract_failed_assistant_message(),
               repair_error,
-              if agent_cli == "codex" {
-                Some(codex_result.thread_id)
-              } else {
-                None
-              },
+              Some(codex_result.thread_id),
               Some(
                 failure_debug(
                   "Workspace contract",
@@ -2730,47 +2599,29 @@ async fn AgentGateway::run_turn(
         "status",
         "Repairing failed validation.",
       )
-      let repair_project = if agent_cli == "codex" {
-        { ..project, codex_thread_id: Some(codex_result.thread_id) }
-      } else {
-        project
+      let repair_project = {
+        ..project,
+        codex_thread_id: Some(codex_result.thread_id),
+        runtime_session_id: Some(codex_result.thread_id),
       }
       let repair_result = match
-        (if agent_cli == "codex" {
-          run_codex_turn(
-            store,
-            self.root,
-            config,
-            repair_project,
+        run_codex_turn(
+          store,
+          self.root,
+          config,
+          repair_project,
+          initial_project_prompt,
+          workspace_path,
+          run_id,
+          validation_repair_prompt(
+            failure.error_message,
             initial_project_prompt,
-            workspace_path,
-            run_id,
-            validation_repair_prompt(
-              failure.error_message,
-              initial_project_prompt,
-              user_prompt,
-            ),
-            reset_logs=false,
-            raw_prompt=true,
-            resume_existing=false,
-          )
-        } else {
-          run_stateless_agent_turn(
-            store,
-            self.root,
-            config,
-            repair_project,
-            workspace_path,
-            run_id,
-            validation_repair_prompt(
-              failure.error_message,
-              initial_project_prompt,
-              user_prompt,
-            ),
-            reset_logs=false,
-            raw_prompt=true,
-          )
-        }) {
+            user_prompt,
+          ),
+          reset_logs=false,
+          raw_prompt=true,
+          resume_existing=true,
+        ) {
         Ok(result) => result
         Err(repair_failure) => return Err(repair_failure)
       }
@@ -2802,14 +2653,7 @@ async fn AgentGateway::run_turn(
     Ok(_) => ignore(())
     Err(failure) => return Err(failure)
   }
-  Ok({
-    summary: codex_result.summary,
-    thread_id: if agent_cli == "codex" {
-      Some(codex_result.thread_id)
-    } else {
-      None
-    },
-  })
+  Ok({ summary: codex_result.summary, thread_id: Some(codex_result.thread_id) })
 }
 
 ///|
@@ -3087,12 +2931,12 @@ async fn AppContext::run_project_turn(
           return
         }
       }
-      if updated_project.agent_cli == "codex" {
-        match result.thread_id {
-          Some(thread_id) =>
-            self.store.set_project_thread_id(project_id, thread_id)
-          None => ignore(())
-        }
+      match result.thread_id {
+        Some(thread_id) =>
+          ignore(
+            self.store.set_project_runtime_session_id(project_id, thread_id),
+          )
+        None => ignore(())
       }
       let preview_result = self.previews.rebuild_and_restart(updated_project)
       match preview_result {
@@ -3153,7 +2997,11 @@ async fn AppContext::run_project_turn(
                 }
                 match repair.thread_id {
                   Some(thread_id) =>
-                    self.store.set_project_thread_id(project_id, thread_id)
+                    ignore(
+                      self.store.set_project_runtime_session_id(
+                        project_id, thread_id,
+                      ),
+                    )
                   None => ignore(())
                 }
                 let repaired_project = match

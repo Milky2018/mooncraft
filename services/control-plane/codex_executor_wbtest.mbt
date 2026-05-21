@@ -8,15 +8,6 @@ test "extract thread id from codex json event" {
 }
 
 ///|
-test "stateless agent summary parser extracts streamed assistant text" {
-  let output = "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"thinking\",\"thinking\":\"hidden\"}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Preview is ready.\"}]}}\n{\"type\":\"result\",\"result\":\"\"}"
-  debug_inspect(
-    extract_agent_text_event(output),
-    content="Some(\"Preview is ready.\")",
-  )
-}
-
-///|
 test "normal prompts keep user text unwrapped" {
   inspect(bootstrap_prompt("Build a todo app"), content="Build a todo app")
   inspect(followup_prompt("Add labels"), content="Add labels")
@@ -34,12 +25,6 @@ test "raw codex commands do not wrap compact repair prompts" {
   let exec_command = codex_exec_raw_command("openai/gpt-5.5", repair)
   inspect(exec_command[exec_command.length() - 1], content=repair)
   assert_false(exec_command.join(" ").contains("Working rules"))
-
-  let resume_command = codex_resume_raw_command(
-    "openai/gpt-5.5", "thread-1", repair,
-  )
-  inspect(resume_command[resume_command.length() - 1], content=repair)
-  assert_false(resume_command.join(" ").contains("Continue building"))
 }
 
 ///|
@@ -109,6 +94,32 @@ test "monthly key limit copy is user-safe" {
   assert_false(message.contains("quota"))
   assert_false(message.contains("OpenRouter"))
   assert_false(message.contains("deepseek"))
+}
+
+///|
+async fn create_test_project(
+  store : Store,
+  project_id : String,
+  owner_user_id : String,
+  preview_public_id : String,
+  display_name : String,
+  agent_cli : String,
+  model : String,
+  workspace_path : String,
+) -> @sdk.ProjectDetail noraise {
+  store.create_project_with_runtime(
+    project_id,
+    owner_user_id,
+    preview_public_id,
+    display_name,
+    default_runtime_id(),
+    "Agent001",
+    runtime_spec_to_json(default_runtime_spec(agent_cli, model)),
+    next_id("agent-session"),
+    agent_cli,
+    model,
+    workspace_path,
+  )
 }
 
 ///|
@@ -436,12 +447,6 @@ test "codex commands pin the configured model" {
   let exec_command = codex_exec_command("gpt-5.5", "Build a todo app")
   inspect(exec_command[2], content="--model")
   inspect(exec_command[3], content="gpt-5.5")
-  let resume_command = codex_resume_command(
-    "gpt-5.5", "local-thread", "Add labels",
-  )
-  assert_true(codex_command_is_resume(resume_command))
-  inspect(resume_command[3], content="--model")
-  inspect(resume_command[4], content="gpt-5.5")
 }
 
 ///|
@@ -617,6 +622,10 @@ test "github user profile parser accepts optional strings" {
 ///|
 test "docker command receives leased platform AI settings" {
   let config : AgentRuntimeConfig = {
+    runtime_id: "agent-runtime-001",
+    runtime_name: "Agent001",
+    agent_session_id: "agent-session-1",
+    runtime_session_id: None,
     image: "codex:test",
     platform: "linux/amd64",
     agent_cli: "codex",
@@ -626,11 +635,15 @@ test "docker command receives leased platform AI settings" {
     container_home: "/root",
     container_data_dir: "/app/data",
     host_data_dir: Some("/srv/mooncraft/test/data"),
+    send: ["mooncraft-runtime-send"],
   }
   let artifacts : RunArtifacts = {
     project_id: "project-1",
     run_id: "run-1",
     dir: "/app/data/runtime/projects/project-1/artifacts/runs/run-1",
+    prompt_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/prompt.txt",
+    runtime_context_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/runtime_context.json",
+    result_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/result.json",
     last_message_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/last_message.txt",
     agent_log_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/agent.log",
     validation_log_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/validation.log",
@@ -688,6 +701,10 @@ test "docker command receives leased platform AI settings" {
 ///|
 test "claude docker command mounts non-root home" {
   let config : AgentRuntimeConfig = {
+    runtime_id: "agent-runtime-002",
+    runtime_name: "Agent002",
+    agent_session_id: "agent-session-1",
+    runtime_session_id: None,
     image: "agent:test",
     platform: "linux/amd64",
     agent_cli: "claude_code",
@@ -697,11 +714,15 @@ test "claude docker command mounts non-root home" {
     container_home: "/home/mooncraft",
     container_data_dir: "/app/data",
     host_data_dir: Some("/srv/mooncraft/test/data"),
+    send: ["mooncraft-runtime-send"],
   }
   let artifacts : RunArtifacts = {
     project_id: "project-1",
     run_id: "run-1",
     dir: "/app/data/runtime/projects/project-1/artifacts/runs/run-1",
+    prompt_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/prompt.txt",
+    runtime_context_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/runtime_context.json",
+    result_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/result.json",
     last_message_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/last_message.txt",
     agent_log_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/agent.log",
     validation_log_path: "/app/data/runtime/projects/project-1/artifacts/runs/run-1/validation.log",
@@ -799,7 +820,8 @@ async test "delete project removes persisted agent homes" {
   }
   let project_id = next_id("project")
   ignore(
-    ctx.store.create_project(
+    create_test_project(
+      ctx.store,
       project_id,
       "user-1",
       "preview-" + project_id,
@@ -849,7 +871,8 @@ async test "unreachable persisted preview is marked unhealthy when snapshot rest
   let project_id = next_id("project")
   let preview_public_id = "preview-" + project_id
   ignore(
-    ctx.store.create_project(
+    create_test_project(
+      ctx.store,
       project_id,
       "user-1",
       preview_public_id,
@@ -998,7 +1021,8 @@ async test "start_run persists the initial project prompt once" {
   let (store, db_path) = new_test_store(root, "initial-project-prompt")
   let project_id = next_id("project")
   ignore(
-    store.create_project(
+    create_test_project(
+      store,
       project_id,
       "user-1",
       "preview-" + project_id,
@@ -1037,7 +1061,8 @@ async test "finish_run_cancelled clears active project run" {
   let (store, db_path) = new_test_store(root, "cancel-run")
   let project_id = next_id("project")
   ignore(
-    store.create_project(
+    create_test_project(
+      store,
       project_id,
       "user-1",
       "preview-" + project_id,
@@ -1075,7 +1100,8 @@ async test "run events append and list after sequence" {
   let (store, db_path) = new_test_store(root, "run-events")
   let project_id = next_id("project")
   ignore(
-    store.create_project(
+    create_test_project(
+      store,
       project_id,
       "user-1",
       "preview-" + project_id,
@@ -1124,7 +1150,8 @@ async test "admin run and project listings are project agnostic" {
     .unwrap()
   let project_id = next_id("project")
   ignore(
-    store.create_project(
+    create_test_project(
+      store,
       project_id,
       owner.id,
       "preview-" + project_id,
@@ -1177,7 +1204,8 @@ async test "OpenRouter key pool leases and finishes usage per run" {
   let (store, db_path) = new_test_store(root, "ai-key-pool")
   let project_id = next_id("project")
   ignore(
-    store.create_project(
+    create_test_project(
+      store,
       project_id,
       "user-1",
       "preview-" + project_id,
@@ -1200,7 +1228,7 @@ async test "OpenRouter key pool leases and finishes usage per run" {
     .lease_ai_runtime_settings_for_project(project_id, run.run_id)
     .unwrap()
   inspect(settings.provider, content="openrouter")
-  inspect(settings.model, content="openrouter/project-model")
+  inspect(settings.runtime_spec.model, content="openrouter/project-model")
   inspect(settings.api_key, content="sk-test-secret")
   let usages = store.list_recent_ai_key_usages(10)
   inspect(usages.length(), content="1")
@@ -1224,7 +1252,8 @@ async test "startup recovery makes stale running runs retryable" {
   let (store, db_path) = new_test_store(root, "stale-running-run")
   let project_id = next_id("project")
   ignore(
-    store.create_project(
+    create_test_project(
+      store,
       project_id,
       "user-1",
       "preview-" + project_id,

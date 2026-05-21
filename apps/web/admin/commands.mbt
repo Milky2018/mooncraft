@@ -30,6 +30,13 @@ fn load_config_cmd(dispatch : @rabbita.Dispatch[AdminMsg]) -> @rabbita.Cmd {
 }
 
 ///|
+fn load_runtimes_cmd(dispatch : @rabbita.Dispatch[AdminMsg]) -> @rabbita.Cmd {
+  get_json(@sdk.admin_runtimes_path(), fn(result) {
+    dispatch(RuntimesLoaded(result))
+  })
+}
+
+///|
 fn load_catalog_cmd(dispatch : @rabbita.Dispatch[AdminMsg]) -> @rabbita.Cmd {
   get_json(@sdk.admin_ai_models_path(), fn(result) {
     dispatch(CatalogLoaded(result))
@@ -41,6 +48,7 @@ fn refresh_cmd(dispatch : @rabbita.Dispatch[AdminMsg]) -> @rabbita.Cmd {
   @rabbita.batch([
     load_users_cmd(dispatch),
     load_keys_cmd(dispatch),
+    load_runtimes_cmd(dispatch),
     load_config_cmd(dispatch),
     load_catalog_cmd(dispatch),
   ])
@@ -86,6 +94,26 @@ fn delete_key_cmd(
 ) -> @rabbita.Cmd {
   delete_empty(@sdk.admin_ai_key_path(id), fn(result) {
     dispatch(KeyDeleted(id, result))
+  })
+}
+
+///|
+fn save_runtime_cmd(
+  dispatch : @rabbita.Dispatch[AdminMsg],
+  id : String,
+  name : String,
+  spec_json : String,
+  enabled : Bool,
+  is_default : Bool,
+) -> @rabbita.Cmd {
+  let payload : @sdk.UpdateAdminRuntimeRequest = {
+    name,
+    spec_json,
+    enabled,
+    is_default,
+  }
+  put_json(@sdk.admin_runtime_path(id), payload, fn(result) {
+    dispatch(RuntimeSaved(result))
   })
 }
 

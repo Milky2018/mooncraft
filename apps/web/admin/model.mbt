@@ -2,6 +2,7 @@
 enum AdminView {
   Users
   Keys
+  Runtimes
   Models
 } derive(Eq)
 
@@ -22,6 +23,7 @@ struct AdminModel {
   expanded_user_projects : Array[@sdk.AdminProjectSummary]
   user_projects_loading : Bool
   keys : Array[@sdk.AdminAiKeySummary]
+  runtimes : Array[@sdk.RuntimeDetail]
   ai_config : @sdk.AdminAiConfigResponse
   catalog : Array[@sdk.AdminAiModelSummary]
   models_error : String?
@@ -35,6 +37,11 @@ struct AdminModel {
   editing_key_status : String
   editing_key_priority : String
   confirming_key_delete_id : String?
+  editing_runtime_id : String?
+  editing_runtime_name : String
+  editing_runtime_spec_json : String
+  editing_runtime_enabled : String
+  editing_runtime_default : String
   creating_model : Bool
   model_search : String
   model_catalog_mode : ModelCatalogMode
@@ -52,6 +59,7 @@ enum AdminMsg {
     Result[@sdk.AdminUserProjectsResponse, @sdk.ApiError]
   )
   KeysLoaded(Result[@sdk.AdminListAiKeysResponse, @sdk.ApiError])
+  RuntimesLoaded(Result[@sdk.AdminListRuntimesResponse, @sdk.ApiError])
   ConfigLoaded(Result[@sdk.AdminAiConfigResponse, @sdk.ApiError])
   CatalogLoaded(Result[@sdk.AdminListAiModelsResponse, @sdk.ApiError])
   ShowView(AdminView)
@@ -74,6 +82,14 @@ enum AdminMsg {
   KeyUpdated(Result[@sdk.AdminAiKeySummary, @sdk.ApiError])
   RequestDeleteKey(String)
   KeyDeleted(String, Result[Unit, @sdk.ApiError])
+  StartEditRuntime(String)
+  CancelEditRuntime
+  RuntimeNameChanged(String)
+  RuntimeSpecChanged(String)
+  RuntimeEnabledChanged(String)
+  RuntimeDefaultChanged(String)
+  SaveRuntime(String)
+  RuntimeSaved(Result[@sdk.RuntimeDetail, @sdk.ApiError])
   OpenCreateModel
   CancelCreateModel
   ModelSearchChanged(String)
@@ -101,6 +117,7 @@ fn initial_admin_model() -> AdminModel {
     expanded_user_projects: [],
     user_projects_loading: false,
     keys: [],
+    runtimes: [],
     ai_config: empty_ai_config(),
     catalog: [],
     models_error: None,
@@ -114,6 +131,11 @@ fn initial_admin_model() -> AdminModel {
     editing_key_status: "active",
     editing_key_priority: "100",
     confirming_key_delete_id: None,
+    editing_runtime_id: None,
+    editing_runtime_name: "",
+    editing_runtime_spec_json: "",
+    editing_runtime_enabled: "true",
+    editing_runtime_default: "false",
     creating_model: false,
     model_search: "",
     model_catalog_mode: Recommended,

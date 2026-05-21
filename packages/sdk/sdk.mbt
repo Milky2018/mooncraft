@@ -47,9 +47,50 @@ pub(all) struct PreviewTarget {
 } derive(Debug, ToJson, FromJson)
 
 ///|
+pub(all) struct RuntimeSpec {
+  image : String
+  agent : String
+  model : String
+  send : Array[String]
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct RuntimeSummary {
+  id : String
+  name : String
+  agent : String
+  model : String
+  enabled : Bool
+  is_default : Bool
+  created_at : String
+  updated_at : String
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct RuntimeDetail {
+  id : String
+  name : String
+  spec : RuntimeSpec
+  spec_json : String
+  enabled : Bool
+  is_default : Bool
+  created_at : String
+  updated_at : String
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct ListRuntimesResponse {
+  default_runtime_id : String
+  items : Array[RuntimeSummary]
+} derive(Debug, ToJson, FromJson)
+
+///|
 pub(all) struct ProjectSummary {
   id : String
   display_name : String
+  runtime_id : String
+  runtime_name : String
+  agent_session_id : String
   agent_cli : String
   model : String
   status : RunState
@@ -64,6 +105,11 @@ pub(all) struct ProjectDetail {
   id : String
   preview_public_id : String
   display_name : String
+  runtime_id : String
+  runtime_name : String
+  runtime_spec : RuntimeSpec?
+  agent_session_id : String
+  runtime_session_id : String?
   agent_cli : String
   model : String
   workspace_path : String
@@ -122,6 +168,7 @@ pub(all) struct RunEvent {
 ///|
 pub(all) struct CreateProjectRequest {
   display_name : String
+  runtime_id : String?
   agent_cli : String?
   model : String?
 } derive(Debug, ToJson, FromJson)
@@ -293,6 +340,28 @@ pub(all) struct AdminAiKeyUsageSummary {
 ///|
 pub(all) struct AdminListAiKeyUsagesResponse {
   items : Array[AdminAiKeyUsageSummary]
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct AdminListRuntimesResponse {
+  default_runtime_id : String
+  items : Array[RuntimeDetail]
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct CreateAdminRuntimeRequest {
+  name : String
+  spec_json : String
+  enabled : Bool
+  is_default : Bool
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct UpdateAdminRuntimeRequest {
+  name : String
+  spec_json : String
+  enabled : Bool
+  is_default : Bool
 } derive(Debug, ToJson, FromJson)
 
 ///|

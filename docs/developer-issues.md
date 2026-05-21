@@ -90,3 +90,5 @@ Agents do not edit this. This file is maintainable by human developers.
 - [ ] planmode
 - [x] worktree management
 - [ ] Not ToD, To Children!
+- [ ] `ai_quota_or_capacity_limited` is very fragile
+- [ ] `artifacts` folder to `.mooncraft`

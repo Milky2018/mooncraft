@@ -36,16 +36,14 @@ struct Model {
   draft : String
   new_project_modal_open : Bool
   new_project_name : String
-  new_project_agent_cli : String
+  new_project_runtime_id : String
   new_project_more_open : Bool
-  new_project_model : String
-  ai_models : Array[@sdk.AiModelSummary]
-  ai_models_default_model : String
-  ai_models_loading : Bool
+  runtimes : Array[@sdk.RuntimeSummary]
+  default_runtime_id : String
+  runtimes_loading : Bool
   create_project_pending : Bool
   project_action_menu_open : String?
   project_info_open : Bool
-  project_info_model : String
   project_info_pending : Bool
   rename_project_editing : Bool
   rename_project_name : String
@@ -76,16 +74,12 @@ enum Msg {
   CloseNewProjectDialog
   NewProjectNameChanged(String)
   ToggleNewProjectMore
-  NewProjectAgentChanged(String)
-  NewProjectModelChanged(String)
-  AiModelsLoaded(Result[@sdk.ListAiModelsResponse, @sdk.ApiError])
+  NewProjectRuntimeChanged(String)
+  RuntimesLoaded(Result[@sdk.ListRuntimesResponse, @sdk.ApiError])
   CreateProject
   ToggleProjectActionMenu(String)
-  OpenProjectInfo(String)
+  OpenProjectInfo
   CloseProjectInfo
-  ProjectInfoModelChanged(String)
-  SaveProjectInfoModel
-  ProjectModelUpdated(Result[@sdk.UpdateProjectResponse, @sdk.ApiError])
   StartProjectRename(String)
   CancelProjectRename
   RenameProjectNameChanged(String)
@@ -194,16 +188,14 @@ fn initial_model() -> Model {
     draft: "",
     new_project_modal_open: false,
     new_project_name: "",
-    new_project_agent_cli: "codex",
+    new_project_runtime_id: "",
     new_project_more_open: false,
-    new_project_model: "",
-    ai_models: [],
-    ai_models_default_model: "",
-    ai_models_loading: false,
+    runtimes: [],
+    default_runtime_id: "",
+    runtimes_loading: false,
     create_project_pending: false,
     project_action_menu_open: None,
     project_info_open: false,
-    project_info_model: "",
     project_info_pending: false,
     rename_project_editing: false,
     rename_project_name: "",

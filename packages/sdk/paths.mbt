@@ -113,6 +113,41 @@ pub fn ai_models_path() -> String {
 }
 
 ///|
+pub fn admin_runtimes_route() -> RouteSpec {
+  route(GET, "/api/admin/runtimes", Ok)
+}
+
+///|
+pub fn create_admin_runtime_route() -> RouteSpec {
+  route(POST, "/api/admin/runtimes", Created)
+}
+
+///|
+pub fn admin_runtimes_path() -> String {
+  admin_runtimes_route().path_pattern
+}
+
+///|
+pub fn admin_runtime_route() -> RouteSpec {
+  route(PUT, "/api/admin/runtimes/:id", Ok)
+}
+
+///|
+pub fn admin_runtime_path(id : String) -> String {
+  "/api/admin/runtimes/\{id}"
+}
+
+///|
+pub fn runtimes_route() -> RouteSpec {
+  route(GET, "/api/runtimes", Ok)
+}
+
+///|
+pub fn runtimes_path() -> String {
+  runtimes_route().path_pattern
+}
+
+///|
 pub fn list_projects_route() -> RouteSpec {
   route(GET, "/api/projects", Ok)
 }

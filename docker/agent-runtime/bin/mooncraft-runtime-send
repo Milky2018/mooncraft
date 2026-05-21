@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+context_path="${MOONCRAFT_RUNTIME_CONTEXT:-/artifacts/runtime_context.json}"
+result_path="${MOONCRAFT_RUNTIME_RESULT:-/artifacts/result.json}"
+output_path="/tmp/mooncraft-runtime-output.jsonl"
+
+if [[ ! -f "$context_path" ]]; then
+  echo "Runtime context file is missing: $context_path" >&2
+  exit 64
+fi
+
+agent="$(jq -r '.agent // ""' "$context_path")"
+model="$(jq -r '.model // ""' "$context_path")"
+prompt_file="$(jq -r '.prompt_file // ""' "$context_path")"
+runtime_session_id="$(jq -r '.runtime_session_id // ""' "$context_path")"
+agent_session_id="$(jq -r '.agent_session_id // ""' "$context_path")"
+
+if [[ -z "$agent" || -z "$model" || -z "$prompt_file" ]]; then
+  echo "Runtime context must include agent, model, and prompt_file." >&2
+  exit 64
+fi
+
+if [[ ! -f "$prompt_file" ]]; then
+  echo "Prompt file is missing: $prompt_file" >&2
+  exit 64
+fi
+
+prompt="$(cat "$prompt_file")"
+last_message_path="/artifacts/last_message.txt"
+: >"$last_message_path"
+: >"$output_path"
+
+write_result() {
+  local session_id="$1"
+  if [[ -z "$session_id" ]]; then
+    echo "Runtime command did not produce a runtime session id." >&2
+    exit 65
+  fi
+  jq -n \
+    --arg runtime_session_id "$session_id" \
+    --arg last_message "$(cat "$last_message_path" 2>/dev/null || true)" \
+    '{runtime_session_id: $runtime_session_id, last_message: $last_message}' \
+    >"$result_path"
+}
+
+run_codex() {
+  local status=0
+  if [[ -n "$runtime_session_id" ]]; then
+    codex exec resume \
+      --model "$model" \
+      --skip-git-repo-check \
+      --json \
+      --output-last-message "$last_message_path" \
+      --dangerously-bypass-approvals-and-sandbox \
+      "$runtime_session_id" \
+      "$prompt" | tee "$output_path" || status=$?
+  else
+    codex exec \
+      --model "$model" \
+      --skip-git-repo-check \
+      --json \
+      --output-last-message "$last_message_path" \
+      --dangerously-bypass-approvals-and-sandbox \
+      "$prompt" | tee "$output_path" || status=$?
+  fi
+  if [[ "$status" -ne 0 ]]; then
+    exit "$status"
+  fi
+  local session_id="$runtime_session_id"
+  if [[ -z "$session_id" ]]; then
+    session_id="$(grep -o '"thread_id":"[^"]*"' "$output_path" | tail -n1 | sed 's/^"thread_id":"//;s/"$//' || true)"
+  fi
+  write_result "$session_id"
+}
+
+run_claude() {
+  local status=0
+  local args=(
+    "--bare"
+    "-p" "$prompt"
+    "--model" "$model"
+    "--append-system-prompt" "$(cat /opt/mooncraft/mooncraft-agent-system.md)"
+    "--output-format" "stream-json"
+    "--verbose"
+    "--dangerously-skip-permissions"
+  )
+  if [[ -n "$runtime_session_id" ]]; then
+    args=("--resume" "$runtime_session_id" "${args[@]}")
+  fi
+  claude "${args[@]}" | tee "$output_path" || status=$?
+  if [[ "$status" -ne 0 ]]; then
+    exit "$status"
+  fi
+  local session_id="$runtime_session_id"
+  if [[ -z "$session_id" ]]; then
+    session_id="$(grep -o '"session_id":"[^"]*"' "$output_path" | tail -n1 | sed 's/^"session_id":"//;s/"$//' || true)"
+  fi
+  write_result "$session_id"
+}
+
+run_kimi() {
+  kimi \
+    --model "mooncraft-openrouter" \
+    --work-dir /workspace \
+    --prompt "$prompt" \
+    --print \
+    --output-format stream-json \
+    --yolo \
+    --afk | tee "$output_path"
+  write_result "${runtime_session_id:-$agent_session_id}"
+}
+
+case "$agent" in
+  codex)
+    run_codex
+    ;;
+  claude_code)
+    run_claude
+    ;;
+  kimi_code)
+    run_kimi
+    ;;
+  *)
+    echo "Unsupported Runtime agent: $agent" >&2
+    exit 64
+    ;;
+esac

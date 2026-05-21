@@ -66,48 +66,8 @@ fn can_send(model : Model) -> Bool {
 fn can_create_project(model : Model) -> Bool {
   model.current_user is Some(_) &&
   model.new_project_name.trim() != "" &&
+  model.new_project_runtime_id.trim() != "" &&
   !model.create_project_pending
-}
-
-///|
-fn model_id_compatible_with_agent(
-  agent_cli : String,
-  model_id : String,
-) -> Bool {
-  let value = model_id.trim().to_owned().to_lower()
-  match agent_cli {
-    "claude_code" => value.has_prefix("anthropic/")
-    "kimi_code" => value.has_prefix("moonshotai/") || value.contains("kimi")
-    _ => true
-  }
-}
-
-///|
-fn compatible_default_model(agent_cli : String, model : Model) -> String {
-  compatible_model_for_agent(agent_cli, model.new_project_model, model)
-}
-
-///|
-fn compatible_model_for_agent(
-  agent_cli : String,
-  preferred_model : String,
-  model : Model,
-) -> String {
-  if model_id_compatible_with_agent(agent_cli, preferred_model) {
-    preferred_model
-  } else if model_id_compatible_with_agent(
-      agent_cli,
-      model.ai_models_default_model,
-    ) {
-    model.ai_models_default_model
-  } else {
-    for item in model.ai_models {
-      if model_id_compatible_with_agent(agent_cli, item.id) {
-        return item.id
-      }
-    }
-    ""
-  }
 }
 
 ///|
@@ -116,34 +76,6 @@ fn selected_project_detail(model : Model) -> @sdk.ProjectDetail? {
     Some(project) if model.selected_project_id == Some(project.id) =>
       Some(project)
     _ => None
-  }
-}
-
-///|
-fn project_summary_by_id(
-  projects : Array[@sdk.ProjectSummary],
-  project_id : String,
-) -> @sdk.ProjectSummary? {
-  for project in projects {
-    if project.id == project_id {
-      return Some(project)
-    }
-  }
-  None
-}
-
-///|
-fn can_update_project_model(model : Model) -> Bool {
-  match selected_project_detail(model) {
-    Some(project) => {
-      let next_model = model.project_info_model.trim().to_owned()
-      next_model != "" &&
-      next_model != project.model &&
-      model_id_compatible_with_agent(project.agent_cli, next_model) &&
-      active_run(model) is None &&
-      !model.project_info_pending
-    }
-    None => false
   }
 }
 
@@ -185,6 +117,9 @@ fn project_summary_from_detail(
   {
     id: project.id,
     display_name: project.display_name,
+    runtime_id: project.runtime_id,
+    runtime_name: project.runtime_name,
+    agent_session_id: project.agent_session_id,
     agent_cli: project.agent_cli,
     model: project.model,
     status: project.status,
@@ -278,16 +213,14 @@ fn clear_workspace(model : Model) -> Model {
     draft: "",
     new_project_modal_open: false,
     new_project_name: "",
-    new_project_agent_cli: "codex",
+    new_project_runtime_id: "",
     new_project_more_open: false,
-    new_project_model: "",
-    ai_models: [],
-    ai_models_default_model: "",
-    ai_models_loading: false,
+    runtimes: [],
+    default_runtime_id: "",
+    runtimes_loading: false,
     create_project_pending: false,
     project_action_menu_open: None,
     project_info_open: false,
-    project_info_model: "",
     project_info_pending: false,
     rename_project_editing: false,
     rename_project_name: "",

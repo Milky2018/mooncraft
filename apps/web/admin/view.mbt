@@ -49,6 +49,7 @@ fn sidebar(
     @html.nav(style=["display: flex", "flex-direction: column", "gap: 4px"], [
       nav_button(dispatch, model, Users, "Users", model.users.length()),
       nav_button(dispatch, model, Keys, "OpenRouter Keys", model.keys.length()),
+      nav_button(dispatch, model, Runtimes, "Runtimes", model.runtimes.length()),
       nav_button(
         dispatch,
         model,
@@ -494,6 +495,141 @@ fn keys_view(
 }
 
 ///|
+fn runtime_status_label(runtime : @sdk.RuntimeDetail) -> String {
+  (if runtime.enabled { "enabled" } else { "disabled" }) +
+  (if runtime.is_default { " / default" } else { "" })
+}
+
+///|
+fn runtime_row(
+  dispatch : @rabbita.Dispatch[AdminMsg],
+  model : AdminModel,
+  runtime : @sdk.RuntimeDetail,
+) -> @rabbita.Html {
+  if model.editing_runtime_id == Some(runtime.id) {
+    @html.tr([
+      @html.td(style=td_style(), [
+        @html.input(
+          input_type=Text,
+          value=model.editing_runtime_name,
+          on_input=fn(value) { dispatch(RuntimeNameChanged(value)) },
+          style=input_style(),
+          "",
+        ),
+      ]),
+      @html.td(style=td_style(), @html.code(runtime.id)),
+      @html.td(style=td_style(), [
+        @html.select(
+          on_change=fn(value) { dispatch(RuntimeEnabledChanged(value)) },
+          style=input_style(),
+          [
+            @html.option(
+              value="true",
+              selected=model.editing_runtime_enabled == "true",
+              "enabled",
+            ),
+            @html.option(
+              value="false",
+              selected=model.editing_runtime_enabled == "false",
+              "disabled",
+            ),
+          ],
+        ),
+        @html.select(
+          on_change=fn(value) { dispatch(RuntimeDefaultChanged(value)) },
+          style=input_style() + ["margin-top: 6px"],
+          [
+            @html.option(
+              value="false",
+              selected=model.editing_runtime_default == "false",
+              "not default",
+            ),
+            @html.option(
+              value="true",
+              selected=model.editing_runtime_default == "true",
+              "default",
+            ),
+          ],
+        ),
+      ]),
+      @html.td(style=td_style(), [
+        @html.textarea(
+          rows=8,
+          value=model.editing_runtime_spec_json,
+          on_input=fn(value) { dispatch(RuntimeSpecChanged(value)) },
+          style=input_style() +
+            ["font-family: ui-monospace, SFMono-Regular, Menlo, monospace"],
+          "",
+        ),
+      ]),
+      @html.td(style=td_style(), [
+        @html.button(
+          type_="button",
+          on_click=dispatch(SaveRuntime(runtime.id)),
+          style=button_style(true),
+          "Save",
+        ),
+        @html.button(
+          type_="button",
+          on_click=dispatch(CancelEditRuntime),
+          style=button_style(true) + ["margin-left: 4px"],
+          "Cancel",
+        ),
+      ]),
+    ])
+  } else {
+    @html.tr([
+      @html.td(style=td_style(), @html.strong(runtime.name)),
+      @html.td(style=td_style(), @html.code(runtime.id)),
+      @html.td(style=td_style(), runtime_status_label(runtime)),
+      @html.td(style=td_style(), [
+        @html.div(style=normal_style(), runtime.spec.agent),
+        @html.code(runtime.spec.model),
+      ]),
+      @html.td(style=td_style(), [
+        @html.button(
+          type_="button",
+          on_click=dispatch(StartEditRuntime(runtime.id)),
+          style=button_style(true),
+          "Edit",
+        ),
+      ]),
+    ])
+  }
+}
+
+///|
+fn runtimes_view(
+  dispatch : @rabbita.Dispatch[AdminMsg],
+  model : AdminModel,
+) -> @rabbita.Html {
+  let rows = if model.runtimes.length() == 0 {
+    [empty_row(5, "No Runtimes.")]
+  } else {
+    model.runtimes.map(fn(runtime) { runtime_row(dispatch, model, runtime) })
+  }
+  @html.section(style=card_style(), [
+    section_head(
+      "Runtimes",
+      "\{model.runtimes.length()} configured",
+      @html.nothing,
+    ),
+    @html.table(style=table_style(), [
+      @html.thead([
+        @html.tr([
+          @html.th(style=th_style(), "Name"),
+          @html.th(style=th_style(), "ID"),
+          @html.th(style=th_style(), "Status"),
+          @html.th(style=th_style(), "Agent / model"),
+          @html.th(style=th_style(), "Actions"),
+        ]),
+      ]),
+      @html.tbody(rows),
+    ]),
+  ])
+}
+
+///|
 fn format_context(value : Int) -> String {
   if value >= 1000000 {
     "\{value / 1000000}M"
@@ -788,6 +924,7 @@ fn active_view(
   match model.view {
     Users => users_view(dispatch, model)
     Keys => keys_view(dispatch, model)
+    Runtimes => runtimes_view(dispatch, model)
     Models => models_view(dispatch, model)
   }
 }

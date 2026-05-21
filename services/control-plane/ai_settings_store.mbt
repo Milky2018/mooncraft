@@ -1,8 +1,11 @@
 ///|
 struct AiRuntimeSettings {
-  agent_cli : String
+  runtime_id : String
+  runtime_name : String
+  runtime_spec : @sdk.RuntimeSpec
+  agent_session_id : String
+  runtime_session_id : String?
   provider : String
-  model : String
   api_key : String
 }
 
@@ -28,21 +31,6 @@ fn normalize_agent_cli(value : String) -> Result[String, String] {
     "kimi-code" => Ok("kimi_code")
     "kimi" => Ok("kimi_code")
     _ => Err("Agent must be Codex, Claude Code, or Kimi Code.")
-  }
-}
-
-///|
-fn openrouter_model_compatible_with_agent(
-  agent_cli : String,
-  model : String,
-) -> Bool {
-  let normalized_model = model.trim().to_owned().to_lower()
-  match agent_cli {
-    "claude_code" => normalized_model.has_prefix("anthropic/")
-    "kimi_code" =>
-      normalized_model.has_prefix("moonshotai/") ||
-      normalized_model.contains("kimi")
-    _ => true
   }
 }
 
@@ -558,6 +546,11 @@ async fn Store::lease_ai_runtime_settings_for_project(
       (
         #|SELECT
         #|  owner_user_id,
+        #|  COALESCE(runtime_id, 'agent-runtime-001') AS runtime_id,
+        #|  COALESCE(runtime_name, 'Agent001') AS runtime_name,
+        #|  COALESCE(runtime_spec_json, '') AS runtime_spec_json,
+        #|  COALESCE(agent_session_id, '') AS agent_session_id,
+        #|  COALESCE(runtime_session_id, '') AS runtime_session_id,
         #|  COALESCE(agent_cli, '') AS agent_cli,
         #|  COALESCE(ai_model, '') AS ai_model
         #|FROM projects
@@ -568,10 +561,23 @@ async fn Store::lease_ai_runtime_settings_for_project(
     Some(row) => row
     None => return Err("The project owner could not be loaded for this run.")
   }
-  let config = self.get_admin_ai_config()
-  let agent_cli = match normalize_agent_cli(row_text(project, "agent_cli")) {
+  let fallback_agent_cli = match
+    normalize_agent_cli(row_text(project, "agent_cli")) {
     Ok(agent_cli) => agent_cli
     Err(_) => default_agent_cli()
+  }
+  let fallback_model = {
+    let project_model = row_text(project, "ai_model").trim().to_owned()
+    if project_model == "" {
+      self.get_admin_ai_config().default_model
+    } else {
+      project_model
+    }
+  }
+  let runtime_spec = match
+    runtime_spec_from_json(row_text(project, "runtime_spec_json")) {
+    Ok(spec) => spec
+    Err(_) => default_runtime_spec(fallback_agent_cli, fallback_model)
   }
   let row = match
     self.query_one(
@@ -590,12 +596,7 @@ async fn Store::lease_ai_runtime_settings_for_project(
     Some(row) => row
     None => return Err("MoonCraft's app builder is temporarily unavailable.")
   }
-  let project_model = row_text(project, "ai_model").trim().to_owned()
-  let selected_model = if project_model == "" {
-    config.default_model
-  } else {
-    project_model
-  }
+  let selected_model = runtime_spec.model
   let key_id = row_text(row, "id")
   let api_key = row_text(row, "key_secret").trim().to_owned()
   if api_key == "" {
@@ -644,7 +645,15 @@ async fn Store::lease_ai_runtime_settings_for_project(
       params=[String(now), String(now), String(key_id)],
     ),
   )
-  Ok({ agent_cli, provider: "openrouter", model: selected_model, api_key })
+  Ok({
+    runtime_id: row_text(project, "runtime_id"),
+    runtime_name: row_text(project, "runtime_name"),
+    runtime_spec,
+    agent_session_id: row_text(project, "agent_session_id"),
+    runtime_session_id: empty_to_none(row_text(project, "runtime_session_id")),
+    provider: "openrouter",
+    api_key,
+  })
 }
 
 ///|

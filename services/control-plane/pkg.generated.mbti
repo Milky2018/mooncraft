@@ -54,6 +54,10 @@ type RunningRun
 
 type RunningRunWorker
 
+type RuntimeContext derive(ToJson)
+
+type RuntimeResult derive(@json.FromJson)
+
 type Store
 
 // Type aliases

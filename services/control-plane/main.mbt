@@ -56,17 +56,6 @@ fn ai_model_summary_from_admin(
 }
 
 ///|
-fn selected_project_model(
-  request_model : String?,
-  default_model : String,
-) -> String {
-  match request_model {
-    Some(model) => normalize_openrouter_model(model)
-    None => normalize_openrouter_model(default_model)
-  }
-}
-
-///|
 fn model_allowed(model : String, allowed_models : Array[String]) -> Bool {
   let normalized = normalize_openrouter_model(model)
   for allowed in allowed_models {
@@ -126,12 +115,22 @@ fn normalized_config_models(
 }
 
 ///|
-fn selected_project_agent_cli(
-  request_agent_cli : String?,
-) -> Result[String, String] {
-  match request_agent_cli {
-    Some(agent_cli) => normalize_agent_cli(agent_cli)
-    None => Ok(default_agent_cli())
+async fn selected_project_runtime(
+  store : Store,
+  runtime_id : String?,
+) -> Result[@sdk.RuntimeDetail, String] noraise {
+  let selected_id = match runtime_id {
+    Some(value) if value.trim() != "" => value.trim().to_owned()
+    _ => store.get_default_runtime_id()
+  }
+  match store.get_runtime_detail(selected_id) {
+    Some(runtime) =>
+      if runtime.enabled {
+        Ok(runtime)
+      } else {
+        Err("That Runtime is not available in this workspace.")
+      }
+    None => Err("That Runtime is not available in this workspace.")
   }
 }
 
@@ -1261,6 +1260,77 @@ fn main {
         api_error_response(UnprocessableEntity, ValidationFailed, message)
     }
   })
+  app.get(@sdk.runtimes_path(), async fn(event) noraise {
+    match require_session_user(ctx, event) {
+      Ok(_) => ignore(())
+      Err(response) => return response
+    }
+    json_ok(@sdk.ListRuntimesResponse::{
+      default_runtime_id: ctx.store.get_default_runtime_id(),
+      items: ctx.store.list_enabled_runtimes(),
+    })
+  })
+  app.get(@sdk.admin_runtimes_path(), async fn(event) noraise {
+    match require_admin_token(event) {
+      Ok(_) => ignore(())
+      Err(response) => return response
+    }
+    json_ok(@sdk.AdminListRuntimesResponse::{
+      default_runtime_id: ctx.store.get_default_runtime_id(),
+      items: ctx.store.list_admin_runtimes(),
+    })
+  })
+  app.post(@sdk.admin_runtimes_path(), async fn(event) noraise {
+    match require_admin_token(event) {
+      Ok(_) => ignore(())
+      Err(response) => return response
+    }
+    let request : @sdk.CreateAdminRuntimeRequest = match
+      decode_json_body(event) {
+      Ok(request) => request
+      Err(response) => return response
+    }
+    let runtime_id = next_id("agent-runtime")
+    match
+      ctx.store.save_admin_runtime(
+        runtime_id,
+        request.name,
+        request.spec_json,
+        request.enabled,
+        request.is_default,
+      ) {
+      Ok(runtime) => json_created(runtime)
+      Err(message) =>
+        api_error_response(UnprocessableEntity, ValidationFailed, message)
+    }
+  })
+  app.put(@sdk.admin_runtime_route().path_pattern, async fn(event) noraise {
+    match require_admin_token(event) {
+      Ok(_) => ignore(())
+      Err(response) => return response
+    }
+    let runtime_id = match path_param(event, "id") {
+      Ok(value) => value
+      Err(response) => return response
+    }
+    let request : @sdk.UpdateAdminRuntimeRequest = match
+      decode_json_body(event) {
+      Ok(request) => request
+      Err(response) => return response
+    }
+    match
+      ctx.store.save_admin_runtime(
+        runtime_id,
+        request.name,
+        request.spec_json,
+        request.enabled,
+        request.is_default,
+      ) {
+      Ok(runtime) => json_ok(runtime)
+      Err(message) =>
+        api_error_response(UnprocessableEntity, ValidationFailed, message)
+    }
+  })
   app.put(@sdk.admin_ai_config_path(), async fn(event) noraise {
     match require_admin_token(event) {
       Ok(_) => ignore(())
@@ -1355,9 +1425,9 @@ fn main {
           message,
         )
     }
-    let config = ctx.store.get_admin_ai_config()
-    let agent_cli = match selected_project_agent_cli(request.agent_cli) {
-      Ok(agent_cli) => agent_cli
+    let runtime = match
+      selected_project_runtime(ctx.store, request.runtime_id) {
+      Ok(runtime) => runtime
       Err(message) =>
         return api_error_response(
           UnprocessableEntity,
@@ -1365,37 +1435,19 @@ fn main {
           message,
         )
     }
-    let selected_model = selected_project_model(
-      request.model,
-      config.default_model,
-    )
-    if !model_allowed(selected_model, config.allowed_models) {
-      return api_error_response(
-        UnprocessableEntity,
-        ValidationFailed,
-        "That model is not available in this workspace.",
-      )
-    }
-    if selected_model.length() > 160 {
-      return api_error_response(
-        UnprocessableEntity,
-        ValidationFailed,
-        "Model id must be 160 characters or fewer.",
-      )
-    }
-    if !openrouter_model_compatible_with_agent(agent_cli, selected_model) {
-      return api_error_response(
-        UnprocessableEntity,
-        ValidationFailed,
-        "That model is not compatible with the selected agent.",
-      )
-    }
+    let agent_cli = runtime.spec.agent
+    let selected_model = runtime.spec.model
     let project_id = next_id("project")
+    let agent_session_id = next_id("agent-session")
     let workspace_path = project_workspace(ctx.root, project_id)
     let project = ctx.store.create_project_for_user(
       user.id,
       project_id,
       display_name,
+      runtime.id,
+      runtime.name,
+      runtime_snapshot_json(runtime),
+      agent_session_id,
       agent_cli,
       selected_model,
       workspace_path,
@@ -1436,41 +1488,12 @@ fn main {
       None => None
     }
     let selected_model = match request.model {
-      Some(value) => {
-        let normalized = normalize_openrouter_model(value)
-        let config = ctx.store.get_admin_ai_config()
-        if !model_allowed(normalized, config.allowed_models) {
-          return api_error_response(
-            UnprocessableEntity,
-            ValidationFailed,
-            "That model is not available in this workspace.",
-          )
-        }
-        if normalized.length() > 160 {
-          return api_error_response(
-            UnprocessableEntity,
-            ValidationFailed,
-            "Model id must be 160 characters or fewer.",
-          )
-        }
-        let project = match
-          ctx.store.get_project_detail_for_user(project_id, user.id) {
-          Some(project) => project
-          None =>
-            return api_error_response(NotFound, NotFound, "Project not found.")
-        }
-        if !openrouter_model_compatible_with_agent(
-            project.agent_cli,
-            normalized,
-          ) {
-          return api_error_response(
-            UnprocessableEntity,
-            ValidationFailed,
-            "That model is not compatible with the selected agent.",
-          )
-        }
-        Some(normalized)
-      }
+      Some(_) =>
+        return api_error_response(
+          UnprocessableEntity,
+          ValidationFailed,
+          "Project Runtime cannot be changed after creation.",
+        )
       None => None
     }
     if display_name is None && selected_model is None {
