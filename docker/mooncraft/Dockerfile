@@ -17,6 +17,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   git \
   gnupg \
   lsof \
+  nodejs \
+  npm \
   pkg-config \
   sqlite3 \
   libsqlite3-dev \
@@ -42,6 +44,9 @@ RUN for attempt in 1 2 3 4 5; do \
 WORKDIR /app
 
 COPY . /app
+
+RUN npm install --no-save --no-package-lock playwright@1.57.0 \
+  && npx playwright install --with-deps chromium
 
 RUN chmod +x /app/docker/mooncraft/entrypoint.sh \
   && for attempt in 1 2 3 4 5; do \

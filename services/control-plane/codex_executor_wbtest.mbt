@@ -65,6 +65,20 @@ test "success summary copy is shared across run completion paths" {
 }
 
 ///|
+test "provider overload copy names the selected model" {
+  let output = "{\"type\":\"error\",\"message\":\"We're currently experiencing high demand, which may cause temporary errors.\"}"
+  inspect(ai_provider_temporarily_overloaded(output), content="true")
+  inspect(
+    ai_builder_failure_assistant_message(
+      "anthropic/claude-sonnet-4.5",
+      output,
+      default_failure_assistant_message(),
+    ),
+    content="This model anthropic/claude-sonnet-4.5 provider is temporarily overloaded. No project code was generated. Retry the run or choose another model.",
+  )
+}
+
+///|
 test "preview startup failures use user-safe copy" {
   inspect(
     preview_error_needs_startup_repair(preview_script_missing_message()),
@@ -93,6 +107,33 @@ test "preview startup failures use user-safe copy" {
       "mooncraft-preview.sh",
     ),
   )
+}
+
+///|
+test "preview audit command targets local preview url" {
+  let root = "/app"
+  let preview : @sdk.PreviewTarget = {
+    url: "/p/public-id/",
+    port: 4307,
+    healthy: true,
+  }
+  inspect(
+    preview_audit_script_path(root),
+    content="/app/scripts/preview_audit.mjs",
+  )
+  inspect(preview_audit_target_url(preview), content="http://127.0.0.1:4307/")
+  let command = preview_audit_command(root, preview)
+  inspect(command[0], content="node")
+  inspect(command[1], content="/app/scripts/preview_audit.mjs")
+  inspect(command[2], content="http://127.0.0.1:4307/")
+  let prompt = preview_audit_repair_prompt(
+    "pageerror: api.default_scale is not a function", "Build a Mandelbrot explorer",
+    "Make it interactive",
+  )
+  assert_true(prompt.contains("browser preview audit failed"))
+  assert_true(prompt.contains("api.default_scale is not a function"))
+  assert_true(prompt.contains("Build a Mandelbrot explorer"))
+  assert_true(prompt.contains("Make it interactive"))
 }
 
 ///|

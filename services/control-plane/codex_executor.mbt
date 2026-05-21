@@ -84,6 +84,13 @@ struct RunArtifacts {
 }
 
 ///|
+struct PreviewAuditResult {
+  enabled : Bool
+  passed : Bool
+  message : String
+}
+
+///|
 struct AgentExecutionResult {
   summary : String
   thread_id : String
@@ -387,6 +394,42 @@ fn preview_setup_repair_prompt() -> String {
 }
 
 ///|
+fn preview_audit_repair_prompt(
+  audit_error : String,
+  initial_project_prompt : String,
+  user_prompt : String,
+) -> String {
+  (
+    #|MoonCraft browser preview audit failed after the preview passed HTTP health checks.
+    #|
+    #|This is a mandatory repair task.
+    #|
+    #|Browser audit failure:
+    #|
+  ) +
+  audit_error +
+  (
+    #|
+    #|
+    #|Original project requirement:
+    #|
+  ) +
+  initial_project_prompt +
+  (
+    #|
+    #|
+    #|Latest user request:
+    #|
+  ) +
+  user_prompt +
+  (
+    #|
+    #|
+    #|Repair the existing workspace so the user-facing preview at `/` loads in a browser without page errors or console errors. Preserve the requested app behavior and keep the MoonCraft runtime contract intact.
+  )
+}
+
+///|
 fn workspace_contract_repair_prompt(
   contract_error : String,
   initial_project_prompt : String,
@@ -486,6 +529,11 @@ fn preview_setup_repair_failed_assistant_message() -> String {
 }
 
 ///|
+fn preview_audit_repair_failed_assistant_message() -> String {
+  "The app was generated, but the browser preview still reports runtime errors after repair. Send another message to retry the preview."
+}
+
+///|
 fn default_failure_assistant_message() -> String {
   "The update failed before the preview could be refreshed."
 }
@@ -512,6 +560,33 @@ fn dependency_fetch_failure_assistant_message(
     "Some required MoonBit packages could not be fetched right now, so the preview could not be refreshed. This is usually temporary. Retry the update in a few minutes."
   } else {
     fallback
+  }
+}
+
+///|
+fn ai_provider_temporarily_overloaded(output : String) -> Bool {
+  let lower = output.to_lower()
+  lower.contains("experiencing high demand") ||
+  lower.contains("temporarily overloaded") ||
+  lower.contains("provider is overloaded") ||
+  (lower.contains("high demand") && lower.contains("temporary"))
+}
+
+///|
+fn ai_provider_overload_assistant_message(model : String) -> String {
+  "This model \{model} provider is temporarily overloaded. No project code was generated. Retry the run or choose another model."
+}
+
+///|
+fn ai_builder_failure_assistant_message(
+  model : String,
+  output : String,
+  fallback : String,
+) -> String {
+  if ai_provider_temporarily_overloaded(output) {
+    ai_provider_overload_assistant_message(model)
+  } else {
+    dependency_fetch_failure_assistant_message(output, fallback)
   }
 }
 
@@ -1630,7 +1705,8 @@ async fn run_stateless_agent_turn(
   if exit_code != 0 {
     return Err(
       codex_failure_with_debug(
-        dependency_fetch_failure_assistant_message(
+        ai_builder_failure_assistant_message(
+          model,
           output,
           default_failure_assistant_message(),
         ),
@@ -1772,7 +1848,8 @@ async fn run_codex_turn(
       None =>
         return Err(
           codex_failure_with_debug(
-            dependency_fetch_failure_assistant_message(
+            ai_builder_failure_assistant_message(
+              model,
               output,
               default_failure_assistant_message(),
             ),
@@ -1839,7 +1916,8 @@ async fn run_codex_turn(
       None =>
         return Err(
           codex_failure_with_debug(
-            dependency_fetch_failure_assistant_message(
+            ai_builder_failure_assistant_message(
+              model,
               recovery_output,
               default_failure_assistant_message(),
             ),
@@ -1896,7 +1974,8 @@ async fn run_codex_turn(
   if exit_code != 0 {
     return Err(
       codex_failure_with_debug(
-        dependency_fetch_failure_assistant_message(
+        ai_builder_failure_assistant_message(
+          model,
           output,
           default_failure_assistant_message(),
         ),
@@ -2290,6 +2369,113 @@ async fn run_validation_sequence(
 }
 
 ///|
+fn preview_audit_script_path(root : String) -> String {
+  root + "/scripts/preview_audit.mjs"
+}
+
+///|
+fn preview_audit_log_path(
+  root : String,
+  project_id : String,
+  run_id : String,
+) -> String {
+  RunArtifacts::new(root, project_id, run_id).dir + "/preview-audit.log"
+}
+
+///|
+fn preview_audit_auto_available(root : String) -> Bool {
+  @fs.path_exists(preview_audit_script_path(root)) &&
+  (
+    @fs.path_exists(root + "/node_modules/playwright/package.json") ||
+    @fs.path_exists(root + "/node_modules/playwright-core/package.json")
+  )
+}
+
+///|
+fn preview_audit_enabled(root : String) -> Bool {
+  match @env.get_env_var("MOONCRAFT_PREVIEW_AUDIT") {
+    Some(value) => {
+      let normalized = value.trim().to_lower()
+      normalized != "" &&
+      normalized != "0" &&
+      normalized != "false" &&
+      normalized != "off" &&
+      normalized != "disabled"
+    }
+    None => preview_audit_auto_available(root)
+  }
+}
+
+///|
+fn preview_audit_repair_attempts() -> Int {
+  match @env.get_env_var("MOONCRAFT_PREVIEW_AUDIT_REPAIR_ATTEMPTS") {
+    Some(value) => {
+      let attempts = @string.parse_int(value.trim().to_owned()) catch { _ => 2 }
+      if attempts < 0 {
+        0
+      } else if attempts > 5 {
+        5
+      } else {
+        attempts
+      }
+    }
+    None => 2
+  }
+}
+
+///|
+fn preview_audit_target_url(preview : @sdk.PreviewTarget) -> String {
+  "http://127.0.0.1:\{preview.port}/"
+}
+
+///|
+fn preview_audit_command(
+  root : String,
+  preview : @sdk.PreviewTarget,
+) -> Array[String] {
+  ["node", preview_audit_script_path(root), preview_audit_target_url(preview)]
+}
+
+///|
+async fn run_preview_audit(
+  root : String,
+  project_id : String,
+  run_id : String,
+  preview : @sdk.PreviewTarget,
+) -> PreviewAuditResult noraise {
+  if !preview_audit_enabled(root) {
+    return { enabled: false, passed: true, message: "Preview audit skipped." }
+  }
+  let command = preview_audit_command(root, preview)
+  let result = match
+    collect_local_output(command[0], command_args(command), root) {
+    Ok(result) => result
+    Err(message) => (127, message)
+  }
+  let (exit_code, output) = result
+  append_command_log(
+    preview_audit_log_path(root, project_id, run_id),
+    "Playwright preview audit",
+    command,
+    exit_code,
+    output,
+  )
+  if exit_code == 0 {
+    {
+      enabled: true,
+      passed: true,
+      message: trim_or_default(output, "Preview audit passed."),
+    }
+  } else {
+    {
+      enabled: true,
+      passed: false,
+      message: trim_or_default(output, "The browser preview audit failed."),
+    }
+  }
+}
+
+///|
 async fn persist_builder_workspace_snapshot(
   store : Store,
   root : String,
@@ -2600,6 +2786,152 @@ async fn AgentGateway::run_turn(
 }
 
 ///|
+async fn AppContext::finish_run_with_preview_audit(
+  self : AppContext,
+  project_id : String,
+  run_id : String,
+  workspace_path : String,
+  initial_project_prompt : String,
+  user_prompt : String,
+  result : AgentTurnSuccess,
+  preview : @sdk.PreviewTarget,
+) -> Unit {
+  let mut current_preview = preview
+  let mut current_thread_id = result.thread_id
+  let mut current_summary = result.summary
+  let mut audit = run_preview_audit(
+    self.root,
+    project_id,
+    run_id,
+    current_preview,
+  )
+  if !audit.enabled || audit.passed {
+    self.store.finish_run_success(
+      project_id, run_id, current_summary, current_thread_id, current_preview,
+    )
+    return
+  }
+  let mut audit_error = audit.message
+  for _ in 0..<preview_audit_repair_attempts() {
+    self.store.append_run_event(
+      project_id, run_id, "status", "Repairing browser preview errors.",
+    )
+    let repair_project = match self.store.get_project_detail(project_id) {
+      Some(project) => project
+      None => {
+        self.store.finish_run_failure(
+          project_id,
+          run_id,
+          preview_audit_repair_failed_assistant_message(),
+          "The updated project workspace could not be loaded before preview audit repair.",
+          current_thread_id,
+        )
+        return
+      }
+    }
+    let repair_result = self.agent_gateway.run_turn(
+      self.store,
+      repair_project,
+      initial_project_prompt,
+      workspace_path,
+      run_id,
+      preview_audit_repair_prompt(
+        audit_error, initial_project_prompt, user_prompt,
+      ),
+      raw_prompt=true,
+      resume_existing=false,
+    )
+    let repair = match repair_result {
+      Ok(repair) => repair
+      Err(failure) => {
+        self.store.finish_run_failure_with_debug(
+          project_id,
+          run_id,
+          preview_audit_repair_failed_assistant_message(),
+          "Preview audit failed: " +
+          audit_error +
+          "\n\nPreview audit repair failed: " +
+          failure.error_message,
+          failure.thread_id,
+          failure.failure_debug,
+        )
+        return
+      }
+    }
+    current_thread_id = repair.thread_id
+    current_summary = successful_preview_assistant_message()
+    let repair_restore_result = restore_workspace_snapshot(
+      self.store,
+      self.root,
+      project_id,
+      workspace_path,
+    )
+    match repair_restore_result {
+      Ok(_) => ignore(())
+      Err(restore_message) => {
+        self.store.finish_run_failure(
+          project_id,
+          run_id,
+          preview_audit_repair_failed_assistant_message(),
+          "Preview audit repair completed, but the saved snapshot could not be restored into the local cache: " +
+          restore_message,
+          current_thread_id,
+        )
+        return
+      }
+    }
+    match current_thread_id {
+      Some(thread_id) => self.store.set_project_thread_id(project_id, thread_id)
+      None => ignore(())
+    }
+    let repaired_project = match self.store.get_project_detail(project_id) {
+      Some(project) => project
+      None => {
+        self.store.finish_run_failure(
+          project_id,
+          run_id,
+          preview_audit_repair_failed_assistant_message(),
+          "The repaired project workspace could not be loaded.",
+          current_thread_id,
+        )
+        return
+      }
+    }
+    let repaired_preview = match
+      self.previews.rebuild_and_restart(repaired_project) {
+      Ok(preview) => preview
+      Err(message) => {
+        self.store.finish_run_failure(
+          project_id,
+          run_id,
+          preview_audit_repair_failed_assistant_message(),
+          "Preview audit repair completed, but the repaired preview could not be started: " +
+          message,
+          current_thread_id,
+        )
+        return
+      }
+    }
+    current_preview = repaired_preview
+    audit = run_preview_audit(self.root, project_id, run_id, current_preview)
+    if !audit.enabled || audit.passed {
+      self.store.finish_run_success(
+        project_id, run_id, current_summary, current_thread_id, current_preview,
+      )
+      return
+    }
+    audit_error = audit.message
+  }
+  self.store.finish_run_failure(
+    project_id,
+    run_id,
+    preview_audit_repair_failed_assistant_message(),
+    "Preview audit failed: " + audit_error,
+    current_thread_id,
+  )
+}
+
+///|
 async fn AppContext::spawn_project_turn_worker(
   self : AppContext,
   project_id : String,
@@ -2738,11 +3070,8 @@ async fn AppContext::run_project_turn(
       let preview_result = self.previews.rebuild_and_restart(updated_project)
       match preview_result {
         Ok(preview) =>
-          self.store.finish_run_success(
-            project_id,
-            run_id,
-            result.summary,
-            result.thread_id,
+          self.finish_run_with_preview_audit(
+            project_id, run_id, workspace_path, initial_project_prompt, prompt, result,
             preview,
           )
         Err(message) =>
@@ -2816,11 +3145,16 @@ async fn AppContext::run_project_turn(
                 }
                 match self.previews.rebuild_and_restart(repaired_project) {
                   Ok(preview) =>
-                    self.store.finish_run_success(
+                    self.finish_run_with_preview_audit(
                       project_id,
                       run_id,
-                      successful_preview_assistant_message(),
-                      repair.thread_id,
+                      workspace_path,
+                      initial_project_prompt,
+                      prompt,
+                      {
+                        summary: successful_preview_assistant_message(),
+                        thread_id: repair.thread_id,
+                      },
                       preview,
                     )
                   Err(repair_preview_message) =>
