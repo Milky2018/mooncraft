@@ -325,6 +325,16 @@ fn sidebar_project_item(
           @html.div(style=project_action_menu_style()) <| [
             @html.button(
               type_="button",
+              title="Project info",
+              disabled=!edit_enabled,
+              on_click=dispatch(OpenProjectInfo(project.id)),
+              style=project_menu_item_style(
+                "var(--text-2)", "transparent", edit_enabled,
+              ),
+              "Info",
+            ),
+            @html.button(
+              type_="button",
               title="Rename project",
               disabled=!edit_enabled,
               on_click=dispatch(StartProjectRename(project.display_name)),
@@ -592,6 +602,7 @@ fn render_workspace_shell(
       ],
     ),
     render_new_project_dialog(dispatch, model),
+    render_project_info_dialog(dispatch, model),
   ]
 }
 

@@ -44,6 +44,9 @@ struct Model {
   ai_models_loading : Bool
   create_project_pending : Bool
   project_action_menu_open : String?
+  project_info_open : Bool
+  project_info_model : String
+  project_info_pending : Bool
   rename_project_editing : Bool
   rename_project_name : String
   rename_project_pending : Bool
@@ -78,6 +81,11 @@ enum Msg {
   AiModelsLoaded(Result[@sdk.ListAiModelsResponse, @sdk.ApiError])
   CreateProject
   ToggleProjectActionMenu(String)
+  OpenProjectInfo(String)
+  CloseProjectInfo
+  ProjectInfoModelChanged(String)
+  SaveProjectInfoModel
+  ProjectModelUpdated(Result[@sdk.UpdateProjectResponse, @sdk.ApiError])
   StartProjectRename(String)
   CancelProjectRename
   RenameProjectNameChanged(String)
@@ -194,6 +202,9 @@ fn initial_model() -> Model {
     ai_models_loading: false,
     create_project_pending: false,
     project_action_menu_open: None,
+    project_info_open: false,
+    project_info_model: "",
+    project_info_pending: false,
     rename_project_editing: false,
     rename_project_name: "",
     rename_project_pending: false,

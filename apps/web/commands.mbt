@@ -92,9 +92,27 @@ fn rename_project_cmd(
   project_id : String,
   display_name : String,
 ) -> @rabbita.Cmd {
-  let payload : @sdk.UpdateProjectRequest = { display_name, }
+  let payload : @sdk.UpdateProjectRequest = {
+    display_name: Some(display_name),
+    model: None,
+  }
   put_json(@sdk.project_path(project_id), payload, fn(result) {
     dispatch(ProjectRenamed(result))
+  })
+}
+
+///|
+fn update_project_model_cmd(
+  dispatch : @rabbita.Dispatch[Msg],
+  project_id : String,
+  model : String,
+) -> @rabbita.Cmd {
+  let payload : @sdk.UpdateProjectRequest = {
+    display_name: None,
+    model: Some(model),
+  }
+  put_json(@sdk.project_path(project_id), payload, fn(result) {
+    dispatch(ProjectModelUpdated(result))
   })
 }
 

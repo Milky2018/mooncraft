@@ -447,16 +447,17 @@ async fn Store::create_project_for_user(
 }
 
 ///|
-async fn Store::rename_project_for_user(
+async fn Store::update_project_settings_for_user(
   self : Store,
   user_id : String,
   project_id : String,
-  display_name : String,
+  display_name : String?,
+  model : String?,
 ) -> @sdk.ProjectDetail? noraise {
   if !self.project_owned_by_user(project_id, user_id) {
     return None
   }
-  self.rename_project(project_id, display_name)
+  self.update_project_settings(project_id, display_name, model)
 }
 
 ///|

@@ -341,8 +341,11 @@ fn render_disclosure_icon(open : Bool) -> @rabbita.Html {
 }
 
 ///|
-fn render_model_select_options(model : Model) -> Array[@rabbita.Html] {
-  let selected_model = model.new_project_model
+fn render_model_select_options_for(
+  model : Model,
+  agent_cli : String,
+  selected_model : String,
+) -> Array[@rabbita.Html] {
   let items : Array[@rabbita.Html] = []
   if model.ai_models_loading && model.ai_models.length() == 0 {
     items.push(@html.option(value="", selected=true, "Loading models..."))
@@ -354,7 +357,7 @@ fn render_model_select_options(model : Model) -> Array[@rabbita.Html] {
       )
     }
     for item in model.ai_models {
-      if model_id_compatible_with_agent(model.new_project_agent_cli, item.id) {
+      if model_id_compatible_with_agent(agent_cli, item.id) {
         items.push(
           @html.option(
             value=item.id,
@@ -369,6 +372,15 @@ fn render_model_select_options(model : Model) -> Array[@rabbita.Html] {
     }
   }
   items
+}
+
+///|
+fn render_model_select_options(model : Model) -> Array[@rabbita.Html] {
+  render_model_select_options_for(
+    model,
+    model.new_project_agent_cli,
+    model.new_project_model,
+  )
 }
 
 ///|
@@ -513,6 +525,122 @@ fn render_new_project_dialog(
         ],
       ],
     ]
+  }
+}
+
+///|
+fn render_project_info_row(label : String, value : String) -> @rabbita.Html {
+  @html.div(
+    style=[
+      "display: grid", "grid-template-columns: 88px minmax(0, 1fr)", "gap: 8px",
+      "align-items: center",
+    ],
+  ) <| [
+    @html.div(style=normal_text_style(), label),
+    @html.div(
+      style=value_text_style() +
+        [
+          "min-width: 0", "padding: 8px 10px", "border-radius: var(--radius-control)",
+          "background: var(--foreground-3)", "overflow-wrap: anywhere",
+        ],
+      value,
+    ),
+  ]
+}
+
+///|
+fn render_project_info_dialog(
+  dispatch : @rabbita.Dispatch[Msg],
+  model : Model,
+) -> @rabbita.Html {
+  if !model.project_info_open {
+    @html.nothing
+  } else {
+    match selected_project_detail(model) {
+      Some(project) => {
+        let loading_models = model.ai_models_loading &&
+          model.ai_models.length() == 0
+        let select_disabled = model.project_info_pending ||
+          loading_models ||
+          active_run(model) is Some(_)
+        let save_enabled = can_update_project_model(model)
+        @html.div(
+          style=[
+            "position: fixed", "inset: 0", "z-index: 100", "display: flex", "align-items: center",
+            "justify-content: center", "padding: 12px", "background: rgba(15, 23, 42, 0.28)",
+            "backdrop-filter: blur(10px)",
+          ],
+        ) <| [
+          @html.div(
+            style=[
+              "width: min(500px, 100%)", "background: var(--surface-raised)", "border: 1px solid var(--border-soft)",
+              "border-radius: var(--radius-panel)", "box-shadow: var(--shadow)",
+              "padding: 10px", "display: flex", "flex-direction: column", "gap: 8px",
+            ],
+          ) <| [
+            @html.div(
+              style=[
+                "display: flex", "align-items: flex-start", "justify-content: space-between",
+                "gap: 8px",
+              ],
+            ) <| [
+              @html.div(style=title_text_style(), "Project info"),
+              @html.button(
+                type_="button",
+                title="Close",
+                disabled=model.project_info_pending,
+                on_click=dispatch(CloseProjectInfo),
+                style=secondary_button_style(!model.project_info_pending) +
+                  ["width: 30px", "height: 30px", "padding: 0"],
+                [project_cancel_icon()],
+              ),
+            ],
+            render_project_info_row("Project ID", project.id),
+            render_project_info_row("Agent", agent_cli_label(project.agent_cli)),
+            @html.div(style=section_label_style(), "Model"),
+            @html.select(
+              disabled=select_disabled,
+              on_change=fn(value) { dispatch(ProjectInfoModelChanged(value)) },
+              style=input_style(select_disabled),
+              render_model_select_options_for(
+                model,
+                project.agent_cli,
+                model.project_info_model,
+              ),
+            ),
+            @html.div(
+              style=[
+                "display: flex", "justify-content: flex-end", "gap: 8px", "padding-top: 4px",
+              ],
+            ) <| [
+              @html.button(
+                type_="button",
+                title="Cancel",
+                disabled=model.project_info_pending,
+                on_click=dispatch(CloseProjectInfo),
+                style=secondary_button_style(!model.project_info_pending) +
+                  ["width: 32px", "height: 32px", "padding: 0"],
+                [project_cancel_icon()],
+              ),
+              @html.button(
+                type_="button",
+                title=if model.project_info_pending {
+                  "Saving"
+                } else {
+                  "Save model"
+                },
+                disabled=!save_enabled,
+                on_click=dispatch(SaveProjectInfoModel),
+                style=primary_button_style(save_enabled) +
+                  ["width: 32px", "height: 32px", "padding: 0"],
+                [project_save_icon()],
+              ),
+            ],
+          ],
+        ]
+      }
+      None => @html.nothing
+    }
   }
 }
 

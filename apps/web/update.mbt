@@ -105,6 +105,9 @@ fn update(
           rename_project_name: "",
           rename_project_pending: false,
           project_action_menu_open: None,
+          project_info_open: false,
+          project_info_model: "",
+          project_info_pending: false,
           delete_project_confirming: None,
         }
       } else {
@@ -138,6 +141,9 @@ fn update(
           stopping_run_id: None,
           delete_project_confirming: None,
           project_action_menu_open: None,
+          project_info_open: false,
+          project_info_model: "",
+          project_info_pending: false,
           rename_project_editing: false,
           rename_project_name: "",
           rename_project_pending: false,
@@ -166,6 +172,9 @@ fn update(
             rename_project_name: project.display_name,
             rename_project_pending: false,
             project_action_menu_open: None,
+            project_info_open: false,
+            project_info_model: "",
+            project_info_pending: false,
             delete_project_confirming: None,
             notice: None,
           },
@@ -219,6 +228,9 @@ fn update(
           ai_models_loading: true,
           delete_project_confirming: None,
           project_action_menu_open: None,
+          project_info_open: false,
+          project_info_model: "",
+          project_info_pending: false,
           notice: None,
         },
       )
@@ -323,6 +335,58 @@ fn update(
           },
         },
       )
+    OpenProjectInfo(project_id) => {
+      let current_model = match model.project_detail {
+        Some(project) if project.id == project_id => project.model
+        _ =>
+          match project_summary_by_id(model.projects, project_id) {
+            Some(project) => project.model
+            None => ""
+          }
+      }
+      (
+        load_ai_models_cmd(dispatch),
+        {
+          ..model,
+          project_action_menu_open: None,
+          project_info_open: true,
+          project_info_model: current_model,
+          project_info_pending: false,
+          ai_models_loading: true,
+          delete_project_confirming: None,
+          notice: None,
+        },
+      )
+    }
+    CloseProjectInfo =>
+      if model.project_info_pending {
+        (@rabbita.none, model)
+      } else {
+        (
+          @rabbita.none,
+          {
+            ..model,
+            project_info_open: false,
+            project_info_model: "",
+            project_info_pending: false,
+          },
+        )
+      }
+    ProjectInfoModelChanged(value) =>
+      (@rabbita.none, { ..model, project_info_model: value })
+    SaveProjectInfoModel =>
+      match selected_project_detail(model) {
+        Some(project) if can_update_project_model(model) =>
+          (
+            update_project_model_cmd(
+              dispatch,
+              project.id,
+              model.project_info_model.trim().to_owned(),
+            ),
+            { ..model, project_info_pending: true, notice: None },
+          )
+        _ => (@rabbita.none, model)
+      }
     StartProjectRename(display_name) =>
       match model.selected_project_id {
         Some(_) =>
@@ -333,6 +397,9 @@ fn update(
               rename_project_editing: true,
               rename_project_name: display_name,
               project_action_menu_open: None,
+              project_info_open: false,
+              project_info_model: "",
+              project_info_pending: false,
               notice: None,
             },
           )
@@ -435,6 +502,9 @@ fn update(
           last_run_event_seq: 0,
           delete_project_confirming: None,
           project_action_menu_open: None,
+          project_info_open: false,
+          project_info_model: "",
+          project_info_pending: false,
         },
       )
     }
@@ -451,6 +521,9 @@ fn update(
             rename_project_pending: false,
             delete_project_confirming: None,
             project_action_menu_open: None,
+            project_info_open: false,
+            project_info_model: "",
+            project_info_pending: false,
             notice: Some(error_notice("Failed to create project.", error)),
           },
         )
@@ -471,6 +544,9 @@ fn update(
           rename_project_pending: false,
           delete_project_confirming: None,
           project_action_menu_open: None,
+          project_info_open: false,
+          project_info_model: "",
+          project_info_pending: false,
           delete_project_pending: None,
         }
       } else {
@@ -478,6 +554,9 @@ fn update(
           ..model,
           delete_project_confirming: None,
           project_action_menu_open: None,
+          project_info_open: false,
+          project_info_model: "",
+          project_info_pending: false,
           delete_project_pending: None,
         }
       }
@@ -514,6 +593,39 @@ fn update(
             ..model,
             rename_project_pending: false,
             notice: Some(error_notice("Failed to rename project.", error)),
+          },
+        )
+      }
+    ProjectModelUpdated(Ok(response)) => {
+      let project = response.project
+      let project_summary = project_summary_from_detail(project)
+      (
+        @rabbita.none,
+        {
+          ..model,
+          projects: replace_project_summary(model.projects, project_summary),
+          project_detail: if model.selected_project_id == Some(project.id) {
+            Some(project)
+          } else {
+            model.project_detail
+          },
+          project_info_open: true,
+          project_info_model: project.model,
+          project_info_pending: false,
+          notice: None,
+        },
+      )
+    }
+    ProjectModelUpdated(Err(error)) =>
+      if is_unauthorized_error(error) {
+        auth_recovery(dispatch, model, "Your session expired. Sign in again.")
+      } else {
+        (
+          @rabbita.none,
+          {
+            ..model,
+            project_info_pending: false,
+            notice: Some(error_notice("Failed to update project model.", error)),
           },
         )
       }

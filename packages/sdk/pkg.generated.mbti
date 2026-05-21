@@ -482,7 +482,8 @@ pub(all) struct UpdateAdminAiKeyRequest {
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct UpdateProjectRequest {
-  display_name : String
+  display_name : String?
+  model : String?
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct UpdateProjectResponse {

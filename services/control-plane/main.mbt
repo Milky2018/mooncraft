@@ -1377,17 +1377,71 @@ fn main {
       Ok(request) => request
       Err(response) => return response
     }
-    let display_name = match
-      validated_project_display_name(request.display_name) {
-      Ok(name) => name
-      Err(message) =>
-        return api_error_response(
-          UnprocessableEntity,
-          ValidationFailed,
-          message,
-        )
+    let display_name = match request.display_name {
+      Some(value) =>
+        match validated_project_display_name(value) {
+          Ok(name) => Some(name)
+          Err(message) =>
+            return api_error_response(
+              UnprocessableEntity,
+              ValidationFailed,
+              message,
+            )
+        }
+      None => None
     }
-    match ctx.store.rename_project_for_user(user.id, project_id, display_name) {
+    let selected_model = match request.model {
+      Some(value) => {
+        let normalized = normalize_openrouter_model(value)
+        let config = ctx.store.get_admin_ai_config()
+        if !model_allowed(normalized, config.allowed_models) {
+          return api_error_response(
+            UnprocessableEntity,
+            ValidationFailed,
+            "That model is not available in this workspace.",
+          )
+        }
+        if normalized.length() > 160 {
+          return api_error_response(
+            UnprocessableEntity,
+            ValidationFailed,
+            "Model id must be 160 characters or fewer.",
+          )
+        }
+        let project = match
+          ctx.store.get_project_detail_for_user(project_id, user.id) {
+          Some(project) => project
+          None =>
+            return api_error_response(NotFound, NotFound, "Project not found.")
+        }
+        if !openrouter_model_compatible_with_agent(
+            project.agent_cli,
+            normalized,
+          ) {
+          return api_error_response(
+            UnprocessableEntity,
+            ValidationFailed,
+            "That model is not compatible with the selected agent.",
+          )
+        }
+        Some(normalized)
+      }
+      None => None
+    }
+    if display_name is None && selected_model is None {
+      return api_error_response(
+        UnprocessableEntity,
+        ValidationFailed,
+        "No project settings were provided.",
+      )
+    }
+    match
+      ctx.store.update_project_settings_for_user(
+        user.id,
+        project_id,
+        display_name,
+        selected_model,
+      ) {
       Some(project) => json_ok(@sdk.UpdateProjectResponse::{ project, })
       None => api_error_response(NotFound, NotFound, "Project not found.")
     }

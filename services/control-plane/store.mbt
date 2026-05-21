@@ -2054,21 +2054,30 @@ async fn Store::create_project(
 }
 
 ///|
-async fn Store::rename_project(
+async fn Store::update_project_settings(
   self : Store,
   project_id : String,
-  display_name : String,
+  display_name : String?,
+  model : String?,
 ) -> @sdk.ProjectDetail? noraise {
   let now = now_string()
   ignore(
     self.exec_or_error(
       (
         #|UPDATE projects
-        #|SET display_name = ?, updated_at = ?
+        #|SET
+        #|  display_name = COALESCE(?, display_name),
+        #|  ai_model = COALESCE(?, ai_model),
+        #|  updated_at = ?
         #|WHERE id = ?;
       ),
-      "rename project",
-      params=[String(display_name), String(now), String(project_id)],
+      "update project settings",
+      params=[
+        nullable_text_param(display_name),
+        nullable_text_param(model),
+        String(now),
+        String(project_id),
+      ],
     ),
   )
   self.get_project_detail(project_id)

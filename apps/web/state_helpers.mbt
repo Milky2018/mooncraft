@@ -84,8 +84,17 @@ fn model_id_compatible_with_agent(
 
 ///|
 fn compatible_default_model(agent_cli : String, model : Model) -> String {
-  if model_id_compatible_with_agent(agent_cli, model.new_project_model) {
-    model.new_project_model
+  compatible_model_for_agent(agent_cli, model.new_project_model, model)
+}
+
+///|
+fn compatible_model_for_agent(
+  agent_cli : String,
+  preferred_model : String,
+  model : Model,
+) -> String {
+  if model_id_compatible_with_agent(agent_cli, preferred_model) {
+    preferred_model
   } else if model_id_compatible_with_agent(
       agent_cli,
       model.ai_models_default_model,
@@ -98,6 +107,43 @@ fn compatible_default_model(agent_cli : String, model : Model) -> String {
       }
     }
     ""
+  }
+}
+
+///|
+fn selected_project_detail(model : Model) -> @sdk.ProjectDetail? {
+  match model.project_detail {
+    Some(project) if model.selected_project_id == Some(project.id) =>
+      Some(project)
+    _ => None
+  }
+}
+
+///|
+fn project_summary_by_id(
+  projects : Array[@sdk.ProjectSummary],
+  project_id : String,
+) -> @sdk.ProjectSummary? {
+  for project in projects {
+    if project.id == project_id {
+      return Some(project)
+    }
+  }
+  None
+}
+
+///|
+fn can_update_project_model(model : Model) -> Bool {
+  match selected_project_detail(model) {
+    Some(project) => {
+      let next_model = model.project_info_model.trim().to_owned()
+      next_model != "" &&
+      next_model != project.model &&
+      model_id_compatible_with_agent(project.agent_cli, next_model) &&
+      active_run(model) is None &&
+      !model.project_info_pending
+    }
+    None => false
   }
 }
 
@@ -240,6 +286,9 @@ fn clear_workspace(model : Model) -> Model {
     ai_models_loading: false,
     create_project_pending: false,
     project_action_menu_open: None,
+    project_info_open: false,
+    project_info_model: "",
+    project_info_pending: false,
     rename_project_editing: false,
     rename_project_name: "",
     rename_project_pending: false,

@@ -133,7 +133,8 @@ pub(all) struct CreateProjectResponse {
 
 ///|
 pub(all) struct UpdateProjectRequest {
-  display_name : String
+  display_name : String?
+  model : String?
 } derive(Debug, ToJson, FromJson)
 
 ///|
