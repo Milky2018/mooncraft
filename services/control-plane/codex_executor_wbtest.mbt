@@ -65,7 +65,7 @@ test "success summary copy is shared across run completion paths" {
 }
 
 ///|
-test "provider overload copy names the selected model" {
+test "provider overload copy is user-safe" {
   let output = "{\"type\":\"error\",\"message\":\"We're currently experiencing high demand, which may cause temporary errors.\"}"
   inspect(ai_provider_temporarily_overloaded(output), content="true")
   inspect(
@@ -74,8 +74,41 @@ test "provider overload copy names the selected model" {
       output,
       default_failure_assistant_message(),
     ),
-    content="This model anthropic/claude-sonnet-4.5 provider is temporarily overloaded. No project code was generated. Retry the run or choose another model.",
+    content="MoonCraft is under heavy load. Please try again later or contact an administrator.",
   )
+}
+
+///|
+test "quota limit copy is user-safe" {
+  let output = "{\"error\":{\"message\":\"This request requires more credits, or fewer max_tokens. You requested up to 65536 tokens, but can only afford 9284.\"}}"
+  inspect(ai_quota_or_capacity_limited(output), content="true")
+  inspect(
+    ai_builder_failure_assistant_message(
+      "openai/gpt-5.4-mini",
+      output,
+      default_failure_assistant_message(),
+    ),
+    content="MoonCraft is under heavy load. Please try again later or contact an administrator.",
+  )
+}
+
+///|
+test "monthly key limit copy is user-safe" {
+  let output = "403 Forbidden: Key limit exceeded (monthly limit)"
+  inspect(ai_quota_or_capacity_limited(output), content="true")
+  let message = ai_builder_failure_assistant_message(
+    "deepseek/deepseek-chat-v3.1",
+    output,
+    default_failure_assistant_message(),
+  )
+  inspect(
+    message,
+    content="MoonCraft is under heavy load. Please try again later or contact an administrator.",
+  )
+  assert_false(message.contains("API"))
+  assert_false(message.contains("quota"))
+  assert_false(message.contains("OpenRouter"))
+  assert_false(message.contains("deepseek"))
 }
 
 ///|

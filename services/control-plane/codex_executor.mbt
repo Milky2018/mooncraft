@@ -573,8 +573,19 @@ fn ai_provider_temporarily_overloaded(output : String) -> Bool {
 }
 
 ///|
-fn ai_provider_overload_assistant_message(model : String) -> String {
-  "This model \{model} provider is temporarily overloaded. No project code was generated. Retry the run or choose another model."
+fn ai_quota_or_capacity_limited(output : String) -> Bool {
+  let lower = output.to_lower()
+  lower.contains("insufficient credits") ||
+  lower.contains("requires more credits") ||
+  lower.contains("quota") ||
+  lower.contains("monthly limit") ||
+  lower.contains("key limit exceeded") ||
+  lower.contains("credit limit")
+}
+
+///|
+fn mooncraft_capacity_assistant_message() -> String {
+  "MoonCraft is under heavy load. Please try again later or contact an administrator."
 }
 
 ///|
@@ -583,8 +594,10 @@ fn ai_builder_failure_assistant_message(
   output : String,
   fallback : String,
 ) -> String {
-  if ai_provider_temporarily_overloaded(output) {
-    ai_provider_overload_assistant_message(model)
+  ignore(model)
+  if ai_provider_temporarily_overloaded(output) ||
+    ai_quota_or_capacity_limited(output) {
+    mooncraft_capacity_assistant_message()
   } else {
     dependency_fetch_failure_assistant_message(output, fallback)
   }
