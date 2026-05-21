@@ -13,7 +13,7 @@ fn default_agent_cli() -> String {
 
 ///|
 fn default_openrouter_model() -> String {
-  "anthropic/claude-sonnet-4.5"
+  "openai/gpt-5.4-mini"
 }
 
 ///|

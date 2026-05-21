@@ -9,7 +9,7 @@ run_stamp="$(date +%Y%m%d-%H%M%S)"
 artifact_dir="${artifact_root}/${run_stamp}"
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 default_agent_runtime_image="$(cat "$repo_root/config/agent_runtime_image.txt")"
-model="${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_MODEL:-${MOONCRAFT_AGENT_SMOKE_MODEL:-${MOONCRAFT_CODEX_SMOKE_MODEL:-anthropic/claude-sonnet-4.5}}}"
+model="${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_MODEL:-${MOONCRAFT_AGENT_SMOKE_MODEL:-${MOONCRAFT_CODEX_SMOKE_MODEL:-openai/gpt-5.4-mini}}}"
 if [[ -n "${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_KEY_REF:-}" ]]; then
   key_ref="$MOONCRAFT_PLAYWRIGHT_REAL_AGENT_KEY_REF"
 elif [[ -n "${MOONCRAFT_AGENT_SMOKE_KEY_REF:-}" ]]; then
@@ -156,9 +156,9 @@ async function main() {
     screenshots.push(screenshot("02-signed-in.png"))
     await page.screenshot({ path: screenshots[screenshots.length - 1], fullPage: true })
 
-    await page.getByRole("button", { name: /\+ New|Create Project/ }).first().click()
+    await page.getByRole("button", { name: /\+ New|New project|Create Project/ }).first().click()
     await page.getByPlaceholder(/Project name|Snake game|Team CRM|Launch page/i).first().fill(projectName)
-    await page.getByRole("button", { name: "Create Project" }).last().click()
+    await page.getByRole("button", { name: /^Create(?: Project)?$/ }).last().click()
     await page.locator("textarea").waitFor()
     await page.locator("textarea").fill(prompt)
     screenshots.push(screenshot("03-real-agent-prompt.png"))

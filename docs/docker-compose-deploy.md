@@ -309,7 +309,7 @@ curl -fsS https://your-domain.com/api/health
 For an opt-in real agent smoke test from the repo root:
 
 ```bash
-export MOONCRAFT_AGENT_SMOKE_MODEL=anthropic/claude-sonnet-4.5
+export MOONCRAFT_AGENT_SMOKE_MODEL=openai/gpt-5.4-mini
 export OPENROUTER_API_KEY='your-test-key'
 just agent-smoke
 ```

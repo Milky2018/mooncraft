@@ -6,7 +6,7 @@ default_agent_runtime_image="${1:-$(cat "$repo_root/config/agent_runtime_image.t
 agent_runtime_image="${MOONCRAFT_AGENT_RUNTIME_IMAGE:-${MOONCRAFT_CODEX_DOCKER_IMAGE:-$default_agent_runtime_image}}"
 export MOONCRAFT_AGENT_RUNTIME_IMAGE="$agent_runtime_image"
 
-model="${MOONCRAFT_AGENT_SMOKE_MODEL:-${MOONCRAFT_CODEX_SMOKE_MODEL:-anthropic/claude-sonnet-4.5}}"
+model="${MOONCRAFT_AGENT_SMOKE_MODEL:-${MOONCRAFT_CODEX_SMOKE_MODEL:-openai/gpt-5.4-mini}}"
 if [[ -n "${MOONCRAFT_AGENT_SMOKE_KEY_REF:-}" ]]; then
   key_ref="$MOONCRAFT_AGENT_SMOKE_KEY_REF"
 elif [[ -n "${MOONCRAFT_CODEX_SMOKE_KEY_REF:-}" ]]; then

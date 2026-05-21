@@ -21,7 +21,7 @@ fi
 provider="${MOONCRAFT_AI_PROVIDER:-openrouter}"
 agent_cli="${MOONCRAFT_AGENT_CLI:-codex}"
 api_key="${MOONCRAFT_AI_API_KEY:-}"
-model="${MOONCRAFT_AI_MODEL:-anthropic/claude-sonnet-4.5}"
+model="${MOONCRAFT_AI_MODEL:-openai/gpt-5.4-mini}"
 
 if [[ "${1:-}" == "mooncraft-agent-doctor" ]]; then
   exec "$@"
