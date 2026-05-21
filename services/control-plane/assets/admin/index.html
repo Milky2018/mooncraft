@@ -419,6 +419,91 @@
         background: var(--foreground-3);
       }
 
+      .model-picker-cell {
+        padding: 0 !important;
+      }
+
+      .model-picker {
+        background: var(--foreground-3);
+      }
+
+      .model-picker-toolbar {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .model-picker-toolbar input {
+        width: min(420px, 100%);
+        background: var(--background);
+      }
+
+      .model-picker-controls {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .segmented {
+        display: inline-flex;
+        padding: 2px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--background);
+      }
+
+      .segmented button {
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--color-normal);
+        font: var(--text-normal);
+        padding: 5px 8px;
+        cursor: pointer;
+      }
+
+      .segmented button.active {
+        background: var(--foreground-10);
+        color: var(--foreground);
+      }
+
+      .model-provider-row td {
+        background: var(--foreground-5);
+        color: var(--color-normal);
+        font: var(--text-normal);
+        padding-top: 7px;
+        padding-bottom: 7px;
+      }
+
+      .model-option-row td {
+        background: var(--background);
+      }
+
+      .model-option-main {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 220px;
+      }
+
+      .model-option-title {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .model-option-id {
+        display: block;
+        max-width: 420px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
       .table-empty {
         padding: 18px;
         color: var(--color-normal);
@@ -621,6 +706,8 @@
       let adminModelsError = ""
       let creatingKey = false
       let creatingModel = false
+      let modelSearchQuery = ""
+      let modelCatalogMode = "recommended"
       let confirmingProjectDeleteId = ""
       let confirmingKeyDeleteId = ""
       let confirmingModelRemoveId = ""
@@ -1059,6 +1146,118 @@
         return `$${amount.replace(/\\.00$/, "")} / 1M`
       }
 
+      function modelProvider(id) {
+        const provider = String(id || "").replace(/^~/, "").split("/")[0].trim().toLowerCase()
+        return provider || "other"
+      }
+
+      function providerLabel(provider) {
+        const labels = {
+          openai: "OpenAI",
+          anthropic: "Anthropic",
+          google: "Google",
+          moonshotai: "Moonshot AI",
+          deepseek: "DeepSeek",
+          qwen: "Qwen",
+          "meta-llama": "Meta Llama",
+          mistralai: "Mistral AI",
+          xai: "xAI",
+          cohere: "Cohere",
+          other: "Other",
+        }
+        return labels[provider] || provider.split("-").map((part) => part ? part[0].toUpperCase() + part.slice(1) : part).join(" ")
+      }
+
+      function providerRank(provider) {
+        const ranks = {
+          openai: 1,
+          anthropic: 2,
+          google: 3,
+          moonshotai: 4,
+          deepseek: 5,
+          qwen: 6,
+          "meta-llama": 7,
+          mistralai: 8,
+          xai: 9,
+          cohere: 10,
+        }
+        return ranks[provider] || 99
+      }
+
+      function isRecommendedModel(item) {
+        const id = item.id || ""
+        if (aiConfig.allowed_models.includes(id) || aiConfig.default_model === id) return true
+        const normalizedId = id.replace(/^~/, "").toLowerCase()
+        if ([
+          ":free",
+          "audio",
+          "embedding",
+          "image",
+          "moderation",
+          "realtime",
+          "search",
+          "transcribe",
+          "tts",
+          "vision",
+          "-vl-",
+          "/vl-",
+        ].some((token) => normalizedId.includes(token))) {
+          return false
+        }
+        return [
+          /^openai\/gpt-5(\.\d+)?$/,
+          /^openai\/gpt-5(\.\d+)?-codex(-mini|-max)?$/,
+          /^openai\/gpt-5(\.\d+)?-mini$/,
+          /^anthropic\/claude-(sonnet|opus)(-\d+(\.\d+)?)?.*/,
+          /^anthropic\/claude-(sonnet|opus)-latest$/,
+          /^google\/gemini-(\d+(\.\d+)?-)?pro.*/,
+          /^google\/gemini-pro-latest$/,
+          /^moonshotai\/kimi-(latest|k2.*)$/,
+          /^deepseek\/deepseek-(chat|r1|v3|v4).*/,
+          /^qwen\/.*coder.*/,
+          /^qwen\/qwen(3)?-max.*/,
+          /^qwen\/qwen(3\.\d+)?-plus.*/,
+        ].some((pattern) => pattern.test(normalizedId))
+      }
+
+      function modelSearchText(item) {
+        return `${item.id || ""} ${item.name || ""} ${providerLabel(modelProvider(item.id || ""))}`.toLowerCase()
+      }
+
+      function filteredCatalogModels() {
+        const query = modelSearchQuery.trim().toLowerCase()
+        return adminModelItems
+          .filter((item) => !aiConfig.allowed_models.includes(item.id))
+          .filter((item) => modelCatalogMode === "all" || isRecommendedModel(item))
+          .filter((item) => !query || modelSearchText(item).includes(query))
+          .sort((left, right) => {
+            const leftRecommended = isRecommendedModel(left) ? 0 : 1
+            const rightRecommended = isRecommendedModel(right) ? 0 : 1
+            if (leftRecommended !== rightRecommended) return leftRecommended - rightRecommended
+            const leftProvider = modelProvider(left.id)
+            const rightProvider = modelProvider(right.id)
+            const providerDiff = providerRank(leftProvider) - providerRank(rightProvider)
+            if (providerDiff !== 0) return providerDiff
+            const providerNameDiff = providerLabel(leftProvider).localeCompare(providerLabel(rightProvider))
+            if (providerNameDiff !== 0) return providerNameDiff
+            return modelLabel(left.id).localeCompare(modelLabel(right.id))
+          })
+      }
+
+      function groupedCatalogModels(items) {
+        const groups = []
+        let current = null
+        items.forEach((item) => {
+          const provider = modelProvider(item.id)
+          if (!current || current.provider !== provider) {
+            current = { provider, items: [] }
+            groups.push(current)
+          }
+          current.items.push(item)
+        })
+        return groups
+      }
+
       function allowedModelRows() {
         return aiConfig.allowed_models.map((id) => {
           const item = modelById(id)
@@ -1086,23 +1285,54 @@
       }
 
       function modelCreateRow() {
-        const available = adminModelItems.filter((item) => !aiConfig.allowed_models.includes(item.id))
+        const availableCount = adminModelItems.filter((item) => !aiConfig.allowed_models.includes(item.id)).length
+        const visible = filteredCatalogModels()
+        const groups = groupedCatalogModels(visible)
         return `
           <tr class="key-create-row">
-            <td colspan="2">
-              <select data-create-model="id" aria-label="Model">
-                ${available.length === 0 ? `<option value="">No available models</option>` : available.map((item) => `
-                  <option value="${escapeAttr(item.id)}">${escapeHtml(modelLabel(item.id))}</option>
-                `).join("")}
-              </select>
-            </td>
-            <td class="muted">-</td>
-            <td class="numeric muted">-</td>
-            <td class="numeric muted">-</td>
-            <td class="numeric muted">-</td>
-            <td class="actions-cell create-actions">
-              ${iconButton("save-create-model", "Save model", "check", "secondary", available.length === 0 ? "disabled" : "")}
-              ${iconButton("cancel-create-model", "Cancel", "x", "secondary")}
+            <td class="model-picker-cell" colspan="7">
+              <div class="model-picker">
+                <div class="model-picker-toolbar">
+                  <input data-model-search aria-label="Search models" placeholder="Search models" value="${escapeAttr(modelSearchQuery)}" />
+                  <div class="model-picker-controls">
+                    <div class="segmented" aria-label="Model catalog filter">
+                      <button data-action="model-filter-recommended" class="${modelCatalogMode === "recommended" ? "active" : ""}" type="button">Recommended</button>
+                      <button data-action="model-filter-all" class="${modelCatalogMode === "all" ? "active" : ""}" type="button">All</button>
+                    </div>
+                    <span class="badge">${visible.length} / ${availableCount}</span>
+                    ${iconButton("cancel-create-model", "Cancel", "x", "secondary")}
+                  </div>
+                </div>
+                <table class="key-table">
+                  <tbody>
+                    ${groups.map((group) => `
+                      <tr class="model-provider-row">
+                        <td colspan="7">${escapeHtml(providerLabel(group.provider))} <span class="muted">${group.items.length}</span></td>
+                      </tr>
+                      ${group.items.map((item) => `
+                        <tr class="model-option-row" data-model-id="${escapeAttr(item.id)}">
+                          <td>
+                            <div class="model-option-main">
+                              <div class="model-option-title">
+                                <strong>${escapeHtml(item.name || item.id)}</strong>
+                                ${isRecommendedModel(item) ? `<span class="badge running">recommended</span>` : ""}
+                              </div>
+                              <code class="model-option-id">${escapeHtml(item.id)}</code>
+                            </div>
+                          </td>
+                          <td><span class="muted">${escapeHtml(providerLabel(modelProvider(item.id)))}</span></td>
+                          <td><span class="muted">-</span></td>
+                          <td class="numeric">${escapeHtml(formatContextLength(item.context_length))}</td>
+                          <td class="numeric muted">${escapeHtml(formatTokenPrice(item.prompt_price))}</td>
+                          <td class="numeric muted">${escapeHtml(formatTokenPrice(item.completion_price))}</td>
+                          <td class="actions-cell">${iconButton("save-create-model", "Add model", "plus", "secondary", `data-model-id="${escapeAttr(item.id)}"`)}</td>
+                        </tr>
+                      `).join("")}
+                    `).join("")}
+                    ${visible.length === 0 ? `<tr><td colspan="7"><div class="table-empty">No matching models.</div></td></tr>` : ""}
+                  </tbody>
+                </table>
+              </div>
             </td>
           </tr>
         `
@@ -1310,8 +1540,14 @@
           renderModels()
           return
         }
+        if (action === "model-filter-recommended" || action === "model-filter-all") {
+          modelCatalogMode = action === "model-filter-all" ? "all" : "recommended"
+          renderModels()
+          models.querySelector("[data-model-search]")?.focus()
+          return
+        }
         if (action === "save-create-model") {
-          const id = button.closest("tr")?.querySelector("[data-create-model]")?.value || ""
+          const id = button.dataset.modelId || button.closest("tr")?.querySelector("[data-create-model]")?.value || ""
           if (id) saveModelConfig(aiConfig.default_model || id, aiConfig.allowed_models.concat([id]))
           return
         }
@@ -1333,6 +1569,17 @@
             renderModels()
           }
         }
+      }
+
+      function handleModelInput(event) {
+        const input = event.target.closest("[data-model-search]")
+        if (!input || !models.contains(input)) return
+        const nextPosition = input.selectionStart || input.value.length
+        modelSearchQuery = input.value
+        renderModels()
+        const nextInput = models.querySelector("[data-model-search]")
+        nextInput?.focus()
+        nextInput?.setSelectionRange(nextPosition, nextPosition)
       }
 
       function emptyCell(value) {
@@ -1428,9 +1675,11 @@
       })
       document.querySelector("#add-model-row").addEventListener("click", () => {
         creatingModel = true
+        modelSearchQuery = ""
+        modelCatalogMode = "recommended"
         setActiveView("models")
         renderModels()
-        models.querySelector("[data-create-model]")?.focus()
+        models.querySelector("[data-model-search]")?.focus()
       })
       navButtons.forEach((button) => {
         button.addEventListener("click", () => {
@@ -1442,6 +1691,7 @@
       })
       keys.addEventListener("click", handleKeyAction)
       models.addEventListener("click", handleModelAction)
+      models.addEventListener("input", handleModelInput)
       document.addEventListener("click", (event) => {
         if (!event.target.closest(".actions-cell")) closeActionMenus()
       })
