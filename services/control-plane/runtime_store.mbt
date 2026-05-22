@@ -45,6 +45,70 @@ fn runtime_spec_string_field(
 }
 
 ///|
+fn runtime_spec_optional_string_field(
+  fields : Map[String, Json],
+  name : String,
+) -> String? {
+  match fields.get(name) {
+    Some(String(value)) if value.trim() != "" => Some(value.trim().to_owned())
+    _ => None
+  }
+}
+
+///|
+fn validate_runtime_secret_file_path(path : String) -> Result[String, String] {
+  let trimmed = path.trim().to_owned()
+  if trimmed == "" {
+    return Err("Runtime secret file is required.")
+  }
+  if trimmed.has_prefix("/") {
+    return Err("Runtime secret file must be relative to container_home.")
+  }
+  if trimmed.contains("\\") {
+    return Err("Runtime secret file must use forward slashes.")
+  }
+  for part in trimmed.split("/").to_array() {
+    let segment = part.to_owned()
+    if segment == "" || segment == "." || segment == ".." {
+      return Err(
+        "Runtime secret file must not contain empty, '.', or '..' path segments.",
+      )
+    }
+  }
+  Ok(trimmed)
+}
+
+///|
+fn normalize_runtime_secret_binding(
+  source_input : String,
+  env_input : String?,
+  file_input : String?,
+) -> Result[@sdk.RuntimeSecretBinding, String] {
+  let source = source_input.trim().to_owned()
+  if source == "" {
+    return Err("Runtime secret source is required.")
+  }
+  let env = match env_input {
+    Some(value) if value.trim() != "" => Some(value.trim().to_owned())
+    _ => None
+  }
+  let file = match file_input {
+    Some(value) =>
+      match validate_runtime_secret_file_path(value) {
+        Ok(path) => Some(path)
+        Err(message) => return Err(message)
+      }
+    None => None
+  }
+  match (env, file) {
+    (Some(_), Some(_)) =>
+      Err("Runtime secret binding must use either env or file, not both.")
+    (None, None) => Err("Runtime secret binding must declare env or file.")
+    _ => Ok({ source, env, file })
+  }
+}
+
+///|
 fn runtime_spec_int_field(
   fields : Map[String, Json],
   name : String,
@@ -102,14 +166,12 @@ fn runtime_spec_secret_bindings_field(
         match item {
           Object(fields) => {
             let source = runtime_spec_string_field(fields, "source")
-            let env = runtime_spec_string_field(fields, "env")
-            if source == "" {
-              return Err("Runtime secret source is required.")
+            let env = runtime_spec_optional_string_field(fields, "env")
+            let file = runtime_spec_optional_string_field(fields, "file")
+            match normalize_runtime_secret_binding(source, env, file) {
+              Ok(secret) => secrets.push(secret)
+              Err(message) => return Err(message)
             }
-            if env == "" {
-              return Err("Runtime secret env is required.")
-            }
-            secrets.push({ source, env })
           }
           _ => return Err("Runtime secrets must be JSON objects.")
         }
@@ -160,15 +222,11 @@ fn normalize_runtime_spec(
   }
   let secrets : Array[@sdk.RuntimeSecretBinding] = []
   for secret in spec.secrets {
-    let source = secret.source.trim().to_owned()
-    let env = secret.env.trim().to_owned()
-    if source == "" {
-      return Err("Runtime secret source is required.")
+    match
+      normalize_runtime_secret_binding(secret.source, secret.env, secret.file) {
+      Ok(secret) => secrets.push(secret)
+      Err(message) => return Err(message)
     }
-    if env == "" {
-      return Err("Runtime secret env is required.")
-    }
-    secrets.push({ source, env })
   }
   Ok({
     protocol_version,

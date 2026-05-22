@@ -10,7 +10,8 @@ struct AiRuntimeSettings {
 
 ///|
 struct ResolvedRuntimeSecret {
-  env : String
+  env : String?
+  file : String?
   value : String
 }
 
@@ -584,6 +585,13 @@ async fn Store::resolve_runtime_secrets(
   for secret in runtime_spec.secrets {
     match secret.source {
       "admin_openrouter_key_pool" => {
+        let env = match secret.env {
+          Some(value) if value.trim() != "" => value.trim().to_owned()
+          _ =>
+            return Err(
+              "Runtime secret source admin_openrouter_key_pool must bind to env.",
+            )
+        }
         let value = match
           self.lease_openrouter_secret(
             project_id,
@@ -594,9 +602,36 @@ async fn Store::resolve_runtime_secrets(
           Ok(value) => value
           Err(message) => return Err(message)
         }
-        secrets.push({ env: secret.env, value })
+        secrets.push({ env: Some(env), file: None, value })
       }
-      source => return Err("Runtime secret source is not supported: \{source}")
+      source => {
+        let record = match self.get_admin_secret_record_by_name(source) {
+          Some(record) => record
+          None =>
+            return Err("Runtime secret source is not configured: \{source}")
+        }
+        match (secret.env, secret.file) {
+          (Some(env), None) => {
+            if env.trim() == "" {
+              return Err("Runtime secret env is required.")
+            }
+            secrets.push({
+              env: Some(env.trim().to_owned()),
+              file: None,
+              value: record.value,
+            })
+          }
+          (None, Some(file)) => {
+            if record.kind != "file" {
+              return Err(
+                "Runtime secret source \{source} is not a file secret.",
+              )
+            }
+            secrets.push({ env: None, file: Some(file), value: record.value })
+          }
+          _ => return Err("Runtime secret binding must declare env or file.")
+        }
+      }
     }
   }
   Ok(secrets)

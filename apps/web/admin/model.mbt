@@ -2,6 +2,7 @@
 enum AdminView {
   Users
   Keys
+  Secrets
   Runtimes
   Models
 } derive(Eq)
@@ -23,6 +24,7 @@ struct AdminModel {
   expanded_user_projects : Array[@sdk.AdminProjectSummary]
   user_projects_loading : Bool
   keys : Array[@sdk.AdminAiKeySummary]
+  secrets : Array[@sdk.AdminSecretSummary]
   runtimes : Array[@sdk.RuntimeDetail]
   ai_config : @sdk.AdminAiConfigResponse
   catalog : Array[@sdk.AdminAiModelSummary]
@@ -37,6 +39,15 @@ struct AdminModel {
   editing_key_status : String
   editing_key_priority : String
   confirming_key_delete_id : String?
+  creating_secret : Bool
+  secret_name : String
+  secret_kind : String
+  secret_value : String
+  editing_secret_id : String?
+  editing_secret_name : String
+  editing_secret_kind : String
+  editing_secret_value : String
+  confirming_secret_delete_id : String?
   creating_runtime : Bool
   editing_runtime_id : String?
   editing_runtime_name : String
@@ -60,6 +71,7 @@ enum AdminMsg {
     Result[@sdk.AdminUserProjectsResponse, @sdk.ApiError]
   )
   KeysLoaded(Result[@sdk.AdminListAiKeysResponse, @sdk.ApiError])
+  SecretsLoaded(Result[@sdk.AdminListSecretsResponse, @sdk.ApiError])
   RuntimesLoaded(Result[@sdk.AdminListRuntimesResponse, @sdk.ApiError])
   ConfigLoaded(Result[@sdk.AdminAiConfigResponse, @sdk.ApiError])
   CatalogLoaded(Result[@sdk.AdminListAiModelsResponse, @sdk.ApiError])
@@ -83,6 +95,22 @@ enum AdminMsg {
   KeyUpdated(Result[@sdk.AdminAiKeySummary, @sdk.ApiError])
   RequestDeleteKey(String)
   KeyDeleted(String, Result[Unit, @sdk.ApiError])
+  OpenCreateSecret
+  CancelCreateSecret
+  SecretNameChanged(String)
+  SecretKindChanged(String)
+  SecretValueChanged(String)
+  SaveCreateSecret
+  SecretCreated(Result[@sdk.AdminSecretSummary, @sdk.ApiError])
+  StartEditSecret(String)
+  CancelEditSecret
+  EditSecretNameChanged(String)
+  EditSecretKindChanged(String)
+  EditSecretValueChanged(String)
+  SaveEditSecret(String)
+  SecretUpdated(Result[@sdk.AdminSecretSummary, @sdk.ApiError])
+  RequestDeleteSecret(String)
+  SecretDeleted(String, Result[Unit, @sdk.ApiError])
   OpenCreateRuntime
   StartEditRuntime(String)
   CancelEditRuntime
@@ -120,6 +148,7 @@ fn initial_admin_model() -> AdminModel {
     expanded_user_projects: [],
     user_projects_loading: false,
     keys: [],
+    secrets: [],
     runtimes: [],
     ai_config: empty_ai_config(),
     catalog: [],
@@ -134,6 +163,15 @@ fn initial_admin_model() -> AdminModel {
     editing_key_status: "active",
     editing_key_priority: "100",
     confirming_key_delete_id: None,
+    creating_secret: false,
+    secret_name: "",
+    secret_kind: "file",
+    secret_value: "",
+    editing_secret_id: None,
+    editing_secret_name: "",
+    editing_secret_kind: "file",
+    editing_secret_value: "",
+    confirming_secret_delete_id: None,
     creating_runtime: false,
     editing_runtime_id: None,
     editing_runtime_name: "",

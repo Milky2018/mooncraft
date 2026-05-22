@@ -31,8 +31,8 @@ Agents do not edit this. This file is maintainable by human developers.
   - [ ] CSRF protection for cookie-authenticated write routes
   - [ ] Session management: “log out all devices” / revoke other sessions
   - [ ] Resend verification email
-- [ ] Use `codex-sdk` instead of CLI
-- [ ] Improve the generated workspace bootstrap
+- [x] Use `codex-sdk` instead of CLI
+- [x] Improve the generated workspace bootstrap
 - [x] OAuth with github account
 - [ ] Refactor, goal: Move MoonCraft from “single-node prototype” to “production-shaped platform” without adding product surface area. Keep the user flow simple: login, create project, chat, preview.
   - [ ] Phase 1: Runtime Boundary, Result: control plane stops directly knowing how to docker run, moon build, nohup, or kill ports.
@@ -93,3 +93,5 @@ Agents do not edit this. This file is maintainable by human developers.
 - [ ] `ai_quota_or_capacity_limited` is very fragile
 - [ ] `artifacts` folder to `.mooncraft`
 - [ ] `services/control-plane/codex_executor.mbt` naming `agent_executor`
+- [ ] `Result` types to suberror and try-catch
+- [ ] Runtime configured by GUI instead of JSON

@@ -13,6 +13,13 @@ fn load_keys_cmd(dispatch : @rabbita.Dispatch[AdminMsg]) -> @rabbita.Cmd {
 }
 
 ///|
+fn load_secrets_cmd(dispatch : @rabbita.Dispatch[AdminMsg]) -> @rabbita.Cmd {
+  get_json(@sdk.admin_secrets_path(), fn(result) {
+    dispatch(SecretsLoaded(result))
+  })
+}
+
+///|
 fn load_user_projects_cmd(
   dispatch : @rabbita.Dispatch[AdminMsg],
   user_id : String,
@@ -48,6 +55,7 @@ fn refresh_cmd(dispatch : @rabbita.Dispatch[AdminMsg]) -> @rabbita.Cmd {
   @rabbita.batch([
     load_users_cmd(dispatch),
     load_keys_cmd(dispatch),
+    load_secrets_cmd(dispatch),
     load_runtimes_cmd(dispatch),
     load_config_cmd(dispatch),
     load_catalog_cmd(dispatch),
@@ -94,6 +102,43 @@ fn delete_key_cmd(
 ) -> @rabbita.Cmd {
   delete_empty(@sdk.admin_ai_key_path(id), fn(result) {
     dispatch(KeyDeleted(id, result))
+  })
+}
+
+///|
+fn create_secret_cmd(
+  dispatch : @rabbita.Dispatch[AdminMsg],
+  name : String,
+  kind : String,
+  value : String,
+) -> @rabbita.Cmd {
+  let payload : @sdk.CreateAdminSecretRequest = { name, kind, value }
+  post_json(@sdk.admin_secrets_path(), payload, fn(result) {
+    dispatch(SecretCreated(result))
+  })
+}
+
+///|
+fn update_secret_cmd(
+  dispatch : @rabbita.Dispatch[AdminMsg],
+  id : String,
+  name : String,
+  kind : String,
+  value : String,
+) -> @rabbita.Cmd {
+  let payload : @sdk.UpdateAdminSecretRequest = { name, kind, value }
+  patch_json(@sdk.admin_secret_path(id), payload, fn(result) {
+    dispatch(SecretUpdated(result))
+  })
+}
+
+///|
+fn delete_secret_cmd(
+  dispatch : @rabbita.Dispatch[AdminMsg],
+  id : String,
+) -> @rabbita.Cmd {
+  delete_empty(@sdk.admin_secret_path(id), fn(result) {
+    dispatch(SecretDeleted(id, result))
   })
 }
 

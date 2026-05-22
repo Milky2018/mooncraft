@@ -49,7 +49,8 @@ pub(all) struct PreviewTarget {
 ///|
 pub(all) struct RuntimeSecretBinding {
   source : String
-  env : String
+  env : String?
+  file : String?
 } derive(Debug, ToJson, FromJson)
 
 ///|
@@ -331,6 +332,35 @@ pub(all) struct UpdateAdminAiKeyRequest {
   api_key : String
   status : String
   priority : Int
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct AdminSecretSummary {
+  id : String
+  name : String
+  kind : String
+  value_hint : String
+  created_at : String
+  updated_at : String
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct AdminListSecretsResponse {
+  items : Array[AdminSecretSummary]
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct CreateAdminSecretRequest {
+  name : String
+  kind : String
+  value : String
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct UpdateAdminSecretRequest {
+  name : String
+  kind : String
+  value : String
 } derive(Debug, ToJson, FromJson)
 
 ///|

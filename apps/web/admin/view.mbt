@@ -69,6 +69,7 @@ fn sidebar(
     @html.nav(style=["display: flex", "flex-direction: column", "gap: 4px"], [
       nav_button(dispatch, model, Users, "Users", model.users.length()),
       nav_button(dispatch, model, Keys, "OpenRouter Keys", model.keys.length()),
+      nav_button(dispatch, model, Secrets, "Secrets", model.secrets.length()),
       nav_button(dispatch, model, Runtimes, "Runtimes", model.runtimes.length()),
       nav_button(
         dispatch,
@@ -519,6 +520,201 @@ fn keys_view(
             @html.th(style=th_style() + ["text-align: right"], "Priority"),
             @html.th(style=th_style(), "Last used"),
             @html.th(style=th_style(), "Last error"),
+            @html.th(style=th_style(), "Actions"),
+          ]),
+        ]),
+        @html.tbody(body_rows),
+      ]),
+    ),
+  ])
+}
+
+///|
+fn secret_kind_options(selected : String) -> Array[@rabbita.Html] {
+  ["file", "text"].map(fn(kind) {
+    @html.option(value=kind, selected=kind == selected, kind)
+  })
+}
+
+///|
+fn secret_form_row(
+  dispatch : @rabbita.Dispatch[AdminMsg],
+  model : AdminModel,
+) -> @rabbita.Html {
+  @html.tr([
+    @html.td(
+      style=td_style(),
+      @html.input(
+        input_type=Text,
+        value=model.secret_name,
+        placeholder="Secret name",
+        on_input=fn(value) { dispatch(SecretNameChanged(value)) },
+        style=input_style(),
+        "",
+      ),
+    ),
+    @html.td(
+      style=td_style(),
+      @html.select(
+        on_change=fn(value) { dispatch(SecretKindChanged(value)) },
+        style=input_style(),
+        secret_kind_options(model.secret_kind),
+      ),
+    ),
+    @html.td(
+      style=td_style(),
+      @html.textarea(
+        rows=4,
+        value=model.secret_value,
+        placeholder="Paste secret value",
+        on_input=fn(value) { dispatch(SecretValueChanged(value)) },
+        style=input_style() +
+          ["font-family: ui-monospace, SFMono-Regular, Menlo, monospace"],
+        "",
+      ),
+    ),
+    @html.td(style=td_style(), "-"),
+    @html.td(style=td_style(), [
+      @html.button(
+        type_="button",
+        on_click=dispatch(SaveCreateSecret),
+        style=icon_button_style(
+          model.secret_name.trim() != "" && model.secret_value.trim() != "",
+        ),
+        disabled=model.secret_name.trim() == "" ||
+          model.secret_value.trim() == "",
+        "+",
+      ),
+      @html.button(
+        type_="button",
+        on_click=dispatch(CancelCreateSecret),
+        style=icon_button_style(true) + ["margin-left: 4px"],
+        "x",
+      ),
+    ]),
+  ])
+}
+
+///|
+fn secret_row(
+  dispatch : @rabbita.Dispatch[AdminMsg],
+  model : AdminModel,
+  secret : @sdk.AdminSecretSummary,
+) -> @rabbita.Html {
+  if model.editing_secret_id == Some(secret.id) {
+    return @html.tr([
+      @html.td(
+        style=td_style(),
+        @html.input(
+          input_type=Text,
+          value=model.editing_secret_name,
+          on_input=fn(value) { dispatch(EditSecretNameChanged(value)) },
+          style=input_style(),
+          "",
+        ),
+      ),
+      @html.td(
+        style=td_style(),
+        @html.select(
+          on_change=fn(value) { dispatch(EditSecretKindChanged(value)) },
+          style=input_style(),
+          secret_kind_options(model.editing_secret_kind),
+        ),
+      ),
+      @html.td(
+        style=td_style(),
+        @html.textarea(
+          rows=4,
+          value=model.editing_secret_value,
+          placeholder="Leave blank to keep saved value",
+          on_input=fn(value) { dispatch(EditSecretValueChanged(value)) },
+          style=input_style() +
+            ["font-family: ui-monospace, SFMono-Regular, Menlo, monospace"],
+          "",
+        ),
+      ),
+      @html.td(style=td_style(), secret.updated_at),
+      @html.td(style=td_style(), [
+        @html.button(
+          type_="button",
+          on_click=dispatch(SaveEditSecret(secret.id)),
+          style=button_style(true),
+          "Save",
+        ),
+        @html.button(
+          type_="button",
+          on_click=dispatch(CancelEditSecret),
+          style=button_style(true) + ["margin-left: 4px"],
+          "Cancel",
+        ),
+      ]),
+    ])
+  }
+  let confirming = model.confirming_secret_delete_id == Some(secret.id)
+  @html.tr([
+    @html.td(style=td_style(), [
+      @html.div(style=value_style(), secret.name),
+      @html.code(secret.id),
+    ]),
+    @html.td(style=td_style(), @html.span(style=badge_style(""), secret.kind)),
+    @html.td(style=td_style(), @html.code(secret.value_hint)),
+    @html.td(style=td_style(), secret.updated_at),
+    @html.td(style=td_style(), [
+      @html.button(
+        type_="button",
+        on_click=dispatch(StartEditSecret(secret.id)),
+        style=button_style(true),
+        "Edit",
+      ),
+      @html.button(
+        type_="button",
+        on_click=dispatch(RequestDeleteSecret(secret.id)),
+        style=danger_button_style(true) + ["margin-left: 4px"],
+        if confirming {
+          "Confirm"
+        } else {
+          "Delete"
+        },
+      ),
+    ]),
+  ])
+}
+
+///|
+fn secrets_view(
+  dispatch : @rabbita.Dispatch[AdminMsg],
+  model : AdminModel,
+) -> @rabbita.Html {
+  let rows = model.secrets.map(fn(secret) {
+    secret_row(dispatch, model, secret)
+  })
+  let body_rows = if model.creating_secret {
+    [secret_form_row(dispatch, model)] + rows
+  } else if rows.length() == 0 {
+    [empty_row(5, "No secrets.")]
+  } else {
+    rows
+  }
+  @html.section(style=card_style(), [
+    section_head(
+      "Secrets",
+      "\{model.secrets.length()} saved",
+      @html.button(
+        type_="button",
+        title="Add secret",
+        on_click=dispatch(OpenCreateSecret),
+        style=icon_button_style(true),
+        "+",
+      ),
+    ),
+    table_wrap(
+      @html.table(style=table_style(), [
+        @html.thead([
+          @html.tr([
+            @html.th(style=th_style(), "Name"),
+            @html.th(style=th_style(), "Kind"),
+            @html.th(style=th_style(), "Value"),
+            @html.th(style=th_style(), "Updated"),
             @html.th(style=th_style(), "Actions"),
           ]),
         ]),
@@ -1140,6 +1336,7 @@ fn active_view(
   match model.view {
     Users => users_view(dispatch, model)
     Keys => keys_view(dispatch, model)
+    Secrets => secrets_view(dispatch, model)
     Runtimes => runtimes_view(dispatch, model)
     Models => models_view(dispatch, model)
   }

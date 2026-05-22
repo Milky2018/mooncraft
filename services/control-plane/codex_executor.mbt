@@ -209,11 +209,15 @@ fn docker_env_file_content(config : AgentRuntimeConfig) -> String {
     docker_env_value(config.model) +
     "\n"
   for secret in config.secrets {
-    content = content +
-      docker_env_value(secret.env) +
-      "=" +
-      docker_env_value(secret.value) +
-      "\n"
+    match secret.env {
+      Some(env) =>
+        content = content +
+          docker_env_value(env) +
+          "=" +
+          docker_env_value(secret.value) +
+          "\n"
+      None => ()
+    }
   }
   content
 }
@@ -233,6 +237,38 @@ fn remove_docker_env_file(path : String) -> Unit {
   @fs.remove_file(path) catch {
     _ => ()
   }
+}
+
+///|
+fn materialize_runtime_file_secrets(
+  config : AgentRuntimeConfig,
+  agent_home_path : String?,
+) -> Result[Unit, String] {
+  for secret in config.secrets {
+    match secret.file {
+      Some(file) => {
+        let home = match agent_home_path {
+          Some(path) => path
+          None =>
+            return Err(
+              "Runtime file secrets require a mounted agent home directory.",
+            )
+        }
+        let relative_path = match validate_runtime_secret_file_path(file) {
+          Ok(path) => path
+          Err(message) => return Err(message)
+        }
+        let target = home + "/" + relative_path
+        ensure_dir(parent_dir(target))
+        @fs.write_string_to_file(target, secret.value) catch {
+          err => return Err("Runtime secret file could not be written: \{err}")
+        }
+        ignore(shell_status("chmod 600 " + shell_quote(target)))
+      }
+      None => ()
+    }
+  }
+  Ok(())
 }
 
 ///|
@@ -1134,6 +1170,13 @@ async fn collect_docker_output(
 ) -> Result[(Int, String), String] noraise {
   let env_file_path = write_docker_env_file(config, artifacts)
   prepare_agent_mounts(workspace_path, agent_home_path, artifacts)
+  match materialize_runtime_file_secrets(config, agent_home_path) {
+    Ok(_) => ignore(())
+    Err(message) => {
+      remove_docker_env_file(env_file_path)
+      return Err(message)
+    }
+  }
   let docker_args = docker_command_args(
     config, env_file_path, workspace_path, agent_home_path, artifacts, container_command,
   )
@@ -1167,6 +1210,13 @@ async fn stream_docker_output(
 ) -> Result[(Int, String), String] noraise {
   let env_file_path = write_docker_env_file(config, artifacts)
   prepare_agent_mounts(workspace_path, agent_home_path, artifacts)
+  match materialize_runtime_file_secrets(config, agent_home_path) {
+    Ok(_) => ignore(())
+    Err(message) => {
+      remove_docker_env_file(env_file_path)
+      return Err(message)
+    }
+  }
   let docker_args = docker_command_args(
     config, env_file_path, workspace_path, agent_home_path, artifacts, container_command,
   )

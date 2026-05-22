@@ -1469,6 +1469,35 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
   match
     self.exec_or_error(
       (
+        #|CREATE TABLE IF NOT EXISTS admin_secrets (
+        #|  id TEXT PRIMARY KEY,
+        #|  name TEXT NOT NULL UNIQUE,
+        #|  kind TEXT NOT NULL,
+        #|  secret_value TEXT NOT NULL,
+        #|  value_hint TEXT NOT NULL,
+        #|  created_at TEXT NOT NULL,
+        #|  updated_at TEXT NOT NULL
+        #|);
+      ),
+      "create admin_secrets table",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE INDEX IF NOT EXISTS admin_secrets_name_idx
+        #|ON admin_secrets(name);
+      ),
+      "create admin secrets name index",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
         #|CREATE TABLE IF NOT EXISTS ai_key_usages (
         #|  id TEXT PRIMARY KEY,
         #|  key_id TEXT NOT NULL,

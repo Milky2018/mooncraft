@@ -1217,6 +1217,75 @@ fn main {
         api_error_response(UnprocessableEntity, ValidationFailed, message)
     }
   })
+  app.get(@sdk.admin_secrets_path(), event => {
+    match require_admin_token(event) {
+      Ok(_) => {
+        let response : @sdk.AdminListSecretsResponse = {
+          items: ctx.store.list_admin_secrets(),
+        }
+        json_ok(response)
+      }
+      Err(response) => response
+    }
+  })
+  app.post(@sdk.admin_secrets_path(), async fn(event) noraise {
+    match require_admin_token(event) {
+      Ok(_) => ignore(())
+      Err(response) => return response
+    }
+    let request : @sdk.CreateAdminSecretRequest = match
+      decode_json_body(event) {
+      Ok(request) => request
+      Err(response) => return response
+    }
+    match
+      ctx.store.create_admin_secret(request.name, request.kind, request.value) {
+      Ok(secret) => json_created(secret)
+      Err(message) =>
+        api_error_response(UnprocessableEntity, ValidationFailed, message)
+    }
+  })
+  app.patch(@sdk.admin_secret_route().path_pattern, async fn(event) noraise {
+    match require_admin_token(event) {
+      Ok(_) => ignore(())
+      Err(response) => return response
+    }
+    let id = match path_param(event, "id") {
+      Ok(id) => id
+      Err(response) => return response
+    }
+    let request : @sdk.UpdateAdminSecretRequest = match
+      decode_json_body(event) {
+      Ok(request) => request
+      Err(response) => return response
+    }
+    match
+      ctx.store.update_admin_secret(
+        id,
+        request.name,
+        request.kind,
+        request.value,
+      ) {
+      Ok(secret) => json_ok(secret)
+      Err(message) =>
+        api_error_response(UnprocessableEntity, ValidationFailed, message)
+    }
+  })
+  app.delete(@sdk.admin_secret_route().path_pattern, async fn(event) noraise {
+    match require_admin_token(event) {
+      Ok(_) => ignore(())
+      Err(response) => return response
+    }
+    let id = match path_param(event, "id") {
+      Ok(id) => id
+      Err(response) => return response
+    }
+    match ctx.store.delete_admin_secret(id) {
+      Ok(_) => json_no_content()
+      Err(message) =>
+        api_error_response(UnprocessableEntity, ValidationFailed, message)
+    }
+  })
   app.get(@sdk.admin_ai_key_usages_recent_route().path_pattern, event => {
     match require_admin_token(event) {
       Ok(_) => {

@@ -79,6 +79,41 @@ fn remove_key(
 }
 
 ///|
+fn replace_secret(
+  secrets : Array[@sdk.AdminSecretSummary],
+  replacement : @sdk.AdminSecretSummary,
+) -> Array[@sdk.AdminSecretSummary] {
+  let next = []
+  let mut found = false
+  for secret in secrets {
+    if secret.id == replacement.id {
+      next.push(replacement)
+      found = true
+    } else {
+      next.push(secret)
+    }
+  }
+  if !found {
+    next.push(replacement)
+  }
+  next
+}
+
+///|
+fn remove_secret(
+  secrets : Array[@sdk.AdminSecretSummary],
+  id : String,
+) -> Array[@sdk.AdminSecretSummary] {
+  let next = []
+  for secret in secrets {
+    if secret.id != id {
+      next.push(secret)
+    }
+  }
+  next
+}
+
+///|
 fn replace_runtime(
   runtimes : Array[@sdk.RuntimeDetail],
   replacement : @sdk.RuntimeDetail,
@@ -148,6 +183,19 @@ fn key_by_id(
   for key in keys {
     if key.id == id {
       return Some(key)
+    }
+  }
+  None
+}
+
+///|
+fn secret_by_id(
+  secrets : Array[@sdk.AdminSecretSummary],
+  id : String,
+) -> @sdk.AdminSecretSummary? {
+  for secret in secrets {
+    if secret.id == id {
+      return Some(secret)
     }
   }
   None
@@ -237,6 +285,17 @@ fn update(
           notice: Some(api_notice("Failed to load keys.", error)),
         },
       )
+    SecretsLoaded(Ok(response)) =>
+      (@rabbita.none, { ..model, secrets: response.items, loading: false })
+    SecretsLoaded(Err(error)) =>
+      (
+        @rabbita.none,
+        {
+          ..model,
+          loading: false,
+          notice: Some(api_notice("Failed to load secrets.", error)),
+        },
+      )
     RuntimesLoaded(Ok(response)) =>
       (@rabbita.none, { ..model, runtimes: response.items, loading: false })
     RuntimesLoaded(Err(error)) =>
@@ -280,10 +339,13 @@ fn update(
           ..model,
           view,
           creating_key: false,
+          creating_secret: false,
           creating_model: false,
           editing_key_id: None,
+          editing_secret_id: None,
           editing_runtime_id: None,
           confirming_key_delete_id: None,
+          confirming_secret_delete_id: None,
           confirming_model_remove_id: None,
           notice: None,
         },
@@ -423,6 +485,131 @@ fn update(
       (
         @rabbita.none,
         { ..model, notice: Some(api_notice("Failed to delete key.", error)) },
+      )
+    OpenCreateSecret =>
+      (
+        @rabbita.none,
+        {
+          ..model,
+          view: Secrets,
+          creating_secret: true,
+          secret_name: "",
+          secret_kind: "file",
+          secret_value: "",
+          editing_secret_id: None,
+          confirming_secret_delete_id: None,
+          notice: None,
+        },
+      )
+    CancelCreateSecret =>
+      (
+        @rabbita.none,
+        { ..model, creating_secret: false, secret_name: "", secret_value: "" },
+      )
+    SecretNameChanged(value) => (@rabbita.none, { ..model, secret_name: value })
+    SecretKindChanged(value) => (@rabbita.none, { ..model, secret_kind: value })
+    SecretValueChanged(value) =>
+      (@rabbita.none, { ..model, secret_value: value })
+    SaveCreateSecret =>
+      (
+        create_secret_cmd(
+          dispatch,
+          model.secret_name,
+          model.secret_kind,
+          model.secret_value,
+        ),
+        { ..model, notice: None },
+      )
+    SecretCreated(Ok(secret)) =>
+      (
+        @rabbita.none,
+        {
+          ..model,
+          secrets: replace_secret(model.secrets, secret),
+          creating_secret: false,
+          secret_name: "",
+          secret_value: "",
+          notice: Some("Secret added."),
+        },
+      )
+    SecretCreated(Err(error)) =>
+      (
+        @rabbita.none,
+        { ..model, notice: Some(api_notice("Failed to add secret.", error)) },
+      )
+    StartEditSecret(id) =>
+      match secret_by_id(model.secrets, id) {
+        Some(secret) =>
+          (
+            @rabbita.none,
+            {
+              ..model,
+              creating_secret: false,
+              editing_secret_id: Some(id),
+              editing_secret_name: secret.name,
+              editing_secret_kind: secret.kind,
+              editing_secret_value: "",
+              confirming_secret_delete_id: None,
+            },
+          )
+        None => (@rabbita.none, model)
+      }
+    CancelEditSecret => (@rabbita.none, { ..model, editing_secret_id: None })
+    EditSecretNameChanged(value) =>
+      (@rabbita.none, { ..model, editing_secret_name: value })
+    EditSecretKindChanged(value) =>
+      (@rabbita.none, { ..model, editing_secret_kind: value })
+    EditSecretValueChanged(value) =>
+      (@rabbita.none, { ..model, editing_secret_value: value })
+    SaveEditSecret(id) =>
+      (
+        update_secret_cmd(
+          dispatch,
+          id,
+          model.editing_secret_name,
+          model.editing_secret_kind,
+          model.editing_secret_value,
+        ),
+        { ..model, notice: None },
+      )
+    SecretUpdated(Ok(secret)) =>
+      (
+        @rabbita.none,
+        {
+          ..model,
+          secrets: replace_secret(model.secrets, secret),
+          editing_secret_id: None,
+          notice: Some("Secret updated."),
+        },
+      )
+    SecretUpdated(Err(error)) =>
+      (
+        @rabbita.none,
+        { ..model, notice: Some(api_notice("Failed to update secret.", error)) },
+      )
+    RequestDeleteSecret(id) =>
+      if model.confirming_secret_delete_id == Some(id) {
+        (
+          delete_secret_cmd(dispatch, id),
+          { ..model, notice: None, editing_secret_id: None },
+        )
+      } else {
+        (@rabbita.none, { ..model, confirming_secret_delete_id: Some(id) })
+      }
+    SecretDeleted(id, Ok(_)) =>
+      (
+        @rabbita.none,
+        {
+          ..model,
+          secrets: remove_secret(model.secrets, id),
+          confirming_secret_delete_id: None,
+          notice: Some("Secret deleted."),
+        },
+      )
+    SecretDeleted(_, Err(error)) =>
+      (
+        @rabbita.none,
+        { ..model, notice: Some(api_notice("Failed to delete secret.", error)) },
       )
     OpenCreateRuntime =>
       (

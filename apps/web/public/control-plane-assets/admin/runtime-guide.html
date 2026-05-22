@@ -98,15 +98,24 @@
     <main>
       <h1>Runtime Setup Guide</h1>
       <p class="lead">
-        A Runtime tells MoonCraft which app-building environment to use. As an admin, you only need the Runtime name, a container image, a Runtime JSON block, and any required secret source.
+        A Runtime tells MoonCraft which app-building environment to use. As an admin, you need a user-facing Runtime name, a container image tag, a Runtime JSON block, and any secrets referenced by that JSON.
       </p>
 
       <h2>Before You Add a Runtime</h2>
       <ol>
-        <li>Get a container image tag from the Runtime provider, for example <code>registry.example.com/mooncraft/codex-runtime:2026-05</code>.</li>
+        <li>Get a container image tag from the Runtime provider, for example <code>docker.io/moonbitcloud/mooncraft-runtime-codex-mini:latest</code>.</li>
         <li>Confirm that the image is available to the MoonCraft host and supports the CPU architecture used by your deployment.</li>
-        <li>Ask the Runtime provider for the exact Runtime JSON and required secret bindings.</li>
-        <li>Make sure the referenced secret source is configured in MoonCraft before enabling the Runtime for users.</li>
+        <li>Ask the Runtime provider for the exact Runtime JSON and the names of any required secrets.</li>
+        <li>Create the required secrets in Admin before enabling the Runtime for users.</li>
+      </ol>
+
+      <h2>Create Secrets</h2>
+      <ol>
+        <li>Open Admin, then Secrets.</li>
+        <li>Click Add secret.</li>
+        <li>Enter the secret source name that the Runtime JSON will reference.</li>
+        <li>Choose <code>file</code> for account files such as <code>auth.json</code>, or <code>text</code> for plain values.</li>
+        <li>Paste the full secret value and save it.</li>
       </ol>
 
       <h2>Add the Runtime</h2>
@@ -119,7 +128,27 @@
         <li>Click Create.</li>
       </ol>
 
-      <h2>Runtime JSON Example</h2>
+      <h2>Codex Account Example</h2>
+      <p>
+        To add a Runtime named <code>Milky</code> that uses Codex account auth, create a file secret named <code>milky_codex_auth</code> whose value is the full contents of <code>$HOME/.codex/auth.json</code>. Then use this Runtime JSON:
+      </p>
+      <pre>{
+  "protocol_version": 1,
+  "image": "docker.io/moonbitcloud/mooncraft-runtime-codex-mini:latest",
+  "agent": "codex",
+  "model": "codex-account",
+  "provider": "codex",
+  "send": ["mooncraft-runtime-send"],
+  "container_home": "/root",
+  "secrets": [
+    {
+      "source": "milky_codex_auth",
+      "file": ".codex/auth.json"
+    }
+  ]
+}</pre>
+
+      <h2>OpenRouter Key Example</h2>
       <pre>{
   "protocol_version": 1,
   "image": "registry.example.com/mooncraft/codex-runtime:2026-05",
@@ -142,7 +171,8 @@
         <li><code>agent</code>, <code>model</code>, and <code>provider</code>: labels shown to admins and used for Runtime metadata.</li>
         <li><code>send</code>: the command inside the container that receives a MoonCraft task.</li>
         <li><code>container_home</code>: the home directory used inside the container.</li>
-        <li><code>secrets</code>: secret bindings MoonCraft should inject when the Runtime runs.</li>
+        <li><code>secrets[].env</code>: injects a secret as an environment variable.</li>
+        <li><code>secrets[].file</code>: writes a file under <code>container_home</code> before the Runtime starts.</li>
       </ul>
 
       <div class="note">
