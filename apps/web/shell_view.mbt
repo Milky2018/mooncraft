@@ -30,10 +30,10 @@ fn project_action_button_style(
   let cursor = if enabled { "pointer" } else { "not-allowed" }
   let opacity = if enabled { "1" } else { "0.45" }
   [
-    "width: 28px",
-    "height: 28px",
+    "width: 32px",
+    "height: 32px",
     "padding: 0",
-    "border: 0",
+    "border: 1px solid transparent",
     "border-radius: var(--radius-control)",
     "background: " + background,
     "color: " + foreground,
@@ -201,7 +201,8 @@ fn sidebar_project_item(
   project : @sdk.ProjectSummary,
 ) -> @rabbita.Html {
   let selected = model.selected_project_id == Some(project.id)
-  let background = if selected { "var(--foreground-5)" } else { "transparent" }
+  let background = if selected { "var(--surface-2)" } else { "transparent" }
+  let border_color = if selected { "var(--border-soft)" } else { "transparent" }
   let deleting = model.delete_project_pending == Some(project.id)
   let confirming = model.delete_project_confirming == Some(project.id)
   let renaming = selected && model.rename_project_editing
@@ -216,14 +217,14 @@ fn sidebar_project_item(
   }
   @html.div(
     style=[
-      "border: 0",
+      "border: 1px solid " + border_color,
       "border-radius: var(--radius-control)",
       "background: " + background,
       "box-shadow: none",
-      "padding: 5px 8px",
+      "padding: 8px",
       "display: flex",
       "align-items: center",
-      "gap: 6px",
+      "gap: 4px",
       "position: relative",
       "overflow: visible",
     ],
@@ -247,7 +248,7 @@ fn sidebar_project_item(
             on_input=fn(value) { dispatch(RenameProjectNameChanged(value)) },
             style=input_style(model.rename_project_pending) +
               [
-                "height: 28px", "min-width: 0", "padding: 4px 8px", "border-radius: var(--radius-control)",
+                "height: 32px", "min-width: 0", "padding: 4px 8px", "border-radius: var(--radius-control)",
               ],
             "",
           ),
@@ -390,12 +391,12 @@ fn render_account_panel(
       }
       @html.div(
         style=[
-          "position: absolute", "right: 0", "top: calc(100% + 6px)", "width: min(280px, calc(100vw - 24px))",
-          "padding: 6px", "display: flex", "flex-direction: column", "gap: 4px",
+          "position: absolute", "right: 0", "top: calc(100% + 8px)", "width: min(320px, calc(100vw - 32px))",
+          "padding: 8px", "display: flex", "flex-direction: column", "gap: 4px",
           "z-index: 100", "max-height: calc(100vh - 90px)", "overflow-y: auto", "background: var(--surface-raised)",
           "background-color: var(--surface-raised)", "background-image: none", "border: 1px solid var(--border-soft)",
-          "border-radius: var(--radius-panel)", "box-shadow: var(--shadow)", "backdrop-filter: none",
-          "isolation: isolate",
+          "border-radius: var(--radius-control)", "box-shadow: 0 16px 48px rgba(15, 23, 42, 0.14)",
+          "backdrop-filter: none", "isolation: isolate",
         ],
       ) <| [
         @html.div(style=["display: flex", "align-items: center", "gap: 8px"], [

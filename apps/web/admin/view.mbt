@@ -88,7 +88,6 @@ fn section_head(
   @html.div(
     style=[
       "display: flex", "align-items: center", "justify-content: space-between", "gap: 8px",
-      "padding: 12px",
     ],
     [
       @html.div(style=["display: flex", "align-items: center", "gap: 8px"], [
