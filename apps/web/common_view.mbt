@@ -161,8 +161,8 @@ fn tun_poc_link() -> @rabbita.Html {
     rel="noopener noreferrer",
     title="tun-poc",
     style=secondary_button_style(true) +
-      ["text-decoration: none", "width: 28px", "height: 28px", "padding: 0"],
-    [external_link_icon()],
+      ["text-decoration: none", "height: 28px", "padding: 0 8px", "gap: 4px"],
+    [external_link_icon(), @html.span("tun-poc")],
   )
 }
 
