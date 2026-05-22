@@ -1,9 +1,4 @@
 ///|
-fn default_runtime_id() -> String {
-  "agent-runtime-001"
-}
-
-///|
 fn runtime_spec_to_json(spec : @sdk.RuntimeSpec) -> String {
   spec.to_json().stringify()
 }
@@ -39,25 +34,6 @@ fn builtin_runtime_id(index : Int) -> String {
 }
 
 ///|
-fn legacy_builtin_runtime_name(index : Int) -> String {
-  "Agent" + builtin_runtime_suffix(index)
-}
-
-///|
-fn legacy_container_home(agent : String) -> String {
-  if agent == "claude_code" {
-    "/home/mooncraft"
-  } else {
-    "/root"
-  }
-}
-
-///|
-fn config_agent_runtime_image() -> String {
-  safe_read_string_or("config/agent_runtime_image.txt", "").trim().to_owned()
-}
-
-///|
 fn runtime_spec_string_field(
   fields : Map[String, Json],
   name : String,
@@ -65,6 +41,28 @@ fn runtime_spec_string_field(
   match fields.get(name) {
     Some(String(value)) => value.trim().to_owned()
     _ => ""
+  }
+}
+
+///|
+fn runtime_spec_int_field(
+  fields : Map[String, Json],
+  name : String,
+) -> Result[Int, String] {
+  match fields.get(name) {
+    Some(Number(_, ..) as value) =>
+      Ok(
+        @string.parse_int(value.stringify()) catch {
+          _ => return Err("Runtime \{name} must be an integer.")
+        },
+      )
+    Some(String(value)) =>
+      Ok(
+        @string.parse_int(value) catch {
+          _ => return Err("Runtime \{name} must be an integer.")
+        },
+      )
+    _ => Err("Runtime \{name} is required.")
   }
 }
 
@@ -93,20 +91,58 @@ fn runtime_spec_send_field(
 }
 
 ///|
+fn runtime_spec_secret_bindings_field(
+  fields : Map[String, Json],
+) -> Result[Array[@sdk.RuntimeSecretBinding], String] {
+  match fields.get("secrets") {
+    None | Some(Null) => Err("Runtime secrets must be an array.")
+    Some(Array(items)) => {
+      let secrets : Array[@sdk.RuntimeSecretBinding] = []
+      for item in items {
+        match item {
+          Object(fields) => {
+            let source = runtime_spec_string_field(fields, "source")
+            let env = runtime_spec_string_field(fields, "env")
+            if source == "" {
+              return Err("Runtime secret source is required.")
+            }
+            if env == "" {
+              return Err("Runtime secret env is required.")
+            }
+            secrets.push({ source, env })
+          }
+          _ => return Err("Runtime secrets must be JSON objects.")
+        }
+      }
+      Ok(secrets)
+    }
+    _ => Err("Runtime secrets must be an array.")
+  }
+}
+
+///|
 fn normalize_runtime_spec(
   spec : @sdk.RuntimeSpec,
 ) -> Result[@sdk.RuntimeSpec, String] {
+  let protocol_version = spec.protocol_version
+  if protocol_version != 1 {
+    return Err("Runtime protocol_version must be 1.")
+  }
   let image = spec.image.trim().to_owned()
   if image == "" {
     return Err("Runtime image is required.")
   }
-  let agent = match normalize_agent_cli(spec.agent) {
-    Ok(agent) => agent
-    Err(message) => return Err(message)
+  let agent = spec.agent.trim().to_owned()
+  if agent == "" {
+    return Err("Runtime agent is required.")
   }
-  let model = normalize_openrouter_model(spec.model)
+  let model = spec.model.trim().to_owned()
   if model == "" {
     return Err("Runtime model is required.")
+  }
+  let provider = spec.provider.trim().to_owned()
+  if provider == "" {
+    return Err("Runtime provider is required.")
   }
   let send : Array[String] = []
   for part in spec.send {
@@ -118,34 +154,32 @@ fn normalize_runtime_spec(
   if send.length() == 0 {
     return Err("Runtime send command must contain at least one argv item.")
   }
-  let container_home = {
-    let value = spec.container_home.trim().to_owned()
-    if value == "" {
-      legacy_container_home(agent)
-    } else {
-      value
+  let container_home = spec.container_home.trim().to_owned()
+  if container_home == "" {
+    return Err("Runtime container_home is required.")
+  }
+  let secrets : Array[@sdk.RuntimeSecretBinding] = []
+  for secret in spec.secrets {
+    let source = secret.source.trim().to_owned()
+    let env = secret.env.trim().to_owned()
+    if source == "" {
+      return Err("Runtime secret source is required.")
     }
+    if env == "" {
+      return Err("Runtime secret env is required.")
+    }
+    secrets.push({ source, env })
   }
-  Ok({ image, agent, model, send, container_home })
-}
-
-///|
-fn legacy_runtime_spec(
-  agent_input : String,
-  model_input : String,
-) -> @sdk.RuntimeSpec {
-  let agent = match normalize_agent_cli(agent_input) {
-    Ok(agent) => agent
-    Err(_) => default_agent_cli()
-  }
-  let model = normalize_openrouter_model(model_input)
-  {
-    image: config_agent_runtime_image(),
+  Ok({
+    protocol_version,
+    image,
     agent,
     model,
-    send: ["mooncraft-runtime-send"],
-    container_home: legacy_container_home(agent),
-  }
+    provider,
+    send,
+    container_home,
+    secrets,
+  })
 }
 
 ///|
@@ -154,23 +188,27 @@ fn runtime_spec_from_json(text : String) -> Result[@sdk.RuntimeSpec, String] {
     _ => return Err("Runtime spec must be valid JSON.")
   }
   match parsed {
-    Object(fields) => {
-      let agent_input = runtime_spec_string_field(fields, "agent")
-      let agent = match normalize_agent_cli(agent_input) {
-        Ok(agent) => agent
-        Err(message) => return Err(message)
-      }
+    Object(fields) =>
       normalize_runtime_spec({
+        protocol_version: match
+          runtime_spec_int_field(fields, "protocol_version") {
+          Ok(value) => value
+          Err(message) => return Err(message)
+        },
         image: runtime_spec_string_field(fields, "image"),
-        agent,
+        agent: runtime_spec_string_field(fields, "agent"),
         model: runtime_spec_string_field(fields, "model"),
+        provider: runtime_spec_string_field(fields, "provider"),
         send: match runtime_spec_send_field(fields) {
           Ok(send) => send
           Err(message) => return Err(message)
         },
         container_home: runtime_spec_string_field(fields, "container_home"),
+        secrets: match runtime_spec_secret_bindings_field(fields) {
+          Ok(secrets) => secrets
+          Err(message) => return Err(message)
+        },
       })
-    }
     _ => Err("Runtime spec must be a JSON object.")
   }
 }
@@ -239,14 +277,16 @@ fn builtin_runtime_definitions() -> Result[
 }
 
 ///|
-fn runtime_detail_from_row(row : Map[String, @db.Param]) -> @sdk.RuntimeDetail {
+fn runtime_detail_from_row(
+  row : Map[String, @db.Param],
+) -> Result[@sdk.RuntimeDetail, String] {
   let spec_json = row_text(row, "spec_json")
   let spec = match runtime_spec_from_json(spec_json) {
     Ok(spec) => spec
-    Err(_) =>
-      legacy_runtime_spec(row_text(row, "agent"), row_text(row, "model"))
+    Err(message) =>
+      return Err("Stored Runtime \{row_text(row, "id")} is invalid: \{message}")
   }
-  {
+  Ok({
     id: row_text(row, "id"),
     name: row_text(row, "name"),
     spec,
@@ -255,7 +295,7 @@ fn runtime_detail_from_row(row : Map[String, @db.Param]) -> @sdk.RuntimeDetail {
     is_default: row_bool(row, "is_default"),
     created_at: row_text(row, "created_at"),
     updated_at: row_text(row, "updated_at"),
-  }
+  })
 }
 
 ///|
@@ -324,7 +364,12 @@ async fn Store::ensure_agent_runtime_tables(
           #|  created_at,
           #|  updated_at
           #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          #|ON CONFLICT(id) DO NOTHING;
+          #|ON CONFLICT(id) DO UPDATE SET
+          #|  name = excluded.name,
+          #|  spec_json = excluded.spec_json,
+          #|  agent = excluded.agent,
+          #|  model = excluded.model,
+          #|  updated_at = excluded.updated_at;
         ),
         "seed agent runtime",
         params=[
@@ -342,26 +387,6 @@ async fn Store::ensure_agent_runtime_tables(
       Ok(_) => ignore(())
       Err(message) => return Err(message)
     }
-    match
-      self.exec_or_error(
-        (
-          #|UPDATE agent_runtimes
-          #|SET name = ?,
-          #|    updated_at = ?
-          #|WHERE id = ?
-          #|  AND name = ?;
-        ),
-        "rename seeded agent runtime",
-        params=[
-          String(item.name),
-          String(now),
-          String(id),
-          String(legacy_builtin_runtime_name(index)),
-        ],
-      ) {
-      Ok(_) => ignore(())
-      Err(message) => return Err(message)
-    }
   }
   Ok(())
 }
@@ -369,7 +394,7 @@ async fn Store::ensure_agent_runtime_tables(
 ///|
 async fn Store::list_admin_runtimes(
   self : Store,
-) -> Array[@sdk.RuntimeDetail] noraise {
+) -> Result[Array[@sdk.RuntimeDetail], String] noraise {
   let rows = self.query_rows(
     (
       #|SELECT
@@ -388,15 +413,18 @@ async fn Store::list_admin_runtimes(
   )
   let items : Array[@sdk.RuntimeDetail] = []
   for row in rows {
-    items.push(runtime_detail_from_row(row))
+    match runtime_detail_from_row(row) {
+      Ok(runtime) => items.push(runtime)
+      Err(message) => return Err(message)
+    }
   }
-  items
+  Ok(items)
 }
 
 ///|
 async fn Store::list_enabled_runtimes(
   self : Store,
-) -> Array[@sdk.RuntimeSummary] noraise {
+) -> Result[Array[@sdk.RuntimeSummary], String] noraise {
   let rows = self.query_rows(
     (
       #|SELECT
@@ -416,16 +444,20 @@ async fn Store::list_enabled_runtimes(
   )
   let items : Array[@sdk.RuntimeSummary] = []
   for row in rows {
-    items.push(runtime_summary_from_detail(runtime_detail_from_row(row)))
+    let runtime = match runtime_detail_from_row(row) {
+      Ok(runtime) => runtime
+      Err(message) => return Err(message)
+    }
+    items.push(runtime_summary_from_detail(runtime))
   }
-  items
+  Ok(items)
 }
 
 ///|
 async fn Store::get_runtime_detail(
   self : Store,
   runtime_id : String,
-) -> @sdk.RuntimeDetail? noraise {
+) -> Result[@sdk.RuntimeDetail?, String] noraise {
   match
     self.query_one(
       (
@@ -444,13 +476,19 @@ async fn Store::get_runtime_detail(
       ),
       params=[String(runtime_id)],
     ) {
-    Some(row) => Some(runtime_detail_from_row(row))
-    None => None
+    Some(row) =>
+      match runtime_detail_from_row(row) {
+        Ok(runtime) => Ok(Some(runtime))
+        Err(message) => Err(message)
+      }
+    None => Ok(None)
   }
 }
 
 ///|
-async fn Store::get_default_runtime_id(self : Store) -> String noraise {
+async fn Store::get_default_runtime_id(
+  self : Store,
+) -> Result[String, String] noraise {
   match
     self.query_one(
       (
@@ -461,8 +499,8 @@ async fn Store::get_default_runtime_id(self : Store) -> String noraise {
         #|LIMIT 1;
       ),
     ) {
-    Some(row) => row_text(row, "id")
-    None => default_runtime_id()
+    Some(row) => Ok(row_text(row, "id"))
+    None => Err("No enabled Runtime is configured.")
   }
 }
 
@@ -535,7 +573,8 @@ async fn Store::save_admin_runtime(
     Err(message) => return Err(message)
   }
   match self.get_runtime_detail(id) {
-    Some(runtime) => Ok(runtime)
-    None => Err("Runtime could not be loaded after saving.")
+    Ok(Some(runtime)) => Ok(runtime)
+    Ok(None) => Err("Runtime could not be loaded after saving.")
+    Err(message) => Err(message)
   }
 }

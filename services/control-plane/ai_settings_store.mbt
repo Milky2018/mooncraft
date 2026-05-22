@@ -5,33 +5,18 @@ struct AiRuntimeSettings {
   runtime_spec : @sdk.RuntimeSpec
   agent_session_id : String
   runtime_session_id : String?
-  provider : String
-  api_key : String
+  secrets : Array[ResolvedRuntimeSecret]
 }
 
 ///|
-fn default_agent_cli() -> String {
-  "codex"
+struct ResolvedRuntimeSecret {
+  env : String
+  value : String
 }
 
 ///|
 fn default_openrouter_model() -> String {
   "openai/gpt-5.4-mini"
-}
-
-///|
-fn normalize_agent_cli(value : String) -> Result[String, String] {
-  match value.trim().to_owned().to_lower() {
-    "" => Ok(default_agent_cli())
-    "codex" => Ok("codex")
-    "claude_code" => Ok("claude_code")
-    "claude-code" => Ok("claude_code")
-    "claude" => Ok("claude_code")
-    "kimi_code" => Ok("kimi_code")
-    "kimi-code" => Ok("kimi_code")
-    "kimi" => Ok("kimi_code")
-    _ => Err("Agent must be Codex, Claude Code, or Kimi Code.")
-  }
 }
 
 ///|
@@ -546,13 +531,13 @@ async fn Store::lease_ai_runtime_settings_for_project(
       (
         #|SELECT
         #|  owner_user_id,
-        #|  COALESCE(runtime_id, 'agent-runtime-001') AS runtime_id,
-        #|  COALESCE(runtime_name, 'Codex') AS runtime_name,
-        #|  COALESCE(runtime_spec_json, '') AS runtime_spec_json,
-        #|  COALESCE(agent_session_id, '') AS agent_session_id,
+        #|  runtime_id,
+        #|  runtime_name,
+        #|  runtime_spec_json,
+        #|  agent_session_id,
         #|  COALESCE(runtime_session_id, '') AS runtime_session_id,
-        #|  COALESCE(agent_cli, '') AS agent_cli,
-        #|  COALESCE(ai_model, '') AS ai_model
+        #|  agent_cli,
+        #|  ai_model
         #|FROM projects
         #|WHERE id = ?;
       ),
@@ -561,28 +546,70 @@ async fn Store::lease_ai_runtime_settings_for_project(
     Some(row) => row
     None => return Err("The project owner could not be loaded for this run.")
   }
-  let fallback_agent_cli = match
-    normalize_agent_cli(row_text(project, "agent_cli")) {
-    Ok(agent_cli) => agent_cli
-    Err(_) => default_agent_cli()
-  }
-  let fallback_model = {
-    let project_model = row_text(project, "ai_model").trim().to_owned()
-    if project_model == "" {
-      self.get_admin_ai_config().default_model
-    } else {
-      project_model
-    }
-  }
   let runtime_spec = match
     runtime_spec_from_json(row_text(project, "runtime_spec_json")) {
     Ok(spec) => spec
-    Err(_) =>
-      match self.get_runtime_detail(row_text(project, "runtime_id")) {
-        Some(runtime) => runtime.spec
-        None => legacy_runtime_spec(fallback_agent_cli, fallback_model)
-      }
+    Err(message) =>
+      return Err("Project Runtime snapshot is invalid: \{message}")
   }
+  let secrets = match
+    self.resolve_runtime_secrets(
+      runtime_spec,
+      project_id,
+      row_text(project, "owner_user_id"),
+      run_id,
+    ) {
+    Ok(secrets) => secrets
+    Err(message) => return Err(message)
+  }
+  Ok({
+    runtime_id: row_text(project, "runtime_id"),
+    runtime_name: row_text(project, "runtime_name"),
+    runtime_spec,
+    agent_session_id: row_text(project, "agent_session_id"),
+    runtime_session_id: empty_to_none(row_text(project, "runtime_session_id")),
+    secrets,
+  })
+}
+
+///|
+async fn Store::resolve_runtime_secrets(
+  self : Store,
+  runtime_spec : @sdk.RuntimeSpec,
+  project_id : String,
+  owner_user_id : String,
+  run_id : String,
+) -> Result[Array[ResolvedRuntimeSecret], String] noraise {
+  let secrets : Array[ResolvedRuntimeSecret] = []
+  for secret in runtime_spec.secrets {
+    match secret.source {
+      "admin_openrouter_key_pool" => {
+        let value = match
+          self.lease_openrouter_secret(
+            project_id,
+            owner_user_id,
+            run_id,
+            runtime_spec.model,
+          ) {
+          Ok(value) => value
+          Err(message) => return Err(message)
+        }
+        secrets.push({ env: secret.env, value })
+      }
+      source => return Err("Runtime secret source is not supported: \{source}")
+    }
+  }
+  Ok(secrets)
+}
+
+///|
+async fn Store::lease_openrouter_secret(
+  self : Store,
+  project_id : String,
+  owner_user_id : String,
+  run_id : String,
+  model : String,
+) -> Result[String, String] noraise {
   let row = match
     self.query_one(
       (
@@ -600,7 +627,6 @@ async fn Store::lease_ai_runtime_settings_for_project(
     Some(row) => row
     None => return Err("MoonCraft's app builder is temporarily unavailable.")
   }
-  let selected_model = runtime_spec.model
   let key_id = row_text(row, "id")
   let api_key = row_text(row, "key_secret").trim().to_owned()
   if api_key == "" {
@@ -629,8 +655,8 @@ async fn Store::lease_ai_runtime_settings_for_project(
         String(key_id),
         String(run_id),
         String(project_id),
-        String(row_text(project, "owner_user_id")),
-        String(selected_model),
+        String(owner_user_id),
+        String(model),
         String("started"),
         String(now),
       ],
@@ -649,15 +675,7 @@ async fn Store::lease_ai_runtime_settings_for_project(
       params=[String(now), String(now), String(key_id)],
     ),
   )
-  Ok({
-    runtime_id: row_text(project, "runtime_id"),
-    runtime_name: row_text(project, "runtime_name"),
-    runtime_spec,
-    agent_session_id: row_text(project, "agent_session_id"),
-    runtime_session_id: empty_to_none(row_text(project, "runtime_session_id")),
-    provider: "openrouter",
-    api_key,
-  })
+  Ok(api_key)
 }
 
 ///|

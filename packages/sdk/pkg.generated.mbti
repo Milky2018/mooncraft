@@ -505,12 +505,20 @@ pub(all) struct RuntimeDetail {
   updated_at : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
+pub(all) struct RuntimeSecretBinding {
+  source : String
+  env : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
 pub(all) struct RuntimeSpec {
+  protocol_version : Int
   image : String
   agent : String
   model : String
+  provider : String
   send : Array[String]
   container_home : String
+  secrets : Array[RuntimeSecretBinding]
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct RuntimeSummary {

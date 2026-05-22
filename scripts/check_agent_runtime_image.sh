@@ -54,7 +54,8 @@ docker run --rm \
       echo "==> Fetching required module: $module"
       moon fetch --no-update "$module"
     done
-    test -d "${CODEX_HOME:-${HOME:-/root}/.codex}/skills"
+    test -n "${HOME:-}"
+    test -d "$HOME/.codex/skills"
     test -d /opt/mooncraft/templates
     echo "Agent runtime image check completed."
   '

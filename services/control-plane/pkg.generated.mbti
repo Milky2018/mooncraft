@@ -48,6 +48,8 @@ pub(all) struct PreviewRuntime {
   pid : Int
 }
 
+type ResolvedRuntimeSecret
+
 type RunArtifacts
 
 type RunningRun

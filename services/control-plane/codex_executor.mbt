@@ -18,12 +18,13 @@ struct AgentRuntimeConfig {
   runtime_name : String
   agent_session_id : String
   runtime_session_id : String?
+  protocol_version : Int
   image : String
   platform : String
   agent_cli : String
   provider : String
   model : String
-  api_key : String
+  secrets : Array[ResolvedRuntimeSecret]
   container_home : String
   container_data_dir : String
   host_data_dir : String?
@@ -48,6 +49,7 @@ struct RunArtifacts {
 
 ///|
 struct RuntimeContext {
+  protocol_version : Int
   project_id : String
   run_id : String
   agent_session_id : String
@@ -59,6 +61,7 @@ struct RuntimeContext {
   runtime_name : String
   agent : String
   model : String
+  provider : String
 } derive(ToJson)
 
 ///|
@@ -108,13 +111,6 @@ fn RunArtifacts::new(
     agent_log_path: dir + "/agent.log",
     validation_log_path: dir + "/validation.log",
   }
-}
-
-///|
-fn AgentRuntimeConfig::container_agent_home(
-  self : AgentRuntimeConfig,
-) -> String {
-  self.container_home + "/.codex"
 }
 
 ///|
@@ -200,24 +196,26 @@ fn docker_env_file_path(artifacts : RunArtifacts) -> String {
 
 ///|
 fn docker_env_file_content(config : AgentRuntimeConfig) -> String {
-  "HOME=" +
-  docker_env_value(config.container_home) +
-  "\n" +
-  "CODEX_HOME=" +
-  docker_env_value(config.container_agent_home()) +
-  "\n" +
-  "MOONCRAFT_AI_PROVIDER=" +
-  docker_env_value(config.provider) +
-  "\n" +
-  "MOONCRAFT_AGENT_CLI=" +
-  docker_env_value(config.agent_cli) +
-  "\n" +
-  "MOONCRAFT_AI_MODEL=" +
-  docker_env_value(config.model) +
-  "\n" +
-  "MOONCRAFT_AI_API_KEY=" +
-  docker_env_value(config.api_key) +
-  "\n"
+  let mut content = "HOME=" +
+    docker_env_value(config.container_home) +
+    "\n" +
+    "MOONCRAFT_AI_PROVIDER=" +
+    docker_env_value(config.provider) +
+    "\n" +
+    "MOONCRAFT_AGENT_CLI=" +
+    docker_env_value(config.agent_cli) +
+    "\n" +
+    "MOONCRAFT_AI_MODEL=" +
+    docker_env_value(config.model) +
+    "\n"
+  for secret in config.secrets {
+    content = content +
+      docker_env_value(secret.env) +
+      "=" +
+      docker_env_value(secret.value) +
+      "\n"
+  }
+  content
 }
 
 ///|
@@ -246,6 +244,7 @@ fn write_runtime_context(
 ) -> Unit {
   safe_write_string(artifacts.prompt_path, prompt)
   let context : RuntimeContext = {
+    protocol_version: config.protocol_version,
     project_id: project.id,
     run_id: artifacts.run_id,
     agent_session_id: config.agent_session_id,
@@ -257,6 +256,7 @@ fn write_runtime_context(
     runtime_name: config.runtime_name,
     agent: config.agent_cli,
     model: config.model,
+    provider: config.provider,
   }
   safe_write_string(
     artifacts.runtime_context_path,
@@ -363,24 +363,9 @@ async fn AgentRuntimeConfig::load(
   root : String,
   settings : AiRuntimeSettings,
 ) -> Result[AgentRuntimeConfig, String] noraise {
-  let image = match @env.get_env_var("MOONCRAFT_AGENT_RUNTIME_IMAGE") {
-    Some(value) if value.trim() != "" => value.trim().to_owned()
-    _ =>
-      match @env.get_env_var("MOONCRAFT_CODEX_DOCKER_IMAGE") {
-        Some(value) if value.trim() != "" => value.trim().to_owned()
-        _ => settings.runtime_spec.image
-      }
-  }
-  if @env.get_env_var("MOONCRAFT_CODEX_HOME_HOST") is Some(value) &&
-    value.trim() != "" {
-    return Err(
-      "MOONCRAFT_CODEX_HOME_HOST is not supported. Configure AI keys in the MoonCraft admin page instead.",
-    )
-  }
-  let container_home = match
-    @env.get_env_var("MOONCRAFT_CODEX_CONTAINER_HOME") {
-    Some(value) if value.trim() != "" => value
-    _ => settings.runtime_spec.container_home
+  let agent_session_id = settings.agent_session_id.trim().to_owned()
+  if agent_session_id == "" {
+    return Err("Project Runtime agent session id is missing.")
   }
   let platform = match detect_docker_platform(root) {
     Ok(platform) => platform
@@ -393,15 +378,16 @@ async fn AgentRuntimeConfig::load(
   Ok({
     runtime_id: settings.runtime_id,
     runtime_name: settings.runtime_name,
-    agent_session_id: settings.agent_session_id,
+    agent_session_id,
     runtime_session_id: settings.runtime_session_id,
-    image,
+    protocol_version: settings.runtime_spec.protocol_version,
+    image: settings.runtime_spec.image,
     platform,
     agent_cli: settings.runtime_spec.agent,
-    provider: settings.provider,
+    provider: settings.runtime_spec.provider,
     model: settings.runtime_spec.model,
-    api_key: settings.api_key,
-    container_home,
+    secrets: settings.secrets,
+    container_home: settings.runtime_spec.container_home,
     container_data_dir: trim_mount_path(root) + "/data",
     host_data_dir,
     send: settings.runtime_spec.send,
@@ -1272,7 +1258,7 @@ async fn collect_agent_command_output(
     match config {
       Some(config) => {
         let agent_home_path = Some(
-          project_runtime_agent_home(root, project.id, config.agent_cli),
+          project_runtime_agent_home(root, project.id, config.agent_session_id),
         )
         let result = match
           stream_docker_output(
@@ -1329,7 +1315,7 @@ async fn run_agent_runtime_doctor(
   }
   let command = agent_runtime_doctor_command()
   let agent_home_path = Some(
-    project_runtime_agent_home(root, project.id, config.agent_cli),
+    project_runtime_agent_home(root, project.id, config.agent_session_id),
   )
   let result = match
     collect_docker_output(

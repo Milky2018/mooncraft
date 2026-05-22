@@ -77,11 +77,11 @@ build-agent-runtime-images repository=agent_runtime_repository version=agent_run
 docker-agent-runtime-publish repository=agent_runtime_repository version=agent_runtime_version platforms='linux/amd64,linux/arm64':
   ./scripts/publish_agent_runtime_image.sh publish "{{repository}}" "{{version}}" "{{platforms}}"
 
-# Show the effective agent runtime configuration
+# Show where Runtime configuration is defined
 agent-runtime-config:
-  @echo "MOONCRAFT_AGENT_RUNTIME_IMAGE=${MOONCRAFT_AGENT_RUNTIME_IMAGE:-${MOONCRAFT_CODEX_DOCKER_IMAGE:-{{agent_runtime_image}}}}"
-  @echo "MOONCRAFT_CODEX_CONTAINER_HOME=${MOONCRAFT_CODEX_CONTAINER_HOME:-/root}"
-  @echo "OpenRouter keys and model are configured by admins at /admin."
+  @echo "Official Runtime manifests: runtime/builtin/*.json"
+  @echo "Admin-created Runtime manifests: /admin Runtimes"
+  @echo "Runtime images, commands, container homes, provider metadata, and secret bindings are selected from each project Runtime snapshot."
 
 # Check registry modules fetched for generated user projects
 check-user-project-deps:

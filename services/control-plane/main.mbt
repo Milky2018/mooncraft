@@ -121,16 +121,21 @@ async fn selected_project_runtime(
 ) -> Result[@sdk.RuntimeDetail, String] noraise {
   let selected_id = match runtime_id {
     Some(value) if value.trim() != "" => value.trim().to_owned()
-    _ => store.get_default_runtime_id()
+    _ =>
+      match store.get_default_runtime_id() {
+        Ok(id) => id
+        Err(message) => return Err(message)
+      }
   }
   match store.get_runtime_detail(selected_id) {
-    Some(runtime) =>
+    Ok(Some(runtime)) =>
       if runtime.enabled {
         Ok(runtime)
       } else {
         Err("That Runtime is not available in this workspace.")
       }
-    None => Err("That Runtime is not available in this workspace.")
+    Ok(None) => Err("That Runtime is not available in this workspace.")
+    Err(message) => Err(message)
   }
 }
 
@@ -1250,7 +1255,7 @@ fn main {
       Ok(response) => {
         let items = public_ai_model_list(response, config)
         json_ok(@sdk.ListAiModelsResponse::{
-          default_agent_cli: default_agent_cli(),
+          default_agent_cli: "",
           default_model: config.default_model,
           items,
           fetched_at: response.fetched_at,
@@ -1265,20 +1270,50 @@ fn main {
       Ok(_) => ignore(())
       Err(response) => return response
     }
-    json_ok(@sdk.ListRuntimesResponse::{
-      default_runtime_id: ctx.store.get_default_runtime_id(),
-      items: ctx.store.list_enabled_runtimes(),
-    })
+    let default_runtime_id = match ctx.store.get_default_runtime_id() {
+      Ok(id) => id
+      Err(message) =>
+        return api_error_response(
+          UnprocessableEntity,
+          ValidationFailed,
+          message,
+        )
+    }
+    let items = match ctx.store.list_enabled_runtimes() {
+      Ok(items) => items
+      Err(message) =>
+        return api_error_response(
+          UnprocessableEntity,
+          ValidationFailed,
+          message,
+        )
+    }
+    json_ok(@sdk.ListRuntimesResponse::{ default_runtime_id, items })
   })
   app.get(@sdk.admin_runtimes_path(), async fn(event) noraise {
     match require_admin_token(event) {
       Ok(_) => ignore(())
       Err(response) => return response
     }
-    json_ok(@sdk.AdminListRuntimesResponse::{
-      default_runtime_id: ctx.store.get_default_runtime_id(),
-      items: ctx.store.list_admin_runtimes(),
-    })
+    let default_runtime_id = match ctx.store.get_default_runtime_id() {
+      Ok(id) => id
+      Err(message) =>
+        return api_error_response(
+          UnprocessableEntity,
+          ValidationFailed,
+          message,
+        )
+    }
+    let items = match ctx.store.list_admin_runtimes() {
+      Ok(items) => items
+      Err(message) =>
+        return api_error_response(
+          UnprocessableEntity,
+          ValidationFailed,
+          message,
+        )
+    }
+    json_ok(@sdk.AdminListRuntimesResponse::{ default_runtime_id, items })
   })
   app.post(@sdk.admin_runtimes_path(), async fn(event) noraise {
     match require_admin_token(event) {

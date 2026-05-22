@@ -9,24 +9,20 @@ run_stamp="$(date +%Y%m%d-%H%M%S)"
 artifact_dir="${artifact_root}/${run_stamp}"
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 default_agent_runtime_image="$(cat "$repo_root/config/agent_runtime_image.txt")"
-model="${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_MODEL:-${MOONCRAFT_AGENT_SMOKE_MODEL:-${MOONCRAFT_CODEX_SMOKE_MODEL:-openai/gpt-5.4-mini}}}"
+model="${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_MODEL:-${MOONCRAFT_AGENT_SMOKE_MODEL:-openai/gpt-5.4-mini}}"
 if [[ -n "${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_KEY_REF:-}" ]]; then
   key_ref="$MOONCRAFT_PLAYWRIGHT_REAL_AGENT_KEY_REF"
 elif [[ -n "${MOONCRAFT_AGENT_SMOKE_KEY_REF:-}" ]]; then
   key_ref="$MOONCRAFT_AGENT_SMOKE_KEY_REF"
-elif [[ -n "${MOONCRAFT_CODEX_SMOKE_KEY_REF:-}" ]]; then
-  key_ref="$MOONCRAFT_CODEX_SMOKE_KEY_REF"
 elif [[ -n "${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_API_KEY:-}" ]]; then
   key_ref="MOONCRAFT_PLAYWRIGHT_REAL_AGENT_API_KEY"
 elif [[ -n "${MOONCRAFT_AGENT_SMOKE_API_KEY:-}" ]]; then
   key_ref="MOONCRAFT_AGENT_SMOKE_API_KEY"
-elif [[ -n "${MOONCRAFT_CODEX_SMOKE_API_KEY:-}" ]]; then
-  key_ref="MOONCRAFT_CODEX_SMOKE_API_KEY"
 else
   key_ref="OPENROUTER_API_KEY"
 fi
 api_key="${!key_ref:-}"
-agent_runtime_image="${MOONCRAFT_AGENT_RUNTIME_IMAGE:-${MOONCRAFT_CODEX_DOCKER_IMAGE:-$default_agent_runtime_image}}"
+agent_runtime_image="${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_RUNTIME_IMAGE:-$default_agent_runtime_image}"
 admin_token="${MOONCRAFT_PLAYWRIGHT_REAL_AGENT_ADMIN_TOKEN:-playwright-real-agent-admin-token}"
 
 if [[ -z "$api_key" ]]; then
@@ -297,7 +293,6 @@ MOONCRAFT_BUILD_PROFILE=debug \
 MOONCRAFT_CODEX_FAKE_MODE= \
 MOONCRAFT_ENABLE_DEV_AUTH=1 \
 MOONCRAFT_ADMIN_TOKEN="$admin_token" \
-MOONCRAFT_AGENT_RUNTIME_IMAGE="$agent_runtime_image" \
 ./_build/native/debug/build/mooncraft/control-plane/control-plane.exe >"$log_file" 2>&1 &
 server_pid=$!
 
@@ -322,6 +317,36 @@ curl -fsS "${admin_header[@]}" \
 curl -fsS "${admin_header[@]}" \
   -X POST "${base_url}/api/admin/ai/keys" \
   --data-binary "{\"label\":\"Playwright real-agent key\",\"api_key\":\"$api_key\",\"priority\":100}" \
+  >/dev/null
+runtime_spec_json="$(
+  jq -cn \
+    --arg image "$agent_runtime_image" \
+    --arg model "$model" \
+    '{
+      protocol_version: 1,
+      image: $image,
+      agent: "codex",
+      model: $model,
+      provider: "openrouter",
+      send: ["mooncraft-runtime-send"],
+      container_home: "/root",
+      secrets: [
+        {
+          source: "admin_openrouter_key_pool",
+          env: "MOONCRAFT_AI_API_KEY"
+        }
+      ]
+    } | tostring'
+)"
+runtime_request="$(
+  jq -cn \
+    --arg name "Playwright Real Agent Runtime" \
+    --arg spec_json "$runtime_spec_json" \
+    '{name: $name, spec_json: $spec_json, enabled: true, is_default: true}'
+)"
+curl -fsS "${admin_header[@]}" \
+  -X POST "${base_url}/api/admin/runtimes" \
+  --data-binary "$runtime_request" \
   >/dev/null
 
 MOONCRAFT_PLAYWRIGHT_BASE_URL="$base_url" \

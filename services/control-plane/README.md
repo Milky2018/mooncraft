@@ -16,11 +16,11 @@ Responsibilities:
 
 The platform no longer uses official app templates. Project rows do not carry template ids, and there is no template picker. Project creation runs `moon new` deterministically and saves that plain MoonBit module as the first workspace snapshot. The first user prompt decides what the app becomes; the selected agent must create `mooncraft-preview.sh` as part of the requested app rather than preserve any platform-owned starter app.
 
-The current `AgentGateway` uses Docker-backed agent CLI runs. Projects are bound to one Runtime at creation time. Codex projects keep one persistent `codex_thread_id` in the database and one platform-owned Codex home under `data/codex-sessions/<project-id>/.codex`; other runtimes use the persisted workspace snapshot and runtime session id. Each new chat message starts a detached worker process through `moonbitlang/async/process`, runs the selected Runtime in the disposable container, persists the updated workspace, starts `mooncraft-preview.sh`, then runs a browser preview audit when Playwright is available. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
+The current `AgentGateway` uses Docker-backed Runtime runs. Projects are bound to one Runtime snapshot at creation time and keep one platform-owned agent session directory under `data/agent-sessions/<project-id>/<agent-session-id>`. Each new chat message starts a detached worker process through `moonbitlang/async/process`, runs the selected Runtime's `send` command in the disposable container, reads `/artifacts/result.json`, persists the updated workspace, starts `mooncraft-preview.sh`, then runs a browser preview audit when Playwright is available. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
 
 Workspace directories are no longer durable state. The control plane saves the latest source archive in SQLite after initial workspace generation and after agent edits. Each run hydrates that database snapshot into an isolated runtime workspace before starting the selected agent, then restores the local preview cache from the saved snapshot.
 
-Codex session directories are durable app data, not host user state. MoonCraft does not mount a developer's local Codex home, and AI credentials are leased from the admin-managed OpenRouter key pool for one active run at a time. Deleting a project removes its workspace cache, artifacts, database rows, and `data/codex-sessions/<project-id>`.
+Agent session directories are durable app data, not host user state. MoonCraft does not mount a developer's local agent home, and Runtime secrets are resolved only from sources declared in the project Runtime snapshot. Deleting a project removes its workspace cache, artifacts, database rows, legacy session data, and `data/agent-sessions/<project-id>`.
 
 The legacy `data/projects` workspace root is cleaned at startup. It is not used as a restore fallback, because generated files must come from the database snapshot or be treated as unavailable.
 
@@ -74,16 +74,11 @@ Use these repository-level checks:
 
 - `just check-user-project-deps` verifies required registry fetches locally and reports optional unpublished modules.
 - `just check-user-project-deps-agent-runtime` verifies required tools and knowledge assets inside the agent runtime image.
-- `just smoke` covers the default project creation, fake Codex update, preview rebuild, deletion, and persistence flow.
+- `just smoke` covers the default project creation, fake builder update, preview rebuild, deletion, and persistence flow.
 
-Required agent runtime configuration:
+Runtime configuration is stored in Runtime manifests, not process-wide service environment variables. Official built-ins live under `runtime/builtin/`, and admin-created Runtime rows use the same `RuntimeSpec` shape. The selected Runtime snapshot supplies `image`, `send`, `container_home`, provider metadata, and declared secret bindings for each project.
 
-- `MOONCRAFT_AGENT_RUNTIME_IMAGE`
-- optional `MOONCRAFT_CODEX_CONTAINER_HOME` (defaults to `/root`)
-
-The default runtime image is stored in `config/agent_runtime_image.txt` and is currently `docker.io/moonbitcloud/mooncraft-agent-runtime:0.1.0`. Override it through `MOONCRAFT_AGENT_RUNTIME_IMAGE` when testing local images, PR images, rollbacks, or digest-pinned production deployments. `MOONCRAFT_CODEX_DOCKER_IMAGE` remains a temporary compatibility fallback for older deployments.
-
-The runtime intentionally does not mount a host AI tool home and users do not configure provider keys. Admins log in at `/admin/login` with `MOONCRAFT_ADMIN_TOKEN` and use `/admin` to inspect users, manage projects, inspect recent runs, and configure OpenRouter keys. The key API stores the key value, returns only a masked hint, and the worker passes one leased key into the isolated agent runtime container only for the active run. OpenRouter is the only supported AI provider for generated-app runs.
+The runtime intentionally does not mount a host AI tool home and users do not configure provider keys. Admins log in at `/admin/login` with `MOONCRAFT_ADMIN_TOKEN` and use `/admin` to inspect users, manage projects, inspect recent runs, configure OpenRouter keys, and configure Runtime manifests. The key API stores the key value, returns only a masked hint, and the worker passes one leased key into the isolated Runtime container only when the Runtime declares the `admin_openrouter_key_pool` secret source.
 
 Use `just agent-runtime-config` to inspect the effective runtime configuration. Build the runtime image for the Docker host architecture with `just build-agent-runtime-image <repository> <version>`; pass `linux/amd64` or `linux/arm64` only when you intentionally need a specific platform. Use `just build-agent-runtime-images <repository> <version>` to build both local architecture-suffixed tags. Publish the shared multi-architecture runtime image with `just docker-agent-runtime-publish <repository> <version> linux/amd64,linux/arm64` after `docker login`.
 

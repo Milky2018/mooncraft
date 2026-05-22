@@ -69,12 +69,12 @@ Important persisted fields include:
 - current run id
 - preview URL and port
 - last error
-- selected agent CLI
-- Codex thread id, for Codex projects only
+- selected Runtime snapshot
+- Runtime session id
 
 ## Generated Workspace Boundary
 
-The control plane owns only the runtime boundary, not the app's source layout. Each project is bound to one agent CLI at creation time. Codex continuity is split deliberately: the database stores the project's `codex_thread_id`, while the matching Codex CLI state lives in the app data volume under `data/codex-sessions/<project-id>/.codex` and is mounted into the disposable Docker container as `CODEX_HOME`. Claude Code and Kimi Code do not persist CLI session state; each turn receives the hydrated workspace snapshot and the current prompt.
+The control plane owns only the Runtime boundary, not the app's source layout. Each project is bound to one Runtime snapshot at creation time. Runtime continuity is represented by the platform-owned `agent_session_id`, the Runtime-owned `runtime_session_id`, and the mounted agent session directory under `data/agent-sessions/<project-id>/<agent-session-id>`. The control plane does not special-case official Runtime names or infer CLI-specific filesystem layout.
 
 - new projects start from plain `moon new` output, not an official app template
 - normal user prompts are passed as task intent; MoonCraft app contract knowledge lives in the agent runtime system layer

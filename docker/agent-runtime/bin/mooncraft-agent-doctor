@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "mooncraft-agent-doctor: agent=${MOONCRAFT_AGENT_CLI:-unknown}"
+if [[ -z "${HOME:-}" ]]; then
+  echo "HOME is required." >&2
+  exit 64
+fi
+if [[ -z "${MOONCRAFT_AGENT_CLI:-}" ]]; then
+  echo "MOONCRAFT_AGENT_CLI is required." >&2
+  exit 64
+fi
+
+echo "mooncraft-agent-doctor: agent=${MOONCRAFT_AGENT_CLI}"
 
 for tool in moon rg jq codex claude kimi; do
   command -v "$tool" >/dev/null
@@ -14,16 +23,16 @@ codex --version >/dev/null
 claude --version >/dev/null
 kimi --version >/dev/null
 
-for dir in /workspace /artifacts "${HOME:-/root}"; do
+for dir in /workspace /artifacts "$HOME"; do
   mkdir -p "$dir"
   probe="$dir/.mooncraft-doctor-write-test"
   printf ok >"$probe"
   rm -f "$probe"
 done
 
-if [[ "${MOONCRAFT_AGENT_CLI:-}" == "claude_code" ]]; then
-  chmod -R a+rwX /workspace /artifacts "${HOME:-/home/mooncraft}" >/dev/null 2>&1 || true
-  runuser -u mooncraft -- env HOME="${HOME:-/home/mooncraft}" claude --version >/dev/null
+if [[ "${MOONCRAFT_AGENT_CLI}" == "claude_code" ]]; then
+  chmod -R a+rwX /workspace /artifacts "$HOME" >/dev/null 2>&1 || true
+  runuser -u mooncraft -- env HOME="$HOME" claude --version >/dev/null
 fi
 
 echo "mooncraft-agent-doctor: ok"

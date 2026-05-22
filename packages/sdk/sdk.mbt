@@ -47,12 +47,21 @@ pub(all) struct PreviewTarget {
 } derive(Debug, ToJson, FromJson)
 
 ///|
+pub(all) struct RuntimeSecretBinding {
+  source : String
+  env : String
+} derive(Debug, ToJson, FromJson)
+
+///|
 pub(all) struct RuntimeSpec {
+  protocol_version : Int
   image : String
   agent : String
   model : String
+  provider : String
   send : Array[String]
   container_home : String
+  secrets : Array[RuntimeSecretBinding]
 } derive(Debug, ToJson, FromJson)
 
 ///|

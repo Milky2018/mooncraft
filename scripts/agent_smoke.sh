@@ -3,25 +3,20 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 default_agent_runtime_image="${1:-$(cat "$repo_root/config/agent_runtime_image.txt")}"
-agent_runtime_image="${MOONCRAFT_AGENT_RUNTIME_IMAGE:-${MOONCRAFT_CODEX_DOCKER_IMAGE:-$default_agent_runtime_image}}"
-export MOONCRAFT_AGENT_RUNTIME_IMAGE="$agent_runtime_image"
+agent_runtime_image="${MOONCRAFT_AGENT_SMOKE_RUNTIME_IMAGE:-$default_agent_runtime_image}"
 
-model="${MOONCRAFT_AGENT_SMOKE_MODEL:-${MOONCRAFT_CODEX_SMOKE_MODEL:-openai/gpt-5.4-mini}}"
+model="${MOONCRAFT_AGENT_SMOKE_MODEL:-openai/gpt-5.4-mini}"
 if [[ -n "${MOONCRAFT_AGENT_SMOKE_KEY_REF:-}" ]]; then
   key_ref="$MOONCRAFT_AGENT_SMOKE_KEY_REF"
-elif [[ -n "${MOONCRAFT_CODEX_SMOKE_KEY_REF:-}" ]]; then
-  key_ref="$MOONCRAFT_CODEX_SMOKE_KEY_REF"
 elif [[ -n "${MOONCRAFT_AGENT_SMOKE_API_KEY:-}" ]]; then
   key_ref="MOONCRAFT_AGENT_SMOKE_API_KEY"
-elif [[ -n "${MOONCRAFT_CODEX_SMOKE_API_KEY:-}" ]]; then
-  key_ref="MOONCRAFT_CODEX_SMOKE_API_KEY"
 else
   key_ref="OPENROUTER_API_KEY"
 fi
 api_key="${!key_ref:-}"
-admin_token="${MOONCRAFT_AGENT_SMOKE_ADMIN_TOKEN:-${MOONCRAFT_CODEX_SMOKE_ADMIN_TOKEN:-agent-smoke-admin-token}}"
+admin_token="${MOONCRAFT_AGENT_SMOKE_ADMIN_TOKEN:-agent-smoke-admin-token}"
 
-echo "Using agent runtime image: $agent_runtime_image"
+echo "Registering smoke Runtime image: $agent_runtime_image"
 echo "Using OpenRouter model: $model"
 echo "Loading OpenRouter key from local shell variable: $key_ref"
 
@@ -34,8 +29,8 @@ if [[ -z "$api_key" ]]; then
   exit 1
 fi
 
-port="${MOONCRAFT_AGENT_SMOKE_PORT:-${MOONCRAFT_CODEX_SMOKE_PORT:-${MOONCRAFT_SMOKE_PORT:-18081}}}"
-timeout_seconds="${MOONCRAFT_AGENT_SMOKE_TIMEOUT_SECONDS:-${MOONCRAFT_CODEX_SMOKE_TIMEOUT_SECONDS:-1800}}"
+port="${MOONCRAFT_AGENT_SMOKE_PORT:-${MOONCRAFT_SMOKE_PORT:-18081}}"
+timeout_seconds="${MOONCRAFT_AGENT_SMOKE_TIMEOUT_SECONDS:-1800}"
 base_url="http://127.0.0.1:$port"
 
 if curl -fsS "$base_url/api/health" >/dev/null 2>&1; then
@@ -67,7 +62,6 @@ MOONCRAFT_APP_MODE=development \
   MOONCRAFT_ADMIN_TOKEN="$admin_token" \
   MOONCRAFT_PORT="$port" \
   MOONCRAFT_PUBLIC_BASE_URL="$base_url" \
-  MOONCRAFT_AGENT_RUNTIME_IMAGE="$agent_runtime_image" \
   MOONCRAFT_CODEX_FAKE_MODE= \
   ./_build/native/debug/build/mooncraft/control-plane/control-plane.exe \
   >"$server_log" 2>&1 &
@@ -98,6 +92,42 @@ curl -fsS \
   -d "{\"label\":\"agent-smoke\",\"api_key\":\"$api_key\",\"priority\":100}" \
   "$base_url/api/admin/ai/keys" >/dev/null
 
+runtime_spec_json="$(
+  jq -cn \
+    --arg image "$agent_runtime_image" \
+    --arg model "$model" \
+    '{
+      protocol_version: 1,
+      image: $image,
+      agent: "codex",
+      model: $model,
+      provider: "openrouter",
+      send: ["mooncraft-runtime-send"],
+      container_home: "/root",
+      secrets: [
+        {
+          source: "admin_openrouter_key_pool",
+          env: "MOONCRAFT_AI_API_KEY"
+        }
+      ]
+    } | tostring'
+)"
+runtime_request="$(
+  jq -cn \
+    --arg name "Agent Smoke Runtime" \
+    --arg spec_json "$runtime_spec_json" \
+    '{name: $name, spec_json: $spec_json, enabled: true, is_default: true}'
+)"
+runtime_response="$(
+  curl -fsS \
+    -H "Authorization: Bearer $admin_token" \
+    -H "Content-Type: application/json" \
+    -X POST \
+    -d "$runtime_request" \
+    "$base_url/api/admin/runtimes"
+)"
+runtime_id="$(printf '%s' "$runtime_response" | jq -r '.id')"
+
 user_email="agent-smoke-$(date +%s)-$$@example.com"
 curl -fsS \
   -c "$cookie_jar" \
@@ -109,7 +139,7 @@ project_response="$(
   curl -fsS \
     -b "$cookie_jar" \
     -H "Content-Type: application/json" \
-    -d "{\"display_name\":\"Agent Smoke Todo\",\"agent_cli\":\"codex\",\"model\":\"$model\"}" \
+    -d "{\"display_name\":\"Agent Smoke Todo\",\"runtime_id\":\"$runtime_id\"}" \
     "$base_url/api/projects"
 )"
 project_id="$(printf '%s' "$project_response" | jq -r '.project.id')"

@@ -442,44 +442,19 @@ fn project_codex_session_root(root : String, project_id : String) -> String {
 }
 
 ///|
-fn project_codex_home(root : String, project_id : String) -> String {
-  project_codex_session_root(root, project_id) + "/.codex"
-}
-
-///|
 fn project_agent_session_root(root : String, project_id : String) -> String {
   root + "/data/agent-sessions/" + project_id
-}
-
-///|
-fn project_agent_home(
-  root : String,
-  project_id : String,
-  agent_cli : String,
-) -> String {
-  let normalized = match normalize_agent_cli(agent_cli) {
-    Ok(value) => value
-    Err(_) => default_agent_cli()
-  }
-  project_agent_session_root(root, project_id) + "/" + normalized
 }
 
 ///|
 fn project_runtime_agent_home(
   root : String,
   project_id : String,
-  agent_cli : String,
+  agent_session_id : String,
 ) -> String {
-  let normalized = match normalize_agent_cli(agent_cli) {
-    Ok(value) => value
-    Err(_) => default_agent_cli()
-  }
-  if normalized == "codex" &&
-    @fs.path_exists(project_codex_home(root, project_id)) {
-    project_codex_session_root(root, project_id)
-  } else {
-    project_agent_home(root, project_id, normalized)
-  }
+  project_agent_session_root(root, project_id) +
+  "/" +
+  agent_session_id.trim().to_owned()
 }
 
 ///|
@@ -1220,12 +1195,12 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
         #|  owner_user_id TEXT NOT NULL,
         #|  preview_public_id TEXT NOT NULL UNIQUE,
         #|  display_name TEXT NOT NULL,
-        #|  runtime_id TEXT NOT NULL DEFAULT 'agent-runtime-001',
-        #|  runtime_name TEXT NOT NULL DEFAULT 'Codex',
+        #|  runtime_id TEXT NOT NULL DEFAULT '',
+        #|  runtime_name TEXT NOT NULL DEFAULT 'Runtime',
         #|  runtime_spec_json TEXT NOT NULL DEFAULT '',
         #|  agent_session_id TEXT NOT NULL DEFAULT '',
         #|  runtime_session_id TEXT,
-        #|  agent_cli TEXT NOT NULL DEFAULT 'codex',
+        #|  agent_cli TEXT NOT NULL DEFAULT '',
         #|  ai_model TEXT NOT NULL DEFAULT '',
         #|  workspace_path TEXT NOT NULL,
         #|  initial_project_prompt TEXT,
@@ -1292,20 +1267,18 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
     Err(message) => return Err(message)
   }
   match
-    self.ensure_column("projects", "agent_cli", "TEXT NOT NULL DEFAULT 'codex'") {
+    self.ensure_column("projects", "agent_cli", "TEXT NOT NULL DEFAULT ''") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.ensure_column("projects", "runtime_id", "TEXT NOT NULL DEFAULT ''") {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
   match
     self.ensure_column(
-      "projects", "runtime_id", "TEXT NOT NULL DEFAULT 'agent-runtime-001'",
-    ) {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
-  }
-  match
-    self.ensure_column(
-      "projects", "runtime_name", "TEXT NOT NULL DEFAULT 'Codex'",
+      "projects", "runtime_name", "TEXT NOT NULL DEFAULT 'Runtime'",
     ) {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
@@ -1695,13 +1668,13 @@ async fn Store::get_project_detail(
         #|  p.id,
         #|  p.preview_public_id,
         #|  p.display_name,
-        #|  COALESCE(p.runtime_id, 'agent-runtime-001') AS runtime_id,
-        #|  COALESCE(p.runtime_name, 'Codex') AS runtime_name,
-        #|  COALESCE(p.runtime_spec_json, '') AS runtime_spec_json,
-        #|  COALESCE(p.agent_session_id, '') AS agent_session_id,
+        #|  p.runtime_id,
+        #|  p.runtime_name,
+        #|  p.runtime_spec_json,
+        #|  p.agent_session_id,
         #|  COALESCE(p.runtime_session_id, '') AS runtime_session_id,
-        #|  COALESCE(p.agent_cli, 'codex') AS agent_cli,
-        #|  COALESCE(p.ai_model, '') AS ai_model,
+        #|  p.agent_cli,
+        #|  p.ai_model,
         #|  p.workspace_path,
         #|  COALESCE(p.codex_thread_id, '') AS codex_thread_id,
         #|  p.status,

@@ -550,7 +550,7 @@ fn runtime_build_guide() -> @rabbita.Html {
             "2. Publish both platforms", "Local testing may use the host platform. Production tags must cover linux/amd64 and linux/arm64 so MoonCraft can run on either Docker host.",
           ),
           runtime_build_item(
-            "3. Register the Runtime JSON", "Set image, agent, model, and send. Keep secrets out of Runtime JSON; provider keys are supplied by MoonCraft's admin-managed key pool.",
+            "3. Register the Runtime JSON", "Set protocol_version, image, agent, model, provider, send, container_home, and declared secret bindings. MoonCraft only injects secrets requested by this JSON.",
           ),
         ],
       ),
@@ -558,7 +558,7 @@ fn runtime_build_guide() -> @rabbita.Html {
         "just build-agent-runtime-image docker.io/<org>/<image> <version>\n./scripts/check_agent_runtime_image.sh docker.io/<org>/<image>:<version>\njust docker-agent-runtime-publish docker.io/<org>/<image> <version> linux/amd64,linux/arm64",
       ),
       runtime_build_code(
-        "{\n  \"image\": \"docker.io/<org>/<image>:<version>\",\n  \"agent\": \"codex\",\n  \"model\": \"openai/gpt-5.4-mini\",\n  \"send\": [\"mooncraft-runtime-send\"],\n  \"container_home\": \"/root\"\n}",
+        "{\n  \"protocol_version\": 1,\n  \"image\": \"docker.io/<org>/<image>:<version>\",\n  \"agent\": \"codex\",\n  \"model\": \"openai/gpt-5.4-mini\",\n  \"provider\": \"openrouter\",\n  \"send\": [\"mooncraft-runtime-send\"],\n  \"container_home\": \"/root\",\n  \"secrets\": [\n    {\n      \"source\": \"admin_openrouter_key_pool\",\n      \"env\": \"MOONCRAFT_AI_API_KEY\"\n    }\n  ]\n}",
       ),
       @html.div(
         style=normal_style(),
