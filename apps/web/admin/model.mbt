@@ -37,6 +37,7 @@ struct AdminModel {
   editing_key_status : String
   editing_key_priority : String
   confirming_key_delete_id : String?
+  creating_runtime : Bool
   editing_runtime_id : String?
   editing_runtime_name : String
   editing_runtime_spec_json : String
@@ -82,12 +83,14 @@ enum AdminMsg {
   KeyUpdated(Result[@sdk.AdminAiKeySummary, @sdk.ApiError])
   RequestDeleteKey(String)
   KeyDeleted(String, Result[Unit, @sdk.ApiError])
+  OpenCreateRuntime
   StartEditRuntime(String)
   CancelEditRuntime
   RuntimeNameChanged(String)
   RuntimeSpecChanged(String)
   RuntimeEnabledChanged(String)
   RuntimeDefaultChanged(String)
+  SaveCreateRuntime
   SaveRuntime(String)
   RuntimeSaved(Result[@sdk.RuntimeDetail, @sdk.ApiError])
   OpenCreateModel
@@ -131,6 +134,7 @@ fn initial_admin_model() -> AdminModel {
     editing_key_status: "active",
     editing_key_priority: "100",
     confirming_key_delete_id: None,
+    creating_runtime: false,
     editing_runtime_id: None,
     editing_runtime_name: "",
     editing_runtime_spec_json: "",

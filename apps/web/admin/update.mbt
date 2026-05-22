@@ -107,6 +107,27 @@ fn admin_bool_value(value : String) -> Bool {
 }
 
 ///|
+fn default_runtime_spec_json() -> String {
+  (
+    #|{
+    #|  "protocol_version": 1,
+    #|  "image": "docker.io/<org>/<image>:<version>",
+    #|  "agent": "codex",
+    #|  "model": "openai/gpt-5.4-mini",
+    #|  "provider": "openrouter",
+    #|  "send": ["mooncraft-runtime-send"],
+    #|  "container_home": "/root",
+    #|  "secrets": [
+    #|    {
+    #|      "source": "admin_openrouter_key_pool",
+    #|      "env": "MOONCRAFT_AI_API_KEY"
+    #|    }
+    #|  ]
+    #|}
+  )
+}
+
+///|
 fn runtime_by_id(
   runtimes : Array[@sdk.RuntimeDetail],
   id : String,
@@ -403,6 +424,21 @@ fn update(
         @rabbita.none,
         { ..model, notice: Some(api_notice("Failed to delete key.", error)) },
       )
+    OpenCreateRuntime =>
+      (
+        @rabbita.none,
+        {
+          ..model,
+          view: Runtimes,
+          creating_runtime: true,
+          editing_runtime_id: None,
+          editing_runtime_name: "",
+          editing_runtime_spec_json: default_runtime_spec_json(),
+          editing_runtime_enabled: "true",
+          editing_runtime_default: "false",
+          notice: None,
+        },
+      )
     StartEditRuntime(id) => {
       let selected = runtime_by_id(model.runtimes, id)
       match selected {
@@ -412,6 +448,7 @@ fn update(
             {
               ..model,
               view: Runtimes,
+              creating_runtime: false,
               editing_runtime_id: Some(id),
               editing_runtime_name: runtime.name,
               editing_runtime_spec_json: runtime.spec_json,
@@ -436,6 +473,7 @@ fn update(
         @rabbita.none,
         {
           ..model,
+          creating_runtime: false,
           editing_runtime_id: None,
           editing_runtime_name: "",
           editing_runtime_spec_json: "",
@@ -451,6 +489,17 @@ fn update(
       (@rabbita.none, { ..model, editing_runtime_enabled: value })
     RuntimeDefaultChanged(value) =>
       (@rabbita.none, { ..model, editing_runtime_default: value })
+    SaveCreateRuntime =>
+      (
+        create_runtime_cmd(
+          dispatch,
+          model.editing_runtime_name,
+          model.editing_runtime_spec_json,
+          admin_bool_value(model.editing_runtime_enabled),
+          admin_bool_value(model.editing_runtime_default),
+        ),
+        { ..model, notice: None },
+      )
     SaveRuntime(id) =>
       (
         save_runtime_cmd(
@@ -469,6 +518,7 @@ fn update(
         {
           ..model,
           runtimes: replace_runtime(model.runtimes, runtime),
+          creating_runtime: false,
           editing_runtime_id: None,
           editing_runtime_name: "",
           editing_runtime_spec_json: "",

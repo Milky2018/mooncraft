@@ -118,6 +118,25 @@ fn save_runtime_cmd(
 }
 
 ///|
+fn create_runtime_cmd(
+  dispatch : @rabbita.Dispatch[AdminMsg],
+  name : String,
+  spec_json : String,
+  enabled : Bool,
+  is_default : Bool,
+) -> @rabbita.Cmd {
+  let payload : @sdk.CreateAdminRuntimeRequest = {
+    name,
+    spec_json,
+    enabled,
+    is_default,
+  }
+  post_json(@sdk.admin_runtimes_path(), payload, fn(result) {
+    dispatch(RuntimeSaved(result))
+  })
+}
+
+///|
 fn save_models_cmd(
   dispatch : @rabbita.Dispatch[AdminMsg],
   default_model : String,

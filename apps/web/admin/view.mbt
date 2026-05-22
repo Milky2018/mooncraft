@@ -569,6 +569,90 @@ fn runtime_build_guide() -> @rabbita.Html {
 }
 
 ///|
+fn runtime_create_row(
+  dispatch : @rabbita.Dispatch[AdminMsg],
+  model : AdminModel,
+) -> @rabbita.Html {
+  let can_save = model.editing_runtime_name.trim() != "" &&
+    model.editing_runtime_spec_json.trim() != ""
+  @html.tr([
+    @html.td(style=td_style(), [
+      @html.input(
+        input_type=Text,
+        value=model.editing_runtime_name,
+        placeholder="Runtime name",
+        on_input=fn(value) { dispatch(RuntimeNameChanged(value)) },
+        style=input_style(),
+        "",
+      ),
+    ]),
+    @html.td(
+      style=td_style(),
+      @html.span(style=normal_style(), "assigned on save"),
+    ),
+    @html.td(style=td_style(), [
+      @html.select(
+        on_change=fn(value) { dispatch(RuntimeEnabledChanged(value)) },
+        style=input_style(),
+        [
+          @html.option(
+            value="true",
+            selected=model.editing_runtime_enabled == "true",
+            "enabled",
+          ),
+          @html.option(
+            value="false",
+            selected=model.editing_runtime_enabled == "false",
+            "disabled",
+          ),
+        ],
+      ),
+      @html.select(
+        on_change=fn(value) { dispatch(RuntimeDefaultChanged(value)) },
+        style=input_style() + ["margin-top: 6px"],
+        [
+          @html.option(
+            value="false",
+            selected=model.editing_runtime_default == "false",
+            "not default",
+          ),
+          @html.option(
+            value="true",
+            selected=model.editing_runtime_default == "true",
+            "default",
+          ),
+        ],
+      ),
+    ]),
+    @html.td(style=td_style(), [
+      @html.textarea(
+        rows=8,
+        value=model.editing_runtime_spec_json,
+        on_input=fn(value) { dispatch(RuntimeSpecChanged(value)) },
+        style=input_style() +
+          ["font-family: ui-monospace, SFMono-Regular, Menlo, monospace"],
+        "",
+      ),
+    ]),
+    @html.td(style=td_style(), [
+      @html.button(
+        type_="button",
+        on_click=dispatch(SaveCreateRuntime),
+        style=button_style(can_save),
+        disabled=!can_save,
+        "Create",
+      ),
+      @html.button(
+        type_="button",
+        on_click=dispatch(CancelEditRuntime),
+        style=button_style(true) + ["margin-left: 4px"],
+        "Cancel",
+      ),
+    ]),
+  ])
+}
+
+///|
 fn runtime_row(
   dispatch : @rabbita.Dispatch[AdminMsg],
   model : AdminModel,
@@ -671,16 +755,28 @@ fn runtimes_view(
   dispatch : @rabbita.Dispatch[AdminMsg],
   model : AdminModel,
 ) -> @rabbita.Html {
-  let rows = if model.runtimes.length() == 0 {
+  let runtime_rows = model.runtimes.map(fn(runtime) {
+    runtime_row(dispatch, model, runtime)
+  })
+  let rows = if model.creating_runtime {
+    [runtime_create_row(dispatch, model)] + runtime_rows
+  } else if model.runtimes.length() == 0 {
     [empty_row(5, "No Runtimes.")]
   } else {
-    model.runtimes.map(fn(runtime) { runtime_row(dispatch, model, runtime) })
+    runtime_rows
   }
   @html.section(style=card_style(), [
     section_head(
       "Runtimes",
       "\{model.runtimes.length()} configured",
-      @html.nothing,
+      @html.button(
+        type_="button",
+        title="Add Runtime",
+        on_click=dispatch(OpenCreateRuntime),
+        style=icon_button_style(!model.creating_runtime),
+        disabled=model.creating_runtime,
+        "+",
+      ),
     ),
     runtime_build_guide(),
     @html.table(style=table_style(), [
