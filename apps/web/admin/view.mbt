@@ -535,155 +535,164 @@ fn runtime_status_label(runtime : @sdk.RuntimeDetail) -> String {
 }
 
 ///|
-fn runtime_build_code(text : String) -> @rabbita.Html {
-  @html.code(
-    style=normal_style() +
-      [
-        "display: block", "white-space: pre-wrap", "overflow-x: auto", "padding: 8px",
-        "border-radius: var(--radius-control)", "background: var(--foreground-5)",
-        "font-family: ui-monospace, SFMono-Regular, Menlo, monospace", "color: var(--text-1)",
-      ],
-    text,
-  )
-}
-
-///|
-fn runtime_build_item(title : String, body : String) -> @rabbita.Html {
-  @html.div(style=["display: flex", "flex-direction: column", "gap: 4px"], [
-    @html.div(style=value_style(), title),
-    @html.div(style=normal_style(), body),
-  ])
-}
-
-///|
-fn runtime_build_guide() -> @rabbita.Html {
-  @html.div(
-    style=[
-      "display: grid", "grid-template-columns: minmax(0, 1fr)", "gap: 10px", "padding: 0 12px 12px",
-      "border-bottom: 1px solid var(--border)",
-    ],
-    [
-      @html.div(style=["display: flex", "align-items: center", "gap: 8px"], [
-        @html.h3(style=title_style() + ["margin: 0"], "Build guide"),
-        @html.span(style=badge_style(""), "admin workflow"),
-      ]),
-      @html.div(
-        style=normal_style(),
-        "A Runtime is a Docker image plus Runtime JSON. Build the image, publish a multi-arch tag, then point an enabled Runtime at that tag.",
-      ),
-      @html.div(
-        style=[
-          "display: grid", "grid-template-columns: repeat(auto-fit, minmax(260px, 1fr))",
-          "gap: 10px",
-        ],
-        [
-          runtime_build_item(
-            "1. Build and check the image", "Start from docker/agent-runtime/Dockerfile or your own Dockerfile. The built image must contain the command named by the Runtime send array.",
-          ),
-          runtime_build_item(
-            "2. Publish both platforms", "Local testing may use the host platform. Production tags must cover linux/amd64 and linux/arm64 so MoonCraft can run on either Docker host.",
-          ),
-          runtime_build_item(
-            "3. Register the Runtime JSON", "Set protocol_version, image, agent, model, provider, send, container_home, and declared secret bindings. MoonCraft only injects secrets requested by this JSON.",
-          ),
-        ],
-      ),
-      runtime_build_code(
-        "just build-agent-runtime-image docker.io/<org>/<image> <version>\n./scripts/check_agent_runtime_image.sh docker.io/<org>/<image>:<version>\njust docker-agent-runtime-publish docker.io/<org>/<image> <version> linux/amd64,linux/arm64",
-      ),
-      runtime_build_code(
-        "{\n  \"protocol_version\": 1,\n  \"image\": \"docker.io/<org>/<image>:<version>\",\n  \"agent\": \"codex\",\n  \"model\": \"openai/gpt-5.4-mini\",\n  \"provider\": \"openrouter\",\n  \"send\": [\"mooncraft-runtime-send\"],\n  \"container_home\": \"/root\",\n  \"secrets\": [\n    {\n      \"source\": \"admin_openrouter_key_pool\",\n      \"env\": \"MOONCRAFT_AI_API_KEY\"\n    }\n  ]\n}",
-      ),
-      @html.div(
-        style=normal_style(),
-        "Custom send commands must read /artifacts/runtime_context.json, read the prompt from prompt_file, work in /workspace, and write /artifacts/result.json with runtime_session_id.",
-      ),
-    ],
-  )
-}
-
-///|
-fn runtime_create_row(
+fn runtime_create_dialog(
   dispatch : @rabbita.Dispatch[AdminMsg],
   model : AdminModel,
 ) -> @rabbita.Html {
   let can_save = model.editing_runtime_name.trim() != "" &&
     model.editing_runtime_spec_json.trim() != ""
-  @html.tr([
-    @html.td(style=td_style(), [
-      @html.input(
-        input_type=Text,
-        value=model.editing_runtime_name,
-        placeholder="Runtime name",
-        on_input=fn(value) { dispatch(RuntimeNameChanged(value)) },
-        style=input_style(),
-        "",
-      ),
-    ]),
-    @html.td(
-      style=td_style(),
-      @html.span(style=normal_style(), "assigned on save"),
-    ),
-    @html.td(style=td_style(), [
-      @html.select(
-        on_change=fn(value) { dispatch(RuntimeEnabledChanged(value)) },
-        style=input_style(),
+  @html.div(
+    style=[
+      "position: fixed", "inset: 0", "z-index: 100", "display: flex", "align-items: center",
+      "justify-content: center", "padding: 16px", "background: oklch(from var(--foreground) l c h / 0.22)",
+    ],
+    [
+      @html.div(
+        style=card_style() +
+          [
+            "width: min(760px, 100%)", "max-height: calc(100vh - 32px)", "overflow: auto",
+            "gap: 12px",
+          ],
         [
-          @html.option(
-            value="true",
-            selected=model.editing_runtime_enabled == "true",
-            "enabled",
+          @html.div(
+            style=[
+              "display: flex", "align-items: flex-start", "justify-content: space-between",
+              "gap: 12px",
+            ],
+            [
+              @html.div(
+                style=["display: flex", "flex-direction: column", "gap: 4px"],
+                [
+                  @html.h3(style=title_style() + ["margin: 0"], "Add Runtime"),
+                  @html.a(
+                    href="/control-plane-assets/admin/runtime-guide.html",
+                    target=Blank,
+                    rel="noreferrer",
+                    style=normal_style() +
+                      ["color: var(--accent)", "text-decoration: none"],
+                    "Runtime setup guide",
+                  ),
+                ],
+              ),
+              @html.button(
+                type_="button",
+                on_click=dispatch(CancelEditRuntime),
+                style=icon_button_style(true),
+                "x",
+              ),
+            ],
           ),
-          @html.option(
-            value="false",
-            selected=model.editing_runtime_enabled == "false",
-            "disabled",
+          @html.div(
+            style=["display: flex", "flex-direction: column", "gap: 6px"],
+            [
+              @html.div(style=value_style(), "Name"),
+              @html.input(
+                input_type=Text,
+                value=model.editing_runtime_name,
+                placeholder="Runtime name",
+                on_input=fn(value) { dispatch(RuntimeNameChanged(value)) },
+                style=input_style(),
+                "",
+              ),
+            ],
+          ),
+          @html.div(
+            style=[
+              "display: grid", "grid-template-columns: repeat(2, minmax(0, 1fr))",
+              "gap: 8px",
+            ],
+            [
+              @html.div(
+                style=["display: flex", "flex-direction: column", "gap: 6px"],
+                [
+                  @html.div(style=value_style(), "Status"),
+                  @html.select(
+                    on_change=fn(value) {
+                      dispatch(RuntimeEnabledChanged(value))
+                    },
+                    style=input_style(),
+                    [
+                      @html.option(
+                        value="true",
+                        selected=model.editing_runtime_enabled == "true",
+                        "enabled",
+                      ),
+                      @html.option(
+                        value="false",
+                        selected=model.editing_runtime_enabled == "false",
+                        "disabled",
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              @html.div(
+                style=["display: flex", "flex-direction: column", "gap: 6px"],
+                [
+                  @html.div(style=value_style(), "Default"),
+                  @html.select(
+                    on_change=fn(value) {
+                      dispatch(RuntimeDefaultChanged(value))
+                    },
+                    style=input_style(),
+                    [
+                      @html.option(
+                        value="false",
+                        selected=model.editing_runtime_default == "false",
+                        "not default",
+                      ),
+                      @html.option(
+                        value="true",
+                        selected=model.editing_runtime_default == "true",
+                        "default",
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+          @html.div(
+            style=["display: flex", "flex-direction: column", "gap: 6px"],
+            [
+              @html.div(style=value_style(), "Runtime JSON"),
+              @html.textarea(
+                rows=12,
+                value=model.editing_runtime_spec_json,
+                on_input=fn(value) { dispatch(RuntimeSpecChanged(value)) },
+                style=input_style() +
+                  [
+                    "font-family: ui-monospace, SFMono-Regular, Menlo, monospace",
+                  ],
+                "",
+              ),
+            ],
+          ),
+          @html.div(
+            style=[
+              "display: flex", "justify-content: flex-end", "align-items: center",
+              "gap: 6px",
+            ],
+            [
+              @html.button(
+                type_="button",
+                on_click=dispatch(CancelEditRuntime),
+                style=button_style(true),
+                "Cancel",
+              ),
+              @html.button(
+                type_="button",
+                on_click=dispatch(SaveCreateRuntime),
+                style=button_style(can_save),
+                disabled=!can_save,
+                "Create",
+              ),
+            ],
           ),
         ],
       ),
-      @html.select(
-        on_change=fn(value) { dispatch(RuntimeDefaultChanged(value)) },
-        style=input_style() + ["margin-top: 6px"],
-        [
-          @html.option(
-            value="false",
-            selected=model.editing_runtime_default == "false",
-            "not default",
-          ),
-          @html.option(
-            value="true",
-            selected=model.editing_runtime_default == "true",
-            "default",
-          ),
-        ],
-      ),
-    ]),
-    @html.td(style=td_style(), [
-      @html.textarea(
-        rows=8,
-        value=model.editing_runtime_spec_json,
-        on_input=fn(value) { dispatch(RuntimeSpecChanged(value)) },
-        style=input_style() +
-          ["font-family: ui-monospace, SFMono-Regular, Menlo, monospace"],
-        "",
-      ),
-    ]),
-    @html.td(style=td_style(), [
-      @html.button(
-        type_="button",
-        on_click=dispatch(SaveCreateRuntime),
-        style=button_style(can_save),
-        disabled=!can_save,
-        "Create",
-      ),
-      @html.button(
-        type_="button",
-        on_click=dispatch(CancelEditRuntime),
-        style=button_style(true) + ["margin-left: 4px"],
-        "Cancel",
-      ),
-    ]),
-  ])
+    ],
+  )
 }
 
 ///|
@@ -792,9 +801,7 @@ fn runtimes_view(
   let runtime_rows = model.runtimes.map(fn(runtime) {
     runtime_row(dispatch, model, runtime)
   })
-  let rows = if model.creating_runtime {
-    [runtime_create_row(dispatch, model)] + runtime_rows
-  } else if model.runtimes.length() == 0 {
+  let rows = if model.runtimes.length() == 0 {
     [empty_row(5, "No Runtimes.")]
   } else {
     runtime_rows
@@ -812,7 +819,6 @@ fn runtimes_view(
         "+",
       ),
     ),
-    runtime_build_guide(),
     table_wrap(
       @html.table(style=table_style(), [
         @html.thead([
@@ -827,6 +833,11 @@ fn runtimes_view(
         @html.tbody(rows),
       ]),
     ),
+    if model.creating_runtime {
+      runtime_create_dialog(dispatch, model)
+    } else {
+      @html.nothing
+    },
   ])
 }
 
