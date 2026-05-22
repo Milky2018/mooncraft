@@ -1248,6 +1248,7 @@ fn agent_runtime_entry_command(
   wrapped
 }
 
+///|
 async fn stream_docker_output(
   store : Store,
   root : String,

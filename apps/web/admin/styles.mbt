@@ -147,9 +147,14 @@ fn icon_button_style(enabled : Bool) -> Array[String] {
 }
 
 ///|
-fn dots_button_style(enabled : Bool) -> Array[String] {
-  icon_button_style(enabled) +
-  ["background: var(--foreground-5)", "color: var(--text-1)"]
+fn dots_button_style(active : Bool) -> Array[String] {
+  let background = if active {
+    "var(--foreground-10)"
+  } else {
+    "var(--foreground-5)"
+  }
+  icon_button_style(true) +
+  ["background: " + background, "color: var(--text-1)"]
 }
 
 ///|
