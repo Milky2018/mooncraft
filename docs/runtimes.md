@@ -23,7 +23,7 @@ Each file has this shape:
   "is_default": true,
   "spec": {
     "protocol_version": 1,
-    "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.1.0",
+    "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.1.1",
     "agent": "codex",
     "model": "openai/gpt-5.4-mini",
     "provider": "openrouter",

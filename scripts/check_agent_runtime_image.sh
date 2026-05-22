@@ -32,6 +32,9 @@ esac
 
 docker run --rm \
   --platform "$platform" \
+  -e "MOONCRAFT_AI_PROVIDER=openrouter" \
+  -e "MOONCRAFT_AGENT_CLI=codex" \
+  -e "MOONCRAFT_AI_MODEL=openai/gpt-5.4-mini" \
   -e "MOONCRAFT_AI_API_KEY=${MOONCRAFT_AGENT_RUNTIME_DEPS_CHECK_API_KEY:-dummy-runtime-check-key}" \
   -v "$tmp_root:/workspace" \
   -v "$modules_file:/mooncraft-user-project-reference-modules.txt:ro" \
