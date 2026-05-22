@@ -29,6 +29,7 @@ struct AdminModel {
   ai_config : @sdk.AdminAiConfigResponse
   catalog : Array[@sdk.AdminAiModelSummary]
   models_error : String?
+  active_action_menu : String?
   creating_key : Bool
   key_label : String
   key_secret : String
@@ -74,6 +75,7 @@ enum AdminMsg {
   ConfigLoaded(Result[@sdk.AdminAiConfigResponse, @sdk.ApiError])
   CatalogLoaded(Result[@sdk.AdminListAiModelsResponse, @sdk.ApiError])
   ShowView(AdminView)
+  ToggleActionMenu(String)
   Logout
   LoggedOut(Result[Unit, @sdk.ApiError])
   OpenCreateKey
@@ -91,6 +93,7 @@ enum AdminMsg {
   EditKeyPriorityChanged(String)
   SaveEditKey(String)
   KeyUpdated(Result[@sdk.AdminAiKeySummary, @sdk.ApiError])
+  ToggleKeyStatus(String, String)
   RequestDeleteKey(String)
   KeyDeleted(String, Result[Unit, @sdk.ApiError])
   OpenCreateSecret
@@ -149,6 +152,7 @@ fn initial_admin_model() -> AdminModel {
     ai_config: empty_ai_config(),
     catalog: [],
     models_error: None,
+    active_action_menu: None,
     creating_key: false,
     key_label: "",
     key_secret: "",

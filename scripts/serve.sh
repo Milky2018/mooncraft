@@ -4,6 +4,13 @@ set -euo pipefail
 target="${1:-8080}"
 profile="${2:-debug}"
 
+if [[ -f .env ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+fi
+
 if [[ "$target" == "debug" || "$target" == "release" ]]; then
   profile="$target"
   port="${MOONCRAFT_PORT:-8080}"

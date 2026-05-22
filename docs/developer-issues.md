@@ -95,3 +95,4 @@ Agents do not edit this. This file is maintainable by human developers.
 - [ ] `services/control-plane/codex_executor.mbt` naming `agent_executor`
 - [ ] `Result` types to suberror and try-catch
 - [ ] Runtime configured by GUI instead of JSON
+- [ ] dockerfile is not good for layer reuse

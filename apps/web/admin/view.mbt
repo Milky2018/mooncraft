@@ -130,6 +130,57 @@ fn section_head(
 }
 
 ///|
+fn action_menu_key(kind : String, id : String) -> String {
+  kind + ":" + id
+}
+
+///|
+fn action_menu_button(
+  dispatch : @rabbita.Dispatch[AdminMsg],
+  model : AdminModel,
+  key : String,
+  title : String,
+) -> @rabbita.Html {
+  @html.button(
+    type_="button",
+    title~,
+    on_click=dispatch(ToggleActionMenu(key)),
+    style=dots_button_style(model.active_action_menu == Some(key)),
+    [more_icon()],
+  )
+}
+
+///|
+fn action_menu_item(
+  dispatch : @rabbita.Dispatch[AdminMsg],
+  msg : AdminMsg,
+  title : String,
+  label : String,
+  danger : Bool,
+  confirming : Bool,
+) -> @rabbita.Html {
+  @html.button(
+    type_="button",
+    title~,
+    on_click=dispatch(msg),
+    style=menu_item_style(danger, confirming),
+    label,
+  )
+}
+
+///|
+fn action_menu(
+  model : AdminModel,
+  key : String,
+  items : Array[@rabbita.Html],
+) -> @rabbita.Html {
+  @html.div(
+    style=action_menu_style(model.active_action_menu == Some(key)),
+    items,
+  )
+}
+
+///|
 fn notice_view(model : AdminModel) -> @rabbita.Html {
   match model.notice {
     Some(text) =>
@@ -354,7 +405,7 @@ fn key_form_row(
     ),
     @html.td(style=td_style(), "-"),
     @html.td(style=td_style(), "-"),
-    @html.td(style=td_style(), [
+    @html.td(style=actions_td_style(), [
       @html.button(
         type_="button",
         on_click=dispatch(SaveCreateKey),
@@ -362,13 +413,13 @@ fn key_form_row(
           model.key_label.trim() != "" && model.key_secret.trim() != "",
         ),
         disabled=model.key_label.trim() == "" || model.key_secret.trim() == "",
-        "+",
+        [check_icon()],
       ),
       @html.button(
         type_="button",
         on_click=dispatch(CancelCreateKey),
         style=icon_button_style(true) + ["margin-left: 4px"],
-        "x",
+        [x_icon()],
       ),
     ]),
   ])
@@ -376,7 +427,7 @@ fn key_form_row(
 
 ///|
 fn key_status_options(selected : String) -> Array[@rabbita.Html] {
-  ["active", "disabled"].map(fn(status) {
+  ["active", "disabled", "exhausted", "error"].map(fn(status) {
     @html.option(value=status, selected=status == selected, status)
   })
 }
@@ -431,23 +482,26 @@ fn key_row(
       ),
       @html.td(style=td_style(), key.last_used_at.unwrap_or("-")),
       @html.td(style=td_style(), key.last_error.unwrap_or("-")),
-      @html.td(style=td_style(), [
+      @html.td(style=actions_td_style(), [
         @html.button(
           type_="button",
           on_click=dispatch(SaveEditKey(key.id)),
           style=icon_button_style(true),
-          "+",
+          [check_icon()],
         ),
         @html.button(
           type_="button",
           on_click=dispatch(CancelEditKey),
           style=icon_button_style(true) + ["margin-left: 4px"],
-          "x",
+          [x_icon()],
         ),
       ]),
     ])
   }
   let confirming = model.confirming_key_delete_id == Some(key.id)
+  let menu_key = action_menu_key("key", key.id)
+  let next_status = if key.status == "active" { "disabled" } else { "active" }
+  let toggle_label = if key.status == "active" { "Disable" } else { "Enable" }
   @html.tr([
     @html.td(style=td_style(), [
       @html.div(style=value_style(), key.label),
@@ -464,23 +518,42 @@ fn key_row(
     @html.td(style=numeric_td_style(), key.priority.to_string()),
     @html.td(style=td_style(), key.last_used_at.unwrap_or("-")),
     @html.td(style=td_style(), key.last_error.unwrap_or("-")),
-    @html.td(style=td_style(), [
-      @html.button(
-        type_="button",
-        on_click=dispatch(StartEditKey(key.id)),
-        style=button_style(true),
-        "Edit",
-      ),
-      @html.button(
-        type_="button",
-        on_click=dispatch(RequestDeleteKey(key.id)),
-        style=danger_button_style(true) + ["margin-left: 4px"],
-        if confirming {
-          "Confirm"
-        } else {
-          "Delete"
-        },
-      ),
+    @html.td(style=actions_td_style(), [
+      action_menu_button(dispatch, model, menu_key, "Key actions"),
+      action_menu(model, menu_key, [
+        action_menu_item(
+          dispatch,
+          StartEditKey(key.id),
+          "Edit key",
+          "Edit",
+          false,
+          false,
+        ),
+        action_menu_item(
+          dispatch,
+          ToggleKeyStatus(key.id, next_status),
+          toggle_label,
+          toggle_label,
+          false,
+          false,
+        ),
+        action_menu_item(
+          dispatch,
+          RequestDeleteKey(key.id),
+          if confirming {
+            "Confirm delete key"
+          } else {
+            "Delete key"
+          },
+          if confirming {
+            "Confirm delete"
+          } else {
+            "Delete"
+          },
+          true,
+          confirming,
+        ),
+      ]),
     ]),
   ])
 }
@@ -507,7 +580,7 @@ fn keys_view(
         title="Add key",
         on_click=dispatch(OpenCreateKey),
         style=icon_button_style(true),
-        "+",
+        [plus_icon()],
       ),
     ),
     table_wrap(
@@ -559,7 +632,7 @@ fn secret_form_row(
       ),
     ),
     @html.td(style=td_style(), "-"),
-    @html.td(style=td_style(), [
+    @html.td(style=actions_td_style(), [
       @html.button(
         type_="button",
         on_click=dispatch(SaveCreateSecret),
@@ -568,13 +641,13 @@ fn secret_form_row(
         ),
         disabled=model.secret_name.trim() == "" ||
           model.secret_value.trim() == "",
-        "+",
+        [check_icon()],
       ),
       @html.button(
         type_="button",
         on_click=dispatch(CancelCreateSecret),
         style=icon_button_style(true) + ["margin-left: 4px"],
-        "x",
+        [x_icon()],
       ),
     ]),
   ])
@@ -611,23 +684,24 @@ fn secret_row(
         ),
       ),
       @html.td(style=td_style(), secret.updated_at),
-      @html.td(style=td_style(), [
+      @html.td(style=actions_td_style(), [
         @html.button(
           type_="button",
           on_click=dispatch(SaveEditSecret(secret.id)),
-          style=button_style(true),
-          "Save",
+          style=icon_button_style(true),
+          [check_icon()],
         ),
         @html.button(
           type_="button",
           on_click=dispatch(CancelEditSecret),
-          style=button_style(true) + ["margin-left: 4px"],
-          "Cancel",
+          style=icon_button_style(true) + ["margin-left: 4px"],
+          [x_icon()],
         ),
       ]),
     ])
   }
   let confirming = model.confirming_secret_delete_id == Some(secret.id)
+  let menu_key = action_menu_key("secret", secret.id)
   @html.tr([
     @html.td(style=td_style(), [
       @html.div(style=value_style(), secret.name),
@@ -635,23 +709,34 @@ fn secret_row(
     ]),
     @html.td(style=td_style(), @html.code(secret.value_hint)),
     @html.td(style=td_style(), secret.updated_at),
-    @html.td(style=td_style(), [
-      @html.button(
-        type_="button",
-        on_click=dispatch(StartEditSecret(secret.id)),
-        style=button_style(true),
-        "Edit",
-      ),
-      @html.button(
-        type_="button",
-        on_click=dispatch(RequestDeleteSecret(secret.id)),
-        style=danger_button_style(true) + ["margin-left: 4px"],
-        if confirming {
-          "Confirm"
-        } else {
-          "Delete"
-        },
-      ),
+    @html.td(style=actions_td_style(), [
+      action_menu_button(dispatch, model, menu_key, "Secret actions"),
+      action_menu(model, menu_key, [
+        action_menu_item(
+          dispatch,
+          StartEditSecret(secret.id),
+          "Edit secret",
+          "Edit",
+          false,
+          false,
+        ),
+        action_menu_item(
+          dispatch,
+          RequestDeleteSecret(secret.id),
+          if confirming {
+            "Confirm delete secret"
+          } else {
+            "Delete secret"
+          },
+          if confirming {
+            "Confirm delete"
+          } else {
+            "Delete"
+          },
+          true,
+          confirming,
+        ),
+      ]),
     ]),
   ])
 }
@@ -680,7 +765,7 @@ fn secrets_view(
         title="Add secret",
         on_click=dispatch(OpenCreateSecret),
         style=icon_button_style(true),
-        "+",
+        [plus_icon()],
       ),
     ),
     table_wrap(
@@ -749,7 +834,7 @@ fn runtime_create_dialog(
                 type_="button",
                 on_click=dispatch(CancelEditRuntime),
                 style=icon_button_style(true),
-                "x",
+                [x_icon()],
               ),
             ],
           ),
@@ -928,22 +1013,23 @@ fn runtime_row(
           "",
         ),
       ]),
-      @html.td(style=td_style(), [
+      @html.td(style=actions_td_style(), [
         @html.button(
           type_="button",
           on_click=dispatch(SaveRuntime(runtime.id)),
-          style=button_style(true),
-          "Save",
+          style=icon_button_style(true),
+          [check_icon()],
         ),
         @html.button(
           type_="button",
           on_click=dispatch(CancelEditRuntime),
-          style=button_style(true) + ["margin-left: 4px"],
-          "Cancel",
+          style=icon_button_style(true) + ["margin-left: 4px"],
+          [x_icon()],
         ),
       ]),
     ])
   } else {
+    let menu_key = action_menu_key("runtime", runtime.id)
     @html.tr([
       @html.td(style=td_style(), @html.strong(runtime.name)),
       @html.td(style=td_style(), @html.code(runtime.id)),
@@ -952,13 +1038,18 @@ fn runtime_row(
         @html.div(style=normal_style(), runtime.spec.agent),
         @html.code(runtime.spec.model),
       ]),
-      @html.td(style=td_style(), [
-        @html.button(
-          type_="button",
-          on_click=dispatch(StartEditRuntime(runtime.id)),
-          style=button_style(true),
-          "Edit",
-        ),
+      @html.td(style=actions_td_style(), [
+        action_menu_button(dispatch, model, menu_key, "Runtime actions"),
+        action_menu(model, menu_key, [
+          action_menu_item(
+            dispatch,
+            StartEditRuntime(runtime.id),
+            "Edit Runtime",
+            "Edit",
+            false,
+            false,
+          ),
+        ]),
       ]),
     ])
   }
@@ -987,7 +1078,7 @@ fn runtimes_view(
         on_click=dispatch(OpenCreateRuntime),
         style=icon_button_style(!model.creating_runtime),
         disabled=model.creating_runtime,
-        "+",
+        [plus_icon()],
       ),
     ),
     table_wrap(
@@ -1081,27 +1172,43 @@ fn allowed_model_row(
         None => "-"
       },
     ),
-    @html.td(style=td_style(), [
-      if is_default {
-        @html.nothing
-      } else {
-        @html.button(
-          type_="button",
-          on_click=dispatch(SetDefaultModel(id)),
-          style=button_style(true),
-          "Default",
-        )
-      },
-      @html.button(
-        type_="button",
-        on_click=dispatch(RequestRemoveModel(id)),
-        style=danger_button_style(true) + ["margin-left: 4px"],
-        if confirming {
-          "Confirm"
-        } else {
-          "Remove"
-        },
+    @html.td(style=actions_td_style(), [
+      action_menu_button(
+        dispatch,
+        model,
+        action_menu_key("model", id),
+        "Model actions",
       ),
+      action_menu(model, action_menu_key("model", id), [
+        if is_default {
+          @html.nothing
+        } else {
+          action_menu_item(
+            dispatch,
+            SetDefaultModel(id),
+            "Set default model",
+            "Set default",
+            false,
+            false,
+          )
+        },
+        action_menu_item(
+          dispatch,
+          RequestRemoveModel(id),
+          if confirming {
+            "Confirm remove model"
+          } else {
+            "Remove model"
+          },
+          if confirming {
+            "Confirm remove"
+          } else {
+            "Remove"
+          },
+          true,
+          confirming,
+        ),
+      ]),
     ]),
   ])
 }
@@ -1156,7 +1263,7 @@ fn catalog_picker_rows(
             type_="button",
             on_click=dispatch(AddModel(item.id)),
             style=icon_button_style(true),
-            "+",
+            [plus_icon()],
           ),
         ),
       ]),
@@ -1228,7 +1335,7 @@ fn model_create_row(
                   type_="button",
                   on_click=dispatch(CancelCreateModel),
                   style=icon_button_style(true),
-                  "x",
+                  [x_icon()],
                 ),
               ],
             ),
@@ -1269,7 +1376,7 @@ fn models_view(
         title="Add model",
         on_click=dispatch(OpenCreateModel),
         style=icon_button_style(true),
-        "+",
+        [plus_icon()],
       ),
     ),
     match model.models_error {

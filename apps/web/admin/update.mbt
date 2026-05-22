@@ -217,6 +217,7 @@ fn update(
           loading: true,
           notice: None,
           models_error: None,
+          active_action_menu: None,
         },
       )
     UsersLoaded(Ok(response)) =>
@@ -347,7 +348,20 @@ fn update(
           confirming_key_delete_id: None,
           confirming_secret_delete_id: None,
           confirming_model_remove_id: None,
+          active_action_menu: None,
           notice: None,
+        },
+      )
+    ToggleActionMenu(key) =>
+      (
+        @rabbita.none,
+        {
+          ..model,
+          active_action_menu: if model.active_action_menu == Some(key) {
+            None
+          } else {
+            Some(key)
+          },
         },
       )
     Logout => (logout_cmd(dispatch), { ..model, notice: None })
@@ -369,6 +383,7 @@ fn update(
           key_priority: "100",
           editing_key_id: None,
           confirming_key_delete_id: None,
+          active_action_menu: None,
           notice: None,
         },
       )
@@ -400,6 +415,7 @@ fn update(
           creating_key: false,
           key_label: "",
           key_secret: "",
+          active_action_menu: None,
           notice: Some("Key added."),
         },
       )
@@ -422,11 +438,16 @@ fn update(
               editing_key_status: key.status,
               editing_key_priority: key.priority.to_string(),
               confirming_key_delete_id: None,
+              active_action_menu: None,
             },
           )
         None => (@rabbita.none, model)
       }
-    CancelEditKey => (@rabbita.none, { ..model, editing_key_id: None })
+    CancelEditKey =>
+      (
+        @rabbita.none,
+        { ..model, editing_key_id: None, active_action_menu: None },
+      )
     EditKeyLabelChanged(value) =>
       (@rabbita.none, { ..model, editing_key_label: value })
     EditKeySecretChanged(value) =>
@@ -454,6 +475,7 @@ fn update(
           ..model,
           keys: replace_key(model.keys, key),
           editing_key_id: None,
+          active_action_menu: None,
           notice: Some("Key updated."),
         },
       )
@@ -462,14 +484,47 @@ fn update(
         @rabbita.none,
         { ..model, notice: Some(api_notice("Failed to update key.", error)) },
       )
+    ToggleKeyStatus(id, next_status) =>
+      match key_by_id(model.keys, id) {
+        Some(key) =>
+          (
+            update_key_cmd(
+              dispatch,
+              id,
+              key.label,
+              "",
+              next_status,
+              key.priority,
+            ),
+            {
+              ..model,
+              notice: None,
+              editing_key_id: None,
+              active_action_menu: None,
+            },
+          )
+        None => (@rabbita.none, model)
+      }
     RequestDeleteKey(id) =>
       if model.confirming_key_delete_id == Some(id) {
         (
           delete_key_cmd(dispatch, id),
-          { ..model, notice: None, editing_key_id: None },
+          {
+            ..model,
+            notice: None,
+            editing_key_id: None,
+            active_action_menu: None,
+          },
         )
       } else {
-        (@rabbita.none, { ..model, confirming_key_delete_id: Some(id) })
+        (
+          @rabbita.none,
+          {
+            ..model,
+            confirming_key_delete_id: Some(id),
+            active_action_menu: Some(action_menu_key("key", id)),
+          },
+        )
       }
     KeyDeleted(id, Ok(_)) =>
       (
@@ -478,6 +533,7 @@ fn update(
           ..model,
           keys: remove_key(model.keys, id),
           confirming_key_delete_id: None,
+          active_action_menu: None,
           notice: Some("Key deleted."),
         },
       )
@@ -497,6 +553,7 @@ fn update(
           secret_value: "",
           editing_secret_id: None,
           confirming_secret_delete_id: None,
+          active_action_menu: None,
           notice: None,
         },
       )
@@ -522,6 +579,7 @@ fn update(
           creating_secret: false,
           secret_name: "",
           secret_value: "",
+          active_action_menu: None,
           notice: Some("Secret added."),
         },
       )
@@ -542,11 +600,16 @@ fn update(
               editing_secret_name: secret.name,
               editing_secret_value: "",
               confirming_secret_delete_id: None,
+              active_action_menu: None,
             },
           )
         None => (@rabbita.none, model)
       }
-    CancelEditSecret => (@rabbita.none, { ..model, editing_secret_id: None })
+    CancelEditSecret =>
+      (
+        @rabbita.none,
+        { ..model, editing_secret_id: None, active_action_menu: None },
+      )
     EditSecretNameChanged(value) =>
       (@rabbita.none, { ..model, editing_secret_name: value })
     EditSecretValueChanged(value) =>
@@ -568,6 +631,7 @@ fn update(
           ..model,
           secrets: replace_secret(model.secrets, secret),
           editing_secret_id: None,
+          active_action_menu: None,
           notice: Some("Secret updated."),
         },
       )
@@ -580,10 +644,22 @@ fn update(
       if model.confirming_secret_delete_id == Some(id) {
         (
           delete_secret_cmd(dispatch, id),
-          { ..model, notice: None, editing_secret_id: None },
+          {
+            ..model,
+            notice: None,
+            editing_secret_id: None,
+            active_action_menu: None,
+          },
         )
       } else {
-        (@rabbita.none, { ..model, confirming_secret_delete_id: Some(id) })
+        (
+          @rabbita.none,
+          {
+            ..model,
+            confirming_secret_delete_id: Some(id),
+            active_action_menu: Some(action_menu_key("secret", id)),
+          },
+        )
       }
     SecretDeleted(id, Ok(_)) =>
       (
@@ -592,6 +668,7 @@ fn update(
           ..model,
           secrets: remove_secret(model.secrets, id),
           confirming_secret_delete_id: None,
+          active_action_menu: None,
           notice: Some("Secret deleted."),
         },
       )
@@ -612,6 +689,7 @@ fn update(
           editing_runtime_spec_json: default_runtime_spec_json(),
           editing_runtime_enabled: "true",
           editing_runtime_default: "false",
+          active_action_menu: None,
           notice: None,
         },
       )
@@ -638,6 +716,7 @@ fn update(
               } else {
                 "false"
               },
+              active_action_menu: None,
               notice: None,
             },
           )
@@ -655,6 +734,7 @@ fn update(
           editing_runtime_spec_json: "",
           editing_runtime_enabled: "true",
           editing_runtime_default: "false",
+          active_action_menu: None,
         },
       )
     RuntimeNameChanged(value) =>
@@ -700,6 +780,7 @@ fn update(
           editing_runtime_spec_json: "",
           editing_runtime_enabled: "true",
           editing_runtime_default: "false",
+          active_action_menu: None,
           notice: Some("Runtime saved."),
         },
       )
@@ -718,11 +799,20 @@ fn update(
           model_search: "",
           model_catalog_mode: Recommended,
           confirming_model_remove_id: None,
+          active_action_menu: None,
           notice: None,
         },
       )
     CancelCreateModel =>
-      (@rabbita.none, { ..model, creating_model: false, model_search: "" })
+      (
+        @rabbita.none,
+        {
+          ..model,
+          creating_model: false,
+          model_search: "",
+          active_action_menu: None,
+        },
+      )
     ModelSearchChanged(value) =>
       (@rabbita.none, { ..model, model_search: value })
     SetModelCatalogMode(mode) =>
@@ -736,13 +826,13 @@ fn update(
       }
       (
         save_models_cmd(dispatch, default_model, allowed),
-        { ..model, notice: None },
+        { ..model, notice: None, active_action_menu: None },
       )
     }
     SetDefaultModel(id) =>
       (
         save_models_cmd(dispatch, id, model.ai_config.allowed_models),
-        { ..model, notice: None },
+        { ..model, notice: None, active_action_menu: None },
       )
     RequestRemoveModel(id) =>
       if model.confirming_model_remove_id == Some(id) {
@@ -757,10 +847,17 @@ fn update(
         }
         (
           save_models_cmd(dispatch, default_model, allowed),
-          { ..model, notice: None },
+          { ..model, notice: None, active_action_menu: None },
         )
       } else {
-        (@rabbita.none, { ..model, confirming_model_remove_id: Some(id) })
+        (
+          @rabbita.none,
+          {
+            ..model,
+            confirming_model_remove_id: Some(id),
+            active_action_menu: Some(action_menu_key("model", id)),
+          },
+        )
       }
     ModelsUpdated(Ok(config)) =>
       (
@@ -770,6 +867,7 @@ fn update(
           ai_config: config,
           creating_model: false,
           confirming_model_remove_id: None,
+          active_action_menu: None,
           notice: Some("Models updated."),
         },
       )

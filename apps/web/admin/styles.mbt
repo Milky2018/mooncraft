@@ -117,6 +117,11 @@ fn numeric_td_style() -> Array[String] {
 }
 
 ///|
+fn actions_td_style() -> Array[String] {
+  td_style() + ["position: relative", "width: 44px", "text-align: right"]
+}
+
+///|
 fn button_style(enabled : Bool) -> Array[String] {
   let cursor = if enabled { "pointer" } else { "not-allowed" }
   let opacity = if enabled { "1" } else { "0.45" }
@@ -139,6 +144,57 @@ fn button_style(enabled : Bool) -> Array[String] {
 ///|
 fn icon_button_style(enabled : Bool) -> Array[String] {
   button_style(enabled) + ["width: 28px", "height: 28px", "padding: 0"]
+}
+
+///|
+fn dots_button_style(enabled : Bool) -> Array[String] {
+  icon_button_style(enabled) +
+  ["background: var(--foreground-5)", "color: var(--text-1)"]
+}
+
+///|
+fn action_menu_style(open : Bool) -> Array[String] {
+  let display = if open { "flex" } else { "none" }
+  [
+    "position: absolute",
+    "top: 32px",
+    "right: 0",
+    "z-index: 10",
+    "min-width: 132px",
+    "padding: 4px",
+    "border-radius: 8px",
+    "border: 1px solid var(--border)",
+    "background: var(--background)",
+    "box-shadow: var(--shadow)",
+    "display: " + display,
+    "flex-direction: column",
+    "gap: 4px",
+  ]
+}
+
+///|
+fn menu_item_style(danger : Bool, confirming : Bool) -> Array[String] {
+  let color = if danger { "var(--destructive)" } else { "var(--text-1)" }
+  let background = if confirming {
+    "oklch(from var(--destructive) l c h / 0.10)"
+  } else {
+    "transparent"
+  }
+  value_style() +
+  [
+    "width: 100%",
+    "height: 30px",
+    "padding: 0 8px",
+    "border-radius: 6px",
+    "border: 0",
+    "background: " + background,
+    "color: " + color,
+    "display: inline-flex",
+    "align-items: center",
+    "justify-content: flex-start",
+    "text-align: left",
+    "cursor: pointer",
+  ]
 }
 
 ///|
