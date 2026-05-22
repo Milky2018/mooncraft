@@ -4,13 +4,6 @@ fn api_notice(prefix : String, error : @sdk.ApiError) -> String {
 }
 
 ///|
-fn parse_priority(value : String) -> Int {
-  @string.parse_int(value.trim().to_owned()) catch {
-    _ => 100
-  }
-}
-
-///|
 fn model_contains(items : Array[String], id : String) -> Bool {
   for item in items {
     if item == id {
@@ -38,41 +31,6 @@ fn remove_model(items : Array[String], id : String) -> Array[String] {
   for item in items {
     if item != id {
       next.push(item)
-    }
-  }
-  next
-}
-
-///|
-fn replace_key(
-  keys : Array[@sdk.AdminAiKeySummary],
-  replacement : @sdk.AdminAiKeySummary,
-) -> Array[@sdk.AdminAiKeySummary] {
-  let next = []
-  let mut found = false
-  for key in keys {
-    if key.id == replacement.id {
-      next.push(replacement)
-      found = true
-    } else {
-      next.push(key)
-    }
-  }
-  if !found {
-    next.push(replacement)
-  }
-  next
-}
-
-///|
-fn remove_key(
-  keys : Array[@sdk.AdminAiKeySummary],
-  id : String,
-) -> Array[@sdk.AdminAiKeySummary] {
-  let next = []
-  for key in keys {
-    if key.id != id {
-      next.push(key)
     }
   }
   next
@@ -154,7 +112,7 @@ fn default_runtime_spec_json() -> String {
     #|  "container_home": "/root",
     #|  "secrets": [
     #|    {
-    #|      "source": "admin_openrouter_key_pool",
+    #|      "source": "mooncraft_ai_api_key",
     #|      "env": "MOONCRAFT_AI_API_KEY"
     #|    }
     #|  ]
@@ -170,19 +128,6 @@ fn runtime_by_id(
   for runtime in runtimes {
     if runtime.id == id {
       return Some(runtime)
-    }
-  }
-  None
-}
-
-///|
-fn key_by_id(
-  keys : Array[@sdk.AdminAiKeySummary],
-  id : String,
-) -> @sdk.AdminAiKeySummary? {
-  for key in keys {
-    if key.id == id {
-      return Some(key)
     }
   }
   None
@@ -275,17 +220,6 @@ fn update(
       } else {
         (@rabbita.none, model)
       }
-    KeysLoaded(Ok(response)) =>
-      (@rabbita.none, { ..model, keys: response.items, loading: false })
-    KeysLoaded(Err(error)) =>
-      (
-        @rabbita.none,
-        {
-          ..model,
-          loading: false,
-          notice: Some(api_notice("Failed to load keys.", error)),
-        },
-      )
     SecretsLoaded(Ok(response)) =>
       (@rabbita.none, { ..model, secrets: response.items, loading: false })
     SecretsLoaded(Err(error)) =>
@@ -339,13 +273,10 @@ fn update(
         {
           ..model,
           view,
-          creating_key: false,
           creating_secret: false,
           creating_model: false,
-          editing_key_id: None,
           editing_secret_id: None,
           editing_runtime_id: None,
-          confirming_key_delete_id: None,
           confirming_secret_delete_id: None,
           confirming_model_remove_id: None,
           active_action_menu: None,
@@ -370,177 +301,6 @@ fn update(
       (
         @rabbita.none,
         { ..model, notice: Some(api_notice("Failed to log out.", error)) },
-      )
-    OpenCreateKey =>
-      (
-        @rabbita.none,
-        {
-          ..model,
-          view: Keys,
-          creating_key: true,
-          key_label: "",
-          key_secret: "",
-          key_priority: "100",
-          editing_key_id: None,
-          confirming_key_delete_id: None,
-          active_action_menu: None,
-          notice: None,
-        },
-      )
-    CancelCreateKey =>
-      (
-        @rabbita.none,
-        { ..model, creating_key: false, key_label: "", key_secret: "" },
-      )
-    KeyLabelChanged(value) => (@rabbita.none, { ..model, key_label: value })
-    KeySecretChanged(value) => (@rabbita.none, { ..model, key_secret: value })
-    KeyPriorityChanged(value) =>
-      (@rabbita.none, { ..model, key_priority: value })
-    SaveCreateKey =>
-      (
-        create_key_cmd(
-          dispatch,
-          model.key_label,
-          model.key_secret,
-          parse_priority(model.key_priority),
-        ),
-        { ..model, notice: None },
-      )
-    KeyCreated(Ok(key)) =>
-      (
-        @rabbita.none,
-        {
-          ..model,
-          keys: replace_key(model.keys, key),
-          creating_key: false,
-          key_label: "",
-          key_secret: "",
-          active_action_menu: None,
-          notice: Some("Key added."),
-        },
-      )
-    KeyCreated(Err(error)) =>
-      (
-        @rabbita.none,
-        { ..model, notice: Some(api_notice("Failed to add key.", error)) },
-      )
-    StartEditKey(id) =>
-      match key_by_id(model.keys, id) {
-        Some(key) =>
-          (
-            @rabbita.none,
-            {
-              ..model,
-              creating_key: false,
-              editing_key_id: Some(id),
-              editing_key_label: key.label,
-              editing_key_secret: "",
-              editing_key_status: key.status,
-              editing_key_priority: key.priority.to_string(),
-              confirming_key_delete_id: None,
-              active_action_menu: None,
-            },
-          )
-        None => (@rabbita.none, model)
-      }
-    CancelEditKey =>
-      (
-        @rabbita.none,
-        { ..model, editing_key_id: None, active_action_menu: None },
-      )
-    EditKeyLabelChanged(value) =>
-      (@rabbita.none, { ..model, editing_key_label: value })
-    EditKeySecretChanged(value) =>
-      (@rabbita.none, { ..model, editing_key_secret: value })
-    EditKeyStatusChanged(value) =>
-      (@rabbita.none, { ..model, editing_key_status: value })
-    EditKeyPriorityChanged(value) =>
-      (@rabbita.none, { ..model, editing_key_priority: value })
-    SaveEditKey(id) =>
-      (
-        update_key_cmd(
-          dispatch,
-          id,
-          model.editing_key_label,
-          model.editing_key_secret,
-          model.editing_key_status,
-          parse_priority(model.editing_key_priority),
-        ),
-        { ..model, notice: None },
-      )
-    KeyUpdated(Ok(key)) =>
-      (
-        @rabbita.none,
-        {
-          ..model,
-          keys: replace_key(model.keys, key),
-          editing_key_id: None,
-          active_action_menu: None,
-          notice: Some("Key updated."),
-        },
-      )
-    KeyUpdated(Err(error)) =>
-      (
-        @rabbita.none,
-        { ..model, notice: Some(api_notice("Failed to update key.", error)) },
-      )
-    ToggleKeyStatus(id, next_status) =>
-      match key_by_id(model.keys, id) {
-        Some(key) =>
-          (
-            update_key_cmd(
-              dispatch,
-              id,
-              key.label,
-              "",
-              next_status,
-              key.priority,
-            ),
-            {
-              ..model,
-              notice: None,
-              editing_key_id: None,
-              active_action_menu: None,
-            },
-          )
-        None => (@rabbita.none, model)
-      }
-    RequestDeleteKey(id) =>
-      if model.confirming_key_delete_id == Some(id) {
-        (
-          delete_key_cmd(dispatch, id),
-          {
-            ..model,
-            notice: None,
-            editing_key_id: None,
-            active_action_menu: None,
-          },
-        )
-      } else {
-        (
-          @rabbita.none,
-          {
-            ..model,
-            confirming_key_delete_id: Some(id),
-            active_action_menu: Some(action_menu_key("key", id)),
-          },
-        )
-      }
-    KeyDeleted(id, Ok(_)) =>
-      (
-        @rabbita.none,
-        {
-          ..model,
-          keys: remove_key(model.keys, id),
-          confirming_key_delete_id: None,
-          active_action_menu: None,
-          notice: Some("Key deleted."),
-        },
-      )
-    KeyDeleted(_, Err(error)) =>
-      (
-        @rabbita.none,
-        { ..model, notice: Some(api_notice("Failed to delete key.", error)) },
       )
     OpenCreateSecret =>
       (

@@ -31,7 +31,7 @@ Each file has this shape:
     "container_home": "/root",
     "secrets": [
       {
-        "source": "admin_openrouter_key_pool",
+        "source": "mooncraft_ai_api_key",
         "env": "MOONCRAFT_AI_API_KEY"
       }
     ]
@@ -59,16 +59,16 @@ Runtime manifests are strict. MoonCraft does not infer missing fields from the R
 
 `container_home` is the home directory mounted for this Runtime. Runtime-specific filesystem policy belongs here, not in control-plane agent-type branches.
 
-`secrets` declares environment variables that must be resolved before the Runtime command starts. Supported sources:
+`secrets` declares environment variables or files that must be resolved before the Runtime command starts. The `source` value is the name of an admin-managed Secret:
 
 ```json
 {
-  "source": "admin_openrouter_key_pool",
+  "source": "mooncraft_ai_api_key",
   "env": "MOONCRAFT_AI_API_KEY"
 }
 ```
 
-The control plane only knows how to resolve declared secret sources. If a Runtime does not declare a secret, no provider key is injected.
+The control plane only resolves declared secret sources. If a Runtime does not declare a secret, no provider key or account file is injected.
 
 ## Execution Protocol
 

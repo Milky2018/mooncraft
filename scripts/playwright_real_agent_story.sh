@@ -315,13 +315,14 @@ curl -fsS "${admin_header[@]}" \
   --data-binary "{\"default_model\":\"$model\",\"allowed_models\":[\"$model\"]}" \
   >/dev/null
 curl -fsS "${admin_header[@]}" \
-  -X POST "${base_url}/api/admin/ai/keys" \
-  --data-binary "{\"label\":\"Playwright real-agent key\",\"api_key\":\"$api_key\",\"priority\":100}" \
+  -X POST "${base_url}/api/admin/secrets" \
+  --data-binary "{\"name\":\"playwright_real_agent_ai_api_key_$$\",\"value\":\"$api_key\"}" \
   >/dev/null
 runtime_spec_json="$(
   jq -cn \
     --arg image "$agent_runtime_image" \
     --arg model "$model" \
+    --arg secret_source "playwright_real_agent_ai_api_key_$$" \
     '{
       protocol_version: 1,
       image: $image,
@@ -332,7 +333,7 @@ runtime_spec_json="$(
       container_home: "/root",
       secrets: [
         {
-          source: "admin_openrouter_key_pool",
+          source: $secret_source,
           env: "MOONCRAFT_AI_API_KEY"
         }
       ]

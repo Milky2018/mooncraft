@@ -1,7 +1,6 @@
 ///|
 enum AdminView {
   Users
-  Keys
   Secrets
   Runtimes
   Models
@@ -23,23 +22,12 @@ struct AdminModel {
   expanded_user_id : String?
   expanded_user_projects : Array[@sdk.AdminProjectSummary]
   user_projects_loading : Bool
-  keys : Array[@sdk.AdminAiKeySummary]
   secrets : Array[@sdk.AdminSecretSummary]
   runtimes : Array[@sdk.RuntimeDetail]
   ai_config : @sdk.AdminAiConfigResponse
   catalog : Array[@sdk.AdminAiModelSummary]
   models_error : String?
   active_action_menu : String?
-  creating_key : Bool
-  key_label : String
-  key_secret : String
-  key_priority : String
-  editing_key_id : String?
-  editing_key_label : String
-  editing_key_secret : String
-  editing_key_status : String
-  editing_key_priority : String
-  confirming_key_delete_id : String?
   creating_secret : Bool
   secret_name : String
   secret_value : String
@@ -69,7 +57,6 @@ enum AdminMsg {
     String,
     Result[@sdk.AdminUserProjectsResponse, @sdk.ApiError]
   )
-  KeysLoaded(Result[@sdk.AdminListAiKeysResponse, @sdk.ApiError])
   SecretsLoaded(Result[@sdk.AdminListSecretsResponse, @sdk.ApiError])
   RuntimesLoaded(Result[@sdk.AdminListRuntimesResponse, @sdk.ApiError])
   ConfigLoaded(Result[@sdk.AdminAiConfigResponse, @sdk.ApiError])
@@ -78,24 +65,6 @@ enum AdminMsg {
   ToggleActionMenu(String)
   Logout
   LoggedOut(Result[Unit, @sdk.ApiError])
-  OpenCreateKey
-  CancelCreateKey
-  KeyLabelChanged(String)
-  KeySecretChanged(String)
-  KeyPriorityChanged(String)
-  SaveCreateKey
-  KeyCreated(Result[@sdk.AdminAiKeySummary, @sdk.ApiError])
-  StartEditKey(String)
-  CancelEditKey
-  EditKeyLabelChanged(String)
-  EditKeySecretChanged(String)
-  EditKeyStatusChanged(String)
-  EditKeyPriorityChanged(String)
-  SaveEditKey(String)
-  KeyUpdated(Result[@sdk.AdminAiKeySummary, @sdk.ApiError])
-  ToggleKeyStatus(String, String)
-  RequestDeleteKey(String)
-  KeyDeleted(String, Result[Unit, @sdk.ApiError])
   OpenCreateSecret
   CancelCreateSecret
   SecretNameChanged(String)
@@ -146,23 +115,12 @@ fn initial_admin_model() -> AdminModel {
     expanded_user_id: None,
     expanded_user_projects: [],
     user_projects_loading: false,
-    keys: [],
     secrets: [],
     runtimes: [],
     ai_config: empty_ai_config(),
     catalog: [],
     models_error: None,
     active_action_menu: None,
-    creating_key: false,
-    key_label: "",
-    key_secret: "",
-    key_priority: "100",
-    editing_key_id: None,
-    editing_key_label: "",
-    editing_key_secret: "",
-    editing_key_status: "active",
-    editing_key_priority: "100",
-    confirming_key_delete_id: None,
     creating_secret: false,
     secret_name: "",
     secret_value: "",

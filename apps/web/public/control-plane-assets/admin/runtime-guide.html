@@ -147,7 +147,10 @@
   ]
 }</pre>
 
-      <h2>OpenRouter Key Example</h2>
+      <h2>OpenRouter Secret Example</h2>
+      <p>
+        Create a secret named <code>mooncraft_ai_api_key</code> whose value is the provider key. Then reference that secret from the Runtime JSON:
+      </p>
       <pre>{
   "protocol_version": 1,
   "image": "registry.example.com/mooncraft/codex-runtime:2026-05",
@@ -158,7 +161,7 @@
   "container_home": "/root",
   "secrets": [
     {
-      "source": "admin_openrouter_key_pool",
+      "source": "mooncraft_ai_api_key",
       "env": "MOONCRAFT_AI_API_KEY"
     }
   ]

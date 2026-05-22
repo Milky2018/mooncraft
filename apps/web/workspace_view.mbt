@@ -527,21 +527,6 @@ fn render_project_info_dialog(
               "Runtime session",
               project.runtime_session_id.unwrap_or("-"),
             ),
-            @html.div(
-              style=[
-                "display: flex", "justify-content: flex-end", "gap: 8px", "padding-top: 4px",
-              ],
-            ) <| [
-              @html.button(
-                type_="button",
-                title="Cancel",
-                disabled=model.project_info_pending,
-                on_click=dispatch(CloseProjectInfo),
-                style=secondary_button_style(!model.project_info_pending) +
-                  ["width: 32px", "height: 32px", "padding: 0"],
-                [project_cancel_icon()],
-              ),
-            ],
           ],
         ]
       None => @html.nothing

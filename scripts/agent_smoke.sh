@@ -89,13 +89,14 @@ curl -fsS \
   -H "Authorization: Bearer $admin_token" \
   -H "Content-Type: application/json" \
   -X POST \
-  -d "{\"label\":\"agent-smoke\",\"api_key\":\"$api_key\",\"priority\":100}" \
-  "$base_url/api/admin/ai/keys" >/dev/null
+  -d "{\"name\":\"agent_smoke_ai_api_key_$$\",\"value\":\"$api_key\"}" \
+  "$base_url/api/admin/secrets" >/dev/null
 
 runtime_spec_json="$(
   jq -cn \
     --arg image "$agent_runtime_image" \
     --arg model "$model" \
+    --arg secret_source "agent_smoke_ai_api_key_$$" \
     '{
       protocol_version: 1,
       image: $image,
@@ -106,7 +107,7 @@ runtime_spec_json="$(
       container_home: "/root",
       secrets: [
         {
-          source: "admin_openrouter_key_pool",
+          source: $secret_source,
           env: "MOONCRAFT_AI_API_KEY"
         }
       ]

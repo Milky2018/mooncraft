@@ -145,9 +145,9 @@ curl -fsS http://127.0.0.1:8089/api/health
 
 Users do not configure LLM providers or API keys.
 
-Admins use the admin page at `/admin` to inspect users, manage projects, inspect recent runs, and provide OpenRouter keys. Browser access to `/admin` redirects to `/admin/login` until the operator enters `MOONCRAFT_ADMIN_TOKEN`; the server stores an HTTP-only admin session cookie after a successful login. The worker leases one active OpenRouter key from the database for each run and injects it into the isolated agent runtime container only for that run. Key values are accepted on create/update and are never returned by the API; list responses show only a masked hint.
+Admins use the admin page at `/admin` to inspect users, manage projects, inspect recent runs, configure named secrets, and configure runtimes. Browser access to `/admin` redirects to `/admin/login` until the operator enters `MOONCRAFT_ADMIN_TOKEN`; the server stores an HTTP-only admin session cookie after a successful login. Runtime JSON declares which secret names it needs, and the worker injects only those declared secrets into the isolated agent runtime container for that run. Secret values are accepted on create/update and are never returned by the API; list responses show only a masked hint.
 
-MoonCraft only supports OpenRouter keys for generated-app runs. The runtime model picker loads the live OpenRouter text model catalog from `GET https://openrouter.ai/api/v1/models` using an active saved OpenRouter key, then saves the selected default model and allowed model list in SQLite.
+The runtime model picker loads the live OpenRouter text model catalog from `GET https://openrouter.ai/api/v1/models` using the `mooncraft_ai_api_key` admin Secret, then saves the selected default model and allowed model list in SQLite.
 
 Open the admin page in a browser:
 
@@ -158,11 +158,11 @@ https://craft.moonbitlang.com/admin
 
 Use `MOONCRAFT_ADMIN_TOKEN` from the environment file on the `/admin/login` page.
 
-The admin API can inspect the configured pool:
+The admin API can inspect configured secrets and models:
 
 ```bash
 curl -fsS -H "Authorization: Bearer $MOONCRAFT_ADMIN_TOKEN" \
-  "$MOONCRAFT_PUBLIC_BASE_URL/api/admin/ai/keys"
+  "$MOONCRAFT_PUBLIC_BASE_URL/api/admin/secrets"
 curl -fsS -H "Authorization: Bearer $MOONCRAFT_ADMIN_TOKEN" \
   "$MOONCRAFT_PUBLIC_BASE_URL/api/admin/ai/models"
 curl -fsS -H "Authorization: Bearer $MOONCRAFT_ADMIN_TOKEN" \

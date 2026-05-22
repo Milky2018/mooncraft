@@ -6,13 +6,6 @@ fn load_users_cmd(dispatch : @rabbita.Dispatch[AdminMsg]) -> @rabbita.Cmd {
 }
 
 ///|
-fn load_keys_cmd(dispatch : @rabbita.Dispatch[AdminMsg]) -> @rabbita.Cmd {
-  get_json(@sdk.admin_ai_keys_path(), fn(result) {
-    dispatch(KeysLoaded(result))
-  })
-}
-
-///|
 fn load_secrets_cmd(dispatch : @rabbita.Dispatch[AdminMsg]) -> @rabbita.Cmd {
   get_json(@sdk.admin_secrets_path(), fn(result) {
     dispatch(SecretsLoaded(result))
@@ -54,55 +47,11 @@ fn load_catalog_cmd(dispatch : @rabbita.Dispatch[AdminMsg]) -> @rabbita.Cmd {
 fn refresh_cmd(dispatch : @rabbita.Dispatch[AdminMsg]) -> @rabbita.Cmd {
   @rabbita.batch([
     load_users_cmd(dispatch),
-    load_keys_cmd(dispatch),
     load_secrets_cmd(dispatch),
     load_runtimes_cmd(dispatch),
     load_config_cmd(dispatch),
     load_catalog_cmd(dispatch),
   ])
-}
-
-///|
-fn create_key_cmd(
-  dispatch : @rabbita.Dispatch[AdminMsg],
-  label : String,
-  api_key : String,
-  priority : Int,
-) -> @rabbita.Cmd {
-  let payload : @sdk.CreateAdminAiKeyRequest = { label, api_key, priority }
-  post_json(@sdk.admin_ai_keys_path(), payload, fn(result) {
-    dispatch(KeyCreated(result))
-  })
-}
-
-///|
-fn update_key_cmd(
-  dispatch : @rabbita.Dispatch[AdminMsg],
-  id : String,
-  label : String,
-  api_key : String,
-  status : String,
-  priority : Int,
-) -> @rabbita.Cmd {
-  let payload : @sdk.UpdateAdminAiKeyRequest = {
-    label,
-    api_key,
-    status,
-    priority,
-  }
-  patch_json(@sdk.admin_ai_key_path(id), payload, fn(result) {
-    dispatch(KeyUpdated(result))
-  })
-}
-
-///|
-fn delete_key_cmd(
-  dispatch : @rabbita.Dispatch[AdminMsg],
-  id : String,
-) -> @rabbita.Cmd {
-  delete_empty(@sdk.admin_ai_key_path(id), fn(result) {
-    dispatch(KeyDeleted(id, result))
-  })
 }
 
 ///|

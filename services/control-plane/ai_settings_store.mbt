@@ -21,6 +21,11 @@ fn default_openrouter_model() -> String {
 }
 
 ///|
+fn default_openrouter_secret_source() -> String {
+  "mooncraft_ai_api_key"
+}
+
+///|
 fn normalize_ai_key_status(status : String) -> Result[String, String] {
   match status.trim().to_owned().to_lower() {
     "active" => Ok("active")
@@ -234,6 +239,16 @@ async fn Store::get_active_openrouter_api_key(
   self : Store,
 ) -> Result[String, String] noraise {
   match
+    self.get_admin_secret_record_by_name(default_openrouter_secret_source()) {
+    Some(record) => {
+      let value = record.value.trim().to_owned()
+      if value != "" {
+        return Ok(value)
+      }
+    }
+    None => ignore(())
+  }
+  match
     self.query_one(
       (
         #|SELECT COALESCE(key_secret, '') AS key_secret
@@ -248,12 +263,17 @@ async fn Store::get_active_openrouter_api_key(
     Some(row) => {
       let api_key = row_text(row, "key_secret").trim().to_owned()
       if api_key == "" {
-        Err("No active OpenRouter key is available.")
+        Err(
+          "Create the mooncraft_ai_api_key Secret before loading provider models.",
+        )
       } else {
         Ok(api_key)
       }
     }
-    None => Err("Add an active OpenRouter key before loading models.")
+    None =>
+      Err(
+        "Create the mooncraft_ai_api_key Secret before loading provider models.",
+      )
   }
 }
 

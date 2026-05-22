@@ -12,7 +12,7 @@
     "container_home": "/home/mooncraft",
     "secrets": [
       {
-        "source": "admin_openrouter_key_pool",
+        "source": "mooncraft_ai_api_key",
         "env": "MOONCRAFT_AI_API_KEY"
       }
     ]
