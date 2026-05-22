@@ -13,29 +13,41 @@ fn nav_button(
 ) -> @rabbita.Html {
   let active = model.view == view
   let background = if active { "var(--foreground-10)" } else { "transparent" }
-  let border = if active {
-    "3px solid var(--accent)"
-  } else {
-    "3px solid transparent"
-  }
+  let foreground = if active { "var(--text-1)" } else { "var(--text-2)" }
+  let stripe = if active { "var(--accent)" } else { "transparent" }
   @html.button(
     type_="button",
     on_click=dispatch(ShowView(view)),
     style=normal_style() +
       [
         "width: 100%",
+        "min-height: 34px",
+        "padding: 0 8px",
         "border: 0",
-        "border-left: " + border,
-        "border-radius: var(--radius-control)",
+        "border-radius: 4px",
         "background: " + background,
-        "padding: 8px",
         "display: flex",
         "align-items: center",
         "justify-content: space-between",
+        "text-align: left",
         "cursor: pointer",
-        "color: var(--text-1)",
+        "color: " + foreground,
       ],
-    [@html.span(label), count_badge(count)],
+    [
+      @html.span(
+        style=[
+          "width: 2px",
+          "height: 18px",
+          "border-radius: 2px",
+          "background: " + stripe,
+          "margin-right: 7px",
+          "flex: 0 0 auto",
+        ],
+        "",
+      ),
+      @html.span(style=["flex: 1"], label),
+      count_badge(count),
+    ],
   )
 }
 
@@ -45,7 +57,10 @@ fn sidebar(
   model : AdminModel,
 ) -> @rabbita.Html {
   @html.aside(style=sidebar_style(), [
-    @html.h1(style=title_style() + ["margin: 0", "padding: 2px 4px"], "Admin"),
+    @html.h1(
+      style=title_style() + ["margin: 0", "padding: 2px 4px 10px"],
+      "Admin",
+    ),
     @html.nav(style=["display: flex", "flex-direction: column", "gap: 4px"], [
       nav_button(dispatch, model, Users, "Users", model.users.length()),
       nav_button(dispatch, model, Keys, "OpenRouter Keys", model.keys.length()),
@@ -58,24 +73,33 @@ fn sidebar(
         model.ai_config.allowed_models.length(),
       ),
     ]),
-    @html.div(style=["flex: 1"], ""),
-    @html.div(style=["display: flex", "gap: 8px"], [
-      @html.button(
-        type_="button",
-        title="Refresh",
-        on_click=dispatch(Refresh),
-        style=icon_button_style(true),
-        [refresh_icon()],
-      ),
-      @html.button(
-        type_="button",
-        title="Log out",
-        on_click=dispatch(Logout),
-        style=danger_button_style(true) +
-          ["width: 28px", "height: 28px", "padding: 0"],
-        [logout_icon()],
-      ),
-    ]),
+    @html.div(
+      style=[
+        "margin-top: auto", "padding: 10px 0 0", "border-top: 1px solid var(--border)",
+        "display: flex", "align-items: center", "justify-content: space-between",
+        "gap: 6px",
+      ],
+      [
+        @html.button(
+          type_="button",
+          title="Refresh",
+          on_click=dispatch(Refresh),
+          style=icon_button_style(true) +
+            [
+              "background: oklch(from var(--success) l c h / 0.12)", "color: var(--success)",
+            ],
+          [refresh_icon()],
+        ),
+        @html.button(
+          type_="button",
+          title="Log out",
+          on_click=dispatch(Logout),
+          style=danger_button_style(true) +
+            ["width: 28px", "height: 28px", "padding: 0"],
+          [logout_icon()],
+        ),
+      ],
+    ),
   ])
 }
 

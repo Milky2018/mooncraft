@@ -60,7 +60,7 @@ fn sidebar_style() -> Array[String] {
   [
     "min-height: 100vh", "padding: 12px", "position: sticky", "top: 0", "align-self: start",
     "border-right: 1px solid var(--border)", "display: flex", "flex-direction: column",
-    "gap: 8px", "background: var(--foreground-3)",
+    "gap: 8px", "background: var(--foreground-3)", "box-sizing: border-box",
   ]
 }
 
