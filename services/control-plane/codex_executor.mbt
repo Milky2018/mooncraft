@@ -570,6 +570,16 @@ fn dependency_fetch_failure_assistant_message(
 }
 
 ///|
+fn agent_runtime_timeout_output(output : String) -> Bool {
+  output.contains("MoonCraft builder exceeded the configured runtime limit")
+}
+
+///|
+fn agent_runtime_timeout_assistant_message() -> String {
+  "The app builder took too long and was stopped. Retry the run or contact an administrator."
+}
+
+///|
 fn ai_provider_temporarily_overloaded(output : String) -> Bool {
   let lower = output.to_lower()
   lower.contains("experiencing high demand") ||
@@ -601,7 +611,9 @@ fn ai_builder_failure_assistant_message(
   fallback : String,
 ) -> String {
   ignore(model)
-  if ai_provider_temporarily_overloaded(output) ||
+  if agent_runtime_timeout_output(output) {
+    agent_runtime_timeout_assistant_message()
+  } else if ai_provider_temporarily_overloaded(output) ||
     ai_quota_or_capacity_limited(output) {
     mooncraft_capacity_assistant_message()
   } else {
@@ -1133,6 +1145,76 @@ fn docker_command_args(
 }
 
 ///|
+fn agent_runtime_timeout_seconds() -> Int {
+  match @env.get_env_var("MOONCRAFT_AGENT_RUNTIME_TIMEOUT_SECONDS") {
+    Some(value) => {
+      let parsed = @string.parse_int(value.trim().to_owned()) catch {
+        _ => 3600
+      }
+      if parsed <= 0 {
+        3600
+      } else if parsed > 3600 {
+        3600
+      } else {
+        parsed
+      }
+    }
+    None => 3600
+  }
+}
+
+///|
+fn docker_run_timeout_script(
+  docker_args : Array[String],
+  container_name : String,
+  timeout_seconds : Int,
+) -> String {
+  let docker_command : Array[String] = ["docker"]
+  for arg in docker_args {
+    docker_command.push(arg)
+  }
+  [
+    "set -eu",
+    "timeout_marker=\"${TMPDIR:-/tmp}/mooncraft-runtime-timeout.$$.marker\"",
+    "watchdog_pid=\"\"",
+    "cleanup() {",
+    "  if [ -n \"$watchdog_pid\" ]; then",
+    "    kill \"$watchdog_pid\" >/dev/null 2>&1 || true",
+    "    wait \"$watchdog_pid\" >/dev/null 2>&1 || true",
+    "  fi",
+    "  rm -f \"$timeout_marker\"",
+    "}",
+    "trap cleanup EXIT INT TERM",
+    "rm -f \"$timeout_marker\"",
+    "(",
+    "  sleep " + timeout_seconds.to_string(),
+    "  touch \"$timeout_marker\"",
+    "  echo " +
+    shell_quote(
+      "MoonCraft builder exceeded the configured runtime limit of " +
+      timeout_seconds.to_string() +
+      " seconds; stopping the Runtime container.",
+    ) +
+    " >&2",
+    "  docker rm -f " + shell_quote(container_name) + " >/dev/null 2>&1 || true",
+    ") &",
+    "watchdog_pid=\"$!\"",
+    "set +e",
+    command_display(docker_command) + " &",
+    "docker_pid=\"$!\"",
+    "wait \"$docker_pid\"",
+    "status=\"$?\"",
+    "set -e",
+    "if [ ! -f \"$timeout_marker\" ]; then",
+    "  kill \"$watchdog_pid\" >/dev/null 2>&1 || true",
+    "  wait \"$watchdog_pid\" >/dev/null 2>&1 || true",
+    "  watchdog_pid=\"\"",
+    "fi",
+    "exit \"$status\"",
+  ].join("\n")
+}
+
+///|
 fn agent_runtime_entry_command(
   container_command : Array[String],
 ) -> Array[String] {
@@ -1181,7 +1263,18 @@ async fn collect_docker_output(
     config, env_file_path, workspace_path, agent_home_path, artifacts, container_command,
   )
   let result = try
-    @process.collect_output_merged("docker", docker_args, cwd=root)
+    @process.collect_output_merged(
+      "sh",
+      [
+        "-c",
+        docker_run_timeout_script(
+          docker_args,
+          agent_runtime_container_name(artifacts.project_id, artifacts.run_id),
+          agent_runtime_timeout_seconds(),
+        ),
+      ],
+      cwd=root,
+    )
   catch {
     err => {
       remove_docker_env_file(env_file_path)
@@ -1237,8 +1330,15 @@ async fn stream_docker_output(
       let task = group.spawn(
         async fn() {
           @process.run(
-            "docker",
-            docker_args,
+            "sh",
+            [
+              "-c",
+              docker_run_timeout_script(
+                docker_args,
+                agent_runtime_container_name(project_id, run_id),
+                agent_runtime_timeout_seconds(),
+              ),
+            ],
             stdout=writer,
             stderr=writer,
             cwd=root,

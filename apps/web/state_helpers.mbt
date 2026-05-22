@@ -214,7 +214,6 @@ fn clear_workspace(model : Model) -> Model {
     new_project_modal_open: false,
     new_project_name: "",
     new_project_runtime_id: "",
-    new_project_more_open: false,
     runtimes: [],
     default_runtime_id: "",
     runtimes_loading: false,

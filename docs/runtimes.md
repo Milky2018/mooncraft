@@ -129,6 +129,7 @@ The control plane may:
 - resolve declared secret sources
 - mount `/workspace`, `/artifacts`, and `container_home`
 - execute `send`
+- stop Runtime containers that exceed the platform run limit, which is capped at one hour
 - read `result.json`
 
 The control plane must not:

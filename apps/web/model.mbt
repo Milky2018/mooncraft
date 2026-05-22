@@ -37,7 +37,6 @@ struct Model {
   new_project_modal_open : Bool
   new_project_name : String
   new_project_runtime_id : String
-  new_project_more_open : Bool
   runtimes : Array[@sdk.RuntimeSummary]
   default_runtime_id : String
   runtimes_loading : Bool
@@ -73,7 +72,6 @@ enum Msg {
   OpenNewProjectDialog
   CloseNewProjectDialog
   NewProjectNameChanged(String)
-  ToggleNewProjectMore
   NewProjectRuntimeChanged(String)
   RuntimesLoaded(Result[@sdk.ListRuntimesResponse, @sdk.ApiError])
   CreateProject
@@ -189,7 +187,6 @@ fn initial_model() -> Model {
     new_project_modal_open: false,
     new_project_name: "",
     new_project_runtime_id: "",
-    new_project_more_open: false,
     runtimes: [],
     default_runtime_id: "",
     runtimes_loading: false,

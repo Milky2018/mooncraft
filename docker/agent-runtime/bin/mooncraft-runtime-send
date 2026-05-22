@@ -4,6 +4,7 @@ set -euo pipefail
 context_path="${MOONCRAFT_RUNTIME_CONTEXT:-/artifacts/runtime_context.json}"
 result_path="${MOONCRAFT_RUNTIME_RESULT:-/artifacts/result.json}"
 output_path="/tmp/mooncraft-runtime-output.jsonl"
+artifacts_dir="$(dirname "$result_path")"
 
 if [[ ! -f "$context_path" ]]; then
   echo "Runtime context file is missing: $context_path" >&2
@@ -27,7 +28,7 @@ if [[ ! -f "$prompt_file" ]]; then
 fi
 
 prompt="$(cat "$prompt_file")"
-last_message_path="/artifacts/last_message.txt"
+last_message_path="${artifacts_dir}/last_message.txt"
 : >"$last_message_path"
 : >"$output_path"
 

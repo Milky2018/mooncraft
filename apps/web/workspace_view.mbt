@@ -272,24 +272,6 @@ fn render_open_project_button(
 }
 
 ///|
-fn render_disclosure_icon(open : Bool) -> @rabbita.Html {
-  @svg.svg(
-    width=16,
-    height=16,
-    view_box="0 0 24 24",
-    style=["display: block"],
-    [
-      @svg.path(
-        d=if open { "M6 9l6 6 6-6" } else { "M9 6l6 6-6 6" },
-        fill="none",
-        stroke="currentColor",
-        stroke_width=2,
-      ),
-    ],
-  )
-}
-
-///|
 fn runtime_display_label(item : @sdk.RuntimeSummary) -> String {
   if item.is_default {
     item.name + " (default)"
@@ -321,51 +303,64 @@ fn render_runtime_select_options(model : Model) -> Array[@rabbita.Html] {
 }
 
 ///|
-fn render_new_project_more(
+fn selected_new_project_runtime(model : Model) -> @sdk.RuntimeSummary? {
+  for item in model.runtimes {
+    if item.id == model.new_project_runtime_id {
+      return Some(item)
+    }
+  }
+  None
+}
+
+///|
+fn render_new_project_runtime_value(
+  item : @sdk.RuntimeSummary,
+) -> @rabbita.Html {
+  @html.div(
+    style=value_text_style() +
+      [
+        "min-height: 34px", "display: flex", "align-items: center", "padding: 0 10px",
+        "border-radius: var(--radius-control)", "border: 1px solid var(--border-soft)",
+        "background: var(--background)",
+      ],
+    runtime_display_label(item),
+  )
+}
+
+///|
+fn render_new_project_runtime_select(
+  dispatch : @rabbita.Dispatch[Msg],
+  model : Model,
+) -> @rabbita.Html {
+  let disabled = model.create_project_pending ||
+    (model.runtimes_loading && model.runtimes.length() == 0)
+  @html.select(
+    disabled~,
+    on_change=fn(value) { dispatch(NewProjectRuntimeChanged(value)) },
+    style=input_style(disabled),
+    render_runtime_select_options(model),
+  )
+}
+
+///|
+fn render_new_project_runtime_field(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
 ) -> @rabbita.Html {
   @html.div(
     style=[
       "border-radius: var(--radius-control)", "background: var(--foreground-3)",
-      "overflow: hidden",
+      "padding: 8px", "display: flex", "flex-direction: column", "gap: 8px",
     ],
   ) <| [
-    @html.button(
-      type_="button",
-      title="Options",
-      disabled=model.create_project_pending,
-      on_click=dispatch(ToggleNewProjectMore),
-      style=value_text_style() +
-        [
-          "width: 100%", "border: 0", "background: transparent", "padding: 8px 10px",
-          "display: flex", "align-items: center", "justify-content: flex-end", "gap: 8px",
-          "cursor: pointer",
-        ],
-    ) <| [
-      render_disclosure_icon(model.new_project_more_open),
-    ],
-    if model.new_project_more_open {
-      @html.div(
-        style=[
-          "border-top: 1px solid var(--border-soft)", "padding: 8px", "display: flex",
-          "flex-direction: column", "gap: 8px",
-        ],
-      ) <| [
-        @html.div(style=section_label_style(), "Runtime"),
-        @html.select(
-          disabled=model.create_project_pending ||
-            (model.runtimes_loading && model.runtimes.length() == 0),
-          on_change=fn(value) { dispatch(NewProjectRuntimeChanged(value)) },
-          style=input_style(
-            model.create_project_pending ||
-            (model.runtimes_loading && model.runtimes.length() == 0),
-          ),
-          render_runtime_select_options(model),
-        ),
-      ]
+    @html.div(style=section_label_style(), "Runtime"),
+    if model.runtimes.length() == 1 {
+      match selected_new_project_runtime(model) {
+        Some(item) => render_new_project_runtime_value(item)
+        None => render_new_project_runtime_select(dispatch, model)
+      }
     } else {
-      @html.nothing
+      render_new_project_runtime_select(dispatch, model)
     },
   ]
 }
@@ -424,7 +419,7 @@ fn render_new_project_dialog(
             ["padding: 8px 12px"],
           "",
         ),
-        render_new_project_more(dispatch, model),
+        render_new_project_runtime_field(dispatch, model),
         @html.div(
           style=[
             "display: flex", "justify-content: flex-end", "gap: 8px", "padding-top: 4px",

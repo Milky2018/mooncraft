@@ -224,7 +224,6 @@ fn update(
           } else {
             model.new_project_runtime_id
           },
-          new_project_more_open: false,
           runtimes_loading: true,
           delete_project_confirming: None,
           project_action_menu_open: None,
@@ -244,7 +243,6 @@ fn update(
             new_project_modal_open: false,
             new_project_name: "",
             new_project_runtime_id: model.default_runtime_id,
-            new_project_more_open: false,
           },
         )
       }
@@ -252,11 +250,6 @@ fn update(
       (@rabbita.none, { ..model, new_project_name: value })
     NewProjectRuntimeChanged(value) =>
       (@rabbita.none, { ..model, new_project_runtime_id: value })
-    ToggleNewProjectMore =>
-      (
-        @rabbita.none,
-        { ..model, new_project_more_open: !model.new_project_more_open },
-      )
     RuntimesLoaded(Ok(response)) =>
       (
         @rabbita.none,
@@ -443,7 +436,6 @@ fn update(
           create_project_pending: false,
           new_project_modal_open: false,
           new_project_name: "",
-          new_project_more_open: false,
           selected_project_id: Some(project.id),
           project_detail: Some(project),
           rename_project_editing: false,

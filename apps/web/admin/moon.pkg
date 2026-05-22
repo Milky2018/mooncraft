@@ -1,10 +1,10 @@
 import {
-  "mooncraft/sdk" @sdk,
+  "mooncraft/sdk",
   "moonbit-community/rabbita",
-  "moonbit-community/rabbita/cmd" @cmd,
-  "moonbit-community/rabbita/html" @html,
-  "moonbit-community/rabbita/svg" @svg,
-  "moonbit-community/rabbita/sub" @sub,
+  "moonbit-community/rabbita/cmd",
+  "moonbit-community/rabbita/html",
+  "moonbit-community/rabbita/svg",
+  "moonbit-community/rabbita/sub",
   "moonbitlang/core/json",
   "moonbitlang/core/string",
 }
