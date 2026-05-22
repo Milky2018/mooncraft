@@ -109,10 +109,9 @@ fn delete_key_cmd(
 fn create_secret_cmd(
   dispatch : @rabbita.Dispatch[AdminMsg],
   name : String,
-  kind : String,
   value : String,
 ) -> @rabbita.Cmd {
-  let payload : @sdk.CreateAdminSecretRequest = { name, kind, value }
+  let payload : @sdk.CreateAdminSecretRequest = { name, value }
   post_json(@sdk.admin_secrets_path(), payload, fn(result) {
     dispatch(SecretCreated(result))
   })
@@ -123,10 +122,9 @@ fn update_secret_cmd(
   dispatch : @rabbita.Dispatch[AdminMsg],
   id : String,
   name : String,
-  kind : String,
   value : String,
 ) -> @rabbita.Cmd {
-  let payload : @sdk.UpdateAdminSecretRequest = { name, kind, value }
+  let payload : @sdk.UpdateAdminSecretRequest = { name, value }
   patch_json(@sdk.admin_secret_path(id), payload, fn(result) {
     dispatch(SecretUpdated(result))
   })

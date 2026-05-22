@@ -266,7 +266,6 @@ pub(all) struct AdminRunLogsResponse {
 pub(all) struct AdminSecretSummary {
   id : String
   name : String
-  kind : String
   value_hint : String
   created_at : String
   updated_at : String
@@ -369,7 +368,6 @@ pub(all) struct CreateAdminRuntimeRequest {
 
 pub(all) struct CreateAdminSecretRequest {
   name : String
-  kind : String
   value : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
@@ -598,7 +596,6 @@ pub(all) struct UpdateAdminRuntimeRequest {
 
 pub(all) struct UpdateAdminSecretRequest {
   name : String
-  kind : String
   value : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 

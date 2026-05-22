@@ -1238,8 +1238,7 @@ fn main {
       Ok(request) => request
       Err(response) => return response
     }
-    match
-      ctx.store.create_admin_secret(request.name, request.kind, request.value) {
+    match ctx.store.create_admin_secret(request.name, request.value) {
       Ok(secret) => json_created(secret)
       Err(message) =>
         api_error_response(UnprocessableEntity, ValidationFailed, message)
@@ -1259,13 +1258,7 @@ fn main {
       Ok(request) => request
       Err(response) => return response
     }
-    match
-      ctx.store.update_admin_secret(
-        id,
-        request.name,
-        request.kind,
-        request.value,
-      ) {
+    match ctx.store.update_admin_secret(id, request.name, request.value) {
       Ok(secret) => json_ok(secret)
       Err(message) =>
         api_error_response(UnprocessableEntity, ValidationFailed, message)

@@ -41,11 +41,9 @@ struct AdminModel {
   confirming_key_delete_id : String?
   creating_secret : Bool
   secret_name : String
-  secret_kind : String
   secret_value : String
   editing_secret_id : String?
   editing_secret_name : String
-  editing_secret_kind : String
   editing_secret_value : String
   confirming_secret_delete_id : String?
   creating_runtime : Bool
@@ -98,14 +96,12 @@ enum AdminMsg {
   OpenCreateSecret
   CancelCreateSecret
   SecretNameChanged(String)
-  SecretKindChanged(String)
   SecretValueChanged(String)
   SaveCreateSecret
   SecretCreated(Result[@sdk.AdminSecretSummary, @sdk.ApiError])
   StartEditSecret(String)
   CancelEditSecret
   EditSecretNameChanged(String)
-  EditSecretKindChanged(String)
   EditSecretValueChanged(String)
   SaveEditSecret(String)
   SecretUpdated(Result[@sdk.AdminSecretSummary, @sdk.ApiError])
@@ -165,11 +161,9 @@ fn initial_admin_model() -> AdminModel {
     confirming_key_delete_id: None,
     creating_secret: false,
     secret_name: "",
-    secret_kind: "file",
     secret_value: "",
     editing_secret_id: None,
     editing_secret_name: "",
-    editing_secret_kind: "file",
     editing_secret_value: "",
     confirming_secret_delete_id: None,
     creating_runtime: false,

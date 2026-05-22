@@ -530,13 +530,6 @@ fn keys_view(
 }
 
 ///|
-fn secret_kind_options(selected : String) -> Array[@rabbita.Html] {
-  ["file", "text"].map(fn(kind) {
-    @html.option(value=kind, selected=kind == selected, kind)
-  })
-}
-
-///|
 fn secret_form_row(
   dispatch : @rabbita.Dispatch[AdminMsg],
   model : AdminModel,
@@ -551,14 +544,6 @@ fn secret_form_row(
         on_input=fn(value) { dispatch(SecretNameChanged(value)) },
         style=input_style(),
         "",
-      ),
-    ),
-    @html.td(
-      style=td_style(),
-      @html.select(
-        on_change=fn(value) { dispatch(SecretKindChanged(value)) },
-        style=input_style(),
-        secret_kind_options(model.secret_kind),
       ),
     ),
     @html.td(
@@ -615,14 +600,6 @@ fn secret_row(
       ),
       @html.td(
         style=td_style(),
-        @html.select(
-          on_change=fn(value) { dispatch(EditSecretKindChanged(value)) },
-          style=input_style(),
-          secret_kind_options(model.editing_secret_kind),
-        ),
-      ),
-      @html.td(
-        style=td_style(),
         @html.textarea(
           rows=4,
           value=model.editing_secret_value,
@@ -656,7 +633,6 @@ fn secret_row(
       @html.div(style=value_style(), secret.name),
       @html.code(secret.id),
     ]),
-    @html.td(style=td_style(), @html.span(style=badge_style(""), secret.kind)),
     @html.td(style=td_style(), @html.code(secret.value_hint)),
     @html.td(style=td_style(), secret.updated_at),
     @html.td(style=td_style(), [
@@ -691,7 +667,7 @@ fn secrets_view(
   let body_rows = if model.creating_secret {
     [secret_form_row(dispatch, model)] + rows
   } else if rows.length() == 0 {
-    [empty_row(5, "No secrets.")]
+    [empty_row(4, "No secrets.")]
   } else {
     rows
   }
@@ -712,7 +688,6 @@ fn secrets_view(
         @html.thead([
           @html.tr([
             @html.th(style=th_style(), "Name"),
-            @html.th(style=th_style(), "Kind"),
             @html.th(style=th_style(), "Value"),
             @html.th(style=th_style(), "Updated"),
             @html.th(style=th_style(), "Actions"),

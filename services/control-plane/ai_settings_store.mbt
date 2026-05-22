@@ -621,14 +621,8 @@ async fn Store::resolve_runtime_secrets(
               value: record.value,
             })
           }
-          (None, Some(file)) => {
-            if record.kind != "file" {
-              return Err(
-                "Runtime secret source \{source} is not a file secret.",
-              )
-            }
+          (None, Some(file)) =>
             secrets.push({ env: None, file: Some(file), value: record.value })
-          }
           _ => return Err("Runtime secret binding must declare env or file.")
         }
       }

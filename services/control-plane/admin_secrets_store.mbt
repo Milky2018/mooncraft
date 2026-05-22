@@ -1,22 +1,11 @@
 ///|
 struct AdminSecretRecord {
-  kind : String
   value : String
 }
 
 ///|
-fn normalize_admin_secret_kind(kind : String) -> Result[String, String] {
-  match kind.trim().to_lower() {
-    "file" => Ok("file")
-    "text" => Ok("text")
-    _ => Err("Secret kind must be file or text.")
-  }
-}
-
-///|
-fn admin_secret_hint(kind : String, value : String) -> String {
-  let unit = if kind == "file" { "file" } else { "value" }
-  "saved \{unit} (\{value.length()} chars)"
+fn admin_secret_hint(value : String) -> String {
+  "saved value (\{value.length()} chars)"
 }
 
 ///|
@@ -26,8 +15,7 @@ fn admin_secret_summary_from_row(
   {
     id: row_text(row, "id"),
     name: row_text(row, "name"),
-    kind: row_text(row, "kind"),
-    value_hint: row_text(row, "value_hint"),
+    value_hint: admin_secret_hint(row_text(row, "secret_value")),
     created_at: row_text(row, "created_at"),
     updated_at: row_text(row, "updated_at"),
   }
@@ -37,7 +25,7 @@ fn admin_secret_summary_from_row(
 fn admin_secret_record_from_row(
   row : Map[String, @db.Param],
 ) -> AdminSecretRecord {
-  { kind: row_text(row, "kind"), value: row_text(row, "secret_value") }
+  { value: row_text(row, "secret_value") }
 }
 
 ///|
@@ -49,8 +37,7 @@ async fn Store::list_admin_secrets(
       #|SELECT
       #|  id,
       #|  name,
-      #|  kind,
-      #|  value_hint,
+      #|  secret_value,
       #|  created_at,
       #|  updated_at
       #|FROM admin_secrets
@@ -75,8 +62,7 @@ async fn Store::get_admin_secret(
         #|SELECT
         #|  id,
         #|  name,
-        #|  kind,
-        #|  value_hint,
+        #|  secret_value,
         #|  created_at,
         #|  updated_at
         #|FROM admin_secrets
@@ -98,9 +84,6 @@ async fn Store::get_admin_secret_record_by_name(
     self.query_one(
       (
         #|SELECT
-        #|  id,
-        #|  name,
-        #|  kind,
         #|  secret_value
         #|FROM admin_secrets
         #|WHERE name = ?;
@@ -121,7 +104,6 @@ async fn Store::get_admin_secret_record_by_id(
     self.query_one(
       (
         #|SELECT
-        #|  kind,
         #|  secret_value
         #|FROM admin_secrets
         #|WHERE id = ?;
@@ -137,16 +119,11 @@ async fn Store::get_admin_secret_record_by_id(
 async fn Store::create_admin_secret(
   self : Store,
   name_input : String,
-  kind_input : String,
   value_input : String,
 ) -> Result[@sdk.AdminSecretSummary, String] noraise {
   let name = name_input.trim().to_owned()
   if name == "" {
     return Err("Secret name is required.")
-  }
-  let kind = match normalize_admin_secret_kind(kind_input) {
-    Ok(kind) => kind
-    Err(message) => return Err(message)
   }
   if value_input.trim() == "" {
     return Err("Secret value is required.")
@@ -170,9 +147,9 @@ async fn Store::create_admin_secret(
       params=[
         String(id),
         String(name),
-        String(kind),
+        String("value"),
         String(value_input),
-        String(admin_secret_hint(kind, value_input)),
+        String(admin_secret_hint(value_input)),
         String(now),
         String(now),
       ],
@@ -191,7 +168,6 @@ async fn Store::update_admin_secret(
   self : Store,
   id : String,
   name_input : String,
-  kind_input : String,
   value_input : String,
 ) -> Result[@sdk.AdminSecretSummary, String] noraise {
   let existing = match self.get_admin_secret(id) {
@@ -207,16 +183,11 @@ async fn Store::update_admin_secret(
   } else {
     name_input.trim().to_owned()
   }
-  let kind = match normalize_admin_secret_kind(kind_input) {
-    Ok(kind) => kind
-    Err(message) => return Err(message)
-  }
   let update_result = if value_input.trim() == "" {
     self.exec_or_error(
       (
         #|UPDATE admin_secrets
         #|SET name = ?,
-        #|    kind = ?,
         #|    value_hint = ?,
         #|    updated_at = ?
         #|WHERE id = ?;
@@ -224,8 +195,7 @@ async fn Store::update_admin_secret(
       "update admin secret",
       params=[
         String(name),
-        String(kind),
-        String(admin_secret_hint(kind, existing_record.value)),
+        String(admin_secret_hint(existing_record.value)),
         String(now_string()),
         String(id),
       ],
@@ -235,7 +205,6 @@ async fn Store::update_admin_secret(
       (
         #|UPDATE admin_secrets
         #|SET name = ?,
-        #|    kind = ?,
         #|    secret_value = ?,
         #|    value_hint = ?,
         #|    updated_at = ?
@@ -244,9 +213,8 @@ async fn Store::update_admin_secret(
       "update admin secret",
       params=[
         String(name),
-        String(kind),
         String(value_input),
-        String(admin_secret_hint(kind, value_input)),
+        String(admin_secret_hint(value_input)),
         String(now_string()),
         String(id),
       ],

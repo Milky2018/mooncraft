@@ -338,7 +338,6 @@ pub(all) struct UpdateAdminAiKeyRequest {
 pub(all) struct AdminSecretSummary {
   id : String
   name : String
-  kind : String
   value_hint : String
   created_at : String
   updated_at : String
@@ -352,14 +351,12 @@ pub(all) struct AdminListSecretsResponse {
 ///|
 pub(all) struct CreateAdminSecretRequest {
   name : String
-  kind : String
   value : String
 } derive(Debug, ToJson, FromJson)
 
 ///|
 pub(all) struct UpdateAdminSecretRequest {
   name : String
-  kind : String
   value : String
 } derive(Debug, ToJson, FromJson)
 

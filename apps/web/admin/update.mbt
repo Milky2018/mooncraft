@@ -494,7 +494,6 @@ fn update(
           view: Secrets,
           creating_secret: true,
           secret_name: "",
-          secret_kind: "file",
           secret_value: "",
           editing_secret_id: None,
           confirming_secret_delete_id: None,
@@ -507,17 +506,11 @@ fn update(
         { ..model, creating_secret: false, secret_name: "", secret_value: "" },
       )
     SecretNameChanged(value) => (@rabbita.none, { ..model, secret_name: value })
-    SecretKindChanged(value) => (@rabbita.none, { ..model, secret_kind: value })
     SecretValueChanged(value) =>
       (@rabbita.none, { ..model, secret_value: value })
     SaveCreateSecret =>
       (
-        create_secret_cmd(
-          dispatch,
-          model.secret_name,
-          model.secret_kind,
-          model.secret_value,
-        ),
+        create_secret_cmd(dispatch, model.secret_name, model.secret_value),
         { ..model, notice: None },
       )
     SecretCreated(Ok(secret)) =>
@@ -547,7 +540,6 @@ fn update(
               creating_secret: false,
               editing_secret_id: Some(id),
               editing_secret_name: secret.name,
-              editing_secret_kind: secret.kind,
               editing_secret_value: "",
               confirming_secret_delete_id: None,
             },
@@ -557,8 +549,6 @@ fn update(
     CancelEditSecret => (@rabbita.none, { ..model, editing_secret_id: None })
     EditSecretNameChanged(value) =>
       (@rabbita.none, { ..model, editing_secret_name: value })
-    EditSecretKindChanged(value) =>
-      (@rabbita.none, { ..model, editing_secret_kind: value })
     EditSecretValueChanged(value) =>
       (@rabbita.none, { ..model, editing_secret_value: value })
     SaveEditSecret(id) =>
@@ -567,7 +557,6 @@ fn update(
           dispatch,
           id,
           model.editing_secret_name,
-          model.editing_secret_kind,
           model.editing_secret_value,
         ),
         { ..model, notice: None },

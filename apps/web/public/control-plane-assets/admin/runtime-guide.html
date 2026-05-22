@@ -114,7 +114,6 @@
         <li>Open Admin, then Secrets.</li>
         <li>Click Add secret.</li>
         <li>Enter the secret source name that the Runtime JSON will reference.</li>
-        <li>Choose <code>file</code> for account files such as <code>auth.json</code>, or <code>text</code> for plain values.</li>
         <li>Paste the full secret value and save it.</li>
       </ol>
 
@@ -130,7 +129,7 @@
 
       <h2>Codex Account Example</h2>
       <p>
-        To add a Runtime named <code>Milky</code> that uses Codex account auth, create a file secret named <code>milky_codex_auth</code> whose value is the full contents of <code>$HOME/.codex/auth.json</code>. Then use this Runtime JSON:
+        To add a Runtime named <code>Milky</code> that uses Codex account auth, create a secret named <code>milky_codex_auth</code> whose value is the full contents of <code>$HOME/.codex/auth.json</code>. Then use this Runtime JSON:
       </p>
       <pre>{
   "protocol_version": 1,
