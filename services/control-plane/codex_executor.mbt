@@ -1271,65 +1271,40 @@ async fn stream_docker_output(
   let docker_args = docker_command_args(
     config, env_file_path, workspace_path, agent_home_path, artifacts, container_command,
   )
-  let pipe = @process.read_from_process() catch {
-    err => {
-      remove_docker_env_file(env_file_path)
-      return Err("The AI builder output pipe could not be opened: \{err}")
-    }
-  }
-  let (reader, writer) = pipe
-  let chunks : Array[String] = []
-  let exit_code_ref : Ref[Int] = @ref.new(-1)
   store.append_run_event(
     project_id, run_id, "status", "Starting the builder session.",
   )
-  let group_result = try
-    @async.with_task_group(async fn(group) {
-      let task = group.spawn(
-        async fn() {
-          @process.run(
-            "sh",
-            [
-              "-c",
-              docker_run_timeout_script(
-                docker_args,
-                agent_runtime_container_name(project_id, run_id),
-                agent_runtime_timeout_seconds(),
-              ),
-            ],
-            stdout=writer,
-            stderr=writer,
-            cwd=root,
-          )
-        },
-        allow_failure=true,
-      )
-      let mut reading = true
-      while reading {
-        match reader.read_until("\n") {
-          Some(line) => {
-            let text = line.to_string()
-            chunks.push(text)
-            chunks.push("\n")
-            append_codex_display_event(store, project_id, run_id, text)
-          }
-          None => reading = false
-        }
-      }
-      exit_code_ref.val = task.wait()
-      ()
-    })
+  let result = try
+    @process.collect_output_merged(
+      "sh",
+      [
+        "-c",
+        docker_run_timeout_script(
+          docker_args,
+          agent_runtime_container_name(project_id, run_id),
+          agent_runtime_timeout_seconds(),
+        ),
+      ],
+      cwd=root,
+    )
   catch {
     err => {
       remove_docker_env_file(env_file_path)
-      return Err("The AI builder command failed while streaming output: \{err}")
+      return Err("The AI builder command could not be started: \{err}")
     }
   } noraise {
     value => value
   }
   remove_docker_env_file(env_file_path)
-  ignore(group_result)
-  Ok((exit_code_ref.val, chunks.join("")))
+  let (exit_code, output) = result
+  let text = output.text() catch { _ => "" }
+  for raw_line in text.replace_all(old="\r\n", new="\n").split("\n") {
+    let line = raw_line.to_owned()
+    if line != "" {
+      append_codex_display_event(store, project_id, run_id, line)
+    }
+  }
+  Ok((exit_code, text))
 }
 
 ///|
