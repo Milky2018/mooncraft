@@ -1083,6 +1083,22 @@ fn Store::blob_type(self : Store) -> String {
 async fn Store::backfill_builtin_claude_project_container_user(
   self : Store,
 ) -> Result[Unit, String] noraise {
+  let builtin_spec = match
+    self.query_one(
+      (
+        #|SELECT spec_json
+        #|FROM agent_runtimes
+        #|WHERE id = ?;
+      ),
+      params=[String("agent-runtime-003")],
+    ) {
+    Some(row) =>
+      match runtime_spec_from_json(row_text(row, "spec_json")) {
+        Ok(spec) => spec
+        Err(_) => return Ok(())
+      }
+    None => return Ok(())
+  }
   let rows = self.query_rows(
     (
       #|SELECT id, runtime_spec_json
@@ -1099,12 +1115,17 @@ async fn Store::backfill_builtin_claude_project_container_user(
       Ok(spec) => spec
       Err(_) => continue
     }
-    if spec.agent != "claude_code" || spec.container_user is Some(_) {
+    if spec.agent != "claude_code" {
+      continue
+    }
+    if spec.image == builtin_spec.image &&
+      spec.container_user == builtin_spec.container_user {
       continue
     }
     let updated_spec_json = runtime_spec_to_json({
       ..spec,
-      container_user: Some("mooncraft"),
+      image: builtin_spec.image,
+      container_user: builtin_spec.container_user,
     })
     match
       self.exec_or_error(
