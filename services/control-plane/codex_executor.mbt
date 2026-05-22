@@ -1177,25 +1177,6 @@ fn agent_runtime_timeout_seconds() -> Int {
 }
 
 ///|
-fn agent_runtime_doctor_timeout_seconds() -> Int {
-  match @env.get_env_var("MOONCRAFT_AGENT_RUNTIME_DOCTOR_TIMEOUT_SECONDS") {
-    Some(value) => {
-      let parsed = @string.parse_int(value.trim().to_owned()) catch {
-        _ => 120
-      }
-      if parsed <= 0 {
-        120
-      } else if parsed > 300 {
-        300
-      } else {
-        parsed
-      }
-    }
-    None => 120
-  }
-}
-
-///|
 fn docker_run_timeout_script(
   docker_args : Array[String],
   container_name : String,
@@ -1251,9 +1232,6 @@ fn agent_runtime_entry_command(
   container_command : Array[String],
 ) -> Array[String] {
   let script_lines : Array[String] = ["set -e"]
-  script_lines.push(
-    "if [ \"${1:-}\" = \"mooncraft-agent-doctor\" ]; then exec \"$@\"; fi",
-  )
   for command in user_project_fetch_commands() {
     script_lines.push(command)
   }
@@ -1270,56 +1248,6 @@ fn agent_runtime_entry_command(
   wrapped
 }
 
-///|
-async fn collect_docker_output(
-  root : String,
-  config : AgentRuntimeConfig,
-  workspace_path : String,
-  agent_home_path : String?,
-  artifacts : RunArtifacts,
-  container_command : Array[String],
-  timeout_seconds~ : Int = agent_runtime_timeout_seconds(),
-) -> Result[(Int, String), String] noraise {
-  let env_file_path = write_docker_env_file(config, artifacts)
-  prepare_agent_mounts(workspace_path, agent_home_path, artifacts)
-  match materialize_runtime_file_secrets(config, agent_home_path) {
-    Ok(_) => ignore(())
-    Err(message) => {
-      remove_docker_env_file(env_file_path)
-      return Err(message)
-    }
-  }
-  let docker_args = docker_command_args(
-    config, env_file_path, workspace_path, agent_home_path, artifacts, container_command,
-  )
-  let result = try
-    @process.collect_output_merged(
-      "sh",
-      [
-        "-c",
-        docker_run_timeout_script(
-          docker_args,
-          agent_runtime_container_name(artifacts.project_id, artifacts.run_id),
-          timeout_seconds,
-        ),
-      ],
-      cwd=root,
-    )
-  catch {
-    err => {
-      remove_docker_env_file(env_file_path)
-      return Err("The AI builder command could not be started: \{err}")
-    }
-  } noraise {
-    value => value
-  }
-  remove_docker_env_file(env_file_path)
-  let (exit_code, output) = result
-  let text = output.text() catch { _ => "" }
-  Ok((exit_code, text))
-}
-
-///|
 async fn stream_docker_output(
   store : Store,
   root : String,
@@ -1463,102 +1391,6 @@ async fn collect_agent_command_output(
 }
 
 ///|
-fn agent_runtime_doctor_command() -> Array[String] {
-  ["mooncraft-agent-doctor"]
-}
-
-///|
-async fn run_agent_runtime_doctor(
-  root : String,
-  config : AgentRuntimeConfig?,
-  project : @sdk.ProjectDetail,
-  workspace_path : String,
-  artifacts : RunArtifacts,
-  thread_id : String?,
-) -> Result[Unit, AgentTurnFailure] noraise {
-  if smoke_codex_enabled() {
-    return Ok(())
-  }
-  let config = match config {
-    Some(config) => config
-    None =>
-      return Err(
-        codex_failure_with_debug(
-          "The app builder runtime is not available.",
-          "MoonCraft's app builder is temporarily unavailable.",
-          thread_id,
-          Some(
-            failure_debug("Agent runtime doctor", None, None, Some(artifacts)),
-          ),
-        ),
-      )
-  }
-  let command = agent_runtime_doctor_command()
-  let agent_home_path = Some(
-    project_runtime_agent_home(root, project.id, config.agent_session_id),
-  )
-  let result = match
-    collect_docker_output(
-      root,
-      config,
-      workspace_path,
-      agent_home_path,
-      artifacts,
-      command,
-      timeout_seconds=agent_runtime_doctor_timeout_seconds(),
-    ) {
-    Ok(result) => result
-    Err(message) =>
-      return Err(
-        codex_failure_with_debug(
-          "The app builder runtime could not be checked.",
-          message,
-          thread_id,
-          Some(
-            failure_debug(
-              "Agent runtime doctor",
-              Some(command),
-              None,
-              Some(artifacts),
-            ),
-          ),
-        ),
-      )
-  }
-  let (exit_code, output) = result
-  append_command_log(
-    artifacts.agent_log_path,
-    "agent runtime doctor",
-    command,
-    exit_code,
-    output,
-  )
-  if exit_code != 0 {
-    return Err(
-      codex_failure_with_debug(
-        "The app builder runtime is not ready. Please retry after the server is updated.",
-        stage_failure_message(
-          "Agent runtime doctor",
-          exit_code,
-          artifacts.agent_log_path,
-          output,
-        ),
-        thread_id,
-        Some(
-          failure_debug(
-            "Agent runtime doctor",
-            Some(command),
-            Some(exit_code),
-            Some(artifacts),
-          ),
-        ),
-      ),
-    )
-  }
-  Ok(())
-}
-
-///|
 fn codex_exec_command(model : String, user_prompt : String) -> Array[String] {
   codex_exec_raw_command(model, bootstrap_prompt(user_prompt))
 }
@@ -1660,18 +1492,6 @@ async fn run_codex_turn(
           codex_resume_raw_command(thread_id, prompt)
         _ => codex_exec_raw_command(model, prompt)
       }
-  }
-  match
-    run_agent_runtime_doctor(
-      root,
-      config,
-      project,
-      workspace_path,
-      artifacts,
-      thread_id_before,
-    ) {
-    Ok(_) => ignore(())
-    Err(failure) => return Err(failure)
   }
   let mut active_command = command
   let codex_result = match

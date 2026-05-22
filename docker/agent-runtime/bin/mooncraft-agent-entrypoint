@@ -29,12 +29,6 @@ if [[ -f "$system_prompt_path" ]]; then
   cp "$system_prompt_path" "$codex_home/AGENTS.md"
 fi
 
-for arg in "$@"; do
-  if [[ "$arg" == "mooncraft-agent-doctor" ]]; then
-    exec "$@"
-  fi
-done
-
 provider="$(require_env MOONCRAFT_AI_PROVIDER)"
 agent_cli="$(require_env MOONCRAFT_AGENT_CLI)"
 model="$(require_env MOONCRAFT_AI_MODEL)"
