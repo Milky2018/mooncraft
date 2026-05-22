@@ -1,4 +1,8 @@
-FROM ubuntu:24.04
+# syntax=docker/dockerfile:1.7
+
+FROM docker:29-cli AS docker-cli
+
+FROM node:24-bookworm
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG MOONBIT_VERSION=nightly
@@ -6,34 +10,29 @@ ARG MOONBIT_VERSION=nightly
 ENV MOON_HOME=/opt/moon
 ENV PATH=/opt/moon/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-RUN printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\n' > /etc/apt/apt.conf.d/80-retries
+RUN printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\n' > /etc/apt/apt.conf.d/80-retries \
+  && rm -f /etc/apt/apt.conf.d/docker-clean \
+  && printf 'Binary::apt::APT::Keep-Downloaded-Packages "true";\n' > /etc/apt/apt.conf.d/keep-cache
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-  bash \
-  build-essential \
-  ca-certificates \
-  coreutils \
-  curl \
-  git \
-  gnupg \
-  lsof \
-  nodejs \
-  npm \
-  pkg-config \
-  sqlite3 \
-  libsqlite3-dev \
-  unzip \
-  && rm -rf /var/lib/apt/lists/*
+COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
 
-RUN install -m 0755 -d /etc/apt/keyrings \
-  && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
-  && chmod a+r /etc/apt/keyrings/docker.asc \
-  && . /etc/os-release \
-  && printf 'deb [arch=%s signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu %s stable\n' "$(dpkg --print-architecture)" "$VERSION_CODENAME" > /etc/apt/sources.list.d/docker.list \
-  && apt-get update \
-  && apt-get install -y --no-install-recommends docker-ce-cli \
-  && docker --version \
-  && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+  --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+  set -eux; \
+  apt-get update; \
+  apt-get install -y --no-install-recommends \
+    bash \
+    build-essential \
+    ca-certificates \
+    coreutils \
+    curl \
+    git \
+    libsqlite3-dev \
+    lsof \
+    pkg-config \
+    sqlite3 \
+    unzip; \
+  docker --version
 
 RUN for attempt in 1 2 3 4 5; do \
     curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash -s -- "${MOONBIT_VERSION}" && break; \
@@ -43,17 +42,28 @@ RUN for attempt in 1 2 3 4 5; do \
 
 WORKDIR /app
 
-COPY . /app
-
-RUN npm install --no-save --no-package-lock playwright@1.57.0 \
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+  --mount=type=cache,target=/var/cache/apt,sharing=locked \
+  --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+  npm install --no-save --no-package-lock playwright@1.57.0 \
   && npx playwright install --with-deps chromium
 
-RUN chmod +x /app/docker/mooncraft/entrypoint.sh \
-  && for attempt in 1 2 3 4 5; do \
+COPY moon.work /app/moon.work
+COPY packages/sdk/moon.mod.json packages/sdk/moon.pkg /app/packages/sdk/
+COPY apps/web/moon.mod.json apps/web/moon.pkg /app/apps/web/
+COPY apps/web/admin/moon.pkg /app/apps/web/admin/
+COPY services/control-plane/moon.mod.json services/control-plane/moon.pkg /app/services/control-plane/
+
+RUN --mount=type=cache,target=/root/.moon,sharing=locked \
+  for attempt in 1 2 3 4 5; do \
     moon -C /app update && break; \
     if [ "$attempt" = "5" ]; then exit 1; fi; \
     sleep $((attempt * 5)); \
-  done \
+  done
+
+COPY . /app
+
+RUN chmod +x /app/docker/mooncraft/entrypoint.sh \
   && moon -C /app build --release
 
 EXPOSE 8080
