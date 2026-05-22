@@ -1,8 +1,0 @@
-# MoonBit modules fetched into generated user-project workspaces before agent
-# runs, validation, and preview rebuilds. One unpinned module per non-comment
-# line; let the MoonBit registry resolve the version.
-moonbitlang/async
-moonbitlang/x
-oboard/mocket
-Milky2018/selene
-Milky2018/selene_webgpu

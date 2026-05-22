@@ -5,7 +5,7 @@ This module is the local backend for the current MoonCraft prototype.
 Responsibilities:
 
 - persist users, sessions, projects, messages, runs, and workspace source snapshots
-- initialize the MoonBit workspace under `data/runtime/projects/<id>/workspace`
+- initialize an empty workspace under `data/runtime/projects/<id>/workspace`
 - serve the app-develop HTTP API
 - serve the main workspace page, frontend bundles, and web-owned static shells
 - authenticate users through GitHub OAuth and cookie sessions
@@ -14,7 +14,7 @@ Responsibilities:
 - rebuild and restart local previews
 - store preview URLs and last-known run state
 
-The platform no longer uses official app templates. Project rows do not carry template ids, and there is no template picker. Project creation runs `moon new` deterministically and saves that plain MoonBit module as the first workspace snapshot. The first user prompt decides what the app becomes; the selected agent must create `mooncraft-preview.sh` as part of the requested app rather than preserve any platform-owned starter app.
+The platform no longer owns generated-app scaffolding. Project rows do not carry template ids, and there is no template picker. Project creation saves an empty workspace as the first snapshot. The selected Runtime decides how to turn that workspace into an app; the control plane only requires the result to provide `mooncraft-preview.sh`.
 
 The current `AgentGateway` uses Docker-backed Runtime runs. Projects are bound to one Runtime snapshot at creation time and keep one platform-owned agent session directory under `data/agent-sessions/<project-id>/<agent-session-id>`. Each new chat message starts a detached worker process through `moonbitlang/async/process`, runs the selected Runtime's `send` command in the disposable container, reads `/artifacts/result.json`, persists the updated workspace, starts `mooncraft-preview.sh`, then runs a lightweight HTTP preview audit through the public preview proxy. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
 
@@ -26,15 +26,11 @@ The legacy `data/projects` workspace root is cleaned at startup. It is not used 
 
 SQLite is a required dependency for the control plane. If the database cannot be opened or schema initialization fails, the service exits during startup. The health endpoint also checks database availability and returns unavailable when the probe fails.
 
-## Dependency Fetches
+## Runtime Boundary
 
-Before agent runs, validation, and preview startup, generated user projects run `moon fetch --no-update` for the unpinned modules listed in `config/user_project_reference_modules.txt`. The MoonBit registry resolves the concrete versions at fetch time.
+For real Docker-backed runs, the MoonCraft agent runtime image installs the supported agent CLIs and any knowledge or templates that Runtime wants to expose to the agent. Normal user prompts are not wrapped with the generated-app contract; that project-aware contract lives in the runtime system layer.
 
-For real Docker-backed runs, the MoonCraft agent runtime image initializes the MoonBit registry at image build time, installs the supported agent CLIs, seeds MoonBit skills from `https://github.com/moonbitlang/skills`, installs MoonCraft project templates from `https://github.com/moonbitlang/mooncraft-templates.git` under `/opt/mooncraft/templates`, and installs compact MoonCraft runtime system instructions before every command. Normal user prompts are not wrapped with the generated-app contract; that project-aware contract lives in the runtime system layer. Runtime validation avoids `moon update` by default because MoonBit may fail while rotating its symbols directory across Docker mount boundaries.
-
-MoonCraft no longer runs generic MoonBit validation gates after the builder returns. The generated app's runtime contract is `mooncraft-preview.sh <port>`: if that script can start a reachable preview and return a non-empty proxied page, the workspace is accepted. Lightweight preview audit may still request repairs when the public preview proxy returns an error or an empty response.
-
-If Mooncakes returns a transient network error such as a TLS handshake EOF during dependency fetch, the run fails cleanly, preserves the previous preview, records the artifact logs for operators, and returns a plain-English retry message to the user instead of exposing raw registry output as the main chat response.
+MoonCraft no longer runs generic app-framework validation gates after the builder returns. The generated app's runtime contract is `mooncraft-preview.sh <port>`: if that script can start a reachable preview and return a non-empty proxied page, the workspace is accepted. Lightweight preview audit may still request repairs when the public preview proxy returns an error or an empty response.
 
 ## Web Assets
 
@@ -48,7 +44,7 @@ Frontend-owned static files live under `apps/web/public`, which mirrors public U
 - `control-plane-assets/smoke-preview/index.html` for fake-agent preview smoke runs
 - `assets/logo.svg`, `assets/logo.png`, and `assets/factory.webp` for public web app imagery
 
-These files are runtime assets owned by `apps/web`, not control-plane source. `moon build` builds both the Rabbita frontend bundle and the native control-plane executable through the workspace. The control plane does not run `moon` at startup; it serves the prebuilt frontend bundle from `_build/js/<profile>/build/mooncraft/web/web.js`. Project creation does require the MoonBit CLI because MoonCraft initializes each generated workspace with `moon new` before saving the first workspace snapshot. The supported local walkthrough runs from the repository root through `just serve`, which builds the workspace before starting the executable. The Docker app image installs the MoonBit CLI, builds the workspace at image build time, and keeps `moon` available for project initialization after startup.
+These files are runtime assets owned by `apps/web`, not control-plane source. `moon build` builds both the Rabbita frontend bundle and the native control-plane executable through the workspace. The control plane does not run `moon` at startup; it serves the prebuilt frontend bundle from `_build/js/<profile>/build/mooncraft/web/web.js`. Project creation does not require generated-app language tooling; it creates an empty workspace snapshot. The supported local walkthrough runs from the repository root through `just serve`, which builds the workspace before starting the executable. The Docker app image installs build tooling for MoonCraft itself, but generated-app tooling belongs to the selected Runtime.
 
 If you run a compiled `control-plane.exe` from another directory, keep `apps/web/public` available under that working directory or the file-backed HTML pages will not render.
 
@@ -72,8 +68,7 @@ After HTTP readiness succeeds, MoonCraft optionally runs `scripts/preview_audit.
 
 Use these repository-level checks:
 
-- `just check-user-project-deps` verifies required registry fetches locally and reports optional unpublished modules.
-- `just check-user-project-deps-agent-runtime` verifies required tools and knowledge assets inside the agent runtime image.
+- `just check-agent-runtime-image` verifies required tools and knowledge assets inside the agent runtime image.
 - `just smoke` covers the default project creation, fake builder update, preview rebuild, deletion, and persistence flow.
 
 Runtime configuration is stored in Runtime manifests, not process-wide service environment variables. Official built-ins live under `runtime/builtin/`, and admin-created Runtime rows use the same `RuntimeSpec` shape. The selected Runtime snapshot supplies `image`, `send`, `container_home`, provider metadata, and declared secret bindings for each project. Secret bindings can inject an environment variable with `env` or write a file under `container_home` with `file`.

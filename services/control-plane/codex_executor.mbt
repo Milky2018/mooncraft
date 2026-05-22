@@ -551,31 +551,6 @@ fn default_failure_assistant_message() -> String {
 }
 
 ///|
-fn moonbit_registry_fetch_failed(output : String) -> Bool {
-  let lower = output.to_lower()
-  (lower.contains("download.mooncakes.io") || lower.contains("mooncakes")) &&
-  (
-    lower.contains("tls handshake") ||
-    lower.contains("error sending request") ||
-    lower.contains("client error") ||
-    lower.contains("connection") ||
-    lower.contains("timeout")
-  )
-}
-
-///|
-fn dependency_fetch_failure_assistant_message(
-  output : String,
-  fallback : String,
-) -> String {
-  if moonbit_registry_fetch_failed(output) {
-    "Some required MoonBit packages could not be fetched right now, so the preview could not be refreshed. This is usually temporary. Retry the update in a few minutes."
-  } else {
-    fallback
-  }
-}
-
-///|
 fn agent_runtime_timeout_output(output : String) -> Bool {
   output.contains("MoonCraft builder exceeded the configured runtime limit")
 }
@@ -623,7 +598,7 @@ fn ai_builder_failure_assistant_message(
     ai_quota_or_capacity_limited(output) {
     mooncraft_capacity_assistant_message()
   } else {
-    dependency_fetch_failure_assistant_message(output, fallback)
+    fallback
   }
 }
 
@@ -733,19 +708,8 @@ fn resume_session_missing(output : String) -> Bool {
 
 ///|
 fn codex_command_progress_message(line : String) -> String? {
-  if line.contains("moon fmt") {
-    Some("Formatting the workspace.")
-  } else if line.contains("moon check") {
-    Some("Checking the workspace.")
-  } else if line.contains("moon test") {
-    Some("Running tests.")
-  } else if line.contains("moon fetch") {
-    Some("Fetching MoonBit project dependencies.")
-  } else if line.contains("moon update") {
-    Some("Refreshing MoonBit registry metadata.")
-  } else {
-    None
-  }
+  ignore(line)
+  None
 }
 
 ///|
@@ -1242,16 +1206,8 @@ fn docker_run_timeout_script(
 fn agent_runtime_entry_command(
   container_command : Array[String],
 ) -> Array[String] {
-  let script_lines : Array[String] = ["set -e"]
-  for command in user_project_fetch_commands() {
-    script_lines.push(command)
-  }
-  script_lines.push("exec \"$@\"")
   let wrapped : Array[String] = [
-    "sh",
-    "-c",
-    script_lines.join("\n"),
-    "mooncraft-agent",
+    "sh", "-c", "set -e\nexec \"$@\"", "mooncraft-agent",
   ]
   for part in container_command {
     wrapped.push(part)
@@ -1274,7 +1230,7 @@ async fn append_streaming_command_text(
     return
   }
   for index in 0..<(lines.length() - 1) {
-    let line = lines[index].to_owned()
+    let line = lines[index].to_owned().trim(chars="\r").to_owned()
     if line != "" {
       append_codex_display_event(store, project_id, run_id, line)
     }
@@ -1289,10 +1245,34 @@ async fn flush_streaming_command_text(
   run_id : String,
   pending : Ref[String],
 ) -> Unit {
-  if pending.val != "" {
-    append_codex_display_event(store, project_id, run_id, pending.val)
-    pending.val = ""
+  let line = pending.val.trim(chars="\r").to_owned()
+  if line != "" {
+    append_codex_display_event(store, project_id, run_id, line)
   }
+  pending.val = ""
+}
+
+///|
+async fn stream_command_log_delta(
+  store : Store,
+  project_id : String,
+  run_id : String,
+  log_path : String,
+  seen_length : Ref[Int],
+  pending : Ref[String],
+  output_chunks : Array[String],
+) -> Unit {
+  let output = safe_read_string_or(log_path, "")
+  if output.length() <= seen_length.val {
+    return
+  }
+  let chunk = output.unsafe_substring(
+    start=seen_length.val,
+    end=output.length(),
+  )
+  seen_length.val = output.length()
+  output_chunks.push(chunk)
+  append_streaming_command_text(store, project_id, run_id, pending, chunk)
 }
 
 ///|
@@ -1301,31 +1281,21 @@ async fn run_streaming_command(
   root : String,
   project_id : String,
   run_id : String,
+  stream_log_path : String,
   command : String,
   args : Array[String],
 ) -> Result[(Int, String), String] noraise {
   try
     @async.with_task_group(group => {
-      let (reader, writer) = @process.read_from_process()
+      ensure_dir(parent_dir(stream_log_path))
+      let writer = @process.redirect_to_file(
+        stream_log_path,
+        create=0o644,
+        truncate=true,
+      )
       let output_chunks : Array[String] = []
       let pending_line = @ref.new("")
-      let reader_task = group.spawn(() => {
-        while true {
-          let chunk = reader.read_some() catch { _ => break }
-          match chunk {
-            Some(bytes) => {
-              let text = bytes_to_string(bytes)
-              output_chunks.push(text)
-              append_streaming_command_text(
-                store, project_id, run_id, pending_line, text,
-              )
-              continue
-            }
-            None => break
-          }
-        }
-        flush_streaming_command_text(store, project_id, run_id, pending_line)
-      })
+      let seen_length = @ref.new(0)
       let process = @process.spawn(
         group,
         command,
@@ -1338,15 +1308,27 @@ async fn run_streaming_command(
       store.append_run_event(
         project_id, run_id, "status", "Runtime container is running.",
       )
-      let exit_code = process.wait()
-      let reader_finished = @async.with_timeout_opt(5000, () => {
-        reader_task.wait()
-      })
-      if reader_finished is None {
-        reader.close()
-        ignore(reader_task.wait() catch { _ => () })
+      let mut exit_status : Int? = None
+      while exit_status is None {
+        stream_command_log_delta(
+          store, project_id, run_id, stream_log_path, seen_length, pending_line,
+          output_chunks,
+        )
+        let status = process.try_wait() catch { _ => None }
+        match status {
+          Some(code) => exit_status = Some(code)
+          None => @async.sleep(200)
+        }
       }
-      (exit_code, output_chunks.join(""))
+      stream_command_log_delta(
+        store, project_id, run_id, stream_log_path, seen_length, pending_line, output_chunks,
+      )
+      flush_streaming_command_text(store, project_id, run_id, pending_line)
+      let code = match exit_status {
+        Some(code) => code
+        None => process.wait()
+      }
+      (code, output_chunks.join(""))
     })
   catch {
     err => Err("The AI builder command could not be started: \{err}")
@@ -1392,14 +1374,22 @@ async fn stream_docker_output(
     project_id, run_id, "status", "Launching the Runtime container.",
   )
   let result = match
-    run_streaming_command(store, root, project_id, run_id, "sh", [
-      "-c",
-      docker_run_timeout_script(
-        docker_args,
-        agent_runtime_container_name(project_id, run_id),
-        agent_runtime_timeout_seconds(),
-      ),
-    ]) {
+    run_streaming_command(
+      store,
+      root,
+      project_id,
+      run_id,
+      artifacts.agent_log_path + ".stream",
+      "sh",
+      [
+        "-c",
+        docker_run_timeout_script(
+          docker_args,
+          agent_runtime_container_name(project_id, run_id),
+          agent_runtime_timeout_seconds(),
+        ),
+      ],
+    ) {
     Ok(result) => result
     Err(message) => {
       remove_docker_env_file(env_file_path)
@@ -2069,6 +2059,19 @@ async fn AppContext::finish_run_with_preview_audit(
   let mut current_preview = preview
   let mut current_thread_id = result.thread_id
   let mut current_summary = result.summary
+  match self.store.set_project_preview(project_id, current_preview) {
+    Some(_) => ignore(())
+    None => {
+      self.store.finish_run_failure(
+        project_id,
+        run_id,
+        preview_audit_repair_failed_assistant_message(),
+        "The preview target could not be persisted before preview audit.",
+        current_thread_id,
+      )
+      return
+    }
+  }
   let mut audit = run_preview_audit(
     self.root,
     project_id,
@@ -2183,6 +2186,19 @@ async fn AppContext::finish_run_with_preview_audit(
       }
     }
     current_preview = repaired_preview
+    match self.store.set_project_preview(project_id, current_preview) {
+      Some(_) => ignore(())
+      None => {
+        self.store.finish_run_failure(
+          project_id,
+          run_id,
+          preview_audit_repair_failed_assistant_message(),
+          "The repaired preview target could not be persisted before preview audit.",
+          current_thread_id,
+        )
+        return
+      }
+    }
     audit = run_preview_audit(self.root, project_id, run_id, current_preview)
     if !audit.enabled || audit.passed {
       self.store.finish_run_success(

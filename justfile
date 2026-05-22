@@ -30,8 +30,8 @@ run target='8080' profile='':
 open port='8080':
   open http://localhost:{{port}}
 
-# Build, dependency-check, and run the fake-agent API smoke test
-test: build check-user-project-deps smoke
+# Build and run the fake-agent API smoke test
+test: build smoke
 
 # Start a temporary control plane and run the fake-agent API smoke test
 smoke:
@@ -83,12 +83,8 @@ agent-runtime-config:
   @echo "Admin-created Runtime manifests: /admin Runtimes"
   @echo "Runtime images, commands, container homes, provider metadata, and secret bindings are selected from each project Runtime snapshot."
 
-# Check registry modules fetched for generated user projects
-check-user-project-deps:
-  ./scripts/check_user_project_deps.sh
-
 # Check required tools and knowledge assets inside the agent runtime image
-check-user-project-deps-agent-runtime image=agent_runtime_image:
+check-agent-runtime-image image=agent_runtime_image:
   ./scripts/check_agent_runtime_image.sh "{{image}}"
 
 # Start the test Compose environment

@@ -79,3 +79,52 @@ test "docker runtime command omits user by default" {
   )
   debug_inspect(args[8], content="\"-v\"")
 }
+
+///|
+async test "process log streaming polls structured child process" {
+  let root = "/tmp/mooncraft-async-process-test-" + random_hex(6)
+  let log_path = root + "/process.log"
+  ensure_dir(root)
+  ensure_dir(parent_dir(log_path))
+  defer safe_remove_tree(root)
+  let exit_code = @async.with_task_group(group => {
+    let writer = @process.redirect_to_file(
+      log_path,
+      create=0o644,
+      truncate=true,
+    )
+    let process = @process.spawn(
+      group,
+      "sh",
+      ["-c", "printf 'first\\n'; sleep 1; printf 'second\\n'"],
+      stdout=writer,
+      stderr=writer,
+      no_wait=true,
+    )
+    let seen_first = @ref.new(false)
+    let seen_second = @ref.new(false)
+    let mut status : Int? = None
+    while status is None {
+      let text = safe_read_string_or(log_path, "")
+      if text.contains("first") {
+        seen_first.val = true
+      }
+      if text.contains("second") {
+        seen_second.val = true
+      }
+      let next_status = process.try_wait() catch { _ => None }
+      match next_status {
+        Some(code) => status = Some(code)
+        None => @async.sleep(100)
+      }
+    }
+    assert_true(seen_first.val)
+    assert_true(seen_second.val)
+    match status {
+      Some(code) => code
+      None => process.wait()
+    }
+  })
+  inspect(exit_code, content="0")
+  inspect(safe_read_string_or(log_path, ""), content="first\nsecond\n")
+}

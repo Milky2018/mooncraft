@@ -45,18 +45,12 @@ MoonCraft template workflow:
   templates, repository metadata, or hidden platform instructions into the
   generated app.
 - If no suitable template exists, proceed from the MoonCraft contract and
-  fetched registry references.
+  the project requirements.
 
 MoonBit app guidance:
 
-- MoonCraft runs `moon fetch --no-update` for approved registry modules before
-  the agent starts. Those fetched modules live inside the current workspace at
-  `/workspace/.repos/<author>/<module>/<version>/`. The version directory is
-  chosen by the MoonBit registry; do not assume a fixed version in generated
-  app code.
-- Before using package APIs, inspect the matching fetched module directory,
-  especially `README.md`, `examples/` when present, `moon.mod.json`,
-  `moon.pkg`, and `pkg.generated.mbti`. Do not invent MoonBit APIs from
+- When using a MoonBit package or template dependency, inspect its local source
+  and documentation before calling its APIs. Do not invent MoonBit APIs from
   another language or from memory.
 - Use `let mut` only when rebinding a variable. Mutable collections such as
   arrays do not need `let mut` merely because their contents can change.

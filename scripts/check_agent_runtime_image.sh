@@ -5,17 +5,11 @@ repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 default_agent_runtime_image="$(cat "$repo_root/config/agent_runtime_image.txt")"
 image="${MOONCRAFT_AGENT_RUNTIME_DEPS_CHECK_IMAGE:-${MOONCRAFT_CODEX_DEPS_CHECK_DOCKER_IMAGE:-${1:-$default_agent_runtime_image}}}"
 platform="${MOONCRAFT_AGENT_RUNTIME_DEPS_CHECK_PLATFORM:-${MOONCRAFT_CODEX_DEPS_CHECK_DOCKER_PLATFORM:-${2:-host}}}"
-modules_file="$repo_root/config/user_project_reference_modules.txt"
 tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/mooncraft-agent-runtime-check.XXXXXX")"
 cleanup() {
   rm -rf "$tmp_root"
 }
 trap cleanup EXIT
-
-if [[ ! -f "$modules_file" ]]; then
-  echo "Missing user-project reference modules file: $modules_file" >&2
-  exit 1
-fi
 
 if [[ "$platform" = host || "$platform" = auto ]]; then
   platform="$("$repo_root/scripts/publish_agent_runtime_image.sh" host-platform)"
@@ -37,26 +31,14 @@ docker run --rm \
   -e "MOONCRAFT_AI_MODEL=openai/gpt-5.4-mini" \
   -e "MOONCRAFT_AI_API_KEY=${MOONCRAFT_AGENT_RUNTIME_DEPS_CHECK_API_KEY:-dummy-runtime-check-key}" \
   -v "$tmp_root:/workspace" \
-  -v "$modules_file:/mooncraft-user-project-reference-modules.txt:ro" \
   -w /workspace \
   "$image" \
   bash -lc '
     set -euo pipefail
-    modules=()
-    while IFS= read -r module; do
-      modules+=("$module")
-    done < <(grep -vE "^[[:space:]]*(#|$)" /mooncraft-user-project-reference-modules.txt)
-    if [[ "${#modules[@]}" -eq 0 ]]; then
-      echo "No user-project reference modules configured." >&2
-      exit 1
-    fi
     command -v rg >/dev/null
     command -v jq >/dev/null
     command -v sort >/dev/null
-    for module in "${modules[@]}"; do
-      echo "==> Fetching required module: $module"
-      moon fetch --no-update "$module"
-    done
+    command -v mooncraft-runtime-send >/dev/null
     test -n "${HOME:-}"
     test -d "$HOME/.codex/skills"
     test -d /opt/mooncraft/templates
