@@ -1177,6 +1177,25 @@ fn agent_runtime_timeout_seconds() -> Int {
 }
 
 ///|
+fn agent_runtime_doctor_timeout_seconds() -> Int {
+  match @env.get_env_var("MOONCRAFT_AGENT_RUNTIME_DOCTOR_TIMEOUT_SECONDS") {
+    Some(value) => {
+      let parsed = @string.parse_int(value.trim().to_owned()) catch {
+        _ => 120
+      }
+      if parsed <= 0 {
+        120
+      } else if parsed > 300 {
+        300
+      } else {
+        parsed
+      }
+    }
+    None => 120
+  }
+}
+
+///|
 fn docker_run_timeout_script(
   docker_args : Array[String],
   container_name : String,
@@ -1259,6 +1278,7 @@ async fn collect_docker_output(
   agent_home_path : String?,
   artifacts : RunArtifacts,
   container_command : Array[String],
+  timeout_seconds~ : Int = agent_runtime_timeout_seconds(),
 ) -> Result[(Int, String), String] noraise {
   let env_file_path = write_docker_env_file(config, artifacts)
   prepare_agent_mounts(workspace_path, agent_home_path, artifacts)
@@ -1280,7 +1300,7 @@ async fn collect_docker_output(
         docker_run_timeout_script(
           docker_args,
           agent_runtime_container_name(artifacts.project_id, artifacts.run_id),
-          agent_runtime_timeout_seconds(),
+          timeout_seconds,
         ),
       ],
       cwd=root,
@@ -1479,7 +1499,13 @@ async fn run_agent_runtime_doctor(
   )
   let result = match
     collect_docker_output(
-      root, config, workspace_path, agent_home_path, artifacts, command,
+      root,
+      config,
+      workspace_path,
+      agent_home_path,
+      artifacts,
+      command,
+      timeout_seconds=agent_runtime_doctor_timeout_seconds(),
     ) {
     Ok(result) => result
     Err(message) =>
@@ -1637,7 +1663,12 @@ async fn run_codex_turn(
   }
   match
     run_agent_runtime_doctor(
-      root, config, project, workspace_path, artifacts, thread_id_before,
+      root,
+      config,
+      project,
+      workspace_path,
+      artifacts,
+      thread_id_before,
     ) {
     Ok(_) => ignore(())
     Err(failure) => return Err(failure)
