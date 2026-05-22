@@ -14,6 +14,10 @@ MoonCraft contract:
   to `4300`, listen on `0.0.0.0:<port>`, and keep the preview process in the
   foreground.
 - Serve the user-facing app at `/`.
+- The public preview may be mounted under a path prefix such as
+  `/p/<preview-id>/`. Browser asset URLs, module imports, CSS URLs, and API
+  calls must be relative to the document. Do not use root-absolute browser URLs
+  such as `/frontend.js`, `/styles.css`, or `/api/metrics`.
 - Prefer a successful `/api/health`; MoonCraft falls back to `/` for previews.
 - Do not create hidden platform scaffolds.
 

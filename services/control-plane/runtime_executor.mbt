@@ -509,6 +509,8 @@ fn preview_audit_repair_prompt(
     #|
     #|
     #|Repair the existing workspace so the user-facing preview at `/` returns a successful non-empty HTTP response through the MoonCraft preview proxy. Preserve the requested app behavior and keep the MoonCraft runtime contract intact.
+    #|
+    #|The public preview may be served under a path prefix such as `/p/<preview-id>/`. Browser asset URLs, module imports, CSS URLs, and API calls must be relative to the document. Do not use root-absolute browser URLs such as `/frontend.js`, `/styles.css`, or `/api/metrics`.
   )
 }
 
