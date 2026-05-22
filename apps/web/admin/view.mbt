@@ -1,6 +1,11 @@
 ///|
 fn count_badge(value : Int) -> @rabbita.Html {
-  @html.strong(style=value_style(), value.to_string())
+  @html.strong(style=["font: inherit", "color: inherit"], value.to_string())
+}
+
+///|
+fn table_wrap(table : @rabbita.Html) -> @rabbita.Html {
+  @html.div(style=table_wrap_style(), [table])
 }
 
 ///|
@@ -205,19 +210,21 @@ fn expanded_user_projects_row(model : AdminModel) -> @rabbita.Html {
       style=["padding: 0", "border-bottom: 1px solid var(--border)"],
       [
         @html.div(style=["padding: 8px", "background: var(--foreground-3)"], [
-          @html.table(style=table_style(), [
-            @html.thead([
-              @html.tr([
-                @html.th(style=th_style(), "Project"),
-                @html.th(style=th_style(), "Agent"),
-                @html.th(style=th_style(), "Model"),
-                @html.th(style=th_style(), "Status"),
-                @html.th(style=th_style() + ["text-align: right"], "Runs"),
-                @html.th(style=th_style(), "Actions"),
+          table_wrap(
+            @html.table(style=table_style(), [
+              @html.thead([
+                @html.tr([
+                  @html.th(style=th_style(), "Project"),
+                  @html.th(style=th_style(), "Agent"),
+                  @html.th(style=th_style(), "Model"),
+                  @html.th(style=th_style(), "Status"),
+                  @html.th(style=th_style() + ["text-align: right"], "Runs"),
+                  @html.th(style=th_style(), "Actions"),
+                ]),
               ]),
+              @html.tbody(rows),
             ]),
-            @html.tbody(rows),
-          ]),
+          ),
         ]),
       ],
     ),
@@ -278,24 +285,26 @@ fn users_view(
   }
   @html.section(style=card_style(), [
     section_head("Users", "\{model.users.length()} users", @html.nothing),
-    @html.table(style=table_style(), [
-      @html.thead([
-        @html.tr([
-          @html.th(style=th_style(), "User"),
-          @html.th(style=th_style(), "ID"),
-          @html.th(style=th_style() + ["text-align: right"], "Projects"),
-          @html.th(style=th_style() + ["text-align: right"], "Running"),
-          @html.th(style=th_style(), "Latest project"),
+    table_wrap(
+      @html.table(style=table_style(), [
+        @html.thead([
+          @html.tr([
+            @html.th(style=th_style(), "User"),
+            @html.th(style=th_style(), "ID"),
+            @html.th(style=th_style() + ["text-align: right"], "Projects"),
+            @html.th(style=th_style() + ["text-align: right"], "Running"),
+            @html.th(style=th_style(), "Latest project"),
+          ]),
         ]),
+        @html.tbody(
+          if rows.length() == 0 {
+            [empty_row(5, "No users.")]
+          } else {
+            rows
+          },
+        ),
       ]),
-      @html.tbody(
-        if rows.length() == 0 {
-          [empty_row(5, "No users.")]
-        } else {
-          rows
-        },
-      ),
-    ]),
+    ),
   ])
 }
 
@@ -500,20 +509,22 @@ fn keys_view(
         "+",
       ),
     ),
-    @html.table(style=table_style(), [
-      @html.thead([
-        @html.tr([
-          @html.th(style=th_style(), "Label"),
-          @html.th(style=th_style(), "Key hint"),
-          @html.th(style=th_style(), "Status"),
-          @html.th(style=th_style() + ["text-align: right"], "Priority"),
-          @html.th(style=th_style(), "Last used"),
-          @html.th(style=th_style(), "Last error"),
-          @html.th(style=th_style(), "Actions"),
+    table_wrap(
+      @html.table(style=table_style(), [
+        @html.thead([
+          @html.tr([
+            @html.th(style=th_style(), "Label"),
+            @html.th(style=th_style(), "Key hint"),
+            @html.th(style=th_style(), "Status"),
+            @html.th(style=th_style() + ["text-align: right"], "Priority"),
+            @html.th(style=th_style(), "Last used"),
+            @html.th(style=th_style(), "Last error"),
+            @html.th(style=th_style(), "Actions"),
+          ]),
         ]),
+        @html.tbody(body_rows),
       ]),
-      @html.tbody(body_rows),
-    ]),
+    ),
   ])
 }
 
@@ -802,18 +813,20 @@ fn runtimes_view(
       ),
     ),
     runtime_build_guide(),
-    @html.table(style=table_style(), [
-      @html.thead([
-        @html.tr([
-          @html.th(style=th_style(), "Name"),
-          @html.th(style=th_style(), "ID"),
-          @html.th(style=th_style(), "Status"),
-          @html.th(style=th_style(), "Agent / model"),
-          @html.th(style=th_style(), "Actions"),
+    table_wrap(
+      @html.table(style=table_style(), [
+        @html.thead([
+          @html.tr([
+            @html.th(style=th_style(), "Name"),
+            @html.th(style=th_style(), "ID"),
+            @html.th(style=th_style(), "Status"),
+            @html.th(style=th_style(), "Agent / model"),
+            @html.th(style=th_style(), "Actions"),
+          ]),
         ]),
+        @html.tbody(rows),
       ]),
-      @html.tbody(rows),
-    ]),
+    ),
   ])
 }
 
@@ -1039,9 +1052,11 @@ fn model_create_row(
             ),
           ],
         ),
-        @html.table(
-          style=table_style(),
-          @html.tbody(catalog_picker_rows(dispatch, model)),
+        table_wrap(
+          @html.table(
+            style=table_style(),
+            @html.tbody(catalog_picker_rows(dispatch, model)),
+          ),
         ),
       ],
     ),
@@ -1087,20 +1102,22 @@ fn models_view(
         )
       None => @html.nothing
     },
-    @html.table(style=table_style(), [
-      @html.thead([
-        @html.tr([
-          @html.th(style=th_style(), "Model"),
-          @html.th(style=th_style(), "ID"),
-          @html.th(style=th_style(), "Default"),
-          @html.th(style=th_style() + ["text-align: right"], "Context"),
-          @html.th(style=th_style() + ["text-align: right"], "Input"),
-          @html.th(style=th_style() + ["text-align: right"], "Output"),
-          @html.th(style=th_style(), "Actions"),
+    table_wrap(
+      @html.table(style=table_style(), [
+        @html.thead([
+          @html.tr([
+            @html.th(style=th_style(), "Model"),
+            @html.th(style=th_style(), "ID"),
+            @html.th(style=th_style(), "Default"),
+            @html.th(style=th_style() + ["text-align: right"], "Context"),
+            @html.th(style=th_style() + ["text-align: right"], "Input"),
+            @html.th(style=th_style() + ["text-align: right"], "Output"),
+            @html.th(style=th_style(), "Actions"),
+          ]),
         ]),
+        @html.tbody(body_rows),
       ]),
-      @html.tbody(body_rows),
-    ]),
+    ),
   ])
 }
 

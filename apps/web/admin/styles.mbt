@@ -83,9 +83,14 @@ fn card_style() -> Array[String] {
 
 ///|
 fn table_style() -> Array[String] {
+  ["width: 100%", "border-collapse: collapse"]
+}
+
+///|
+fn table_wrap_style() -> Array[String] {
   [
-    "width: 100%", "border-collapse: collapse", "border: 1px solid var(--border)",
-    "border-radius: 8px", "background: var(--background)",
+    "width: 100%", "overflow: visible", "border-radius: 8px", "border: 1px solid var(--border)",
+    "background: var(--background)",
   ]
 }
 
