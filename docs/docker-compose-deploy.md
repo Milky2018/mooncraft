@@ -36,8 +36,12 @@ just build-mooncraft-image mooncraft:local linux/amd64
 Make sure the agent runtime image is available. The `just deploy-*` commands below pull it automatically from the image configured in the matching env file.
 
 ```bash
-just build-agent-runtime-image docker.io/moonbitcloud/mooncraft-agent-runtime 0.1.0 linux/amd64
-# or publish the shared multi-architecture image:
+just build-agent-runtime-image docker.io/moonbitcloud/mooncraft-agent-runtime 0.1.0
+
+# Build local architecture-suffixed images for both supported platforms:
+just build-agent-runtime-images docker.io/moonbitcloud/mooncraft-agent-runtime 0.1.0
+
+# Publish the shared multi-architecture image:
 just docker-agent-runtime-publish docker.io/moonbitcloud/mooncraft-agent-runtime 0.1.0 linux/amd64,linux/arm64
 
 just deploy-test
@@ -51,6 +55,8 @@ MoonCraft detects the Docker daemon architecture before each real builder run an
 - `arm64` / `aarch64` -> `linux/arm64`
 
 Any other Docker host architecture fails before the builder starts. The agent runtime image must therefore be available for both `linux/amd64` and `linux/arm64`.
+
+`just build-agent-runtime-image` defaults to the current Docker host platform, which is the right choice for local smoke tests. `just build-agent-runtime-images` builds both local platform-specific tags, such as `:0.1.0-amd64` and `:0.1.0-arm64`. Production and shared test deployments should use `just docker-agent-runtime-publish`, which builds and pushes one multi-architecture tag that Docker can resolve by host platform.
 
 If you are publishing your own agent runtime image, push it first and set `MOONCRAFT_AGENT_RUNTIME_IMAGE` when starting Compose.
 

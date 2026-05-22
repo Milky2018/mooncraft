@@ -10,13 +10,13 @@ Responsibilities:
 - serve the main workspace page, frontend bundles, and web-owned static shells
 - authenticate users through GitHub OAuth and cookie sessions
 - launch durable asynchronous agent workers against generated workspaces
-- fetch approved MoonBit registry modules before validation and preview startup
+- start generated previews through their project-owned script
 - rebuild and restart local previews
 - store preview URLs and last-known run state
 
-The platform no longer uses official app templates. Project rows do not carry template ids, and there is no template picker. Project creation runs `moon new` deterministically and saves that plain MoonBit module as the first workspace snapshot. The first user prompt decides what the app becomes; the selected agent must set `preferred-target` in `moon.mod.json` and create `mooncraft-preview.sh` as part of the requested app rather than preserve any platform-owned starter app.
+The platform no longer uses official app templates. Project rows do not carry template ids, and there is no template picker. Project creation runs `moon new` deterministically and saves that plain MoonBit module as the first workspace snapshot. The first user prompt decides what the app becomes; the selected agent must create `mooncraft-preview.sh` as part of the requested app rather than preserve any platform-owned starter app.
 
-The current `AgentGateway` uses Docker-backed agent CLI runs. Projects are bound to one agent CLI at creation time: Codex, Claude Code, or Kimi Code. Codex projects keep one persistent `codex_thread_id` in the database and one platform-owned Codex home under `data/codex-sessions/<project-id>/.codex`; Claude Code and Kimi Code are stateless per turn and rely on the persisted workspace snapshot. Each new chat message starts a detached worker process through `moonbitlang/async/process`, runs the selected agent in the disposable container, validates the workspace with dependency fetches plus hard `moon fmt`, `moon check`, `moon build`, and release-run probing, records `moon test` as a soft signal, refreshes the preview, then runs a browser preview audit when Playwright is available. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
+The current `AgentGateway` uses Docker-backed agent CLI runs. Projects are bound to one Runtime at creation time. Codex projects keep one persistent `codex_thread_id` in the database and one platform-owned Codex home under `data/codex-sessions/<project-id>/.codex`; other runtimes use the persisted workspace snapshot and runtime session id. Each new chat message starts a detached worker process through `moonbitlang/async/process`, runs the selected Runtime in the disposable container, persists the updated workspace, starts `mooncraft-preview.sh`, then runs a browser preview audit when Playwright is available. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
 
 Workspace directories are no longer durable state. The control plane saves the latest source archive in SQLite after initial workspace generation and after agent edits. Each run hydrates that database snapshot into an isolated runtime workspace before starting the selected agent, then restores the local preview cache from the saved snapshot.
 
@@ -32,7 +32,7 @@ Before agent runs, validation, and preview startup, generated user projects run 
 
 For real Docker-backed runs, the MoonCraft agent runtime image initializes the MoonBit registry at image build time, installs the supported agent CLIs, seeds MoonBit skills from `https://github.com/moonbitlang/skills`, installs MoonCraft project templates from `https://github.com/moonbitlang/mooncraft-templates.git` under `/opt/mooncraft/templates`, and installs compact MoonCraft runtime system instructions before every command. Normal user prompts are not wrapped with the generated-app contract; that project-aware contract lives in the runtime system layer. Runtime validation avoids `moon update` by default because MoonBit may fail while rotating its symbols directory across Docker mount boundaries.
 
-Validation does not special-case browser-only JavaScript tests. `moon test` is executed and logged, but failures do not block preview refresh. The hard validation path is `moon fmt`, `moon check`, `moon build`, and a bounded `moon run --release <main-package>` probe; if a long-running server stays alive during the probe window, MoonCraft treats that as a valid release process.
+MoonCraft no longer runs generic MoonBit validation gates after the builder returns. The generated app's runtime contract is `mooncraft-preview.sh <port>`: if that script can start a reachable preview, the workspace is accepted. Browser preview audit may still request repairs when Playwright reports page errors, console errors, or failed non-favicon resources.
 
 If Mooncakes returns a transient network error such as a TLS handshake EOF during dependency fetch, the run fails cleanly, preserves the previous preview, records the artifact logs for operators, and returns a plain-English retry message to the user instead of exposing raw registry output as the main chat response.
 
@@ -73,7 +73,7 @@ After HTTP readiness succeeds, MoonCraft optionally runs `scripts/preview_audit.
 Use these repository-level checks:
 
 - `just check-user-project-deps` verifies required registry fetches locally and reports optional unpublished modules.
-- `just check-user-project-deps-agent-runtime` runs the same fetch check inside the agent runtime image and verifies that the image seeds MoonBit skills.
+- `just check-user-project-deps-agent-runtime` verifies required tools and knowledge assets inside the agent runtime image.
 - `just smoke` covers the default project creation, fake Codex update, preview rebuild, deletion, and persistence flow.
 
 Required agent runtime configuration:
@@ -85,6 +85,6 @@ The default runtime image is stored in `config/agent_runtime_image.txt` and is c
 
 The runtime intentionally does not mount a host AI tool home and users do not configure provider keys. Admins log in at `/admin/login` with `MOONCRAFT_ADMIN_TOKEN` and use `/admin` to inspect users, manage projects, inspect recent runs, and configure OpenRouter keys. The key API stores the key value, returns only a masked hint, and the worker passes one leased key into the isolated agent runtime container only for the active run. OpenRouter is the only supported AI provider for generated-app runs.
 
-Use `just agent-runtime-config` to inspect the effective runtime configuration. Build the runtime image locally with `just build-agent-runtime-image <repository> <version> <platform>` and publish the shared multi-arch runtime image with `just docker-agent-runtime-publish <repository> <version> <platforms>` after `docker login`.
+Use `just agent-runtime-config` to inspect the effective runtime configuration. Build the runtime image for the Docker host architecture with `just build-agent-runtime-image <repository> <version>`; pass `linux/amd64` or `linux/arm64` only when you intentionally need a specific platform. Use `just build-agent-runtime-images <repository> <version>` to build both local architecture-suffixed tags. Publish the shared multi-architecture runtime image with `just docker-agent-runtime-publish <repository> <version> linux/amd64,linux/arm64` after `docker login`.
 
 Use `OPENROUTER_API_KEY=... just agent-smoke` from the repository root only when you intentionally want to spend real OpenRouter quota on an end-to-end Docker-backed build. The smoke script writes the key through the admin API after startup; it does not configure MoonCraft through service environment variables. Optional smoke overrides are `MOONCRAFT_AGENT_SMOKE_KEY_REF` and `MOONCRAFT_AGENT_SMOKE_MODEL`. The old `just codex-smoke` recipe remains as a compatibility alias.

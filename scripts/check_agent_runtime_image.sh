@@ -3,10 +3,10 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 default_agent_runtime_image="$(cat "$repo_root/config/agent_runtime_image.txt")"
-image="${MOONCRAFT_AGENT_RUNTIME_DEPS_CHECK_IMAGE:-${MOONCRAFT_CODEX_DEPS_CHECK_DOCKER_IMAGE:-$default_agent_runtime_image}}"
-platform="${MOONCRAFT_AGENT_RUNTIME_DEPS_CHECK_PLATFORM:-${MOONCRAFT_CODEX_DEPS_CHECK_DOCKER_PLATFORM:-}}"
+image="${MOONCRAFT_AGENT_RUNTIME_DEPS_CHECK_IMAGE:-${MOONCRAFT_CODEX_DEPS_CHECK_DOCKER_IMAGE:-${1:-$default_agent_runtime_image}}}"
+platform="${MOONCRAFT_AGENT_RUNTIME_DEPS_CHECK_PLATFORM:-${MOONCRAFT_CODEX_DEPS_CHECK_DOCKER_PLATFORM:-${2:-host}}}"
 modules_file="$repo_root/config/user_project_reference_modules.txt"
-tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/mooncraft-user-project-deps-docker.XXXXXX")"
+tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/mooncraft-agent-runtime-check.XXXXXX")"
 cleanup() {
   rm -rf "$tmp_root"
 }
@@ -17,17 +17,18 @@ if [[ ! -f "$modules_file" ]]; then
   exit 1
 fi
 
-if [[ -z "$platform" ]]; then
-  docker_arch="$(docker info --format '{{.Architecture}}')"
-  case "$docker_arch" in
-    x86_64 | amd64) platform="linux/amd64" ;;
-    aarch64 | arm64) platform="linux/arm64" ;;
-    *)
-      echo "Unsupported Docker host architecture for agent runtime dependency check: $docker_arch" >&2
-      exit 65
-      ;;
-  esac
+if [[ "$platform" = host || "$platform" = auto ]]; then
+  platform="$("$repo_root/scripts/publish_agent_runtime_image.sh" host-platform)"
 fi
+
+case "$platform" in
+  linux/amd64 | linux/arm64) ;;
+  *)
+    echo "Unsupported agent runtime image check platform: $platform" >&2
+    echo "Use host, linux/amd64, or linux/arm64." >&2
+    exit 64
+    ;;
+esac
 
 docker run --rm \
   --platform "$platform" \
@@ -55,5 +56,5 @@ docker run --rm \
     done
     test -d "${CODEX_HOME:-${HOME:-/root}/.codex}/skills"
     test -d /opt/mooncraft/templates
-    echo "Agent runtime dependency and skill seed check completed."
+    echo "Agent runtime image check completed."
   '

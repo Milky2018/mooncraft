@@ -27,7 +27,7 @@ Each user project is created under:
 That directory is runtime scratch, not durable storage. The control plane keeps the authoritative workspace source snapshot in SQLite and hydrates it into scratch paths for agent runs and preview rebuilds.
 The old `data/projects` location is not a fallback source; startup removes that legacy scratch root instead of migrating or restoring from it.
 
-Each generated project chooses its own MoonBit structure. The control plane does not create or require `frontend/`, `backend/`, or `shared/` directories. It requires a valid root MoonBit module with `preferred-target` set in `moon.mod.json`, plain root-level MoonBit commands that pass, and a project-owned `mooncraft-preview.sh` script that starts the live preview.
+Each generated project chooses its own structure. The control plane does not create or require `frontend/`, `backend/`, or `shared/` directories. The project-owned `mooncraft-preview.sh` script is the runtime contract: MoonCraft starts it with a private preview port and requires the resulting preview to become reachable.
 
 New projects start from a deterministic plain `moon new` module. MoonCraft does not add a platform-owned starter web app. The selected agent creates the app runtime and preview script as part of satisfying the first user request.
 
@@ -79,8 +79,7 @@ The control plane owns only the runtime boundary, not the app's source layout. E
 - new projects start from plain `moon new` output, not an official app template
 - normal user prompts are passed as task intent; MoonCraft app contract knowledge lives in the agent runtime system layer
 - the selected agent creates the requested real app and its preview startup script
-- the root `moon.mod.json` must set `preferred-target`
-- root-level `moon fmt`, `moon check`, and `moon build` must remain valid; each app must provide a release-runnable main package for `moon run --release <package>` probing; `moon test` is logged as a soft signal and does not block preview refresh by itself
+- `mooncraft-preview.sh <port>` must start the live preview
 - `mooncraft-preview.sh` receives the preview port as its first CLI argument, starts the app server, keeps the preview process in the foreground, and serves `/`
 - `/api/health` is preferred for readiness, while `/` is accepted as a fallback for browser-only/static previews
 - source snapshots are persisted after creation and after successful agent edits

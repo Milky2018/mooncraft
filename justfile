@@ -65,13 +65,17 @@ codex-smoke:
 build-mooncraft-image tag='mooncraft:local' platform='linux/amd64':
   ./scripts/docker_mooncraft_build.sh "{{tag}}" "{{platform}}"
 
-# Build the Docker image used by MoonCraft agent workers
-build-agent-runtime-image repository=agent_runtime_repository version=agent_runtime_version platform='linux/amd64':
-  ./scripts/docker_agent_runtime_build.sh "{{repository}}" "{{version}}" "{{platform}}"
+# Build the Docker image used by MoonCraft agent workers for the Docker host architecture
+build-agent-runtime-image repository=agent_runtime_repository version=agent_runtime_version platform='host':
+  ./scripts/publish_agent_runtime_image.sh build "{{repository}}" "{{version}}" "{{platform}}"
 
-# Publish the agent runtime image to Docker Hub
+# Build local architecture-suffixed agent runtime images for both supported platforms
+build-agent-runtime-images repository=agent_runtime_repository version=agent_runtime_version platforms='linux/amd64,linux/arm64':
+  ./scripts/publish_agent_runtime_image.sh build-all "{{repository}}" "{{version}}" "{{platforms}}"
+
+# Build and publish the multi-architecture agent runtime image to Docker Hub
 docker-agent-runtime-publish repository=agent_runtime_repository version=agent_runtime_version platforms='linux/amd64,linux/arm64':
-  ./scripts/docker_agent_runtime_publish.sh "{{repository}}" "{{version}}" "{{platforms}}"
+  ./scripts/publish_agent_runtime_image.sh publish "{{repository}}" "{{version}}" "{{platforms}}"
 
 # Show the effective agent runtime configuration
 agent-runtime-config:
@@ -83,9 +87,9 @@ agent-runtime-config:
 check-user-project-deps:
   ./scripts/check_user_project_deps.sh
 
-# Check generated project dependencies inside the agent runtime image
+# Check required tools and knowledge assets inside the agent runtime image
 check-user-project-deps-agent-runtime image=agent_runtime_image:
-  MOONCRAFT_AGENT_RUNTIME_DEPS_CHECK_IMAGE="{{image}}" ./scripts/check_user_project_deps_in_agent_runtime_image.sh
+  ./scripts/check_agent_runtime_image.sh "{{image}}"
 
 # Start the test Compose environment
 deploy-test:

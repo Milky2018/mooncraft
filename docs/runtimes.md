@@ -29,6 +29,15 @@ Runtime specs are JSON edited by admins. The first supported command shape is a 
 
 Runtime specs do not inline secrets. Secrets are managed separately by admins and may be injected into Runtime env or files by explicit references in a later spec revision.
 
+## Image Platforms
+
+Runtime images must be built and published for both supported platforms:
+
+- `linux/amd64`
+- `linux/arm64`
+
+MoonCraft detects the Docker host architecture before every builder run and passes the matching `--platform` to `docker run`. Local smoke tests should build the host platform with `just build-agent-runtime-image <repository> <version>`. Release publishing should use `just docker-agent-runtime-publish <repository> <version> linux/amd64,linux/arm64` so one image tag resolves correctly on either host architecture.
+
 ## Session Model
 
 MoonCraft follows the craft-agents session model:

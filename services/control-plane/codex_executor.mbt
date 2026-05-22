@@ -513,85 +513,6 @@ fn preview_audit_repair_prompt(
 }
 
 ///|
-fn workspace_contract_repair_prompt(
-  contract_error : String,
-  initial_project_prompt : String,
-  user_prompt : String,
-) -> String {
-  (
-    #|MoonCraft could not validate the generated workspace structure.
-    #|
-    #|This is a mandatory repair task.
-    #|
-    #|Problem:
-    #|
-  ) +
-  contract_error +
-  (
-    #|
-    #|
-    #|Original project requirement:
-    #|
-  ) +
-  initial_project_prompt +
-  (
-    #|
-    #|
-    #|Latest user request:
-    #|
-  ) +
-  user_prompt +
-  (
-    #|
-    #|
-    #|Repair the workspace so it satisfies the MoonCraft generated-app runtime contract. Use the runtime instructions for the exact contract, including `preferred-target` and `mooncraft-preview.sh`. Preserve the user's requested app behavior.
-  )
-}
-
-///|
-fn validation_repair_prompt(
-  validation_error : String,
-  initial_project_prompt : String,
-  user_prompt : String,
-) -> String {
-  (
-    #|MoonCraft validation failed before the preview could be refreshed.
-    #|
-    #|This is a mandatory repair task.
-    #|
-    #|Hard gates: `moon fmt`, `moon check`, `moon build`, and the release run probe must pass. `moon test` is a soft gate: fix failing tests when practical, but do not block the preview solely on test execution failures.
-    #|
-    #|Validation failure:
-    #|
-  ) +
-  validation_error +
-  (
-    #|
-    #|
-    #|Original project requirement:
-    #|
-  ) +
-  initial_project_prompt +
-  (
-    #|
-    #|
-    #|Latest user request:
-    #|
-  ) +
-  user_prompt +
-  (
-    #|
-    #|
-    #|Repair the existing workspace. Preserve the user's requested app behavior and keep the MoonCraft runtime contract intact.
-  )
-}
-
-///|
-fn workspace_contract_failed_assistant_message() -> String {
-  "The builder did not finish creating a valid app workspace. Send another message to retry."
-}
-
-///|
 fn default_success_summary() -> String {
   successful_preview_assistant_message()
 }
@@ -693,94 +614,6 @@ fn trim_or_default(text : String, fallback : String) -> String {
     fallback
   } else {
     normalized
-  }
-}
-
-///|
-fn workspace_has_root_moon_project(workspace_path : String) -> Bool {
-  @fs.path_exists(workspace_path + "/moon.mod.json") ||
-  @fs.path_exists(workspace_path + "/moon.mod") ||
-  @fs.path_exists(workspace_path + "/moon.work")
-}
-
-///|
-fn workspace_has_preferred_target(workspace_path : String) -> Bool {
-  let manifest_path = workspace_path + "/moon.mod.json"
-  if !@fs.path_exists(manifest_path) {
-    return false
-  }
-  let manifest = safe_read_string_or(manifest_path, "")
-  manifest.contains("\"preferred-target\"")
-}
-
-///|
-fn workspace_has_preview_script(workspace_path : String) -> Bool {
-  @fs.path_exists(workspace_path + "/mooncraft-preview.sh")
-}
-
-///|
-fn workspace_moonbit_source_find_command(workspace_path : String) -> String {
-  let workspace = trim_mount_path(workspace_path)
-  "find " +
-  shell_quote(workspace) +
-  " \\( -path " +
-  shell_quote(workspace + "/.repos") +
-  " -o -path " +
-  shell_quote(workspace + "/_build") +
-  " -o -path " +
-  shell_quote(workspace + "/.git") +
-  " -o -path " +
-  shell_quote(workspace + "/.mooncakes") +
-  " \\) -prune -o -name '*.mbt' -type f"
-}
-
-///|
-fn workspace_has_user_moonbit_source(workspace_path : String) -> Bool {
-  shell_status(
-    workspace_moonbit_source_find_command(workspace_path) +
-    " -print -quit | grep -q .",
-  ) ==
-  0
-}
-
-///|
-fn workspace_app_sources_contain(
-  workspace_path : String,
-  needle : String,
-) -> Bool {
-  shell_status(
-    workspace_moonbit_source_find_command(workspace_path) +
-    " ! -name '*_test.mbt' ! -name '*_wbtest.mbt' -exec grep -F -q " +
-    shell_quote(needle) +
-    " {} \\; -print -quit | grep -q .",
-  ) ==
-  0
-}
-
-///|
-fn workspace_contract_error(workspace_path : String) -> String? {
-  if !workspace_has_root_moon_project(workspace_path) {
-    Some(
-      "The builder did not create a MoonBit project at the workspace root. Expected `moon.mod.json`, `moon.mod`, or `moon.work` directly under \{workspace_path}.",
-    )
-  } else if !workspace_has_preferred_target(workspace_path) {
-    Some(
-      "The generated app must set `preferred-target` in the root `moon.mod.json` so MoonCraft can validate it with plain `moon` commands.",
-    )
-  } else if !workspace_has_user_moonbit_source(workspace_path) {
-    Some(
-      "The builder created a root MoonBit manifest but did not create any MoonBit source files under \{workspace_path}.",
-    )
-  } else if !workspace_has_preview_script(workspace_path) {
-    Some(
-      "The generated app must provide a root `mooncraft-preview.sh` script that starts the live preview server.",
-    )
-  } else if workspace_app_sources_contain(workspace_path, "MoonCraft Starter") {
-    Some(
-      "The generated app still contains the default MoonCraft starter page. Replace it with the user's requested app before finishing.",
-    )
-  } else {
-    None
   }
 }
 
@@ -1026,8 +859,8 @@ fn fake_codex_update_workspace(
         #|  "moonbitlang/async",
         #|  "oboard/mocket",
         #|  "moonbitlang/core/env",
-        #|  "moonbitlang/core/fs",
         #|  "moonbitlang/core/string",
+        #|  "moonbitlang/x/fs",
         #|}
         #|
         #|options(
@@ -1599,6 +1432,14 @@ fn codex_exec_raw_command(model : String, prompt : String) -> Array[String] {
 }
 
 ///|
+fn codex_resume_raw_command(
+  thread_id : String,
+  prompt : String,
+) -> Array[String] {
+  ["codex", "resume", thread_id, prompt]
+}
+
+///|
 fn codex_failure(
   assistant_message : String,
   error_message : String,
@@ -1665,7 +1506,12 @@ async fn run_codex_turn(
       write_runtime_context(config, project, artifacts, prompt)
       runtime_send_command(config, artifacts)
     }
-    None => codex_exec_raw_command(model, prompt)
+    None =>
+      match thread_id_before {
+        Some(thread_id) if resume_existing && !raw_prompt =>
+          codex_resume_raw_command(thread_id, prompt)
+        _ => codex_exec_raw_command(model, prompt)
+      }
   }
   match
     run_agent_runtime_doctor(
@@ -1934,374 +1780,6 @@ async fn run_codex_turn(
 }
 
 ///|
-async fn run_validation_command(
-  root : String,
-  config : AgentRuntimeConfig?,
-  workspace_path : String,
-  artifacts : RunArtifacts,
-  label : String,
-  command : Array[String],
-  thread_id : String,
-) -> Result[Unit, AgentTurnFailure] noraise {
-  let result = if smoke_codex_enabled() {
-    match
-      collect_local_output(command[0], command_args(command), workspace_path) {
-      Ok(result) => result
-      Err(message) =>
-        return Err(
-          codex_failure_with_debug(
-            "The workspace was updated, but validation could not be started.",
-            message,
-            Some(thread_id),
-            Some(failure_debug(label, Some(command), None, Some(artifacts))),
-          ),
-        )
-    }
-  } else {
-    match config {
-      Some(config) =>
-        match
-          collect_docker_output(
-            root,
-            config,
-            workspace_path,
-            None,
-            artifacts,
-            command,
-          ) {
-          Ok(result) => result
-          Err(message) =>
-            return Err(
-              codex_failure_with_debug(
-                "The workspace was updated, but validation could not be started.",
-                message,
-                Some(thread_id),
-                Some(failure_debug(label, Some(command), None, Some(artifacts))),
-              ),
-            )
-        }
-      None =>
-        return Err(
-          codex_failure_with_debug(
-            "The workspace was updated, but validation could not be started.",
-            "The app validator is temporarily unavailable.",
-            Some(thread_id),
-            Some(failure_debug(label, Some(command), None, Some(artifacts))),
-          ),
-        )
-    }
-  }
-  let (exit_code, output) = result
-  append_command_log(
-    artifacts.validation_log_path,
-    label,
-    command,
-    exit_code,
-    output,
-  )
-  if exit_code != 0 {
-    return Err(
-      codex_failure_with_debug(
-        dependency_fetch_failure_assistant_message(
-          output, "The workspace was updated, but validation failed before the preview could be refreshed.",
-        ),
-        stage_failure_message(
-          label,
-          exit_code,
-          artifacts.validation_log_path,
-          output,
-        ),
-        Some(thread_id),
-        Some(
-          failure_debug(label, Some(command), Some(exit_code), Some(artifacts)),
-        ),
-      ),
-    )
-  }
-  Ok(())
-}
-
-///|
-async fn run_soft_local_validation_command(
-  workspace_path : String,
-  artifacts : RunArtifacts,
-  label : String,
-  command : Array[String],
-) -> Unit noraise {
-  let result = match
-    collect_local_output(command[0], command_args(command), workspace_path) {
-    Ok(result) => result
-    Err(message) => (127, message)
-  }
-  let (exit_code, output) = result
-  append_command_log(
-    artifacts.validation_log_path,
-    label,
-    command,
-    exit_code,
-    output,
-  )
-}
-
-///|
-fn validation_shell_script(include_update~ : Bool) -> String {
-  let commands : Array[String] = []
-  if include_update {
-    commands.push("moon update")
-  }
-  for command in user_project_fetch_commands() {
-    commands.push(command)
-  }
-  commands.push("moon fmt")
-  commands.push("moon check")
-  commands.push("moon build")
-  let lines : Array[String] = []
-  lines.push("set -e")
-  for command in commands {
-    lines.push("echo '== " + command + " =='")
-    lines.push(command)
-  }
-  lines.push("echo '== moon test (soft) =='")
-  lines.push(soft_validation_test_command())
-  lines.push("echo '== moon run --release probe =='")
-  lines.push(release_run_probe_command())
-  lines.join("\n")
-}
-
-///|
-fn soft_validation_test_command() -> String {
-  (
-    #|if moon test; then echo 'moon test passed.'; else status=$?; echo "moon test failed with exit code ${status}; continuing because moon test is a soft gate."; fi
-  )
-}
-
-///|
-fn release_run_probe_command() -> String {
-  (
-    #|MOONCRAFT_RELEASE_RUN_TIMEOUT_SECONDS="${MOONCRAFT_RELEASE_RUN_TIMEOUT_SECONDS:-10}"
-    #|
-    #|mooncraft_run_release_package() {
-    #|  package="$1"
-    #|  echo "== moon run --release ${package} =="
-    #|  moon run --release "$package" &
-    #|  pid=$!
-    #|  elapsed=0
-    #|  while kill -0 "$pid" 2>/dev/null; do
-    #|    if [ "$elapsed" -ge "$MOONCRAFT_RELEASE_RUN_TIMEOUT_SECONDS" ]; then
-    #|      echo "moon run --release ${package} is still running after ${MOONCRAFT_RELEASE_RUN_TIMEOUT_SECONDS}s; treating it as a live long-running app."
-    #|      kill "$pid" >/dev/null 2>&1 || true
-    #|      wait "$pid" >/dev/null 2>&1 || true
-    #|      return 0
-    #|    fi
-    #|    sleep 1
-    #|    elapsed=$((elapsed + 1))
-    #|  done
-    #|  wait "$pid"
-    #|}
-    #|
-    #|main_packages="$(find . \( -path './.mooncakes' -o -path './.mooncakes/*' -o -path './.repos' -o -path './.repos/*' -o -path './_build' -o -path './_build/*' -o -path './preview-dist' -o -path './preview-dist/*' \) -prune -o -name moon.pkg -type f -print | sort | while IFS= read -r pkg; do
-    #|  if grep -Eq '"is-main"[[:space:]]*:[[:space:]]*true' "$pkg"; then
-    #|    dir="${pkg%/moon.pkg}"
-    #|    if [ "$dir" = "." ]; then
-    #|      printf '.\n'
-    #|    else
-    #|      printf '%s\n' "${dir#./}"
-    #|    fi
-    #|  fi
-    #|done)"
-    #|
-    #|if [ -z "$main_packages" ]; then
-    #|  echo 'No MoonBit main package found. Add options("is-main": true) to the app entry package.'
-    #|  exit 1
-    #|fi
-    #|
-    #|printf '%s\n' "$main_packages" | while IFS= read -r package; do
-    #|  [ -n "$package" ] || continue
-    #|  mooncraft_run_release_package "$package" || exit $?
-    #|done
-  )
-}
-
-///|
-async fn run_docker_validation_sequence(
-  root : String,
-  config : AgentRuntimeConfig?,
-  workspace_path : String,
-  artifacts : RunArtifacts,
-  thread_id : String,
-) -> Result[Unit, AgentTurnFailure] noraise {
-  let command = ["sh", "-lc", validation_shell_script(include_update=false)]
-  let result = match config {
-    Some(config) =>
-      match
-        collect_docker_output(
-          root,
-          config,
-          workspace_path,
-          None,
-          artifacts,
-          command,
-        ) {
-        Ok(result) => result
-        Err(message) =>
-          return Err(
-            codex_failure_with_debug(
-              "The workspace was updated, but validation could not be started.",
-              message,
-              Some(thread_id),
-              Some(
-                failure_debug(
-                  "MoonBit validation",
-                  Some(command),
-                  None,
-                  Some(artifacts),
-                ),
-              ),
-            ),
-          )
-      }
-    None =>
-      return Err(
-        codex_failure_with_debug(
-          "The workspace was updated, but validation could not be started.",
-          "The app validator is temporarily unavailable.",
-          Some(thread_id),
-          Some(
-            failure_debug(
-              "MoonBit validation",
-              Some(command),
-              None,
-              Some(artifacts),
-            ),
-          ),
-        ),
-      )
-  }
-  let (exit_code, output) = result
-  append_command_log(
-    artifacts.validation_log_path,
-    "MoonBit validation",
-    command,
-    exit_code,
-    output,
-  )
-  if exit_code != 0 {
-    return Err(
-      codex_failure_with_debug(
-        dependency_fetch_failure_assistant_message(
-          output, "The workspace was updated, but validation failed before the preview could be refreshed.",
-        ),
-        stage_failure_message(
-          "MoonBit validation",
-          exit_code,
-          artifacts.validation_log_path,
-          output,
-        ),
-        Some(thread_id),
-        Some(
-          failure_debug(
-            "MoonBit validation",
-            Some(command),
-            Some(exit_code),
-            Some(artifacts),
-          ),
-        ),
-      ),
-    )
-  }
-  Ok(())
-}
-
-///|
-async fn run_local_validation_sequence(
-  root : String,
-  config : AgentRuntimeConfig?,
-  workspace_path : String,
-  artifacts : RunArtifacts,
-  thread_id : String,
-) -> Result[Unit, AgentTurnFailure] noraise {
-  let _ = config
-  match
-    run_validation_command(
-      root,
-      None,
-      workspace_path,
-      artifacts,
-      "moon fmt",
-      ["moon", "fmt"],
-      thread_id,
-    ) {
-    Ok(_) => ignore(())
-    Err(failure) => return Err(failure)
-  }
-  match
-    run_validation_command(
-      root,
-      None,
-      workspace_path,
-      artifacts,
-      "moon check",
-      ["moon", "check"],
-      thread_id,
-    ) {
-    Ok(_) => ignore(())
-    Err(failure) => return Err(failure)
-  }
-  match
-    run_validation_command(
-      root,
-      None,
-      workspace_path,
-      artifacts,
-      "moon build",
-      ["moon", "build"],
-      thread_id,
-    ) {
-    Ok(_) => ignore(())
-    Err(failure) => return Err(failure)
-  }
-  run_soft_local_validation_command(
-    workspace_path,
-    artifacts,
-    "moon test (soft)",
-    ["sh", "-lc", soft_validation_test_command()],
-  )
-  match
-    run_validation_command(
-      root,
-      None,
-      workspace_path,
-      artifacts,
-      "moon run --release probe",
-      ["sh", "-lc", release_run_probe_command()],
-      thread_id,
-    ) {
-    Ok(_) => ignore(())
-    Err(failure) => return Err(failure)
-  }
-  Ok(())
-}
-
-///|
-async fn run_validation_sequence(
-  root : String,
-  config : AgentRuntimeConfig?,
-  workspace_path : String,
-  artifacts : RunArtifacts,
-  thread_id : String,
-) -> Result[Unit, AgentTurnFailure] noraise {
-  if smoke_codex_enabled() {
-    run_local_validation_sequence(
-      root, config, workspace_path, artifacts, thread_id,
-    )
-  } else {
-    run_docker_validation_sequence(
-      root, config, workspace_path, artifacts, thread_id,
-    )
-  }
-}
-
-///|
 fn preview_audit_script_path(root : String) -> String {
   root + "/scripts/preview_audit.mjs"
 }
@@ -2470,7 +1948,7 @@ async fn AgentGateway::run_turn(
         )
     }
   }
-  let mut codex_result = match
+  let codex_result = match
     run_codex_turn(
       store,
       self.root,
@@ -2486,170 +1964,15 @@ async fn AgentGateway::run_turn(
     Ok(result) => result
     Err(failure) => return Err(failure)
   }
-  match workspace_contract_error(workspace_path) {
-    Some(contract_error) => {
-      match
-        persist_builder_workspace_snapshot(
-          store,
-          self.root,
-          project.id,
-          workspace_path,
-          codex_result.thread_id,
-          codex_result.artifacts,
-        ) {
-        Ok(_) => ignore(())
-        Err(failure) => return Err(failure)
-      }
-      store.append_run_event(
-        project.id,
-        run_id,
-        "status",
-        "Repairing the project workspace.",
-      )
-      let repair_project = {
-        ..project,
-        codex_thread_id: Some(codex_result.thread_id),
-        runtime_session_id: Some(codex_result.thread_id),
-      }
-      let repair_result = match
-        run_codex_turn(
-          store,
-          self.root,
-          config,
-          repair_project,
-          initial_project_prompt,
-          workspace_path,
-          run_id,
-          workspace_contract_repair_prompt(
-            contract_error, initial_project_prompt, user_prompt,
-          ),
-          reset_logs=false,
-          raw_prompt=true,
-          resume_existing=true,
-        ) {
-        Ok(result) => result
-        Err(failure) => return Err(failure)
-      }
-      codex_result = repair_result
-      match
-        persist_builder_workspace_snapshot(
-          store,
-          self.root,
-          project.id,
-          workspace_path,
-          codex_result.thread_id,
-          codex_result.artifacts,
-        ) {
-        Ok(_) => ignore(())
-        Err(failure) => return Err(failure)
-      }
-      match workspace_contract_error(workspace_path) {
-        Some(repair_error) =>
-          return Err(
-            codex_failure_with_debug(
-              workspace_contract_failed_assistant_message(),
-              repair_error,
-              Some(codex_result.thread_id),
-              Some(
-                failure_debug(
-                  "Workspace contract",
-                  None,
-                  None,
-                  Some(codex_result.artifacts),
-                ),
-              ),
-            ),
-          )
-        None => ignore(())
-      }
-    }
-    None => ignore(())
-  }
-  let mut artifacts = codex_result.artifacts
-  let persist_validated_workspace = async fn() noraise {
-    match
-      persist_builder_workspace_snapshot(
-        store,
-        self.root,
-        project.id,
-        workspace_path,
-        codex_result.thread_id,
-        artifacts,
-      ) {
-      Ok(_) => Ok(())
-      Err(failure) => Err(failure)
-    }
-  }
-  safe_write_string(artifacts.validation_log_path, "")
-  store.set_run_phase(project.id, run_id, Checking)
   match
-    run_validation_sequence(
+    persist_builder_workspace_snapshot(
+      store,
       self.root,
-      config,
+      project.id,
       workspace_path,
-      artifacts,
       codex_result.thread_id,
+      codex_result.artifacts,
     ) {
-    Ok(_) => ignore(())
-    Err(failure) => {
-      ignore(persist_validated_workspace())
-      store.append_run_event(
-        project.id,
-        run_id,
-        "status",
-        "Repairing failed validation.",
-      )
-      let repair_project = {
-        ..project,
-        codex_thread_id: Some(codex_result.thread_id),
-        runtime_session_id: Some(codex_result.thread_id),
-      }
-      let repair_result = match
-        run_codex_turn(
-          store,
-          self.root,
-          config,
-          repair_project,
-          initial_project_prompt,
-          workspace_path,
-          run_id,
-          validation_repair_prompt(
-            failure.error_message,
-            initial_project_prompt,
-            user_prompt,
-          ),
-          reset_logs=false,
-          raw_prompt=true,
-          resume_existing=true,
-        ) {
-        Ok(result) => result
-        Err(repair_failure) => return Err(repair_failure)
-      }
-      codex_result = repair_result
-      artifacts = codex_result.artifacts
-      match persist_validated_workspace() {
-        Ok(_) => ignore(())
-        Err(repair_snapshot_failure) => return Err(repair_snapshot_failure)
-      }
-      safe_write_string(artifacts.validation_log_path, "")
-      store.set_run_phase(project.id, run_id, Checking)
-      match
-        run_validation_sequence(
-          self.root,
-          config,
-          workspace_path,
-          artifacts,
-          codex_result.thread_id,
-        ) {
-        Ok(_) => ignore(())
-        Err(repair_validation_failure) => {
-          ignore(persist_validated_workspace())
-          return Err(repair_validation_failure)
-        }
-      }
-    }
-  }
-  match persist_validated_workspace() {
     Ok(_) => ignore(())
     Err(failure) => return Err(failure)
   }

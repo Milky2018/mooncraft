@@ -60,27 +60,6 @@ fn user_project_fetch_commands() -> Array[String] {
 }
 
 ///|
-fn fetch_user_project_dependencies(
-  workspace_path : String,
-) -> Result[Unit, String] {
-  for module_name in required_user_project_fetches() {
-    let status = shell_status(
-      "cd " +
-      shell_quote(workspace_path) +
-      " && " +
-      moon_fetch_no_update_retry_command(module_name) +
-      " >/dev/null 2>&1",
-    )
-    if status != 0 {
-      return Err(
-        "MoonBit dependency fetch failed for '\{module_name}', so the preview could not be rebuilt.",
-      )
-    }
-  }
-  Ok(())
-}
-
-///|
 fn scaffold_write_file(path : String, content : String) -> Result[Unit, String] {
   ensure_dir(parent_dir(path))
   @fs.write_string_to_file(path, content) catch {

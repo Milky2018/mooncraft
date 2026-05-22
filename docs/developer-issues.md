@@ -92,3 +92,4 @@ Agents do not edit this. This file is maintainable by human developers.
 - [ ] Not ToD, To Children!
 - [ ] `ai_quota_or_capacity_limited` is very fragile
 - [ ] `artifacts` folder to `.mooncraft`
+- [ ] `services/control-plane/codex_executor.mbt` naming `agent_executor`

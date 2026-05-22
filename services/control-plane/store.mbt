@@ -2326,31 +2326,6 @@ async fn Store::start_run(
 }
 
 ///|
-async fn Store::set_run_phase(
-  self : Store,
-  project_id : String,
-  run_id : String,
-  phase : @sdk.RunPhase,
-) -> Unit noraise {
-  ignore(
-    self.exec_or_error(
-      (
-        #|UPDATE runs
-        #|SET phase = ?
-        #|WHERE id = ? AND project_id = ? AND state = ?;
-      ),
-      "set run phase",
-      params=[
-        String(run_phase_to_db(phase)),
-        String(run_id),
-        String(project_id),
-        String(run_state_to_db(Running)),
-      ],
-    ),
-  )
-}
-
-///|
 async fn Store::set_run_worker_pid(
   self : Store,
   project_id : String,
@@ -3025,10 +3000,6 @@ fn PreviewManager::rebuild_and_restart(
   project : @sdk.ProjectDetail,
 ) -> Result[@sdk.PreviewTarget, String] {
   let workspace_path = project_workspace(self.root, project.id)
-  match fetch_user_project_dependencies(workspace_path) {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
-  }
   let script_probe_code = shell_status(
     "cd " +
     shell_quote(workspace_path) +
