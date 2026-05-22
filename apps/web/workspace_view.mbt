@@ -129,24 +129,6 @@ fn render_run_events(model : Model) -> @rabbita.Html {
 }
 
 ///|
-fn render_run_banner(model : Model) -> @rabbita.Html {
-  match active_run(model) {
-    Some(run) =>
-      @html.div(
-        style=[
-          "padding: 6px 8px", "border-radius: var(--radius-control)", "background: var(--foreground-3)",
-          "border: 0", "display: flex", "justify-content: space-between", "align-items: center",
-          "gap: 8px",
-        ],
-      ) <| [
-        @html.div(style=value_text_style(), "Working..."),
-        status_badge(run.state),
-      ]
-    None => @html.nothing
-  }
-}
-
-///|
 fn ui_empty_to_none(value : String) -> String? {
   if value == "" {
     None
@@ -425,15 +407,6 @@ fn render_new_project_dialog(
             "display: flex", "justify-content: flex-end", "gap: 8px", "padding-top: 4px",
           ],
         ) <| [
-          @html.button(
-            type_="button",
-            title="Cancel",
-            disabled=model.create_project_pending,
-            on_click=dispatch(CloseNewProjectDialog),
-            style=secondary_button_style(!model.create_project_pending) +
-              ["width: 32px", "height: 32px", "padding: 0"],
-            [project_cancel_icon()],
-          ),
           @html.button(
             type_="button",
             title=if model.create_project_pending {
@@ -828,7 +801,6 @@ fn render_workspace_panel(
       ],
       [
         render_notice_card(model.notice, "var(--warning-soft)"),
-        render_run_banner(model),
         render_run_failure_card(model),
       ],
     ),

@@ -19,6 +19,31 @@ body {
   min-height: 100vh;
 }
 
+.project-list-item {
+  background: transparent;
+  transition: background 100ms ease;
+}
+
+.project-list-item.is-selected {
+  background: var(--foreground-5);
+}
+
+.project-list-item:hover {
+  background: var(--foreground-5);
+}
+
+.project-action-slot {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 100ms ease;
+}
+
+.project-list-item:hover .project-action-slot,
+.project-action-slot.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .spinner {
   display: inline-grid;
   grid-template-columns: repeat(3, 1fr);

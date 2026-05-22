@@ -201,7 +201,6 @@ fn sidebar_project_item(
   project : @sdk.ProjectSummary,
 ) -> @rabbita.Html {
   let selected = model.selected_project_id == Some(project.id)
-  let background = if selected { "var(--foreground-5)" } else { "transparent" }
   let deleting = model.delete_project_pending == Some(project.id)
   let confirming = model.delete_project_confirming == Some(project.id)
   let renaming = selected && model.rename_project_editing
@@ -214,18 +213,21 @@ fn sidebar_project_item(
   } else {
     "transparent"
   }
+  let item_class = if selected {
+    "project-list-item is-selected"
+  } else {
+    "project-list-item"
+  }
+  let action_class = if menu_open || deleting || confirming {
+    "project-action-slot is-visible"
+  } else {
+    "project-action-slot"
+  }
   @html.div(
+    class=item_class,
     style=[
-      "border: 0",
-      "border-radius: var(--radius-control)",
-      "background: " + background,
-      "box-shadow: none",
-      "padding: 5px 8px",
-      "display: flex",
-      "align-items: center",
-      "gap: 6px",
-      "position: relative",
-      "overflow: visible",
+      "border: 0", "border-radius: var(--radius-control)", "box-shadow: none", "padding: 5px 8px",
+      "display: flex", "align-items: center", "gap: 6px", "position: relative", "overflow: visible",
     ],
   ) <| [
     if renaming {
@@ -259,7 +261,7 @@ fn sidebar_project_item(
         on_click=dispatch(SelectProject(project.id)),
         style=value_text_style() +
           [
-            "flex: 1", "min-width: 0", "padding: 0", "border: none", "background: transparent",
+            "flex: 1", "min-width: 0", "padding: 0 32px 0 0", "border: none", "background: transparent",
             "cursor: pointer", "display: flex", "align-items: center", "gap: 4px",
             "text-align: left",
           ],
@@ -309,8 +311,14 @@ fn sidebar_project_item(
           [project_cancel_icon()],
         ),
       ]
-    } else if selected || deleting || menu_open {
-      @html.div(style=["display: flex", "align-items: center", "gap: 4px"]) <| [
+    } else {
+      @html.div(
+        class=action_class,
+        style=[
+          "position: absolute", "right: 8px", "top: 5px", "z-index: 10", "display: flex",
+          "align-items: center", "gap: 4px",
+        ],
+      ) <| [
         @html.button(
           type_="button",
           title="Project actions",
@@ -370,8 +378,6 @@ fn sidebar_project_item(
           @html.nothing
         },
       ]
-    } else {
-      @html.nothing
     },
   ]
 }
