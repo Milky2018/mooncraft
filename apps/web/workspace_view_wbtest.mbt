@@ -24,12 +24,12 @@ fn preview_test_project(preview : @sdk.PreviewTarget?) -> @sdk.ProjectDetail {
 }
 
 ///|
-test "ready preview only returns healthy preview targets" {
+test "preview panel target returns available preview targets" {
   let no_preview_model = {
     ..initial_model(),
     project_detail: Some(preview_test_project(None)),
   }
-  debug_inspect(ready_preview(no_preview_model), content="None")
+  debug_inspect(preview_panel_target(no_preview_model), content="None")
   let unhealthy_model = {
     ..initial_model(),
     project_detail: Some(
@@ -38,7 +38,10 @@ test "ready preview only returns healthy preview targets" {
       ),
     ),
   }
-  debug_inspect(ready_preview(unhealthy_model), content="None")
+  debug_inspect(
+    preview_panel_target(unhealthy_model).map(fn(target) { target.url }),
+    content="Some(\"/p/preview-1/\")",
+  )
   let healthy_model = {
     ..initial_model(),
     project_detail: Some(
@@ -48,7 +51,7 @@ test "ready preview only returns healthy preview targets" {
     ),
   }
   debug_inspect(
-    ready_preview(healthy_model).map(fn(target) { target.url }),
+    preview_panel_target(healthy_model).map(fn(target) { target.url }),
     content="Some(\"/p/preview-1/\")",
   )
 }

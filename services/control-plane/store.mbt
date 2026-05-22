@@ -3050,7 +3050,16 @@ async fn AppContext::ensure_project_preview_running(
   }
   let preview = match project.preview {
     Some(preview) => preview
-    None => return Ok(project)
+    None =>
+      if !(project.status is @sdk.Succeeded) {
+        return Ok(project)
+      } else {
+        {
+          url: public_preview_url(project.preview_public_id),
+          port: 0,
+          healthy: false,
+        }
+      }
   }
   if preview.healthy && self.previews.is_preview_reachable(preview.port) {
     return Ok(project)

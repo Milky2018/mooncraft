@@ -485,11 +485,11 @@ fn preview_audit_repair_prompt(
   user_prompt : String,
 ) -> String {
   (
-    #|MoonCraft browser preview audit failed after the preview passed HTTP health checks.
+    #|MoonCraft preview audit failed after the preview passed HTTP health checks.
     #|
     #|This is a mandatory repair task.
     #|
-    #|Browser audit failure:
+    #|Preview audit failure:
     #|
   ) +
   audit_error +
@@ -510,7 +510,7 @@ fn preview_audit_repair_prompt(
   (
     #|
     #|
-    #|Repair the existing workspace so the user-facing preview at `/` loads in a browser without page errors or console errors. Preserve the requested app behavior and keep the MoonCraft runtime contract intact.
+    #|Repair the existing workspace so the user-facing preview at `/` returns a successful non-empty HTTP response through the MoonCraft preview proxy. Preserve the requested app behavior and keep the MoonCraft runtime contract intact.
   )
 }
 
@@ -536,7 +536,7 @@ fn preview_setup_repair_failed_assistant_message() -> String {
 
 ///|
 fn preview_audit_repair_failed_assistant_message() -> String {
-  "The app was generated, but the browser preview still reports runtime errors after repair. Send another message to retry the preview."
+  "The app was generated, but the preview audit still fails after repair. Send another message to retry the preview."
 }
 
 ///|
@@ -679,7 +679,7 @@ fn fake_codex_forced_failure(prompt : String) -> String? {
     Some(value) if value.trim() != "" => {
       let needle = value.trim().to_owned()
       if fake_codex_user_request(prompt).contains(needle) {
-        Some("Local builder forced failure for Playwright coverage.")
+        Some("Local builder forced failure for preview audit coverage.")
       } else {
         None
       }
@@ -1893,7 +1893,7 @@ async fn run_codex_turn(
 
 ///|
 fn preview_audit_script_path(root : String) -> String {
-  root + "/scripts/preview_audit.mjs"
+  root + "/scripts/preview_audit.sh"
 }
 
 ///|
@@ -1907,11 +1907,7 @@ fn preview_audit_log_path(
 
 ///|
 fn preview_audit_auto_available(root : String) -> Bool {
-  @fs.path_exists(preview_audit_script_path(root)) &&
-  (
-    @fs.path_exists(root + "/node_modules/playwright/package.json") ||
-    @fs.path_exists(root + "/node_modules/playwright-core/package.json")
-  )
+  @fs.path_exists(preview_audit_script_path(root))
 }
 
 ///|
@@ -1985,7 +1981,7 @@ fn preview_audit_command(
   root : String,
   preview : @sdk.PreviewTarget,
 ) -> Array[String] {
-  ["node", preview_audit_script_path(root), preview_audit_target_url(preview)]
+  ["sh", preview_audit_script_path(root), preview_audit_target_url(preview)]
 }
 
 ///|
@@ -2007,7 +2003,7 @@ async fn run_preview_audit(
   let (exit_code, output) = result
   append_command_log(
     preview_audit_log_path(root, project_id, run_id),
-    "Playwright preview audit",
+    "HTTP preview audit",
     command,
     exit_code,
     output,
@@ -2022,7 +2018,7 @@ async fn run_preview_audit(
     {
       enabled: true,
       passed: false,
-      message: trim_or_default(output, "The browser preview audit failed."),
+      message: trim_or_default(output, "The HTTP preview audit failed."),
     }
   }
 }

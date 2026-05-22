@@ -2,7 +2,7 @@
 
 FROM docker:29-cli AS docker-cli
 
-FROM node:24-bookworm
+FROM debian:bookworm-slim
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG MOONBIT_VERSION=nightly
@@ -41,12 +41,6 @@ RUN for attempt in 1 2 3 4 5; do \
   done
 
 WORKDIR /app
-
-RUN --mount=type=cache,target=/root/.npm,sharing=locked \
-  --mount=type=cache,target=/var/cache/apt,sharing=locked \
-  --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-  npm install --no-save --no-package-lock playwright@1.57.0 \
-  && npx playwright install --with-deps chromium
 
 COPY moon.work /app/moon.work
 COPY packages/sdk/moon.mod.json packages/sdk/moon.pkg /app/packages/sdk/

@@ -712,8 +712,8 @@ fn render_show_preview_button(
     title="Show preview",
     on_click=dispatch(SetPreviewPanelMode(PreviewSplit)),
     style=secondary_button_style(true) +
-      ["width: 28px", "height: 28px", "padding: 0"],
-    [preview_show_icon()],
+      ["height: 28px", "padding: 0 8px", "gap: 4px"],
+    [preview_show_icon(), @html.span("Preview")],
   )
 }
 
@@ -811,7 +811,7 @@ fn render_workspace_panel(
             "justify-content: flex-end",
           ],
           [
-            if ready_preview(model) is Some(_) &&
+            if preview_panel_target(model) is Some(_) &&
               model.preview_panel_mode is PreviewHidden {
               render_show_preview_button(dispatch)
             } else {
@@ -891,13 +891,9 @@ fn preview_url_with_theme(url : String, theme_mode : ThemeMode) -> String {
 }
 
 ///|
-fn ready_preview(model : Model) -> @sdk.PreviewTarget? {
+fn preview_panel_target(model : Model) -> @sdk.PreviewTarget? {
   match model.project_detail {
-    Some(project) =>
-      match project.preview {
-        Some(target) => if target.healthy { Some(target) } else { None }
-        None => None
-      }
+    Some(project) => project.preview
     None => None
   }
 }

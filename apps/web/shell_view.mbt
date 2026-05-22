@@ -564,7 +564,7 @@ fn render_workspace_shell(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
 ) -> @rabbita.Html {
-  let workspace_body = match ready_preview(model) {
+  let workspace_body = match preview_panel_target(model) {
     Some(_) =>
       match model.preview_panel_mode {
         PreviewHidden => [render_workspace_panel(dispatch, model)]
