@@ -2,37 +2,28 @@
 fn render_message(message : @sdk.ChatMessage) -> @rabbita.Html {
   let is_user = message.role is User
   let bubble_background = if is_user {
-    "linear-gradient(135deg, var(--action-strong), var(--action))"
+    "var(--foreground-5)"
   } else {
-    "var(--surface-2)"
+    "transparent"
   }
   let bubble_foreground = if is_user {
-    "var(--on-action)"
+    "var(--text-1)"
   } else {
     "var(--text-1)"
   }
   let justify = if is_user { "flex-end" } else { "flex-start" }
-  let bubble_border = if is_user {
-    "rgba(255,255,255,0.08)"
-  } else {
-    "var(--border-soft)"
-  }
+  let bubble_border = if is_user { "transparent" } else { "transparent" }
   @html.div(style=["display: flex", "justify-content: " + justify]) <| (@html.div(
     style=[
-      "max-width: min(720px, 88%)",
-      "padding: 8px 12px",
-      "border-radius: var(--radius-control)",
+      "max-width: min(720px, 82%)",
+      "padding: 8px 10px",
+      "border-radius: 12px",
       "background: " + bubble_background,
       "color: " + bubble_foreground,
       "border: 1px solid " + bubble_border,
-      "box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08)",
+      "box-shadow: none",
     ],
   ) <| [
-    @html.div(
-      style=normal_text_style() +
-        ["opacity: 0.86", "margin-bottom: 8px", "color: " + bubble_foreground],
-      message.role.label(),
-    ),
     if is_user {
       @html.div(
         style=value_text_style() +
@@ -47,7 +38,7 @@ fn render_message(message : @sdk.ChatMessage) -> @rabbita.Html {
 
 ///|
 fn latest_run_event_text(events : Array[@sdk.RunEvent]) -> String {
-  let mut text = "Starting the builder..."
+  let mut text = "Starting"
   for event in events {
     if event.content != "" {
       text = event.content
@@ -60,23 +51,23 @@ fn latest_run_event_text(events : Array[@sdk.RunEvent]) -> String {
 fn friendly_run_event_text(text : String) -> String {
   if text.contains("Fetching MoonBit project dependencies") ||
     text.contains("moon fetch") {
-    "Gathering the app building blocks."
+    "Fetching"
   } else if text.contains("Formatting") || text.contains("moon fmt") {
-    "Tidying the project files."
+    "Formatting"
   } else if text.contains("Checking") || text.contains("moon check") {
-    "Checking that the app is consistent."
+    "Checking"
   } else if text.contains("Running tests") || text.contains("moon test") {
-    "Testing the generated app."
+    "Testing"
   } else if text.contains("Refreshing MoonBit registry") ||
     text.contains("moon update") {
-    "Refreshing the MoonBit package index."
+    "Updating"
   } else if text.contains("Updated project files") {
-    "Updated the app files."
+    "Updated"
   } else if text.contains("Started the builder session") ||
     text.contains("Planning") {
-    "Planning the next version."
+    "Planning"
   } else if text.contains("Running local builder") {
-    "Drafting the app locally."
+    "Building"
   } else {
     text
   }
@@ -111,39 +102,30 @@ fn render_run_events(model : Model) -> @rabbita.Html {
   if active_run(model) is None {
     return @html.nothing
   }
-  @html.div(style=["display: flex", "justify-content: flex-start"]) <| (@html.div(
-    style=[
-      "max-width: min(760px, 92%)", "padding: 8px 12px", "border-radius: var(--radius-control)",
-      "background: var(--surface-2)", "box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06)",
-      "display: flex", "flex-direction: column", "gap: 8px",
-    ],
-  ) <| [
-    @html.div(
-      style=normal_text_style() + ["opacity: 0.86"],
-      "Crafting your app",
-    ),
-    @html.div(
-      style=[
-        "display: flex", "align-items: center", "gap: 8px", "padding: 8px", "border-radius: var(--radius-control)",
-        "background: var(--surface-3)",
-      ],
+  @html.div(
+    style=normal_text_style() +
       [
-        @html.div(
-          style=[
-            "width: 28px", "height: 28px", "border-radius: 999px", "display: grid",
-            "place-items: center", "color: var(--accent)", "background: var(--accent-soft)",
-            "flex-shrink: 0",
-          ],
-          run_spinner(),
-        ),
-        @html.div(
-          style=value_text_style() +
-            ["white-space: pre-wrap", "overflow-wrap: anywhere"],
-          latest_run_event_text(model.run_events),
-        ),
+        "display: flex", "align-items: center", "gap: 8px", "padding: 4px 12px",
+        "margin-bottom: -4px",
       ],
-    ),
-  ])
+    [
+      @html.div(
+        style=[
+          "width: 12px", "height: 12px", "display: flex", "align-items: center",
+          "justify-content: center", "color: var(--accent)", "flex-shrink: 0",
+        ],
+        run_spinner(),
+      ),
+      @html.span(
+        style=normal_text_style() +
+          [
+            "height: 20px", "display: flex", "align-items: center", "white-space: pre-wrap",
+            "overflow-wrap: anywhere",
+          ],
+        latest_run_event_text(model.run_events),
+      ),
+    ],
+  )
 }
 
 ///|
@@ -152,12 +134,12 @@ fn render_run_banner(model : Model) -> @rabbita.Html {
     Some(run) =>
       @html.div(
         style=[
-          "padding: 8px 10px", "border-radius: var(--radius-control)", "background: var(--action-soft)",
-          "border: 1px solid var(--border-soft)", "display: flex", "justify-content: space-between",
-          "align-items: center", "gap: 8px",
+          "padding: 6px 8px", "border-radius: var(--radius-control)", "background: var(--foreground-3)",
+          "border: 0", "display: flex", "justify-content: space-between", "align-items: center",
+          "gap: 8px",
         ],
       ) <| [
-        @html.div(style=value_text_style(), "Building your app..."),
+        @html.div(style=value_text_style(), "Working..."),
         status_badge(run.state),
       ]
     None => @html.nothing
@@ -281,9 +263,11 @@ fn render_open_project_button(
   @html.button(
     type_="button",
     disabled=false,
+    title=label,
     on_click=dispatch(OpenNewProjectDialog),
-    style=primary_button_style(true) + ["width: " + width],
-    label,
+    style=primary_button_style(true) +
+      ["width: " + width, "min-width: 32px", "height: 32px", "padding: 0"],
+    [plus_icon()],
   )
 }
 
@@ -448,21 +432,25 @@ fn render_new_project_dialog(
         ) <| [
           @html.button(
             type_="button",
+            title="Cancel",
             disabled=model.create_project_pending,
             on_click=dispatch(CloseNewProjectDialog),
-            style=secondary_button_style(!model.create_project_pending),
-            "Cancel",
+            style=secondary_button_style(!model.create_project_pending) +
+              ["width: 32px", "height: 32px", "padding: 0"],
+            [project_cancel_icon()],
           ),
           @html.button(
             type_="button",
+            title=if model.create_project_pending {
+              "Creating"
+            } else {
+              "Create"
+            },
             disabled=!enabled,
             on_click=dispatch(CreateProject),
-            style=primary_button_style(enabled),
-            if model.create_project_pending {
-              "Creating..."
-            } else {
-              "Create Project"
-            },
+            style=primary_button_style(enabled) +
+              ["width: 32px", "height: 32px", "padding: 0"],
+            [plus_icon()],
           ),
         ],
       ],
@@ -569,15 +557,19 @@ fn render_workspace_empty(
   match model.selected_project_id {
     None =>
       @html.div(
-        style=inset_panel_style() +
-          [
-            "padding: 8px", "display: flex", "align-items: center", "min-height: 120px",
-          ],
+        style=[
+          "flex: 1", "min-height: 0", "display: grid", "place-items: center", "padding: 24px",
+        ],
       ) <| [
         @html.div(
-          style=["display: flex", "align-items: center", "padding-top: 4px"],
+          style=[
+            "display: flex", "flex-direction: column", "align-items: center", "gap: 10px",
+            "width: min(360px, 100%)", "padding: 16px", "border-radius: var(--radius-panel)",
+            "background: var(--foreground-3)", "box-shadow: var(--shadow)", "text-align: center",
+          ],
         ) <| [
-          render_open_project_button(dispatch, "Create Project", false),
+          @html.div(style=title_text_style(), "No project selected"),
+          render_open_project_button(dispatch, "New project", false),
         ],
       ]
     Some(_) => @html.nothing
@@ -728,7 +720,7 @@ fn preview_split_icon() -> @rabbita.Html {
 ///|
 fn preview_action_button_style() -> Array[String] {
   secondary_button_style(true) +
-  ["width: 32px", "height: 32px", "padding: 0", "justify-content: center"]
+  ["width: 28px", "height: 28px", "padding: 0", "justify-content: center"]
 }
 
 ///|
@@ -739,8 +731,9 @@ fn render_show_preview_button(
     type_="button",
     title="Show preview",
     on_click=dispatch(SetPreviewPanelMode(PreviewSplit)),
-    style=secondary_button_style(true) + ["height: 32px", "padding: 0 8px"],
-    [preview_show_icon(), @html.span("Preview")],
+    style=secondary_button_style(true) +
+      ["width: 28px", "height: 28px", "padding: 0"],
+    [preview_show_icon()],
   )
 }
 
@@ -781,14 +774,14 @@ fn render_workspace_panel(
   let action_style = match running_run {
     Some(_) =>
       button_style("var(--danger)", "var(--on-action)", action_enabled) +
-      ["width: 40px", "height: 40px", "padding: 0", "color: var(--on-action)"]
+      ["width: 36px", "height: 36px", "padding: 0", "color: var(--on-action)"]
     None =>
       primary_button_style(send_enabled) +
-      ["width: 40px", "height: 40px", "padding: 0", "color: var(--on-action)"]
+      ["width: 36px", "height: 36px", "padding: 0", "color: var(--on-action)"]
   }
   let action_title = match running_run {
     Some(_) => "Stop"
-    None => "Build with MoonCraft"
+    None => "Send"
   }
   let action_click = match running_run {
     Some(run) => dispatch(StopRun(run.project_id, run.run_id))
@@ -799,9 +792,9 @@ fn render_workspace_panel(
     None => send_arrow_icon()
   }
   let composer_placeholder = if model.selected_project_id is Some(_) {
-    "Tell MoonCraft what to build or change..."
+    "What would you like to build?"
   } else {
-    "Create a project first."
+    "Select a project"
   }
   let messages = if model.messages.length() == 0 {
     [render_workspace_empty(dispatch, model)]
@@ -821,9 +814,9 @@ fn render_workspace_panel(
   ) <| [
     @html.div(
       style=[
-        "padding: 8px", "border-bottom: 1px solid var(--border-soft)", "display: flex",
-        "justify-content: space-between", "align-items: flex-start", "gap: 8px",
-        "flex-wrap: wrap",
+        "height: 50px", "padding: 0 12px", "border-bottom: 1px solid var(--border-soft)",
+        "display: flex", "justify-content: space-between", "align-items: center",
+        "gap: 8px", "flex-wrap: wrap",
       ],
       [
         @html.div(
@@ -851,7 +844,7 @@ fn render_workspace_panel(
     ),
     @html.div(
       style=[
-        "padding: 8px 12px 0", "display: flex", "flex-direction: column", "gap: 8px",
+        "padding: 8px 12px 0", "display: flex", "flex-direction: column", "gap: 6px",
       ],
       [
         render_notice_card(model.notice, "var(--warning-soft)"),
@@ -871,8 +864,8 @@ fn render_workspace_panel(
     } else {
       @html.div(
         style=[
-          "padding: 8px 12px", "border-top: 1px solid var(--border-soft)", "display: flex",
-          "flex-direction: column", "gap: 8px",
+          "padding: 8px 12px 12px", "border-top: 0", "display: flex", "flex-direction: column",
+          "gap: 8px",
         ],
         [
           @html.textarea(
@@ -884,7 +877,8 @@ fn render_workspace_panel(
             attrs=composer_keydown_attrs(dispatch, send_enabled),
             style=input_style(active_run(model) is Some(_)) +
               [
-                "min-height: 132px", "resize: vertical", "box-shadow: 0 16px 40px rgba(15, 23, 42, 0.07)",
+                "min-height: 112px", "resize: vertical", "box-shadow: var(--shadow)",
+                "border-radius: 12px",
               ],
             "",
           ),
@@ -953,14 +947,14 @@ fn render_preview_panel(
   ) <| [
     @html.div(
       style=[
-        "padding: 8px 12px", "border-bottom: 1px solid var(--border-soft)", "display: flex",
-        "justify-content: space-between", "align-items: flex-start", "gap: 8px",
-        "flex-wrap: wrap",
+        "height: 50px", "padding: 0 12px", "border-bottom: 1px solid var(--border-soft)",
+        "display: flex", "justify-content: space-between", "align-items: center",
+        "gap: 8px", "flex-wrap: wrap",
       ],
       [
         @html.div(
           style=["display: flex", "flex-direction: column", "gap: 8px"],
-          [@html.div(style=title_text_style(), "Live preview")],
+          [@html.div(style=title_text_style(), "Preview")],
         ),
         @html.div(
           style=[
@@ -1007,13 +1001,13 @@ fn render_preview_panel(
     ),
     @html.div(
       style=[
-        "flex: 1", "min-height: 0", "padding: 8px", "background: linear-gradient(180deg, var(--surface-2), var(--surface-3))",
+        "flex: 1", "min-height: 0", "padding: 6px", "background: var(--foreground-2)",
       ],
       @html.div(
         style=[
-          "height: 100%", "border-radius: var(--radius-control)", "overflow: hidden",
-          "background: var(--surface-raised)", "box-shadow: 0 12px 36px rgba(15, 23, 42, 0.10)",
-          "display: flex", "flex-direction: column",
+          "height: 100%", "border-radius: var(--radius-panel)", "overflow: hidden",
+          "background: var(--surface-raised)", "box-shadow: var(--shadow)", "display: flex",
+          "flex-direction: column",
         ],
         [
           preview_browser_chrome(preview),
@@ -1042,12 +1036,12 @@ fn render_preview_panel(
 fn preview_browser_chrome(preview : @sdk.PreviewTarget?) -> @rabbita.Html {
   let url_text = match preview {
     Some(target) => target.url
-    None => "No preview"
+    None => "Preview"
   }
   @html.div(
     style=[
-      "height: 44px", "display: flex", "align-items: center", "gap: 8px", "padding: 0 12px",
-      "background: rgba(255, 255, 255, 0.72)", "border-bottom: 1px solid var(--border-soft)",
+      "height: 36px", "display: flex", "align-items: center", "gap: 8px", "padding: 0 10px",
+      "background: var(--foreground-3)", "border-bottom: 1px solid var(--border-soft)",
     ],
   ) <| [
     @html.div(style=["display: flex", "gap: 5px"], [
@@ -1058,8 +1052,8 @@ fn preview_browser_chrome(preview : @sdk.PreviewTarget?) -> @rabbita.Html {
     @html.div(
       style=normal_text_style() +
         [
-          "flex: 1", "min-width: 0", "padding: 7px 10px", "border-radius: 999px",
-          "background: rgba(248, 250, 252, 0.96)", "white-space: nowrap", "overflow: hidden",
+          "flex: 1", "min-width: 0", "padding: 4px 8px", "border-radius: var(--radius-control)",
+          "background: var(--background)", "white-space: nowrap", "overflow: hidden",
           "text-overflow: ellipsis",
         ],
       url_text,
@@ -1071,8 +1065,8 @@ fn preview_browser_chrome(preview : @sdk.PreviewTarget?) -> @rabbita.Html {
 fn browser_dot(color : String) -> @rabbita.Html {
   @html.div(
     style=[
-      "width: 10px",
-      "height: 10px",
+      "width: 8px",
+      "height: 8px",
       "border-radius: 999px",
       "background: " + color,
     ],
@@ -1082,16 +1076,16 @@ fn browser_dot(color : String) -> @rabbita.Html {
 ///|
 fn preview_empty_state(model : Model) -> @rabbita.Html {
   let title = if active_run(model) is Some(_) {
-    "Building the first preview"
+    "Building"
   } else if model.selected_project_id is Some(_) {
-    "No preview yet"
+    "No preview"
   } else {
-    "Create a project first"
+    "No project selected"
   }
   @html.div(
     style=[
       "flex: 1", "min-height: 0", "display: grid", "place-items: center", "padding: 14px",
-      "background: radial-gradient(circle at 50% 24%, var(--accent-soft), transparent 34%), var(--preview-bg)",
+      "background: var(--preview-bg)",
     ],
   ) <| (@html.div(
     style=[
@@ -1101,8 +1095,8 @@ fn preview_empty_state(model : Model) -> @rabbita.Html {
   ) <| [
     @html.div(
       style=[
-        "width: 58px", "height: 58px", "border-radius: var(--radius-control)", "background: linear-gradient(135deg, var(--accent), #2563eb)",
-        "box-shadow: 0 16px 34px rgba(15, 118, 110, 0.18)",
+        "width: 40px", "height: 40px", "border-radius: var(--radius-control)", "background: var(--accent-soft)",
+        "box-shadow: none",
       ],
       "",
     ),

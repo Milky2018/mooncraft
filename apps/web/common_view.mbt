@@ -10,10 +10,11 @@ fn status_badge(state : @sdk.RunState) -> @rabbita.Html {
   @html.div(
     style=value_text_style() +
       [
-        "padding: 4px 8px",
+        "padding: 2px 6px",
         "border-radius: var(--radius-control)",
         "background: " + background,
         "color: " + foreground,
+        "font-size: 11px",
       ],
   ) <| state.label()
 }
@@ -105,6 +106,24 @@ fn plus_icon() -> @rabbita.Html {
 }
 
 ///|
+fn theme_icon() -> @rabbita.Html {
+  @svg.svg(
+    width=16,
+    height=16,
+    view_box="0 0 24 24",
+    style=["display: block"],
+    [
+      @svg.path(
+        d="M12 3a9 9 0 1 0 9 9 6.5 6.5 0 0 1-9-9z",
+        fill="none",
+        stroke="currentColor",
+        stroke_width=2,
+      ),
+    ],
+  )
+}
+
+///|
 fn logout_icon() -> @rabbita.Html {
   @svg.svg(
     width=16,
@@ -140,9 +159,10 @@ fn tun_poc_link() -> @rabbita.Html {
     href="https://tun-poc.moonbitlang.com",
     target=Blank,
     rel="noopener noreferrer",
+    title="tun-poc",
     style=secondary_button_style(true) +
-      ["text-decoration: none", "height: 32px", "padding: 0 8px"],
-    [external_link_icon(), @html.span("tun-poc")],
+      ["text-decoration: none", "width: 28px", "height: 28px", "padding: 0"],
+    [external_link_icon()],
   )
 }
 

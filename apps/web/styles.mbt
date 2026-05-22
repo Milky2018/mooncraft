@@ -4,45 +4,69 @@ fn theme_variables(theme_mode : ThemeMode) -> Array[String] {
     System => theme_variables(Light)
     Dark =>
       [
-        "--font-family-ui: \"IBM Plex Mono\", \"SFMono-Regular\", Menlo, monospace",
-        "--font-title: 24px", "--font-mid: 14px", "--radius-panel: 6px", "--radius-control: 4px",
-        "--page-bg: #101113", "--page-bg-alt: #111214", "--sidebar-bg: rgba(23, 24, 26, 0.92)",
-        "--surface-1: #17181b", "--surface-2: #1c1d20", "--surface-3: #222328", "--surface-raised: #25262b",
-        "--background: var(--surface-2)", "--foreground: var(--text-1)", "--foreground-2: var(--surface-1)",
-        "--foreground-3: var(--surface-3)", "--foreground-5: rgba(255, 255, 255, 0.05)",
-        "--foreground-10: rgba(255, 255, 255, 0.10)", "--preview-bg: #111214", "--border-soft: rgba(255, 255, 255, 0.09)",
-        "--border-strong: rgba(47, 132, 255, 0.72)", "--text-1: #f4f4f5", "--text-2: #c7c7cb",
-        "--text-3: #8c8e95", "--accent: #0b8f7f", "--accent-strong: #007f72", "--accent-soft: rgba(0, 127, 114, 0.18)",
-        "--action: #2f84ff", "--action-strong: #136dff", "--action-soft: rgba(47, 132, 255, 0.20)",
-        "--on-action: #ffffff", "--danger: #ff7a7a", "--danger-soft: rgba(255, 122, 122, 0.12)",
-        "--warning: #ffcf66", "--warning-soft: rgba(255, 207, 102, 0.12)", "--shadow: 0 10px 24px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.02)",
-        "--badge-idle-bg: rgba(115, 137, 160, 0.14)", "--badge-idle-fg: #a7bad0",
-        "--badge-running-bg: rgba(45, 125, 255, 0.16)", "--badge-running-fg: #91c0ff",
-        "--badge-success-bg: rgba(18, 216, 156, 0.14)", "--badge-success-fg: #7af0c6",
-        "--badge-failed-bg: rgba(255, 122, 122, 0.14)", "--badge-failed-fg: #ffb0b0",
-        "--badge-cancelled-bg: rgba(148, 163, 184, 0.14)", "--badge-cancelled-fg: #cbd5e1",
+        "--background: oklch(0.145 0.015 270)", "--background-elevated: color-mix(in srgb, var(--foreground) 1.5%, var(--background))",
+        "--foreground: oklch(0.95 0.01 270)", "--foreground-rgb: 237, 236, 240",
+        "--accent: oklch(0.65 0.22 293)", "--accent-rgb: 130, 75, 185", "--info: oklch(0.78 0.14 70)",
+        "--success: oklch(0.60 0.17 145)", "--destructive: oklch(0.65 0.22 28)",
+        "--foreground-2: color-mix(in oklch, var(--foreground) 2%, var(--background))",
+        "--foreground-3: color-mix(in oklch, var(--foreground) 3%, var(--background))",
+        "--foreground-5: color-mix(in oklch, var(--foreground) 5%, var(--background))",
+        "--foreground-10: color-mix(in oklch, var(--foreground) 10%, var(--background))",
+        "--foreground-20: color-mix(in oklch, var(--foreground) 20%, var(--background))",
+        "--foreground-40: color-mix(in oklch, var(--foreground) 40%, var(--background))",
+        "--foreground-50: color-mix(in oklch, var(--foreground) 50%, var(--background))",
+        "--foreground-70: color-mix(in oklch, var(--foreground) 70%, var(--background))",
+        "--foreground-90: color-mix(in oklch, var(--foreground) 90%, var(--background))",
+        "--font-family-ui: system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif",
+        "--font-title: 14px", "--font-mid: 13px", "--radius-panel: 10px", "--radius-control: 6px",
+        "--page-bg: var(--background)", "--page-bg-alt: var(--background)", "--sidebar-bg: var(--background)",
+        "--surface-1: var(--foreground-2)", "--surface-2: var(--background)", "--surface-3: var(--foreground-3)",
+        "--surface-raised: var(--background)", "--preview-bg: var(--background)",
+        "--border-soft: oklch(from var(--foreground) l c h / 0.06)", "--border-strong: oklch(from var(--foreground) l c h / 0.25)",
+        "--text-1: var(--foreground)", "--text-2: var(--foreground-70)", "--text-3: var(--foreground-50)",
+        "--accent-strong: var(--accent)", "--accent-soft: oklch(from var(--accent) l c h / 0.14)",
+        "--action: var(--foreground)", "--action-strong: var(--foreground)", "--action-soft: var(--foreground-5)",
+        "--on-action: var(--background)", "--danger: var(--destructive)", "--danger-soft: oklch(from var(--destructive) l c h / 0.12)",
+        "--warning: var(--info)", "--warning-soft: oklch(from var(--info) l c h / 0.12)",
+        "--shadow-border-opacity: 0.15", "--shadow-blur-opacity: 0.12", "--shadow: rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(var(--foreground-rgb), var(--shadow-border-opacity)) 0px 0px 0px 1px, rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 1px 1px -0.5px, rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 3px 3px -1.5px, rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 6px 6px -3px",
+        "--badge-idle-bg: var(--foreground-5)", "--badge-idle-fg: var(--foreground-50)",
+        "--badge-running-bg: oklch(from var(--info) l c h / 0.14)", "--badge-running-fg: var(--info)",
+        "--badge-success-bg: oklch(from var(--success) l c h / 0.14)", "--badge-success-fg: var(--success)",
+        "--badge-failed-bg: oklch(from var(--destructive) l c h / 0.14)", "--badge-failed-fg: var(--destructive)",
+        "--badge-cancelled-bg: var(--foreground-5)", "--badge-cancelled-fg: var(--foreground-50)",
         "color-scheme: dark",
       ]
     Light =>
       [
-        "--font-family-ui: \"IBM Plex Mono\", \"SFMono-Regular\", Menlo, monospace",
-        "--font-title: 24px", "--font-mid: 14px", "--radius-panel: 6px", "--radius-control: 4px",
-        "--page-bg: #eef2f7", "--page-bg-alt: #f8fafc", "--sidebar-bg: rgba(248, 250, 252, 0.88)",
-        "--surface-1: rgba(255, 255, 255, 0.90)", "--surface-2: #ffffff", "--surface-3: #f1f5f9",
-        "--background: var(--surface-2)", "--foreground: var(--text-1)", "--foreground-2: var(--surface-1)",
-        "--foreground-3: var(--surface-3)", "--foreground-5: rgba(15, 23, 42, 0.05)",
-        "--foreground-10: rgba(15, 23, 42, 0.10)", "--surface-raised: #ffffff", "--preview-bg: #f8fafc",
-        "--border-soft: rgba(15, 23, 42, 0.10)", "--border-strong: rgba(15, 118, 110, 0.36)",
-        "--text-1: #0f172a", "--text-2: #475569", "--text-3: #94a3b8", "--accent: #0f766e",
-        "--accent-strong: #115e59", "--accent-soft: rgba(15, 118, 110, 0.10)", "--action: #0f766e",
-        "--action-strong: #115e59", "--action-soft: rgba(15, 118, 110, 0.14)", "--on-action: #ffffff",
-        "--danger: #b94747", "--danger-soft: rgba(185, 71, 71, 0.10)", "--warning: #9b6b10",
-        "--warning-soft: rgba(155, 107, 16, 0.12)", "--shadow: 0 18px 48px rgba(15, 23, 42, 0.08), 0 1px 0 rgba(255, 255, 255, 0.78) inset",
-        "--badge-idle-bg: rgba(92, 110, 130, 0.12)", "--badge-idle-fg: #526173",
-        "--badge-running-bg: rgba(31, 115, 232, 0.12)", "--badge-running-fg: #175ab9",
-        "--badge-success-bg: rgba(0, 110, 99, 0.12)", "--badge-success-fg: #075f56",
-        "--badge-failed-bg: rgba(185, 71, 71, 0.12)", "--badge-failed-fg: #9d3838",
-        "--badge-cancelled-bg: rgba(92, 110, 130, 0.12)", "--badge-cancelled-fg: #526173",
+        "--background: oklch(0.98 0.003 265)", "--background-elevated: color-mix(in srgb, var(--foreground) 1.5%, var(--background))",
+        "--foreground: oklch(0.185 0.01 270)", "--foreground-rgb: 38, 36, 42", "--accent: oklch(0.62 0.13 293)",
+        "--accent-rgb: 104, 78, 133", "--info: oklch(0.75 0.16 70)", "--success: oklch(0.55 0.17 145)",
+        "--destructive: oklch(0.58 0.24 28)", "--foreground-2: color-mix(in oklch, var(--foreground) 2%, var(--background))",
+        "--foreground-3: color-mix(in oklch, var(--foreground) 3%, var(--background))",
+        "--foreground-5: color-mix(in oklch, var(--foreground) 5%, var(--background))",
+        "--foreground-10: color-mix(in oklch, var(--foreground) 10%, var(--background))",
+        "--foreground-20: color-mix(in oklch, var(--foreground) 20%, var(--background))",
+        "--foreground-40: color-mix(in oklch, var(--foreground) 40%, var(--background))",
+        "--foreground-50: color-mix(in oklch, var(--foreground) 50%, var(--background))",
+        "--foreground-70: color-mix(in oklch, var(--foreground) 70%, var(--background))",
+        "--foreground-90: color-mix(in oklch, var(--foreground) 90%, var(--background))",
+        "--font-family-ui: system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif",
+        "--font-title: 14px", "--font-mid: 13px", "--radius-panel: 10px", "--radius-control: 6px",
+        "--page-bg: var(--background)", "--page-bg-alt: var(--background)", "--sidebar-bg: var(--background)",
+        "--surface-1: var(--foreground-2)", "--surface-2: var(--background)", "--surface-3: var(--foreground-3)",
+        "--surface-raised: var(--background)", "--preview-bg: var(--background)",
+        "--border-soft: oklch(from var(--foreground) l c h / 0.06)", "--border-strong: oklch(from var(--foreground) l c h / 0.25)",
+        "--text-1: var(--foreground)", "--text-2: var(--foreground-70)", "--text-3: var(--foreground-50)",
+        "--accent-strong: var(--accent)", "--accent-soft: oklch(from var(--accent) l c h / 0.12)",
+        "--action: var(--foreground)", "--action-strong: var(--foreground)", "--action-soft: var(--foreground-5)",
+        "--on-action: var(--background)", "--danger: var(--destructive)", "--danger-soft: oklch(from var(--destructive) l c h / 0.10)",
+        "--warning: var(--info)", "--warning-soft: oklch(from var(--info) l c h / 0.12)",
+        "--shadow-border-opacity: 0.08", "--shadow-blur-opacity: 0.06", "--shadow: rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(var(--foreground-rgb), var(--shadow-border-opacity)) 0px 0px 0px 1px, rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 1px 1px -0.5px, rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 3px 3px -1.5px, rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 6px 6px -3px",
+        "--badge-idle-bg: var(--foreground-5)", "--badge-idle-fg: var(--foreground-50)",
+        "--badge-running-bg: oklch(from var(--info) l c h / 0.14)", "--badge-running-fg: color-mix(in oklab, var(--info) 50%, var(--foreground))",
+        "--badge-success-bg: oklch(from var(--success) l c h / 0.14)", "--badge-success-fg: color-mix(in oklab, var(--success) 50%, var(--foreground))",
+        "--badge-failed-bg: oklch(from var(--destructive) l c h / 0.14)", "--badge-failed-fg: color-mix(in oklab, var(--destructive) 50%, var(--foreground))",
+        "--badge-cancelled-bg: var(--foreground-5)", "--badge-cancelled-fg: var(--foreground-50)",
         "color-scheme: light",
       ]
   }
@@ -52,7 +76,7 @@ fn theme_variables(theme_mode : ThemeMode) -> Array[String] {
 fn app_root_style(theme_mode : ThemeMode) -> Array[String] {
   theme_variables(theme_mode) +
   [
-    "min-height: 100vh", "padding: 0", "background-color: var(--page-bg)", "background-image: radial-gradient(circle at 18% 0%, rgba(15, 118, 110, 0.12), transparent 30%), radial-gradient(circle at 86% 8%, rgba(37, 99, 235, 0.08), transparent 28%), linear-gradient(135deg, var(--page-bg-alt), var(--page-bg))",
+    "min-height: 100vh", "padding: 0", "background-color: var(--page-bg)", "background-image: none",
     "background-size: auto", "font-family: var(--font-family-ui)",
   ] +
   normal_text_style()
@@ -69,14 +93,9 @@ fn app_stack_style() -> Array[String] {
 ///|
 fn panel_style() -> Array[String] {
   [
-    "background: var(--surface-1)", "border: 1px solid var(--border-soft)", "border-radius: var(--radius-panel)",
-    "box-shadow: var(--shadow)", "overflow: hidden", "backdrop-filter: blur(8px)",
+    "background: var(--surface-1)", "border: 0", "border-radius: var(--radius-panel)",
+    "box-shadow: var(--shadow)", "overflow: hidden", "backdrop-filter: none",
   ]
-}
-
-///|
-fn inset_panel_style() -> Array[String] {
-  ["background: var(--surface-2)", "border-radius: var(--radius-control)"]
 }
 
 ///|
@@ -87,7 +106,7 @@ fn section_label_style() -> Array[String] {
 ///|
 fn title_text_style() -> Array[String] {
   [
-    "font-size: var(--font-title)", "font-weight: 700", "line-height: 1.12", "letter-spacing: -0.02em",
+    "font-size: var(--font-title)", "font-weight: 600", "line-height: 1.25", "letter-spacing: 0",
     "color: var(--text-1)",
   ]
 }
@@ -95,7 +114,7 @@ fn title_text_style() -> Array[String] {
 ///|
 fn normal_text_style() -> Array[String] {
   [
-    "font-size: var(--font-mid)", "font-weight: 500", "line-height: 1.55", "letter-spacing: 0",
+    "font-size: var(--font-mid)", "font-weight: 400", "line-height: 1.5", "letter-spacing: 0",
     "color: var(--text-2)",
   ]
 }
@@ -103,7 +122,7 @@ fn normal_text_style() -> Array[String] {
 ///|
 fn value_text_style() -> Array[String] {
   [
-    "font-size: var(--font-mid)", "font-weight: 600", "line-height: 1.45", "letter-spacing: 0",
+    "font-size: var(--font-mid)", "font-weight: 500", "line-height: 1.45", "letter-spacing: 0",
     "color: var(--text-1)",
   ]
 }
@@ -124,30 +143,27 @@ fn button_style(
     "display: inline-flex",
     "align-items: center",
     "justify-content: center",
-    "gap: 4px",
-    "padding: 8px 12px",
+    "gap: 6px",
+    "padding: 7px 10px",
     "border: 1px solid transparent",
     "border-radius: var(--radius-control)",
     "background: " + background,
     "color: " + foreground,
     "cursor: " + cursor,
     "opacity: " + opacity,
-    "transition: opacity 120ms ease, transform 120ms ease, box-shadow 120ms ease",
+    "transition: background 100ms ease, color 100ms ease, opacity 100ms ease",
   ]
 }
 
 ///|
 fn primary_button_style(enabled : Bool) -> Array[String] {
-  button_style(
-    "linear-gradient(135deg, var(--action-strong), var(--action))", "var(--on-action)",
-    enabled,
-  ) +
+  button_style("var(--action)", "var(--on-action)", enabled) +
   ["box-shadow: none"]
 }
 
 ///|
 fn secondary_button_style(enabled : Bool) -> Array[String] {
-  button_style("var(--surface-3)", "var(--text-1)", enabled)
+  button_style("var(--foreground-5)", "var(--text-1)", enabled)
 }
 
 ///|
@@ -165,7 +181,7 @@ fn input_style(disabled : Bool) -> Array[String] {
   value_text_style() +
   [
     "width: 100%",
-    "padding: 8px 12px",
+    "padding: 8px 10px",
     "border: 1px solid " + border_color,
     "border-radius: var(--radius-control)",
     "background: " + background,

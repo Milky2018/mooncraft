@@ -6,9 +6,12 @@ fn theme_toggle_button(
   let label = "Theme: " + model.theme_mode.label()
   @html.button(
     type_="button",
+    title=label,
     on_click=dispatch(ToggleTheme),
-    style=secondary_button_style(true),
-  ) <| label
+    style=secondary_button_style(true) +
+      ["width: 28px", "height: 28px", "padding: 0"],
+    [theme_icon()],
+  )
 }
 
 ///|
