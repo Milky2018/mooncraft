@@ -125,7 +125,6 @@ pub(all) struct ProjectDetail {
   agent_cli : String
   model : String
   workspace_path : String
-  codex_thread_id : String?
   status : RunState
   current_run_phase : RunPhase
   preview : PreviewTarget?
@@ -150,7 +149,7 @@ pub(all) struct RunFailureDebug {
   stage : String
   command : String?
   exit_code : Int?
-  codex_log_path : String?
+  runtime_log_path : String?
   validation_log_path : String?
   final_summary_path : String?
 } derive(Debug, ToJson, FromJson)

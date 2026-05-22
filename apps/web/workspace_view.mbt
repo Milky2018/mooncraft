@@ -197,7 +197,7 @@ fn render_run_failure_debug(run : @sdk.RunStatusResponse) -> @rabbita.Html {
         debug_value_row("Stage", ui_empty_to_none(debug.stage)),
         debug_value_row("Exit Code", optional_int_text(debug.exit_code)),
         debug_value_row("Command", debug.command),
-        debug_value_row("Builder Log", debug.codex_log_path),
+        debug_value_row("Builder Log", debug.runtime_log_path),
         debug_value_row("Validation Log", debug.validation_log_path),
         debug_value_row("Final Summary", debug.final_summary_path),
       ]

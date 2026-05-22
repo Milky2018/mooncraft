@@ -14,7 +14,7 @@ The local product loop is real, but several parts are still single-node and need
 
 ### 1. The agent runtime is still single-node
 
-The current `AgentGateway` runs app-building work through a Docker-backed agent runtime on the same host.
+The current `RuntimeGateway` runs app-building work through a Docker-backed Runtime on the same host.
 
 Why this matters:
 
@@ -28,19 +28,19 @@ Required fix:
 
 ### 2. Persistence is production-database backed, but not HA
 
-Local durable state defaults to SQLite. Production should set `MOONCRAFT_DATABASE_URL` and use PostgreSQL. Generated project directories under `data/runtime/` are scratch caches hydrated from database snapshots. Codex session state is file-backed under `data/codex-sessions/` and must be preserved through `MOONCRAFT_HOST_DATA_DIR` on the current single-node deployment.
+Local durable state defaults to SQLite. Production should set `MOONCRAFT_DATABASE_URL` and use PostgreSQL. Generated project directories under `data/runtime/` are scratch caches hydrated from database snapshots. Runtime session homes are file-backed under `data/agent-sessions/` and must be preserved through `MOONCRAFT_HOST_DATA_DIR` on the current single-node deployment.
 
 Why this matters:
 
 - one-node staging is fine
 - multi-instance or high-availability production is not yet designed
-- PostgreSQL keeps metadata and workspace snapshots off app-local disk, but workspace snapshots and Codex session state should move to shared durable storage before multi-instance production
+- PostgreSQL keeps metadata and workspace snapshots off app-local disk, but workspace snapshots and Runtime session homes should move to shared durable storage before multi-instance production
 
 Short-term decision:
 
 - for local dev/test, SQLite is still the simplest path
 - for EC2 production, use PostgreSQL through `MOONCRAFT_DATABASE_URL`
-- for anything beyond one node, move workspace snapshots and Codex session state out of single-node app-local storage
+- for anything beyond one node, move workspace snapshots and Runtime session homes out of single-node app-local storage
 
 ### 3. Preview processes need stronger supervision
 
@@ -103,7 +103,7 @@ Why this is the right first hosted shape:
 
 1. Create an EC2 instance role that supports Systems Manager.
 2. Install Docker and Docker Compose.
-3. Build or load the local `mooncraft:local` and agent runtime images. The MoonCraft app image must include the MoonBit CLI because project creation runs `moon new` inside the app container.
+3. Build or load the local `mooncraft:local` and agent runtime images. Generated-app language tooling belongs in the selected Runtime image; the MoonCraft app image only needs the tooling required to build and run MoonCraft itself.
 4. Set deployment environment variables in your service manager or shell: `MOONCRAFT_PUBLIC_BASE_URL` and `MOONCRAFT_POSTGRES_PASSWORD`.
 5. Run `just deploy-test` for the test route or `just deploy-prod` for the production route. These commands pull the configured agent runtime image before starting Compose.
 
@@ -148,7 +148,7 @@ This is still not the final production architecture, but it is a reasonable next
 
 Do the next repo work in this order:
 
-1. replace the local `AgentGateway` with the real Codex path
+1. harden the Docker Runtime executor path
 2. add service and proxy deployment files
 3. write and test the EC2 deployment runbook
 4. strengthen preview supervision and resource controls

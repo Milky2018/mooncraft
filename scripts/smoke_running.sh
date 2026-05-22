@@ -108,9 +108,9 @@ printf '%s' "$preview_url" | grep -q '^/p/'
 
 project_detail="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$project_id")"
 printf '%s' "$project_detail" | grep -q '"current_run_phase":"NoPhase"'
-first_thread_id="$(printf '%s' "$project_detail" | sed -n 's/.*"codex_thread_id":"\([^"]*\)".*/\1/p')"
-if [[ -z "$first_thread_id" ]]; then
-  echo "Failed to parse the first codex thread id from project detail: $project_detail" >&2
+first_session_id="$(printf '%s' "$project_detail" | sed -n 's/.*"runtime_session_id":"\([^"]*\)".*/\1/p')"
+if [[ -z "$first_session_id" ]]; then
+  echo "Failed to parse the first runtime session id from project detail: $project_detail" >&2
   exit 1
 fi
 
@@ -173,13 +173,13 @@ printf '%s' "$final_run_2" | grep -q '"healthy":true'
 
 project_detail_2="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$project_id")"
 printf '%s' "$project_detail_2" | grep -q '"current_run_phase":"NoPhase"'
-second_thread_id="$(printf '%s' "$project_detail_2" | sed -n 's/.*"codex_thread_id":"\([^"]*\)".*/\1/p')"
-if [[ -z "$second_thread_id" ]]; then
-  echo "Failed to parse the recovered codex thread id from project detail: $project_detail_2" >&2
+second_session_id="$(printf '%s' "$project_detail_2" | sed -n 's/.*"runtime_session_id":"\([^"]*\)".*/\1/p')"
+if [[ -z "$second_session_id" ]]; then
+  echo "Failed to parse the recovered runtime session id from project detail: $project_detail_2" >&2
   exit 1
 fi
-if [[ "$second_thread_id" == "$first_thread_id" ]]; then
-  echo "Expected session recovery to replace the Codex thread id, but it stayed at $first_thread_id" >&2
+if [[ "$second_session_id" == "$first_session_id" ]]; then
+  echo "Expected session recovery to replace the runtime session id, but it stayed at $first_session_id" >&2
   exit 1
 fi
 

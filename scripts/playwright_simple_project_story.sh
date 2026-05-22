@@ -99,11 +99,11 @@ async function projectDetail(page, projectId) {
 async function assertNoInternalPromptLeak(page, previewFrame) {
   const pageText = await page.locator("body").innerText()
   if (pageText.includes("Working rules:")) {
-    throw new Error("Internal Codex prompt leaked into the platform page")
+    throw new Error("Internal Runtime prompt leaked into the platform page")
   }
   const frameText = await previewFrame.locator("body").innerText()
   if (frameText.includes("Working rules:")) {
-    throw new Error("Internal Codex prompt leaked into the preview iframe")
+    throw new Error("Internal Runtime prompt leaked into the preview iframe")
   }
 }
 
@@ -241,7 +241,7 @@ async function main() {
 
 - Result: Passed
 - App URL: \`${baseUrl}\`
-- Mode: \`MOONCRAFT_CODEX_FAKE_MODE=smoke\`
+- Mode: \`MOONCRAFT_RUNTIME_FAKE_MODE=smoke\`
 - User: \`${email}\`
 - Project ID: \`${projectId}\`
 - First run ID: \`${firstRunId}\`
@@ -258,7 +258,7 @@ async function main() {
 - First prompt creates one project run and reaches \`Succeeded\`.
 - The project API exposes a healthy preview target.
 - The preview iframe loads the generated app.
-- Fake mode does not leak internal Codex prompt rules into the page or preview.
+- Fake mode does not leak internal Runtime prompt rules into the page or preview.
 - A second prompt reuses the same project.
 - Refresh preserves project rail, chat history, and preview URL.
 - A forced failed run preserves the last successful preview.
@@ -300,9 +300,9 @@ moon -C . build
 MOONCRAFT_PORT="$port" \
 MOONCRAFT_PUBLIC_BASE_URL="$base_url" \
 MOONCRAFT_BUILD_PROFILE=debug \
-MOONCRAFT_CODEX_FAKE_MODE=smoke \
+MOONCRAFT_RUNTIME_FAKE_MODE=smoke \
 MOONCRAFT_ENABLE_DEV_AUTH=1 \
-MOONCRAFT_CODEX_FAKE_FAIL_CONTAINS="${MOONCRAFT_CODEX_FAKE_FAIL_CONTAINS:-Force fake failure}" \
+MOONCRAFT_RUNTIME_FAKE_FAIL_CONTAINS="${MOONCRAFT_RUNTIME_FAKE_FAIL_CONTAINS:-Force fake failure}" \
 ./_build/native/debug/build/mooncraft/control-plane/control-plane.exe >"$log_file" 2>&1 &
 server_pid=$!
 

@@ -20,7 +20,7 @@ This means the host must have Docker installed and the MoonCraft service contain
 - /var/run/docker.sock:/var/run/docker.sock
 ```
 
-The MoonCraft app image installs `docker-ce-cli` and the MoonBit CLI. It does not run a Docker daemon inside the container. The MoonBit CLI must remain available at runtime because `POST /api/projects` initializes each generated project workspace with `moon new` before the first agent turn.
+The MoonCraft app image installs `docker-ce-cli` so it can start Runtime containers through the host Docker daemon. It does not run a Docker daemon inside the container. Generated-app language tooling, package managers, and project setup commands belong in the selected Runtime image, not in the MoonCraft app protocol.
 
 Because the Docker daemon is on the host, every source path in `docker run -v ...` is resolved on the host, not inside the MoonCraft container. MoonCraft therefore requires `MOONCRAFT_HOST_DATA_DIR`: an absolute host path mounted into the app container as `/app/data`. The app stores runtime workspaces under `/app/data/...` and translates those paths back to `${MOONCRAFT_HOST_DATA_DIR}/...` before starting agent runtime containers.
 
@@ -294,7 +294,7 @@ Compose creates named volumes:
 
 Compose also bind-mounts `${MOONCRAFT_HOST_DATA_DIR}` to `/app/data`.
 
-For the current single-node deployment, preserve both the PostgreSQL volume and the host data directory. PostgreSQL stores users, projects, messages, runs, and workspace snapshots. The host data directory stores local runtime caches and Codex session homes, and it must be visible to sibling agent runtime containers through host bind mounts.
+For the current single-node deployment, preserve both the PostgreSQL volume and the host data directory. PostgreSQL stores users, projects, messages, runs, and workspace snapshots. The host data directory stores local runtime caches and Runtime session homes, and it must be visible to sibling agent runtime containers through host bind mounts.
 
 Before treating this as hardened production, define backup and restore for PostgreSQL and the MoonCraft host data directory.
 
@@ -330,6 +330,6 @@ Known limits:
 
 - the app container has access to the host Docker socket
 - generated previews run on the same host
-- Codex session homes are file-backed under the MoonCraft host data directory
+- Runtime session homes are file-backed under the MoonCraft host data directory
 - host data directory backups are still operator-managed
 - no hard per-user resource quotas are enforced yet

@@ -27,18 +27,16 @@ Each user project is created under:
 That directory is runtime scratch, not durable storage. The control plane keeps the authoritative workspace source snapshot in SQLite and hydrates it into scratch paths for agent runs and preview rebuilds.
 The old `data/projects` location is not a fallback source; startup removes that legacy scratch root instead of migrating or restoring from it.
 
-Each generated project chooses its own structure. The control plane does not create or require `frontend/`, `backend/`, or `shared/` directories. The project-owned `mooncraft-preview.sh` script is the runtime contract: MoonCraft starts it with a private preview port and requires the resulting preview to become reachable.
+Each generated project chooses its own structure. The control plane does not create or require `frontend/`, `backend/`, `shared/`, a MoonBit module, or any starter app files. The project-owned `mooncraft-preview.sh` script is the runtime contract: MoonCraft starts it with a private preview port and requires the resulting preview to become reachable.
 
-New projects start from a deterministic plain `moon new` module. MoonCraft does not add a platform-owned starter web app. The selected agent creates the app runtime and preview script as part of satisfying the first user request.
-
-This keeps the live preview tied to a real generated app instead of a fake demo panel without forcing every app into one final scaffold.
+New projects start from an empty workspace snapshot. The selected Runtime provider owns all app setup, dependencies, code generation, and preview script creation as part of satisfying the first user request.
 
 ## Current Runtime Flow
 
-1. `POST /api/projects` creates project metadata, runs `moon new`, and saves the plain module as the first workspace snapshot.
+1. `POST /api/projects` creates project metadata and saves an empty workspace as the first workspace snapshot.
 2. `POST /api/projects/:id/runs` stores the user message, opens a run, and locks the project.
-3. `AgentGateway` runs the project's selected agent in the project workspace. For the first app turn, the agent is instructed to turn the plain MoonBit module into the requested previewable app.
-4. `PreviewManager` fetches approved MoonBit modules, runs the project-owned `mooncraft-preview.sh` on a stable local port, and verifies the HTTP preview.
+3. `RuntimeExecutor` runs the project's selected Runtime in the project workspace. For the first app turn, the Runtime receives an empty workspace and creates the requested previewable app.
+4. `PreviewManager` runs the project-owned `mooncraft-preview.sh` on a stable local port and verifies the HTTP preview.
 5. The control plane marks the run as succeeded or failed and stores the latest preview target.
 6. `apps/web` polls run status and refreshes project state.
 
@@ -76,15 +74,15 @@ Important persisted fields include:
 
 The control plane owns only the Runtime boundary, not the app's source layout. Each project is bound to one Runtime snapshot at creation time. Runtime continuity is represented by the platform-owned `agent_session_id`, the Runtime-owned `runtime_session_id`, and the mounted agent session directory under `data/agent-sessions/<project-id>/<agent-session-id>`. The control plane does not special-case official Runtime names or infer CLI-specific filesystem layout.
 
-- new projects start from plain `moon new` output, not an official app template
-- normal user prompts are passed as task intent; MoonCraft app contract knowledge lives in the agent runtime system layer
-- the selected agent creates the requested real app and its preview startup script
+- new projects start from an empty workspace snapshot
+- normal user prompts are passed as task intent; MoonCraft app contract knowledge lives in the Runtime system layer
+- the selected Runtime creates the requested real app and its preview startup script
 - `mooncraft-preview.sh <port>` must start the live preview
 - `mooncraft-preview.sh` receives the preview port as its first CLI argument, starts the app server, keeps the preview process in the foreground, and serves `/`
 - `/api/health` is preferred for readiness, while `/` is accepted as a fallback for browser-only/static previews
 - source snapshots are persisted after creation and after successful agent edits
 
-There are no official app templates, no template ids, and no template picker in this slice. Reusable examples should live in documentation or external MoonBit projects, not as platform-owned scaffold variants.
+There are no official app templates, no template ids, and no template picker in this slice. Reusable examples should live in Runtime images, Runtime documentation, or external projects, not as platform-owned starter variants.
 
 ## Web Surface
 
@@ -103,7 +101,7 @@ Default UX constraints:
 
 ## Agent Boundary
 
-The agent layer is intentionally isolated behind `AgentGateway`.
+The agent layer is intentionally isolated behind the Runtime protocol and implemented by `RuntimeExecutor`.
 
 Current state:
 

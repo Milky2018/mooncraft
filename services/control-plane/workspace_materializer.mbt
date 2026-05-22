@@ -4,7 +4,10 @@ fn preview_health_path() -> String {
 }
 
 ///|
-fn scaffold_write_file(path : String, content : String) -> Result[Unit, String] {
+fn write_workspace_file(
+  path : String,
+  content : String,
+) -> Result[Unit, String] {
   ensure_dir(parent_dir(path))
   @fs.write_string_to_file(path, content) catch {
     err => return Err("Failed to write \{path}: \{err}")

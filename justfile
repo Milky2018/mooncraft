@@ -30,14 +30,14 @@ run target='8080' profile='':
 open port='8080':
   open http://localhost:{{port}}
 
-# Build and run the fake-agent API smoke test
+# Build and run the fake-runtime API smoke test
 test: build smoke
 
-# Start a temporary control plane and run the fake-agent API smoke test
+# Start a temporary control plane and run the fake-runtime API smoke test
 smoke:
   ./scripts/smoke.sh
 
-# Run the fake-agent API smoke test against a dev-auth-enabled control plane
+# Run the fake-runtime API smoke test against a dev-auth-enabled control plane
 smoke-running:
   ./scripts/smoke_running.sh
 

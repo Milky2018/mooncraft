@@ -94,4 +94,4 @@ Near-term success means:
 - the app-develop page feels clear and consumer-friendly
 - one project can be created, edited through chat, and previewed locally
 - project state survives refresh through SQLite and disk
-- the system is ready for a real Codex-backed `AgentGateway`
+- the system is ready for a real Runtime-backed gateway

@@ -42,7 +42,6 @@ fn admin_project_select_sql() -> String {
     #|  p.agent_cli,
     #|  p.ai_model,
     #|  p.workspace_path,
-    #|  COALESCE(p.codex_thread_id, '') AS codex_thread_id,
     #|  p.status,
     #|  COALESCE(p.preview_url, '') AS preview_url,
     #|  COALESCE(p.preview_port, 0) AS preview_port,

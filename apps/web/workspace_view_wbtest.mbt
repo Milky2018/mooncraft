@@ -12,7 +12,6 @@ fn preview_test_project(preview : @sdk.PreviewTarget?) -> @sdk.ProjectDetail {
     agent_cli: "codex",
     model: "openrouter/test-model",
     workspace_path: "/tmp/project-1",
-    codex_thread_id: None,
     status: Idle,
     current_run_phase: NoPhase,
     preview,

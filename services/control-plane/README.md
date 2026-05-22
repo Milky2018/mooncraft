@@ -14,9 +14,9 @@ Responsibilities:
 - rebuild and restart local previews
 - store preview URLs and last-known run state
 
-The platform no longer owns generated-app scaffolding. Project rows do not carry template ids, and there is no template picker. Project creation saves an empty workspace as the first snapshot. The selected Runtime decides how to turn that workspace into an app; the control plane only requires the result to provide `mooncraft-preview.sh`.
+The platform no longer owns generated-app setup. Project rows do not carry template ids, and there is no template picker. Project creation saves an empty workspace as the first snapshot. The selected Runtime decides how to turn that workspace into an app; the control plane only requires the result to provide `mooncraft-preview.sh`.
 
-The current `AgentGateway` uses Docker-backed Runtime runs. Projects are bound to one Runtime snapshot at creation time and keep one platform-owned agent session directory under `data/agent-sessions/<project-id>/<agent-session-id>`. Each new chat message starts a detached worker process through `moonbitlang/async/process`, runs the selected Runtime's `send` command in the disposable container, reads `/artifacts/result.json`, persists the updated workspace, starts `mooncraft-preview.sh`, then runs a lightweight HTTP preview audit through the public preview proxy. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
+The current `RuntimeGateway` uses Docker-backed Runtime runs. Projects are bound to one Runtime snapshot at creation time and keep one platform-owned agent session directory under `data/agent-sessions/<project-id>/<agent-session-id>`. Each new chat message starts a detached worker process through `moonbitlang/async/process`, runs the selected Runtime's `send` command in the disposable container, reads `/artifacts/result.json`, persists the updated workspace, starts `mooncraft-preview.sh`, then runs a lightweight HTTP preview audit through the public preview proxy. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
 
 Workspace directories are no longer durable state. The control plane saves the latest source archive in SQLite after initial workspace generation and after agent edits. Each run hydrates that database snapshot into an isolated runtime workspace before starting the selected agent, then restores the local preview cache from the saved snapshot.
 
@@ -41,7 +41,7 @@ Frontend-owned static files live under `apps/web/public`, which mirrors public U
 - `control-plane-assets/admin-login/index.html` for the admin session form
 - `control-plane-assets/auth/github-callback/index.html` for the OAuth callback handoff page
 - `control-plane-assets/preview-fallback/index.html` and `control-plane-assets/preview-fallback/styles.css` for generated previews that do not provide their own shell
-- `control-plane-assets/smoke-preview/index.html` for fake-agent preview smoke runs
+- `control-plane-assets/smoke-preview/index.html` for fake-runtime preview smoke runs
 - `assets/logo.svg`, `assets/logo.png`, and `assets/factory.webp` for public web app imagery
 
 These files are runtime assets owned by `apps/web`, not control-plane source. `moon build` builds both the Rabbita frontend bundle and the native control-plane executable through the workspace. The control plane does not run `moon` at startup; it serves the prebuilt frontend bundle from `_build/js/<profile>/build/mooncraft/web/web.js`. Project creation does not require generated-app language tooling; it creates an empty workspace snapshot. The supported local walkthrough runs from the repository root through `just serve`, which builds the workspace before starting the executable. The Docker app image installs build tooling for MoonCraft itself, but generated-app tooling belongs to the selected Runtime.

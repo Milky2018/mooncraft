@@ -14,7 +14,7 @@ log_file="$tmpdir/control-plane.log"
 
 moon -C . build
 
-MOONCRAFT_CODEX_FAKE_MODE=smoke \
+MOONCRAFT_RUNTIME_FAKE_MODE=smoke \
   MOONCRAFT_ENABLE_DEV_AUTH=1 \
   MOONCRAFT_PORT="$port" \
   MOONCRAFT_PUBLIC_BASE_URL="$base_url" \
@@ -36,4 +36,4 @@ for _ in {1..60}; do
 done
 
 curl -fsS "$base_url/api/health" | grep -q '"ok":true'
-MOONCRAFT_CODEX_FAKE_MODE=smoke ./scripts/smoke_running.sh
+MOONCRAFT_RUNTIME_FAKE_MODE=smoke ./scripts/smoke_running.sh

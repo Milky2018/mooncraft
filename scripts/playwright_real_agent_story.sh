@@ -197,8 +197,8 @@ async function main() {
     await page.reload({ waitUntil: "domcontentloaded" })
     await page.getByText(prompt).waitFor()
     const detail = await projectDetail(page, projectId)
-    if (!detail.codex_thread_id) {
-      throw new Error("Expected a persisted Codex thread id")
+    if (!detail.runtime_session_id) {
+      throw new Error("Expected a persisted Runtime session id")
     }
     const previewFrame = page.frameLocator(`iframe[src*="${run.preview.url}"]`)
     await previewFrame.locator("body").waitFor()
@@ -226,7 +226,7 @@ async function main() {
 - Project ID: \`${projectId}\`
 - Run ID: \`${runId}\`
 - Preview URL: \`${run.preview.url}\`
-- Codex thread ID persisted: yes
+- Runtime session ID persisted: yes
 - Expected preview terms: \`${expectedPreviewTerms.join(", ")}\`
 
 ## Assertions
@@ -234,7 +234,7 @@ async function main() {
 - Development sign-in succeeds.
 - Browser prompt starts a real Docker-backed agent run.
 - The run reaches \`Succeeded\`.
-- The project persists a Codex thread ID.
+- The project persists a Runtime session ID.
 - The preview iframe loads the generated app.
 - The direct preview page contains at least one expected user-facing term.
 
@@ -290,7 +290,7 @@ MOONCRAFT_PORT="$port" \
 MOONCRAFT_PUBLIC_BASE_URL="$base_url" \
 MOONCRAFT_APP_MODE="${MOONCRAFT_APP_MODE:-test}" \
 MOONCRAFT_BUILD_PROFILE=debug \
-MOONCRAFT_CODEX_FAKE_MODE= \
+MOONCRAFT_RUNTIME_FAKE_MODE= \
 MOONCRAFT_ENABLE_DEV_AUTH=1 \
 MOONCRAFT_ADMIN_TOKEN="$admin_token" \
 ./_build/native/debug/build/mooncraft/control-plane/control-plane.exe >"$log_file" 2>&1 &

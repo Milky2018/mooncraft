@@ -17,8 +17,6 @@ type AdminSecretRecord
 
 type AgentExecutionResult
 
-type AgentGateway
-
 type AgentRuntimeConfig
 
 type AgentTurnFailure
@@ -59,6 +57,8 @@ type RunningRun
 type RunningRunWorker
 
 type RuntimeContext derive(ToJson)
+
+type RuntimeGateway
 
 type RuntimeResult derive(@json.FromJson)
 

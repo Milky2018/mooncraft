@@ -62,7 +62,7 @@ MOONCRAFT_APP_MODE=development \
   MOONCRAFT_ADMIN_TOKEN="$admin_token" \
   MOONCRAFT_PORT="$port" \
   MOONCRAFT_PUBLIC_BASE_URL="$base_url" \
-  MOONCRAFT_CODEX_FAKE_MODE= \
+  MOONCRAFT_RUNTIME_FAKE_MODE= \
   ./_build/native/debug/build/mooncraft/control-plane/control-plane.exe \
   >"$server_log" 2>&1 &
 server_pid="$!"

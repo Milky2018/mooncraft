@@ -12,8 +12,8 @@ Agents do not edit this. This file is maintainable by human developers.
 - [x] Hydrate that snapshot into a temp directory before each Codex run.
 - [x] Run Codex against the hydrated temp workspace.
 - [x] Save the resulting workspace back after the run, whether success or failure.
-- [x] Keep codex_thread_id, but also persist the initial project brief explicitly so you can recover if the session ever becomes unusable.
-- [x] Remove runtime template manifests and seed an empty project workspace instead of generating a fixed app scaffold.
+- [x] Persist the Runtime session id and initial project brief explicitly so you can recover if the session ever becomes unusable.
+- [x] Remove runtime template manifests and seed an empty project workspace instead of generating a fixed starter app.
 - [x] Add a real durability smoke test: first run, delete the canonical workspace/, send a follow-up message, and verify the run hydrates from workspace.tar, validates, and refreshes preview.
 - [ ] Real codex docker e2e
   - [x] Add a real just agent-smoke that registers a Runtime manifest and builds the Todo List App end-to-end with the real Docker-backed agent runtime.
@@ -44,7 +44,7 @@ Agents do not edit this. This file is maintainable by human developers.
   - [ ] Phase 2: Project Artifact Model, Result: easier backup, migration, multi-instance support, and large-project handling.
     - [ ] Stop treating SQLite/Postgres snapshots as the long-term source for large workspace archives.
     - [ ] Introduce ArtifactStore: local filesystem for dev/test, S3 later for production
-    - [ ] Store only metadata in DB: current workspace artifact id, Codex session artifact id, run log artifact ids, preview build artifact id if needed
+    - [ ] Store only metadata in DB: current workspace artifact id, Runtime session artifact id, run log artifact ids, preview build artifact id if needed
     - [ ] Keep DB transactions responsible for state, not blobs.
   - [ ] Phase 3: Job Orchestration, Result: multiple workers become possible without changing product UX.
     - [ ] Add a jobs table separate from runs.
@@ -92,7 +92,8 @@ Agents do not edit this. This file is maintainable by human developers.
 - [ ] Not ToD, To Children!
 - [ ] `ai_quota_or_capacity_limited` is very fragile
 - [ ] `artifacts` folder to `.mooncraft`
-- [ ] `services/control-plane/codex_executor.mbt` naming `agent_executor`
+- [x] `services/control-plane/runtime_executor.mbt` naming reflects the Runtime protocol boundary
 - [ ] `Result` types to suberror and try-catch
 - [ ] Runtime configured by GUI instead of JSON
 - [ ] dockerfile is not good for layer reuse
+- [ ] `@async.sleep(200)` is bad

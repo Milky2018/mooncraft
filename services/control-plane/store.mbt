@@ -55,7 +55,7 @@ struct PreviewManager {
 }
 
 ///|
-struct AgentGateway {
+struct RuntimeGateway {
   root : String
 }
 
@@ -65,7 +65,7 @@ struct AppContext {
   build_profile : BuildProfile
   store : Store
   previews : PreviewManager
-  agent_gateway : AgentGateway
+  runtime_gateway : RuntimeGateway
 }
 
 ///|
@@ -437,11 +437,6 @@ fn preview_error_needs_startup_repair(message : String) -> Bool {
 }
 
 ///|
-fn project_codex_session_root(root : String, project_id : String) -> String {
-  root + "/data/codex-sessions/" + project_id
-}
-
-///|
 fn project_agent_session_root(root : String, project_id : String) -> String {
   root + "/data/agent-sessions/" + project_id
 }
@@ -533,14 +528,14 @@ fn run_failure_debug_from_columns(
   stage : String,
   command : String,
   exit_code : Int,
-  codex_log_path : String,
+  runtime_log_path : String,
   validation_log_path : String,
   final_summary_path : String,
 ) -> @sdk.RunFailureDebug? {
   if stage == "" &&
     command == "" &&
     exit_code < 0 &&
-    codex_log_path == "" &&
+    runtime_log_path == "" &&
     validation_log_path == "" &&
     final_summary_path == "" {
     None
@@ -549,7 +544,7 @@ fn run_failure_debug_from_columns(
       stage,
       command: empty_to_none(command),
       exit_code: int_to_none_if_negative(exit_code),
-      codex_log_path: empty_to_none(codex_log_path),
+      runtime_log_path: empty_to_none(runtime_log_path),
       validation_log_path: empty_to_none(validation_log_path),
       final_summary_path: empty_to_none(final_summary_path),
     })
@@ -1001,6 +996,86 @@ async fn Store::ensure_column(
 }
 
 ///|
+async fn Store::drop_column_if_exists(
+  self : Store,
+  table_name : String,
+  column_name : String,
+) -> Result[Unit, String] noraise {
+  match self.column_exists(table_name, column_name) {
+    Ok(true) =>
+      self.exec_or_error(
+        "ALTER TABLE \{table_name} DROP COLUMN \{column_name};",
+        "drop column \{table_name}.\{column_name}",
+      )
+    Ok(false) => Ok(())
+    Err(message) => Err(message)
+  }
+}
+
+///|
+async fn Store::migrate_runtime_protocol_columns(
+  self : Store,
+) -> Result[Unit, String] noraise {
+  match self.drop_column_if_exists("projects", "template_id") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match self.drop_column_if_exists("projects", "template_version") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match self.column_exists("projects", "codex_thread_id") {
+    Ok(true) => {
+      match
+        self.exec_or_error(
+          (
+            #|UPDATE projects
+            #|SET runtime_session_id = codex_thread_id
+            #|WHERE (runtime_session_id IS NULL OR runtime_session_id = '')
+            #|  AND codex_thread_id IS NOT NULL
+            #|  AND codex_thread_id <> '';
+          ),
+          "migrate project runtime session ids",
+        ) {
+        Ok(_) => ignore(())
+        Err(message) => return Err(message)
+      }
+      match self.drop_column_if_exists("projects", "codex_thread_id") {
+        Ok(_) => ignore(())
+        Err(message) => return Err(message)
+      }
+    }
+    Ok(false) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match self.column_exists("runs", "codex_log_path") {
+    Ok(true) => {
+      match
+        self.exec_or_error(
+          (
+            #|UPDATE runs
+            #|SET runtime_log_path = codex_log_path
+            #|WHERE (runtime_log_path IS NULL OR runtime_log_path = '')
+            #|  AND codex_log_path IS NOT NULL
+            #|  AND codex_log_path <> '';
+          ),
+          "migrate run runtime log paths",
+        ) {
+        Ok(_) => ignore(())
+        Err(message) => return Err(message)
+      }
+      match self.drop_column_if_exists("runs", "codex_log_path") {
+        Ok(_) => ignore(())
+        Err(message) => return Err(message)
+      }
+    }
+    Ok(false) => ignore(())
+    Err(message) => return Err(message)
+  }
+  Ok(())
+}
+
+///|
 async fn Store::backfill_initial_project_prompts(
   self : Store,
 ) -> Result[Unit, String] noraise {
@@ -1270,7 +1345,6 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
         #|  ai_model TEXT NOT NULL DEFAULT '',
         #|  workspace_path TEXT NOT NULL,
         #|  initial_project_prompt TEXT,
-        #|  codex_thread_id TEXT,
         #|  status TEXT NOT NULL,
         #|  preview_url TEXT,
         #|  preview_port INTEGER,
@@ -1384,7 +1458,7 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
         #|  failure_stage TEXT,
         #|  failure_command TEXT,
         #|  failure_exit_code INTEGER,
-        #|  codex_log_path TEXT,
+        #|  runtime_log_path TEXT,
         #|  validation_log_path TEXT,
         #|  final_summary_path TEXT,
         #|  preview_url TEXT,
@@ -1411,7 +1485,11 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
-  match self.ensure_column("runs", "codex_log_path", "TEXT") {
+  match self.ensure_column("runs", "runtime_log_path", "TEXT") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match self.migrate_runtime_protocol_columns() {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
@@ -1661,7 +1739,6 @@ fn project_detail_from_row(row : Map[String, @db.Param]) -> @sdk.ProjectDetail {
     agent_cli: row_text(row, "agent_cli"),
     model: row_text(row, "ai_model"),
     workspace_path: row_text(row, "workspace_path"),
-    codex_thread_id: empty_to_none(row_text(row, "codex_thread_id")),
     status: run_state_from_db(row_text(row, "status")),
     current_run_phase: run_phase_from_db(row_text(row, "current_run_phase")),
     preview,
@@ -1696,7 +1773,7 @@ fn run_status_from_row(row : Map[String, @db.Param]) -> @sdk.RunStatusResponse {
     row_text(row, "failure_stage"),
     row_text(row, "failure_command"),
     row_int(row, "failure_exit_code"),
-    row_text(row, "codex_log_path"),
+    row_text(row, "runtime_log_path"),
     row_text(row, "validation_log_path"),
     row_text(row, "final_summary_path"),
   )
@@ -1775,7 +1852,6 @@ async fn Store::get_project_detail(
         #|  p.agent_cli,
         #|  p.ai_model,
         #|  p.workspace_path,
-        #|  COALESCE(p.codex_thread_id, '') AS codex_thread_id,
         #|  p.status,
         #|  COALESCE(p.preview_url, '') AS preview_url,
         #|  COALESCE(p.preview_port, 0) AS preview_port,
@@ -1843,7 +1919,7 @@ async fn Store::get_run(
         #|  COALESCE(r.failure_stage, '') AS failure_stage,
         #|  COALESCE(r.failure_command, '') AS failure_command,
         #|  COALESCE(r.failure_exit_code, -1) AS failure_exit_code,
-        #|  COALESCE(r.codex_log_path, '') AS codex_log_path,
+        #|  COALESCE(r.runtime_log_path, '') AS runtime_log_path,
         #|  COALESCE(r.validation_log_path, '') AS validation_log_path,
         #|  COALESCE(r.final_summary_path, '') AS final_summary_path,
         #|  COALESCE(r.preview_url, '') AS preview_url,
@@ -1882,7 +1958,7 @@ async fn Store::get_run_by_id(
         #|  COALESCE(r.failure_stage, '') AS failure_stage,
         #|  COALESCE(r.failure_command, '') AS failure_command,
         #|  COALESCE(r.failure_exit_code, -1) AS failure_exit_code,
-        #|  COALESCE(r.codex_log_path, '') AS codex_log_path,
+        #|  COALESCE(r.runtime_log_path, '') AS runtime_log_path,
         #|  COALESCE(r.validation_log_path, '') AS validation_log_path,
         #|  COALESCE(r.final_summary_path, '') AS final_summary_path,
         #|  COALESCE(r.preview_url, '') AS preview_url,
@@ -1920,7 +1996,7 @@ async fn Store::list_recent_runs(
       #|  COALESCE(r.failure_stage, '') AS failure_stage,
       #|  COALESCE(r.failure_command, '') AS failure_command,
       #|  COALESCE(r.failure_exit_code, -1) AS failure_exit_code,
-      #|  COALESCE(r.codex_log_path, '') AS codex_log_path,
+      #|  COALESCE(r.runtime_log_path, '') AS runtime_log_path,
       #|  COALESCE(r.validation_log_path, '') AS validation_log_path,
       #|  COALESCE(r.final_summary_path, '') AS final_summary_path,
       #|  COALESCE(r.preview_url, '') AS preview_url,
@@ -1962,7 +2038,7 @@ async fn Store::list_project_runs(
       #|  COALESCE(r.failure_stage, '') AS failure_stage,
       #|  COALESCE(r.failure_command, '') AS failure_command,
       #|  COALESCE(r.failure_exit_code, -1) AS failure_exit_code,
-      #|  COALESCE(r.codex_log_path, '') AS codex_log_path,
+      #|  COALESCE(r.runtime_log_path, '') AS runtime_log_path,
       #|  COALESCE(r.validation_log_path, '') AS validation_log_path,
       #|  COALESCE(r.final_summary_path, '') AS final_summary_path,
       #|  COALESCE(r.preview_url, '') AS preview_url,
@@ -2072,7 +2148,7 @@ async fn Store::list_running_runs(self : Store) -> Array[RunningRun] noraise {
       #|SELECT
       #|  r.project_id,
       #|  r.id AS run_id,
-      #|  COALESCE(p.codex_thread_id, '') AS thread_id
+      #|  COALESCE(p.runtime_session_id, '') AS thread_id
       #|FROM runs r
       #|JOIN projects p ON p.id = r.project_id
       #|WHERE r.state = ?
@@ -2132,7 +2208,7 @@ async fn Store::fail_stale_running_runs_on_startup(self : Store) -> Int noraise 
         stage: "Worker recovery",
         command: None,
         exit_code: None,
-        codex_log_path: None,
+        runtime_log_path: None,
         validation_log_path: None,
         final_summary_path: None,
       }),
@@ -2240,13 +2316,11 @@ async fn Store::set_project_runtime_session_id(
     (
       #|UPDATE projects
       #|SET runtime_session_id = ?,
-      #|    codex_thread_id = ?,
       #|    updated_at = ?
       #|WHERE id = ?;
     ),
     "update project runtime session id",
     params=[
-      String(runtime_session_id),
       String(runtime_session_id),
       String(now_string()),
       String(project_id),
@@ -2438,21 +2512,20 @@ async fn Store::get_running_run_worker(
 }
 
 ///|
-async fn Store::set_project_thread_id(
+async fn Store::save_project_runtime_session_id(
   self : Store,
   project_id : String,
-  thread_id : String,
+  session_id : String,
 ) -> Unit noraise {
   ignore(
     self.exec_or_error(
       (
         #|UPDATE projects
-        #|SET codex_thread_id = ?,
-        #|    runtime_session_id = ?
+        #|SET runtime_session_id = ?
         #|WHERE id = ?;
       ),
-      "set project thread id",
-      params=[String(thread_id), String(thread_id), String(project_id)],
+      "set project runtime session id",
+      params=[String(session_id), String(project_id)],
     ),
   )
 }
@@ -2573,7 +2646,7 @@ async fn Store::finish_run_success(
 ) -> Unit noraise {
   let now = now_string()
   match thread_id {
-    Some(value) => self.set_project_thread_id(project_id, value)
+    Some(value) => self.save_project_runtime_session_id(project_id, value)
     None => ignore(())
   }
   let assistant_message = if summary == "" {
@@ -2617,7 +2690,7 @@ async fn Store::finish_run_success(
         #|  failure_stage = NULL,
         #|  failure_command = NULL,
         #|  failure_exit_code = NULL,
-        #|  codex_log_path = NULL,
+        #|  runtime_log_path = NULL,
         #|  validation_log_path = NULL,
         #|  final_summary_path = NULL,
         #|  preview_url = ?,
@@ -2703,7 +2776,7 @@ async fn Store::finish_run_failure_with_debug(
 ) -> Unit noraise {
   let now = now_string()
   match thread_id {
-    Some(value) => self.set_project_thread_id(project_id, value)
+    Some(value) => self.save_project_runtime_session_id(project_id, value)
     None => ignore(())
   }
   let message_text = if assistant_message == "" {
@@ -2714,7 +2787,7 @@ async fn Store::finish_run_failure_with_debug(
   let failure_stage = failure_debug.map(fn(debug) { debug.stage })
   let failure_command = failure_debug.bind(fn(debug) { debug.command })
   let failure_exit_code = failure_debug.bind(fn(debug) { debug.exit_code })
-  let codex_log_path = failure_debug.bind(fn(debug) { debug.codex_log_path })
+  let runtime_log_path = failure_debug.bind(fn(debug) { debug.runtime_log_path })
   let validation_log_path = failure_debug.bind(fn(debug) {
     debug.validation_log_path
   })
@@ -2757,7 +2830,7 @@ async fn Store::finish_run_failure_with_debug(
         #|  failure_stage = ?,
         #|  failure_command = ?,
         #|  failure_exit_code = ?,
-        #|  codex_log_path = ?,
+        #|  runtime_log_path = ?,
         #|  validation_log_path = ?,
         #|  final_summary_path = ?,
         #|  finished_at = ?
@@ -2772,7 +2845,7 @@ async fn Store::finish_run_failure_with_debug(
         nullable_text_param(failure_stage),
         nullable_text_param(failure_command),
         nullable_int_param(failure_exit_code),
-        nullable_text_param(codex_log_path),
+        nullable_text_param(runtime_log_path),
         nullable_text_param(validation_log_path),
         nullable_text_param(final_summary_path),
         String(now),
@@ -2846,7 +2919,7 @@ async fn Store::finish_run_cancelled(
         #|  failure_stage = NULL,
         #|  failure_command = NULL,
         #|  failure_exit_code = NULL,
-        #|  codex_log_path = NULL,
+        #|  runtime_log_path = NULL,
         #|  validation_log_path = NULL,
         #|  final_summary_path = NULL,
         #|  finished_at = ?
@@ -3168,7 +3241,7 @@ async fn AppContext::ensure_project_preview_running(
 }
 
 ///|
-fn new(root : String) -> AgentGateway {
+fn new_runtime_gateway(root : String) -> RuntimeGateway {
   { root, }
 }
 
@@ -3196,7 +3269,7 @@ async fn AppContext::try_new_for_worker_async(
     build_profile,
     store,
     previews: PreviewManager::new(root),
-    agent_gateway: new(root),
+    runtime_gateway: new_runtime_gateway(root),
   })
 }
 
@@ -3220,7 +3293,7 @@ fn AppContext::try_new_with_recovery(
     build_profile,
     store,
     previews: PreviewManager::new(root),
-    agent_gateway: new(root),
+    runtime_gateway: new_runtime_gateway(root),
   }
   ignore(recover_interrupted)
   Ok(ctx)
@@ -3242,7 +3315,6 @@ async fn AppContext::delete_project(
   }
   self.previews.remove_project_runtime(project_id, project.preview)
   safe_remove_tree(project_root(self.root, project_id))
-  safe_remove_tree(project_codex_session_root(self.root, project_id))
   safe_remove_tree(project_agent_session_root(self.root, project_id))
   self.store.delete_project(project_id)
 }

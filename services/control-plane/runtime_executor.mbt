@@ -33,7 +33,7 @@ struct AgentRuntimeConfig {
 }
 
 ///|
-let default_codex_model = "gpt-5.5"
+let default_runtime_model = "gpt-5.5"
 
 ///|
 struct RunArtifacts {
@@ -83,14 +83,6 @@ struct AgentExecutionResult {
   summary : String
   thread_id : String
   artifacts : RunArtifacts
-}
-
-///|
-fn smoke_codex_enabled() -> Bool {
-  match @env.get_env_var("MOONCRAFT_CODEX_FAKE_MODE") {
-    Some(value) => value.trim() == "smoke"
-    None => false
-  }
 }
 
 ///|
@@ -626,50 +618,6 @@ fn tail_text(text : String, limit : Int) -> String {
 }
 
 ///|
-fn prompt_section_after(prompt : String, marker : String) -> String? {
-  match prompt.find(marker) {
-    Some(index) =>
-      Some(
-        prompt[index + marker.length():]
-        .to_owned()
-        .trim(chars="\n\r ")
-        .to_owned(),
-      )
-    None => None
-  }
-}
-
-///|
-fn fake_codex_user_request(prompt : String) -> String {
-  let markers = [
-    "Latest user request:\n\n", "Latest user request:\n", "User's requirement:\n\n",
-    "User's requirement:\n", "Original project requirement:\n\n", "Original project requirement:\n",
-  ]
-  for marker in markers {
-    match prompt_section_after(prompt, marker) {
-      Some(request) if request != "" => return request
-      _ => ()
-    }
-  }
-  prompt
-}
-
-///|
-fn fake_codex_forced_failure(prompt : String) -> String? {
-  match @env.get_env_var("MOONCRAFT_CODEX_FAKE_FAIL_CONTAINS") {
-    Some(value) if value.trim() != "" => {
-      let needle = value.trim().to_owned()
-      if fake_codex_user_request(prompt).contains(needle) {
-        Some("Local builder forced failure for preview audit coverage.")
-      } else {
-        None
-      }
-    }
-    _ => None
-  }
-}
-
-///|
 fn extract_json_string_field(line : String, field : String) -> String? {
   let prefix = "\"" + field + "\":\""
   match line.find(prefix) {
@@ -686,11 +634,11 @@ fn extract_json_string_field(line : String, field : String) -> String? {
 }
 
 ///|
-fn extract_thread_id(events : String) -> String? {
+fn extract_runtime_session_id(events : String) -> String? {
   for raw_line in events.replace_all(old="\r\n", new="\n").split("\n") {
     let line = raw_line.to_owned()
-    if line.contains("\"type\":\"thread.started\"") {
-      return extract_json_string_field(line, "thread_id")
+    if line.contains("\"type\":\"runtime.started\"") {
+      return extract_json_string_field(line, "runtime_session_id")
     }
   }
   None
@@ -699,21 +647,21 @@ fn extract_thread_id(events : String) -> String? {
 ///|
 fn resume_session_missing(output : String) -> Bool {
   let lower = output.to_lower()
-  lower.contains("thread/resume failed") &&
+  lower.contains("runtime/resume failed") &&
   (
-    lower.contains("no rollout found") ||
-    (lower.contains("thread id") && lower.contains("not found"))
+    lower.contains("no runtime session found") ||
+    (lower.contains("runtime session id") && lower.contains("not found"))
   )
 }
 
 ///|
-fn codex_command_progress_message(line : String) -> String? {
+fn runtime_command_progress_message(line : String) -> String? {
   ignore(line)
   None
 }
 
 ///|
-fn codex_display_event(line : String) -> (String, String)? {
+fn runtime_display_event(line : String) -> (String, String)? {
   let trimmed = line.trim().to_owned()
   if trimmed == "" {
     return None
@@ -729,7 +677,7 @@ fn codex_display_event(line : String) -> (String, String)? {
     }
     return None
   }
-  if trimmed.contains("\"type\":\"thread.started\"") {
+  if trimmed.contains("\"type\":\"runtime.started\"") {
     Some(("status", "Started the builder session."))
   } else if trimmed.contains("\"type\":\"turn.started\"") {
     Some(("status", "Planning the change."))
@@ -752,7 +700,7 @@ fn codex_display_event(line : String) -> (String, String)? {
     if trimmed.contains("\"status\":\"failed\"") {
       Some(("status", "A workspace check failed; the builder is fixing it."))
     } else {
-      match codex_command_progress_message(trimmed) {
+      match runtime_command_progress_message(trimmed) {
         Some(message) => Some(("status", message))
         None => None
       }
@@ -763,13 +711,13 @@ fn codex_display_event(line : String) -> (String, String)? {
 }
 
 ///|
-async fn append_codex_display_event(
+async fn append_runtime_display_event(
   store : Store,
   project_id : String,
   run_id : String,
   line : String,
 ) -> Unit noraise {
-  match codex_display_event(line) {
+  match runtime_display_event(line) {
     Some((kind, content)) =>
       store.append_run_event(project_id, run_id, kind, content)
     None => ignore(())
@@ -795,152 +743,12 @@ fn append_command_log(
 }
 
 ///|
-fn fake_codex_state_dir(root : String, project_id : String) -> String {
-  project_root(root, project_id) + "/fake-codex"
-}
-
-///|
-fn fake_codex_resume_reset_marker(root : String, project_id : String) -> String {
-  fake_codex_state_dir(root, project_id) + "/resume-reset-once"
-}
-
-///|
-fn fake_codex_preview_html(root : String) -> String {
-  web_public_string(
-    root, "control-plane-assets/smoke-preview/index.html", "MoonCraft smoke preview",
-  )
-}
-
-///|
-fn fake_codex_update_workspace(
-  root : String,
-  workspace_path : String,
-  prompt : String,
-) -> Result[String, String] {
-  let normalized = trim_or_default(
-    fake_codex_user_request(prompt),
-    "MoonCraft update",
-  )
-  let async_version = "0.18.1"
-  let mocket_version = "0.7.1"
-  let x_version = "0.4.43"
-  let files : Array[(String, String)] = [
-    (
-      "/moon.mod.json",
-      (
-        #|{
-        #|  "name": "mooncraft/smoke-app",
-        #|  "version": "0.1.0",
-        #|  "preferred-target": "native",
-        #|  "deps": {
-      ) +
-      "    \"moonbitlang/async\": \"\{async_version}\",\n" +
-      "    \"oboard/mocket\": \"\{mocket_version}\",\n" +
-      "    \"moonbitlang/x\": \"\{x_version}\"\n" +
-      (
-        #|  },
-        #|  "readme": "README.md",
-        #|  "repository": "",
-        #|  "license": "Apache-2.0",
-        #|  "keywords": [],
-        #|  "description": "MoonCraft smoke app"
-        #|}
-      ),
-    ),
-    (
-      "/moon.pkg",
-      (
-        #|import {
-        #|  "moonbitlang/async",
-        #|  "oboard/mocket",
-        #|  "moonbitlang/core/env",
-        #|  "moonbitlang/core/string",
-        #|  "moonbitlang/x/fs",
-        #|}
-        #|
-        #|options(
-        #|  "is-main": true,
-        #|)
-        #|
-        #|supported_targets = "native"
-      ),
-    ),
-    ("/index.html", fake_codex_preview_html(root)),
-    (
-      "/main.mbt",
-      (
-        #|///|
-        #|fn app_page_html() -> String {
-        #|  @fs.read_file_to_string("index.html") catch {
-        #|    _ => "MoonCraft smoke preview"
-        #|  }
-        #|}
-        #|
-        #|///|
-        #|async fn main {
-        #|  let args = @env.args()
-        #|  let port = if args.length() > 1 {
-        #|    @string.parse_int(args[1]) catch {
-        #|      _ => 4300
-        #|    }
-        #|  } else {
-        #|    4300
-        #|  }
-        #|  let app = @mocket.new()
-        #|  app.get("/api/health", _ => @mocket.HttpResponse::new(OK, headers={ "Content-Type": "application/json" }).body("{\"ok\":true}"))
-        #|  app.get("/", _ => @mocket.HttpResponse::new(OK, headers={ "Content-Type": "text/html; charset=utf-8" }).body(app_page_html()))
-        #|  app.listen("0.0.0.0:\{port}")
-        #|}
-      ),
-    ),
-    (
-      "/mooncraft-preview.sh",
-      (
-        #|#!/bin/sh
-        #|set -eu
-        #|port="${1:-4300}"
-        #|moon build
-        #|exe="$(find ./_build -name '*.exe' -type f ! -path '*.dSYM/*' ! -path '*/cmd/*' | head -n 1)"
-        #|exec "$exe" "$port"
-      ),
-    ),
-    (
-      "/main_wbtest.mbt",
-      (
-        #|///|
-        #|test "page includes smoke title" {
-        #|  assert_true(app_page_html().contains("MoonCraft smoke preview"))
-        #|}
-      ),
-    ),
-    ("/README.md", "# MoonCraft Smoke App\n\n" + normalized + "\n"),
-  ]
-  for file in files {
-    match scaffold_write_file(workspace_path + file.0, file.1) {
-      Ok(_) => ignore(())
-      Err(message) => return Err(message)
-    }
-  }
-  Ok(successful_preview_assistant_message())
-}
-
-///|
 fn command_args(command : Array[String]) -> Array[String] {
   let args : Array[String] = []
   for i in 1..<command.length() {
     args.push(command[i])
   }
   args
-}
-
-///|
-fn codex_command_is_resume(command : Array[String]) -> Bool {
-  for part in command {
-    if part == "resume" {
-      return true
-    }
-  }
-  false
 }
 
 ///|
@@ -959,59 +767,6 @@ async fn collect_local_output(
   let (exit_code, output) = result
   let text = output.text() catch { _ => "" }
   Ok((exit_code, text))
-}
-
-///|
-fn collect_fake_codex_output(
-  root : String,
-  project : @sdk.ProjectDetail,
-  workspace_path : String,
-  command : Array[String],
-) -> Result[(Int, String, String?), String] {
-  if command.length() < 2 {
-    return Err("The local builder command was malformed.")
-  }
-  let is_resume = codex_command_is_resume(command)
-  let prompt = command[command.length() - 1]
-  ensure_dir(fake_codex_state_dir(root, project.id))
-  match fake_codex_forced_failure(prompt) {
-    Some(message) => return Ok((1, message, None))
-    None => ignore(())
-  }
-  if is_resume {
-    let thread_id = command[command.length() - 2]
-    let reset_marker = fake_codex_resume_reset_marker(root, project.id)
-    if !@fs.path_exists(reset_marker) {
-      safe_write_string(reset_marker, "reset")
-      return Ok(
-        (
-          1,
-          "Error: thread/resume: thread/resume failed: no rollout found for thread id \{thread_id}",
-          None,
-        ),
-      )
-    }
-    let summary = match
-      fake_codex_update_workspace(root, workspace_path, prompt) {
-      Ok(summary) => summary
-      Err(message) => return Err(message)
-    }
-    Ok((0, "{\"type\":\"turn.completed\"}", Some(summary)))
-  } else {
-    let thread_id = next_id("fake-thread")
-    let summary = match
-      fake_codex_update_workspace(root, workspace_path, prompt) {
-      Ok(summary) => summary
-      Err(message) => return Err(message)
-    }
-    Ok(
-      (
-        0,
-        "{\"type\":\"thread.started\",\"thread_id\":\"\{thread_id}\"}\n{\"type\":\"turn.completed\"}",
-        Some(summary),
-      ),
-    )
-  }
 }
 
 ///|
@@ -1069,7 +824,7 @@ fn failure_debug(
     stage,
     command: command.map(command_display),
     exit_code,
-    codex_log_path: artifacts.map(fn(artifacts) { artifacts.agent_log_path }),
+    runtime_log_path: artifacts.map(fn(artifacts) { artifacts.agent_log_path }),
     validation_log_path: artifacts.map(fn(artifacts) {
       artifacts.validation_log_path
     }),
@@ -1232,7 +987,7 @@ async fn append_streaming_command_text(
   for index in 0..<(lines.length() - 1) {
     let line = lines[index].to_owned().trim(chars="\r").to_owned()
     if line != "" {
-      append_codex_display_event(store, project_id, run_id, line)
+      append_runtime_display_event(store, project_id, run_id, line)
     }
   }
   pending.val = lines[lines.length() - 1].to_owned()
@@ -1247,7 +1002,7 @@ async fn flush_streaming_command_text(
 ) -> Unit {
   let line = pending.val.trim(chars="\r").to_owned()
   if line != "" {
-    append_codex_display_event(store, project_id, run_id, line)
+    append_runtime_display_event(store, project_id, run_id, line)
   }
   pending.val = ""
 }
@@ -1411,9 +1166,9 @@ async fn collect_agent_command_output(
   artifacts : RunArtifacts,
   command : Array[String],
 ) -> Result[(Int, String, String?), String] noraise {
-  if smoke_codex_enabled() {
+  if smoke_runtime_enabled() {
     let result = match
-      collect_fake_codex_output(root, project, workspace_path, command) {
+      collect_fake_runtime_output(root, project, workspace_path, command) {
       Ok(result) => result
       Err(message) => return Err(message)
     }
@@ -1426,7 +1181,7 @@ async fn collect_agent_command_output(
     for raw_line in result.1.replace_all(old="\r\n", new="\n").split("\n") {
       let line = raw_line.to_owned()
       if line != "" {
-        append_codex_display_event(store, project.id, run_id, line)
+        append_runtime_display_event(store, project.id, run_id, line)
       }
     }
     Ok(result)
@@ -1459,45 +1214,29 @@ async fn collect_agent_command_output(
 }
 
 ///|
-fn codex_exec_command(model : String, user_prompt : String) -> Array[String] {
-  codex_exec_raw_command(model, bootstrap_prompt(user_prompt))
+fn fake_runtime_send_command(prompt : String) -> Array[String] {
+  ["fake-runtime", "send", prompt]
 }
 
 ///|
-fn codex_exec_raw_command(model : String, prompt : String) -> Array[String] {
-  [
-    "codex",
-    "exec",
-    "--model",
-    model,
-    "--skip-git-repo-check",
-    "--json",
-    "--output-last-message",
-    agent_container_artifacts_dir() + "/last_message.txt",
-    "--dangerously-bypass-approvals-and-sandbox",
-    prompt,
-  ]
-}
-
-///|
-fn codex_resume_raw_command(
-  thread_id : String,
+fn fake_runtime_resume_command(
+  runtime_session_id : String,
   prompt : String,
 ) -> Array[String] {
-  ["codex", "resume", thread_id, prompt]
+  ["fake-runtime", "resume", runtime_session_id, prompt]
 }
 
 ///|
-fn codex_failure(
+fn runtime_failure(
   assistant_message : String,
   error_message : String,
   thread_id : String?,
 ) -> AgentTurnFailure {
-  codex_failure_with_debug(assistant_message, error_message, thread_id, None)
+  runtime_failure_with_debug(assistant_message, error_message, thread_id, None)
 }
 
 ///|
-fn codex_failure_with_debug(
+fn runtime_failure_with_debug(
   assistant_message : String,
   error_message : String,
   thread_id : String?,
@@ -1516,7 +1255,7 @@ fn codex_failure_with_debug(
 }
 
 ///|
-async fn run_codex_turn(
+async fn run_runtime_turn(
   store : Store,
   root : String,
   config : AgentRuntimeConfig?,
@@ -1534,13 +1273,10 @@ async fn run_codex_turn(
   if reset_logs {
     safe_write_string(artifacts.agent_log_path, "")
   }
-  let thread_id_before = match project.runtime_session_id {
-    Some(value) => Some(value)
-    None => project.codex_thread_id
-  }
+  let thread_id_before = project.runtime_session_id
   let model = match config {
     Some(config) => config.model
-    None => default_codex_model
+    None => default_runtime_model
   }
   let prompt = if raw_prompt {
     user_prompt
@@ -1556,20 +1292,20 @@ async fn run_codex_turn(
     }
     None =>
       match thread_id_before {
-        Some(thread_id) if resume_existing && !raw_prompt =>
-          codex_resume_raw_command(thread_id, prompt)
-        _ => codex_exec_raw_command(model, prompt)
+        Some(runtime_session_id) if resume_existing && !raw_prompt =>
+          fake_runtime_resume_command(runtime_session_id, prompt)
+        _ => fake_runtime_send_command(prompt)
       }
   }
   let mut active_command = command
-  let codex_result = match
+  let runtime_result = match
     collect_agent_command_output(
       store, run_id, root, config, project, workspace_path, artifacts, command,
     ) {
     Ok(result) => result
     Err(message) =>
       return Err(
-        codex_failure_with_debug(
+        runtime_failure_with_debug(
           "The AI builder could not be started for that update.",
           message,
           thread_id_before,
@@ -1584,7 +1320,7 @@ async fn run_codex_turn(
         ),
       )
   }
-  let (initial_exit_code, initial_output, initial_fake_summary) = codex_result
+  let (initial_exit_code, initial_output, initial_fake_summary) = runtime_result
   let mut exit_code = initial_exit_code
   let mut output = initial_output
   let mut fake_summary = initial_fake_summary
@@ -1597,11 +1333,11 @@ async fn run_codex_turn(
   )
   let mut thread_id = thread_id_before
   if config is None && thread_id_before is None {
-    let thread_id = match extract_thread_id(output) {
-      Some(thread_id) => thread_id
+    let thread_id = match extract_runtime_session_id(output) {
+      Some(runtime_session_id) => runtime_session_id
       None =>
         return Err(
-          codex_failure_with_debug(
+          runtime_failure_with_debug(
             ai_builder_failure_assistant_message(
               model,
               output,
@@ -1636,8 +1372,7 @@ async fn run_codex_turn(
     thread_id_before is Some(_) &&
     exit_code != 0 &&
     resume_session_missing(output) {
-    let recovery_command = codex_exec_command(
-      model,
+    let recovery_command = fake_runtime_send_command(
       recovery_prompt(initial_project_prompt, user_prompt),
     )
     let recovery_result = match
@@ -1647,7 +1382,7 @@ async fn run_codex_turn(
       Ok(result) => result
       Err(message) =>
         return Err(
-          codex_failure_with_debug(
+          runtime_failure_with_debug(
             "The builder session could not be recovered for that update.",
             message,
             thread_id_before,
@@ -1666,16 +1401,16 @@ async fn run_codex_turn(
     active_command = recovery_command
     append_command_log(
       artifacts.agent_log_path,
-      "codex session recovery",
+      "runtime session recovery",
       active_command,
       recovery_exit_code,
       recovery_output,
     )
-    let recovery_thread_id = match extract_thread_id(recovery_output) {
-      Some(thread_id) => thread_id
+    let recovery_thread_id = match extract_runtime_session_id(recovery_output) {
+      Some(runtime_session_id) => runtime_session_id
       None =>
         return Err(
-          codex_failure_with_debug(
+          runtime_failure_with_debug(
             ai_builder_failure_assistant_message(
               model,
               recovery_output,
@@ -1709,7 +1444,7 @@ async fn run_codex_turn(
       Some(thread_id) => thread_id
       None =>
         return Err(
-          codex_failure_with_debug(
+          runtime_failure_with_debug(
             default_failure_assistant_message(),
             "The builder session could not be restored for this run.",
             None,
@@ -1734,7 +1469,7 @@ async fn run_codex_turn(
     }
     if exit_code != 0 {
       return Err(
-        codex_failure_with_debug(
+        runtime_failure_with_debug(
           ai_builder_failure_assistant_message(
             model,
             output,
@@ -1762,7 +1497,7 @@ async fn run_codex_turn(
   }
   if exit_code != 0 {
     return Err(
-      codex_failure_with_debug(
+      runtime_failure_with_debug(
         ai_builder_failure_assistant_message(
           model,
           output,
@@ -1790,7 +1525,7 @@ async fn run_codex_turn(
     Ok(result) => result
     Err(message) =>
       return Err(
-        codex_failure_with_debug(
+        runtime_failure_with_debug(
           default_failure_assistant_message(),
           message,
           thread_id_before,
@@ -1965,7 +1700,7 @@ async fn persist_builder_workspace_snapshot(
     Ok(_) => Ok(())
     Err(message) =>
       Err(
-        codex_failure_with_debug(
+        runtime_failure_with_debug(
           "The workspace was updated, but saving the latest project snapshot failed.",
           message,
           Some(thread_id),
@@ -1976,8 +1711,8 @@ async fn persist_builder_workspace_snapshot(
 }
 
 ///|
-async fn AgentGateway::run_turn(
-  self : AgentGateway,
+async fn RuntimeGateway::run_turn(
+  self : RuntimeGateway,
   store : Store,
   project : @sdk.ProjectDetail,
   initial_project_prompt : String,
@@ -1987,7 +1722,7 @@ async fn AgentGateway::run_turn(
   raw_prompt? : Bool = false,
   resume_existing? : Bool = true,
 ) -> Result[AgentTurnSuccess, AgentTurnFailure] noraise {
-  let config = if smoke_codex_enabled() {
+  let config = if smoke_runtime_enabled() {
     None
   } else {
     let settings = match
@@ -1995,10 +1730,10 @@ async fn AgentGateway::run_turn(
       Ok(settings) => settings
       Err(message) =>
         return Err(
-          codex_failure(
+          runtime_failure(
             "MoonCraft's app builder is temporarily unavailable. Please retry later.",
             message,
-            project.codex_thread_id,
+            project.runtime_session_id,
           ),
         )
     }
@@ -2006,16 +1741,16 @@ async fn AgentGateway::run_turn(
       Ok(config) => Some(config)
       Err(message) =>
         return Err(
-          codex_failure(
+          runtime_failure(
             "The app builder could not be started for that update.",
             message,
-            project.codex_thread_id,
+            project.runtime_session_id,
           ),
         )
     }
   }
-  let codex_result = match
-    run_codex_turn(
+  let runtime_result = match
+    run_runtime_turn(
       store,
       self.root,
       config,
@@ -2036,13 +1771,16 @@ async fn AgentGateway::run_turn(
       self.root,
       project.id,
       workspace_path,
-      codex_result.thread_id,
-      codex_result.artifacts,
+      runtime_result.thread_id,
+      runtime_result.artifacts,
     ) {
     Ok(_) => ignore(())
     Err(failure) => return Err(failure)
   }
-  Ok({ summary: codex_result.summary, thread_id: Some(codex_result.thread_id) })
+  Ok({
+    summary: runtime_result.summary,
+    thread_id: Some(runtime_result.thread_id),
+  })
 }
 
 ///|
@@ -2102,7 +1840,7 @@ async fn AppContext::finish_run_with_preview_audit(
         return
       }
     }
-    let repair_result = self.agent_gateway.run_turn(
+    let repair_result = self.runtime_gateway.run_turn(
       self.store,
       repair_project,
       initial_project_prompt,
@@ -2154,7 +1892,8 @@ async fn AppContext::finish_run_with_preview_audit(
       }
     }
     match current_thread_id {
-      Some(thread_id) => self.store.set_project_thread_id(project_id, thread_id)
+      Some(thread_id) =>
+        self.store.save_project_runtime_session_id(project_id, thread_id)
       None => ignore(())
     }
     let repaired_project = match self.store.get_project_detail(project_id) {
@@ -2270,7 +2009,7 @@ async fn AppContext::run_project_turn(
         run_id,
         default_failure_assistant_message(),
         "The user message for this run was not found.",
-        project.codex_thread_id,
+        project.runtime_session_id,
       )
       return
     }
@@ -2284,7 +2023,7 @@ async fn AppContext::run_project_turn(
         run_id,
         default_failure_assistant_message(),
         "The initial project prompt was not persisted for this project.",
-        project.codex_thread_id,
+        project.runtime_session_id,
       )
       return
     }
@@ -2298,12 +2037,12 @@ async fn AppContext::run_project_turn(
         run_id,
         default_failure_assistant_message(),
         message,
-        project.codex_thread_id,
+        project.runtime_session_id,
       )
       return
     }
   }
-  let agent_result = self.agent_gateway.run_turn(
+  let agent_result = self.runtime_gateway.run_turn(
     self.store,
     project,
     initial_project_prompt,
@@ -2379,7 +2118,7 @@ async fn AppContext::run_project_turn(
                 return
               }
             }
-            let repair_result = self.agent_gateway.run_turn(
+            let repair_result = self.runtime_gateway.run_turn(
               self.store,
               repair_project,
               initial_project_prompt,

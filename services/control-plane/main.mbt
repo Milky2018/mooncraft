@@ -428,7 +428,7 @@ async fn admin_run_logs_response(
   logs.push(
     read_admin_log_file(
       "builder",
-      debug.bind(fn(debug) { debug.codex_log_path }),
+      debug.bind(fn(debug) { debug.runtime_log_path }),
     ),
   )
   logs.push(
