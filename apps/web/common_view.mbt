@@ -106,21 +106,54 @@ fn plus_icon() -> @rabbita.Html {
 }
 
 ///|
-fn theme_icon() -> @rabbita.Html {
-  @svg.svg(
-    width=16,
-    height=16,
-    view_box="0 0 24 24",
-    style=["display: block"],
-    [
-      @svg.path(
-        d="M12 3a9 9 0 1 0 9 9 6.5 6.5 0 0 1-9-9z",
-        fill="none",
-        stroke="currentColor",
-        stroke_width=2,
-      ),
-    ],
-  )
+fn theme_icon(mode : ThemeMode) -> @rabbita.Html {
+  match mode {
+    Light =>
+      @svg.svg(
+        width=16,
+        height=16,
+        view_box="0 0 24 24",
+        style=["display: block"],
+        [
+          @svg.path(
+            d="M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8zM12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1",
+            fill="none",
+            stroke="currentColor",
+            stroke_width=2,
+          ),
+        ],
+      )
+    System =>
+      @svg.svg(
+        width=16,
+        height=16,
+        view_box="0 0 24 24",
+        style=["display: block"],
+        [
+          @svg.path(
+            d="M4 5h16v11H4zM9 21h6M12 16v5",
+            fill="none",
+            stroke="currentColor",
+            stroke_width=2,
+          ),
+        ],
+      )
+    Dark =>
+      @svg.svg(
+        width=16,
+        height=16,
+        view_box="0 0 24 24",
+        style=["display: block"],
+        [
+          @svg.path(
+            d="M12 3a9 9 0 1 0 9 9 6.5 6.5 0 0 1-9-9z",
+            fill="none",
+            stroke="currentColor",
+            stroke_width=2,
+          ),
+        ],
+      )
+  }
 }
 
 ///|

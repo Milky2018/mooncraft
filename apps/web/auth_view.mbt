@@ -3,14 +3,17 @@ fn theme_toggle_button(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
 ) -> @rabbita.Html {
-  let label = "Theme: " + model.theme_mode.label()
+  let mode_label = model.theme_mode.storage_value()
+  let label = "Theme: " + mode_label
   @html.button(
     type_="button",
     title=label,
     on_click=dispatch(ToggleTheme),
     style=secondary_button_style(true) +
-      ["width: 28px", "height: 28px", "padding: 0"],
-    [theme_icon()],
+      [
+        "height: 28px", "padding: 0 8px", "gap: 4px", "justify-content: flex-start",
+      ],
+    [theme_icon(model.theme_mode), @html.span(mode_label)],
   )
 }
 

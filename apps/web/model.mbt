@@ -121,15 +121,6 @@ fn ThemeMode::next(self : ThemeMode) -> ThemeMode {
 }
 
 ///|
-fn ThemeMode::label(self : ThemeMode) -> String {
-  match self {
-    Light => "Light"
-    System => "System"
-    Dark => "Dark"
-  }
-}
-
-///|
 fn theme_mode_from_string(value : String) -> ThemeMode {
   if value == "light" {
     Light
