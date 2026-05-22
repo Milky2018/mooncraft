@@ -1,19 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-git clone \
-  --depth 1 \
-  --recurse-submodules \
-  --shallow-submodules \
-  https://github.com/moonbitlang/skills.git \
-  /opt/moonbitlang-skills
+seed_home="/opt/codex-skill-seed"
+seed_skills="$seed_home/skills"
 
-mkdir -p /opt/codex-skill-seed/skills
+rm -rf "$seed_home"
+mkdir -p "$seed_home"
 
-while IFS= read -r skill_file; do
-  skill_dir="$(dirname "$skill_file")"
-  skill_name="$(basename "$skill_dir")"
-  cp -R "$skill_dir" "/opt/codex-skill-seed/skills/$skill_name"
-done < <(find /opt/moonbitlang-skills -mindepth 1 -maxdepth 5 -name SKILL.md -print)
+HOME="$seed_home" npx skills@latest add moonbitlang/skills -g --all --copy
 
-rm -rf /opt/moonbitlang-skills/.git
+rm -rf "$seed_skills"
+cp -R "$seed_home/.agents/skills" "$seed_skills"
+
+find "$seed_home" -mindepth 1 -maxdepth 1 ! -name skills -exec rm -rf {} +
