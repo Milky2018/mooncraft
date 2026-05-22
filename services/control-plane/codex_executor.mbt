@@ -751,7 +751,18 @@ fn codex_command_progress_message(line : String) -> String? {
 ///|
 fn codex_display_event(line : String) -> (String, String)? {
   let trimmed = line.trim().to_owned()
-  if trimmed == "" || !trimmed.has_prefix("{") {
+  if trimmed == "" {
+    return None
+  }
+  if !trimmed.has_prefix("{") {
+    if trimmed.contains("Unable to find image") ||
+      trimmed.contains("Pulling from") {
+      return Some(("status", "Pulling the Runtime image."))
+    }
+    if trimmed.contains("Status: Image is up to date") ||
+      trimmed.contains("Status: Downloaded newer image") {
+      return Some(("status", "Runtime image is ready."))
+    }
     return None
   }
   if trimmed.contains("\"type\":\"thread.started\"") {
@@ -1249,6 +1260,102 @@ fn agent_runtime_entry_command(
 }
 
 ///|
+async fn append_streaming_command_text(
+  store : Store,
+  project_id : String,
+  run_id : String,
+  pending : Ref[String],
+  chunk : String,
+) -> Unit {
+  let text = pending.val + chunk.replace_all(old="\r\n", new="\n")
+  let lines = text.split("\n").to_array()
+  if lines.length() == 0 {
+    pending.val = ""
+    return
+  }
+  for index in 0..<(lines.length() - 1) {
+    let line = lines[index].to_owned()
+    if line != "" {
+      append_codex_display_event(store, project_id, run_id, line)
+    }
+  }
+  pending.val = lines[lines.length() - 1].to_owned()
+}
+
+///|
+async fn flush_streaming_command_text(
+  store : Store,
+  project_id : String,
+  run_id : String,
+  pending : Ref[String],
+) -> Unit {
+  if pending.val != "" {
+    append_codex_display_event(store, project_id, run_id, pending.val)
+    pending.val = ""
+  }
+}
+
+///|
+async fn run_streaming_command(
+  store : Store,
+  root : String,
+  project_id : String,
+  run_id : String,
+  command : String,
+  args : Array[String],
+) -> Result[(Int, String), String] noraise {
+  try
+    @async.with_task_group(group => {
+      let (reader, writer) = @process.read_from_process()
+      let output_chunks : Array[String] = []
+      let pending_line = @ref.new("")
+      let reader_task = group.spawn(() => {
+        while true {
+          let chunk = reader.read_some() catch { _ => break }
+          match chunk {
+            Some(bytes) => {
+              let text = bytes_to_string(bytes)
+              output_chunks.push(text)
+              append_streaming_command_text(
+                store, project_id, run_id, pending_line, text,
+              )
+              continue
+            }
+            None => break
+          }
+        }
+        flush_streaming_command_text(store, project_id, run_id, pending_line)
+      })
+      let process = @process.spawn(
+        group,
+        command,
+        args,
+        stdout=writer,
+        stderr=writer,
+        cwd=root,
+        no_wait=true,
+      )
+      store.append_run_event(
+        project_id, run_id, "status", "Runtime container is running.",
+      )
+      let exit_code = process.wait()
+      let reader_finished = @async.with_timeout_opt(5000, () => {
+        reader_task.wait()
+      })
+      if reader_finished is None {
+        reader.close()
+        ignore(reader_task.wait() catch { _ => () })
+      }
+      (exit_code, output_chunks.join(""))
+    })
+  catch {
+    err => Err("The AI builder command could not be started: \{err}")
+  } noraise {
+    value => Ok(value)
+  }
+}
+
+///|
 async fn stream_docker_output(
   store : Store,
   root : String,
@@ -1260,8 +1367,17 @@ async fn stream_docker_output(
   artifacts : RunArtifacts,
   container_command : Array[String],
 ) -> Result[(Int, String), String] noraise {
+  store.append_run_event(
+    project_id, run_id, "status", "Preparing the builder environment.",
+  )
   let env_file_path = write_docker_env_file(config, artifacts)
+  store.append_run_event(
+    project_id, run_id, "status", "Preparing builder workspace mounts.",
+  )
   prepare_agent_mounts(workspace_path, agent_home_path, artifacts)
+  store.append_run_event(
+    project_id, run_id, "status", "Injecting Runtime secrets.",
+  )
   match materialize_runtime_file_secrets(config, agent_home_path) {
     Ok(_) => ignore(())
     Err(message) => {
@@ -1273,39 +1389,25 @@ async fn stream_docker_output(
     config, env_file_path, workspace_path, agent_home_path, artifacts, container_command,
   )
   store.append_run_event(
-    project_id, run_id, "status", "Starting the builder session.",
+    project_id, run_id, "status", "Launching the Runtime container.",
   )
-  let result = try
-    @process.collect_output_merged(
-      "sh",
-      [
-        "-c",
-        docker_run_timeout_script(
-          docker_args,
-          agent_runtime_container_name(project_id, run_id),
-          agent_runtime_timeout_seconds(),
-        ),
-      ],
-      cwd=root,
-    )
-  catch {
-    err => {
+  let result = match
+    run_streaming_command(store, root, project_id, run_id, "sh", [
+      "-c",
+      docker_run_timeout_script(
+        docker_args,
+        agent_runtime_container_name(project_id, run_id),
+        agent_runtime_timeout_seconds(),
+      ),
+    ]) {
+    Ok(result) => result
+    Err(message) => {
       remove_docker_env_file(env_file_path)
-      return Err("The AI builder command could not be started: \{err}")
+      return Err(message)
     }
-  } noraise {
-    value => value
   }
   remove_docker_env_file(env_file_path)
-  let (exit_code, output) = result
-  let text = output.text() catch { _ => "" }
-  for raw_line in text.replace_all(old="\r\n", new="\n").split("\n") {
-    let line = raw_line.to_owned()
-    if line != "" {
-      append_codex_display_event(store, project_id, run_id, line)
-    }
-  }
-  Ok((exit_code, text))
+  Ok(result)
 }
 
 ///|
