@@ -1,0 +1,12 @@
+{
+  "name": "Claude",
+  "enabled": true,
+  "is_default": false,
+  "spec": {
+    "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.1.0",
+    "agent": "claude_code",
+    "model": "anthropic/claude-sonnet-4.5",
+    "send": ["mooncraft-runtime-send"],
+    "container_home": "/home/mooncraft"
+  }
+}

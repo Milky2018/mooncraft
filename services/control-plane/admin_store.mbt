@@ -35,7 +35,7 @@ fn admin_project_select_sql() -> String {
     #|  p.preview_public_id,
     #|  p.display_name,
     #|  COALESCE(p.runtime_id, 'agent-runtime-001') AS runtime_id,
-    #|  COALESCE(p.runtime_name, 'Agent001') AS runtime_name,
+    #|  COALESCE(p.runtime_name, 'Codex') AS runtime_name,
     #|  COALESCE(p.runtime_spec_json, '') AS runtime_spec_json,
     #|  COALESCE(p.agent_session_id, '') AS agent_session_id,
     #|  COALESCE(p.runtime_session_id, '') AS runtime_session_id,

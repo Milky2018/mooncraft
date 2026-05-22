@@ -1221,7 +1221,7 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
         #|  preview_public_id TEXT NOT NULL UNIQUE,
         #|  display_name TEXT NOT NULL,
         #|  runtime_id TEXT NOT NULL DEFAULT 'agent-runtime-001',
-        #|  runtime_name TEXT NOT NULL DEFAULT 'Agent001',
+        #|  runtime_name TEXT NOT NULL DEFAULT 'Codex',
         #|  runtime_spec_json TEXT NOT NULL DEFAULT '',
         #|  agent_session_id TEXT NOT NULL DEFAULT '',
         #|  runtime_session_id TEXT,
@@ -1305,7 +1305,7 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
   }
   match
     self.ensure_column(
-      "projects", "runtime_name", "TEXT NOT NULL DEFAULT 'Agent001'",
+      "projects", "runtime_name", "TEXT NOT NULL DEFAULT 'Codex'",
     ) {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
@@ -1696,7 +1696,7 @@ async fn Store::get_project_detail(
         #|  p.preview_public_id,
         #|  p.display_name,
         #|  COALESCE(p.runtime_id, 'agent-runtime-001') AS runtime_id,
-        #|  COALESCE(p.runtime_name, 'Agent001') AS runtime_name,
+        #|  COALESCE(p.runtime_name, 'Codex') AS runtime_name,
         #|  COALESCE(p.runtime_spec_json, '') AS runtime_spec_json,
         #|  COALESCE(p.agent_session_id, '') AS agent_session_id,
         #|  COALESCE(p.runtime_session_id, '') AS runtime_session_id,

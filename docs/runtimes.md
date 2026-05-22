@@ -10,7 +10,7 @@ MoonCraft exposes **Runtime** as the user-facing app builder choice. A Runtime i
 - The project stores a creation-time Runtime snapshot. Later admin edits to the Runtime do not affect existing projects.
 - Project info displays the Runtime name and ids, not a live editable agent/model picker.
 
-Runtime ids are stable and shareable. Built-in ids should use names such as `agent-runtime-001`.
+Runtime ids are stable and shareable, but they are assigned by MoonCraft, not by admins. Admins name Runtimes. Built-in Runtime JSON files are named after the Runtime name, for example `runtime/builtin/Codex.json`; the JSON file does not contain the platform id.
 
 ## Runtime Spec
 
@@ -21,11 +21,14 @@ Runtime specs are JSON edited by admins. The first supported command shape is a 
   "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.1.0",
   "agent": "codex",
   "model": "openai/gpt-5.4-mini",
-  "send": ["mooncraft-runtime-send"]
+  "send": ["mooncraft-runtime-send"],
+  "container_home": "/root"
 }
 ```
 
 `send` must be an argv array. MoonCraft does not support shell command strings. If a Runtime needs shell behavior, the admin must make that explicit in argv, for example `["sh", "-lc", "..."]`.
+
+`container_home` is the home directory mounted for the selected Runtime. Runtime-specific filesystem policy belongs in the Runtime spec, not in control-plane agent-type branches.
 
 Runtime specs do not inline secrets. Secrets are managed separately by admins and may be injected into Runtime env or files by explicit references in a later spec revision.
 
@@ -67,7 +70,7 @@ MoonCraft writes:
   "workspace": "/workspace",
   "artifacts": "/artifacts",
   "runtime_id": "agent-runtime-001",
-  "runtime_name": "Agent001",
+  "runtime_name": "Codex",
   "agent": "codex",
   "model": "openai/gpt-5.4-mini"
 }

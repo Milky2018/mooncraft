@@ -547,7 +547,7 @@ async fn Store::lease_ai_runtime_settings_for_project(
         #|SELECT
         #|  owner_user_id,
         #|  COALESCE(runtime_id, 'agent-runtime-001') AS runtime_id,
-        #|  COALESCE(runtime_name, 'Agent001') AS runtime_name,
+        #|  COALESCE(runtime_name, 'Codex') AS runtime_name,
         #|  COALESCE(runtime_spec_json, '') AS runtime_spec_json,
         #|  COALESCE(agent_session_id, '') AS agent_session_id,
         #|  COALESCE(runtime_session_id, '') AS runtime_session_id,
@@ -577,7 +577,11 @@ async fn Store::lease_ai_runtime_settings_for_project(
   let runtime_spec = match
     runtime_spec_from_json(row_text(project, "runtime_spec_json")) {
     Ok(spec) => spec
-    Err(_) => default_runtime_spec(fallback_agent_cli, fallback_model)
+    Err(_) =>
+      match self.get_runtime_detail(row_text(project, "runtime_id")) {
+        Some(runtime) => runtime.spec
+        None => legacy_runtime_spec(fallback_agent_cli, fallback_model)
+      }
   }
   let row = match
     self.query_one(

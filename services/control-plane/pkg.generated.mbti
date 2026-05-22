@@ -19,8 +19,6 @@ type AgentGateway
 
 type AgentRuntimeConfig
 
-type AgentRuntimeSpec
-
 type AgentTurnFailure
 
 type AgentTurnSuccess
@@ -30,6 +28,8 @@ type AiRuntimeSettings
 type AppContext
 
 type BuildProfile
+
+type BuiltinRuntimeDefinition derive(@json.FromJson)
 
 type DevAuthRequest derive(@debug.Debug, @json.FromJson)
 

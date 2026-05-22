@@ -31,25 +31,6 @@ struct AgentRuntimeConfig {
 }
 
 ///|
-struct AgentRuntimeSpec {
-  container_home : String
-  runs_as_mooncraft_user : Bool
-}
-
-///|
-fn agent_runtime_spec(agent_cli : String) -> AgentRuntimeSpec {
-  match agent_cli {
-    "claude_code" =>
-      { container_home: "/home/mooncraft", runs_as_mooncraft_user: true }
-    "kimi_code" => { container_home: "/root", runs_as_mooncraft_user: false }
-    _ => { container_home: "/root", runs_as_mooncraft_user: false }
-  }
-}
-
-///|
-let default_agent_runtime_image = "docker.io/moonbitcloud/mooncraft-agent-runtime:0.1.0"
-
-///|
 let default_codex_model = "gpt-5.5"
 
 ///|
@@ -396,11 +377,10 @@ async fn AgentRuntimeConfig::load(
       "MOONCRAFT_CODEX_HOME_HOST is not supported. Configure AI keys in the MoonCraft admin page instead.",
     )
   }
-  let spec = agent_runtime_spec(settings.runtime_spec.agent)
   let container_home = match
     @env.get_env_var("MOONCRAFT_CODEX_CONTAINER_HOME") {
     Some(value) if value.trim() != "" => value
-    _ => spec.container_home
+    _ => settings.runtime_spec.container_home
   }
   let platform = match detect_docker_platform(root) {
     Ok(platform) => platform
@@ -1108,10 +1088,6 @@ fn docker_command_args(
       args.push(docker_bind_source(config, path) + ":" + config.container_home)
     }
     None => ()
-  }
-  if agent_runtime_spec(config.agent_cli).runs_as_mooncraft_user {
-    args.push("-e")
-    args.push("HOME=" + config.container_home)
   }
   args.push("-v")
   args.push(

@@ -501,6 +501,74 @@ fn runtime_status_label(runtime : @sdk.RuntimeDetail) -> String {
 }
 
 ///|
+fn runtime_build_code(text : String) -> @rabbita.Html {
+  @html.code(
+    style=normal_style() +
+      [
+        "display: block", "white-space: pre-wrap", "overflow-x: auto", "padding: 8px",
+        "border-radius: var(--radius-control)", "background: var(--foreground-5)",
+        "font-family: ui-monospace, SFMono-Regular, Menlo, monospace", "color: var(--text-1)",
+      ],
+    text,
+  )
+}
+
+///|
+fn runtime_build_item(title : String, body : String) -> @rabbita.Html {
+  @html.div(style=["display: flex", "flex-direction: column", "gap: 4px"], [
+    @html.div(style=value_style(), title),
+    @html.div(style=normal_style(), body),
+  ])
+}
+
+///|
+fn runtime_build_guide() -> @rabbita.Html {
+  @html.div(
+    style=[
+      "display: grid", "grid-template-columns: minmax(0, 1fr)", "gap: 10px", "padding: 0 12px 12px",
+      "border-bottom: 1px solid var(--border)",
+    ],
+    [
+      @html.div(style=["display: flex", "align-items: center", "gap: 8px"], [
+        @html.h3(style=title_style() + ["margin: 0"], "Build guide"),
+        @html.span(style=badge_style(""), "admin workflow"),
+      ]),
+      @html.div(
+        style=normal_style(),
+        "A Runtime is a Docker image plus Runtime JSON. Build the image, publish a multi-arch tag, then point an enabled Runtime at that tag.",
+      ),
+      @html.div(
+        style=[
+          "display: grid", "grid-template-columns: repeat(auto-fit, minmax(260px, 1fr))",
+          "gap: 10px",
+        ],
+        [
+          runtime_build_item(
+            "1. Build and check the image", "Start from docker/agent-runtime/Dockerfile or your own Dockerfile. The built image must contain the command named by the Runtime send array.",
+          ),
+          runtime_build_item(
+            "2. Publish both platforms", "Local testing may use the host platform. Production tags must cover linux/amd64 and linux/arm64 so MoonCraft can run on either Docker host.",
+          ),
+          runtime_build_item(
+            "3. Register the Runtime JSON", "Set image, agent, model, and send. Keep secrets out of Runtime JSON; provider keys are supplied by MoonCraft's admin-managed key pool.",
+          ),
+        ],
+      ),
+      runtime_build_code(
+        "just build-agent-runtime-image docker.io/<org>/<image> <version>\n./scripts/check_agent_runtime_image.sh docker.io/<org>/<image>:<version>\njust docker-agent-runtime-publish docker.io/<org>/<image> <version> linux/amd64,linux/arm64",
+      ),
+      runtime_build_code(
+        "{\n  \"image\": \"docker.io/<org>/<image>:<version>\",\n  \"agent\": \"codex\",\n  \"model\": \"openai/gpt-5.4-mini\",\n  \"send\": [\"mooncraft-runtime-send\"],\n  \"container_home\": \"/root\"\n}",
+      ),
+      @html.div(
+        style=normal_style(),
+        "Custom send commands must read /artifacts/runtime_context.json, read the prompt from prompt_file, work in /workspace, and write /artifacts/result.json with runtime_session_id.",
+      ),
+    ],
+  )
+}
+
+///|
 fn runtime_row(
   dispatch : @rabbita.Dispatch[AdminMsg],
   model : AdminModel,
@@ -614,6 +682,7 @@ fn runtimes_view(
       "\{model.runtimes.length()} configured",
       @html.nothing,
     ),
+    runtime_build_guide(),
     @html.table(style=table_style(), [
       @html.thead([
         @html.tr([

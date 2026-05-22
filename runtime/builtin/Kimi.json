@@ -1,0 +1,12 @@
+{
+  "name": "Kimi",
+  "enabled": true,
+  "is_default": false,
+  "spec": {
+    "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.1.0",
+    "agent": "kimi_code",
+    "model": "moonshotai/kimi-k2.6",
+    "send": ["mooncraft-runtime-send"],
+    "container_home": "/root"
+  }
+}

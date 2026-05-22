@@ -52,6 +52,7 @@ pub(all) struct RuntimeSpec {
   agent : String
   model : String
   send : Array[String]
+  container_home : String
 } derive(Debug, ToJson, FromJson)
 
 ///|
