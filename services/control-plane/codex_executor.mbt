@@ -1847,8 +1847,37 @@ fn preview_audit_repair_attempts() -> Int {
 }
 
 ///|
+fn preview_audit_base_url() -> String {
+  match @env.get_env_var("MOONCRAFT_PREVIEW_AUDIT_BASE_URL") {
+    Some(value) if value.trim() != "" => value.trim().to_owned()
+    _ =>
+      match @env.get_env_var("MOONCRAFT_PORT") {
+        Some(port) if port.trim() != "" => "http://127.0.0.1:\{port.trim()}"
+        _ => "http://127.0.0.1:8080"
+      }
+  }
+}
+
+///|
+fn trim_trailing_slash(value : String) -> String {
+  if value.has_suffix("/") {
+    value[:value.length() - 1].to_owned()
+  } else {
+    value
+  }
+}
+
+///|
+fn preview_audit_target_url_for_base(
+  base_url : String,
+  preview : @sdk.PreviewTarget,
+) -> String {
+  trim_trailing_slash(base_url) + preview.url
+}
+
+///|
 fn preview_audit_target_url(preview : @sdk.PreviewTarget) -> String {
-  "http://127.0.0.1:\{preview.port}/"
+  preview_audit_target_url_for_base(preview_audit_base_url(), preview)
 }
 
 ///|

@@ -66,7 +66,7 @@ The generated app must serve the user-facing app at `/`. `/api/health` is the pr
 
 Preview process state is not durable. When an existing project is opened or a stored preview URL is requested, MoonCraft verifies the private preview port. If the process is gone, it restores the saved workspace snapshot and restarts `mooncraft-preview.sh` without running the AI agent or changing project code. If the saved snapshot cannot restart, the project preview is marked unhealthy so the UI does not keep showing a stale healthy iframe.
 
-After HTTP readiness succeeds, MoonCraft optionally runs `scripts/preview_audit.mjs` with Playwright against the private local preview URL. The audit fails on browser page errors, console errors, or non-favicon HTTP errors. When it fails, MoonCraft sends the audit output back to the selected agent for a bounded repair loop before marking the run successful. Set `MOONCRAFT_PREVIEW_AUDIT=0` to disable it, or set `MOONCRAFT_PREVIEW_AUDIT_REPAIR_ATTEMPTS` to tune the repair bound.
+After HTTP readiness succeeds, MoonCraft optionally runs `scripts/preview_audit.mjs` with Playwright against the same `/p/<preview_public_id>/` control-plane proxy path users see. The audit fails on browser page errors, console errors, failed resource requests, or non-favicon HTTP errors. When it fails, MoonCraft sends the audit output back to the selected agent for a bounded repair loop before marking the run successful. Set `MOONCRAFT_PREVIEW_AUDIT=0` to disable it, `MOONCRAFT_PREVIEW_AUDIT_BASE_URL` to override the local control-plane audit origin, or `MOONCRAFT_PREVIEW_AUDIT_REPAIR_ATTEMPTS` to tune the repair bound.
 
 ## Validation
 

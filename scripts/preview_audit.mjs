@@ -23,6 +23,10 @@ const timeoutMs = Number(process.env.MOONCRAFT_PREVIEW_AUDIT_TIMEOUT_MS || 12000
 const executablePath = process.env.MOONCRAFT_PREVIEW_AUDIT_CHROMIUM || undefined;
 const failures = [];
 
+function isIgnoredResource(url) {
+  return /\/favicon\.(ico|png|svg)$/i.test(url);
+}
+
 const browser = await playwright.chromium.launch({
   headless: true,
   executablePath,
@@ -42,15 +46,22 @@ try {
     if (message.type() !== "error") return;
     const text = message.text();
     if (/favicon/i.test(text) && /404|not found/i.test(text)) return;
-    if (/^Failed to load resource:/i.test(text)) return;
     failures.push(`console.error: ${text}`);
+  });
+
+  page.on("requestfailed", (request) => {
+    const url = request.url();
+    if (isIgnoredResource(url)) return;
+    failures.push(
+      `request failed: ${url}: ${request.failure()?.errorText || "unknown error"}`,
+    );
   });
 
   page.on("response", (response) => {
     const status = response.status();
     if (status < 400) return;
     const url = response.url();
-    if (/\/favicon\.(ico|png|svg)$/i.test(url)) return;
+    if (isIgnoredResource(url)) return;
     failures.push(`http ${status}: ${url}`);
   });
 
