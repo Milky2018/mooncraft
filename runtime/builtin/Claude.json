@@ -10,6 +10,7 @@
     "provider": "openrouter",
     "send": ["mooncraft-runtime-send"],
     "container_home": "/home/mooncraft",
+    "container_user": "mooncraft",
     "secrets": [
       {
         "source": "mooncraft_ai_api_key",

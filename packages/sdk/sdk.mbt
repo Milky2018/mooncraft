@@ -62,6 +62,7 @@ pub(all) struct RuntimeSpec {
   provider : String
   send : Array[String]
   container_home : String
+  container_user : String?
   secrets : Array[RuntimeSecretBinding]
 } derive(Debug, ToJson, FromJson)
 

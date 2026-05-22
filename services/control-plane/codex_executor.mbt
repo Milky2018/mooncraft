@@ -26,6 +26,7 @@ struct AgentRuntimeConfig {
   model : String
   secrets : Array[ResolvedRuntimeSecret]
   container_home : String
+  container_user : String?
   container_data_dir : String
   host_data_dir : String?
   send : Array[String]
@@ -263,7 +264,11 @@ fn materialize_runtime_file_secrets(
         @fs.write_string_to_file(target, secret.value) catch {
           err => return Err("Runtime secret file could not be written: \{err}")
         }
-        ignore(shell_status("chmod 600 " + shell_quote(target)))
+        let mode = match config.container_user {
+          Some(_) => "a+r"
+          None => "600"
+        }
+        ignore(shell_status("chmod " + mode + " " + shell_quote(target)))
       }
       None => ()
     }
@@ -424,6 +429,7 @@ async fn AgentRuntimeConfig::load(
     model: settings.runtime_spec.model,
     secrets: settings.secrets,
     container_home: settings.runtime_spec.container_home,
+    container_user: settings.runtime_spec.container_user,
     container_data_dir: trim_mount_path(root) + "/data",
     host_data_dir,
     send: settings.runtime_spec.send,
@@ -1116,6 +1122,13 @@ fn docker_command_args(
   args.push(config.platform)
   args.push("--env-file")
   args.push(env_file_path)
+  match config.container_user {
+    Some(user) => {
+      args.push("--user")
+      args.push(user)
+    }
+    None => ()
+  }
   match agent_home_path {
     Some(path) => {
       args.push("-v")
@@ -1225,9 +1238,6 @@ fn agent_runtime_entry_command(
   for command in user_project_fetch_commands() {
     script_lines.push(command)
   }
-  script_lines.push(
-    "if [ \"${1:-}\" = \"claude\" ]; then chmod -R a+rwX /workspace /artifacts \"${HOME:-/home/mooncraft}\" >/dev/null 2>&1 || true; exec runuser -u mooncraft -- env HOME=\"${HOME:-/home/mooncraft}\" \"$@\"; fi",
-  )
   script_lines.push("exec \"$@\"")
   let wrapped : Array[String] = [
     "sh",

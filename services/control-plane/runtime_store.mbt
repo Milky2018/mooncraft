@@ -56,6 +56,25 @@ fn runtime_spec_optional_string_field(
 }
 
 ///|
+fn normalize_runtime_container_user(value : String?) -> Result[String?, String] {
+  match value {
+    Some(user) => {
+      let trimmed = user.trim().to_owned()
+      if trimmed == "" {
+        Ok(None)
+      } else if trimmed.contains(" ") ||
+        trimmed.contains("\t") ||
+        trimmed.has_prefix("-") {
+        Err("Runtime container_user must be a Docker user name or uid.")
+      } else {
+        Ok(Some(trimmed))
+      }
+    }
+    None => Ok(None)
+  }
+}
+
+///|
 fn validate_runtime_secret_file_path(path : String) -> Result[String, String] {
   let trimmed = path.trim().to_owned()
   if trimmed == "" {
@@ -220,6 +239,11 @@ fn normalize_runtime_spec(
   if container_home == "" {
     return Err("Runtime container_home is required.")
   }
+  let container_user = match
+    normalize_runtime_container_user(spec.container_user) {
+    Ok(value) => value
+    Err(message) => return Err(message)
+  }
   let secrets : Array[@sdk.RuntimeSecretBinding] = []
   for secret in spec.secrets {
     match
@@ -236,6 +260,7 @@ fn normalize_runtime_spec(
     provider,
     send,
     container_home,
+    container_user,
     secrets,
   })
 }
@@ -262,6 +287,9 @@ fn runtime_spec_from_json(text : String) -> Result[@sdk.RuntimeSpec, String] {
           Err(message) => return Err(message)
         },
         container_home: runtime_spec_string_field(fields, "container_home"),
+        container_user: runtime_spec_optional_string_field(
+          fields, "container_user",
+        ),
         secrets: match runtime_spec_secret_bindings_field(fields) {
           Ok(secrets) => secrets
           Err(message) => return Err(message)

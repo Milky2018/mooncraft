@@ -546,6 +546,7 @@ pub(all) struct RuntimeSpec {
   provider : String
   send : Array[String]
   container_home : String
+  container_user : String?
   secrets : Array[RuntimeSecretBinding]
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
@@ -620,4 +621,3 @@ pub(all) struct UserSummary {
 // Type aliases
 
 // Traits
-

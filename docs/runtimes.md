@@ -57,7 +57,9 @@ Runtime manifests are strict. MoonCraft does not infer missing fields from the R
 ["sh", "-lc", "custom-command \"$MOONCRAFT_RUNTIME_CONTEXT\""]
 ```
 
-`container_home` is the home directory mounted for this Runtime. Runtime-specific filesystem policy belongs here, not in control-plane agent-type branches.
+`container_home` is the home directory mounted for this Runtime.
+
+`container_user` is optional. When set, MoonCraft passes it to `docker run --user` so the Runtime command starts as that container user instead of root. Use it for tools that reject root execution, such as Claude Code with dangerous permissions enabled. The image must define that user and the Runtime must keep `container_home`, `/workspace`, and `/artifacts` writable by that user.
 
 `secrets` declares environment variables or files that must be resolved before the Runtime command starts. The `source` value is the name of an admin-managed Secret:
 

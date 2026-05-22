@@ -173,6 +173,7 @@
         <li><code>agent</code>, <code>model</code>, and <code>provider</code>: labels shown to admins and used for Runtime metadata.</li>
         <li><code>send</code>: the command inside the container that receives a MoonCraft task.</li>
         <li><code>container_home</code>: the home directory used inside the container.</li>
+        <li><code>container_user</code>: optional container user for running the Runtime command without root.</li>
         <li><code>secrets[].env</code>: injects a secret as an environment variable.</li>
         <li><code>secrets[].file</code>: writes a file under <code>container_home</code> before the Runtime starts.</li>
       </ul>

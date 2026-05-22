@@ -32,7 +32,11 @@ done
 
 if [[ "${MOONCRAFT_AGENT_CLI}" == "claude_code" ]]; then
   chmod -R a+rwX /workspace /artifacts "$HOME" >/dev/null 2>&1 || true
-  runuser -u mooncraft -- env HOME="$HOME" claude --version >/dev/null
+  if [[ "$(id -u)" == "0" ]]; then
+    runuser -u mooncraft -- env HOME="$HOME" claude --version >/dev/null
+  else
+    claude --version >/dev/null
+  fi
 fi
 
 echo "mooncraft-agent-doctor: ok"
