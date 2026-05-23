@@ -28,15 +28,14 @@ fn active_run(model : Model) -> @sdk.RunStatusResponse? {
   }
   match model.project_detail {
     Some(project) =>
-      if project.status is Running &&
-        model.selected_project_id == Some(project.id) {
-        match project.current_run_id {
-          Some(run_id) =>
+      if project.is_processing && model.selected_project_id == Some(project.id) {
+        match project.activity {
+          Some(activity) =>
             Some({
-              run_id,
+              run_id: activity.run_id,
               project_id: project.id,
               state: Running,
-              phase: project.current_run_phase,
+              phase: activity.phase,
               summary: None,
               error_message: None,
               failure_debug: None,
@@ -123,6 +122,8 @@ fn project_summary_from_detail(
     agent_cli: project.agent_cli,
     model: project.model,
     status: project.status,
+    is_processing: project.is_processing,
+    activity: project.activity,
     current_run_phase: project.current_run_phase,
     preview: project.preview,
     current_run_id: project.current_run_id,
@@ -161,12 +162,113 @@ fn replace_project_summary_run_status(
     if item.id == run.project_id {
       items.push({
         ..item,
-        status: run.state,
+        status: if run.state is Running {
+          item.status
+        } else {
+          run.state
+        },
+        is_processing: run.state is Running,
+        activity: project_activity_from_run(run),
         current_run_phase: run.phase,
         current_run_id: if run.state is Running {
           Some(run.run_id)
         } else {
           None
+        },
+      })
+    } else {
+      items.push(item)
+    }
+  }
+  items
+}
+
+///|
+fn project_activity_from_run(
+  run : @sdk.RunStatusResponse,
+) -> @sdk.ProjectActivity? {
+  if run.state is Running {
+    Some({ run_id: run.run_id, phase: run.phase, message: None })
+  } else {
+    None
+  }
+}
+
+///|
+fn update_project_detail_run_status(
+  project : @sdk.ProjectDetail?,
+  run : @sdk.RunStatusResponse,
+) -> @sdk.ProjectDetail? {
+  match project {
+    Some(item) if item.id == run.project_id =>
+      Some({
+        ..item,
+        status: if run.state is Running {
+          item.status
+        } else {
+          run.state
+        },
+        is_processing: run.state is Running,
+        activity: project_activity_from_run(run),
+        current_run_phase: run.phase,
+        current_run_id: if run.state is Running {
+          Some(run.run_id)
+        } else {
+          None
+        },
+        preview: match run.preview {
+          Some(preview) => Some(preview)
+          None => item.preview
+        },
+      })
+    _ => project
+  }
+}
+
+///|
+fn latest_event_content(events : Array[@sdk.RunEvent]) -> String? {
+  let mut text : String? = None
+  for event in events {
+    if event.content != "" {
+      text = Some(event.content)
+    }
+  }
+  text
+}
+
+///|
+fn update_project_activity_message(
+  project : @sdk.ProjectDetail?,
+  project_id : String,
+  message : String?,
+) -> @sdk.ProjectDetail? {
+  match project {
+    Some(item) if item.id == project_id =>
+      Some({
+        ..item,
+        activity: match item.activity {
+          Some(activity) => Some({ ..activity, message, })
+          None => None
+        },
+      })
+    _ => project
+  }
+}
+
+///|
+fn update_project_summary_activity_message(
+  projects : Array[@sdk.ProjectSummary],
+  project_id : String,
+  message : String?,
+) -> Array[@sdk.ProjectSummary] {
+  let items : Array[@sdk.ProjectSummary] = []
+  for item in projects {
+    if item.id == project_id {
+      items.push({
+        ..item,
+        activity: match item.activity {
+          Some(activity) => Some({ ..activity, message, })
+          None => None
         },
       })
     } else {

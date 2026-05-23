@@ -1,0 +1,4 @@
+- MoonBit uses `let mut` to bind the variable that will mutate. Unlike Rust, MoonBit's `mut` does not care whether the object has mutable states or not. So things like `array` should not use `let mut` to bind. Instead, just use `let`.
+- Never fix bugs with workarounds. Find the roots. We have enough time!
+- Never fix bugs with patches. Sometimes we need to refactor the architecture.
+- Long build times are normal. Wait for builds to finish; do not manually kill them.

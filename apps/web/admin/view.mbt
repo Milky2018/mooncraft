@@ -221,9 +221,16 @@ fn empty_row(colspan : Int, text : String) -> @rabbita.Html {
 
 ///|
 fn project_status_text(project : @sdk.AdminProjectSummary) -> String {
-  let phase = project.project.current_run_phase.label()
-  project.project.status.label() +
-  (if phase == "" { "" } else { " / " + phase })
+  match project.project.activity {
+    Some(activity) =>
+      "Processing" +
+      (if activity.phase is NoPhase {
+        ""
+      } else {
+        " / " + activity.phase.label()
+      })
+    None => project.project.status.label()
+  }
 }
 
 ///|

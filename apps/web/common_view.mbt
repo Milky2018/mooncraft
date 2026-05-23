@@ -214,12 +214,8 @@ fn project_headline(model : Model) -> String {
 
 ///|
 fn active_project_status(model : Model) -> @sdk.RunState {
-  match active_run(model) {
-    Some(run) => run.state
-    None =>
-      match model.project_detail {
-        Some(project) => project.status
-        None => Idle
-      }
+  match model.project_detail {
+    Some(project) => project.status
+    None => Idle
   }
 }

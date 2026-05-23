@@ -153,11 +153,14 @@ fn update(
         project.id != requested_project_id {
         (@rabbita.none, model)
       } else {
-        let cmd = match project.current_run_id {
-          Some(run_id) if project.status is Running =>
+        let cmd = match project.activity {
+          Some(activity) if project.is_processing =>
             @rabbita.batch([
-              @rabbita.delay(dispatch(PollRun(project.id, run_id)), 1000),
-              dispatch(PollRunEvents(project.id, run_id)),
+              @rabbita.delay(
+                dispatch(PollRun(project.id, activity.run_id)),
+                1000,
+              ),
+              dispatch(PollRunEvents(project.id, activity.run_id)),
             ])
           _ => @rabbita.none
         }
@@ -603,6 +606,10 @@ fn update(
                   model.projects,
                   response.run,
                 ),
+                project_detail: update_project_detail_run_status(
+                  model.project_detail,
+                  response.run,
+                ),
                 run_status: Some(response.run),
                 sending_message: false,
                 run_events: [],
@@ -635,6 +642,10 @@ fn update(
                 ..model,
                 projects: replace_project_summary_run_status(
                   model.projects,
+                  response.run,
+                ),
+                project_detail: update_project_detail_run_status(
+                  model.project_detail,
                   response.run,
                 ),
                 run_status: Some(response.run),
@@ -688,6 +699,10 @@ fn update(
           {
             ..model,
             run_status: Some(response.run),
+            project_detail: update_project_detail_run_status(
+              model.project_detail,
+              response.run,
+            ),
             stopping_run_id: None,
             notice: None,
           },
@@ -737,6 +752,10 @@ fn update(
           {
             ..model,
             projects: replace_project_summary_run_status(model.projects, run),
+            project_detail: update_project_detail_run_status(
+              model.project_detail,
+              run,
+            ),
             run_status: Some(run),
           },
         )
@@ -755,6 +774,10 @@ fn update(
           {
             ..model,
             run_status: Some(run),
+            project_detail: update_project_detail_run_status(
+              model.project_detail,
+              run,
+            ),
             stopping_run_id: None,
             notice: None,
           },
@@ -788,7 +811,21 @@ fn update(
       }
       (
         @rabbita.none,
-        { ..model, run_events: events, last_run_event_seq: last_seq },
+        {
+          ..model,
+          projects: update_project_summary_activity_message(
+            model.projects,
+            project_id,
+            latest_event_content(events),
+          ),
+          project_detail: update_project_activity_message(
+            model.project_detail,
+            project_id,
+            latest_event_content(events),
+          ),
+          run_events: events,
+          last_run_event_seq: last_seq,
+        },
       )
     }
     RunEventsLoaded(project_id, Err(error)) =>

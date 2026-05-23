@@ -13,6 +13,8 @@ fn preview_test_project(preview : @sdk.PreviewTarget?) -> @sdk.ProjectDetail {
     model: "openrouter/test-model",
     workspace_path: "/tmp/project-1",
     status: Idle,
+    is_processing: false,
+    activity: None,
     current_run_phase: NoPhase,
     preview,
     current_run_id: None,

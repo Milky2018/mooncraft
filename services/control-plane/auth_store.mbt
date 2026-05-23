@@ -347,6 +347,7 @@ fn project_summary_from_row(
     row_int(row, "preview_port"),
     row_int(row, "preview_healthy"),
   )
+  let activity = project_activity_from_row(row)
   {
     id: row_text(row, "id"),
     display_name: row_text(row, "display_name"),
@@ -355,7 +356,9 @@ fn project_summary_from_row(
     agent_session_id: row_text(row, "agent_session_id"),
     agent_cli: row_text(row, "agent_cli"),
     model: row_text(row, "ai_model"),
-    status: run_state_from_db(row_text(row, "status")),
+    status: project_status_from_row(row),
+    is_processing: activity is Some(_),
+    activity,
     current_run_phase: run_phase_from_db(row_text(row, "current_run_phase")),
     preview,
     current_run_id: empty_to_none(row_text(row, "current_run_id")),
@@ -385,6 +388,13 @@ async fn Store::list_projects_for_user(
       #|  p.preview_healthy,
       #|  COALESCE(p.current_run_id, '') AS current_run_id,
       #|  COALESCE(r.phase, 'none') AS current_run_phase,
+      #|  COALESCE((
+      #|    SELECT re.content
+      #|    FROM run_events re
+      #|    WHERE re.project_id = p.id AND re.run_id = p.current_run_id
+      #|    ORDER BY re.seq DESC
+      #|    LIMIT 1
+      #|  ), '') AS current_run_activity_text,
       #|  p.updated_at
       #|FROM projects p
       #|LEFT JOIN runs r ON r.id = p.current_run_id AND r.project_id = p.id

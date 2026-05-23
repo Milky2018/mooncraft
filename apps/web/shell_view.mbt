@@ -160,26 +160,25 @@ fn account_caret_icon(open : Bool) -> @rabbita.Html {
 
 ///|
 fn project_phase_dot(project : @sdk.ProjectSummary) -> @rabbita.Html {
-  let color = match project.current_run_phase {
-    AgentRunning => Some("#16a34a")
-    Checking => Some("#2563eb")
-    NoPhase =>
-      if project.status is Running {
-        Some("#16a34a")
-      } else if project.status is Failed {
-        Some("var(--danger)")
-      } else {
-        None
-      }
+  let color = if project.is_processing {
+    match project.activity {
+      Some(activity) =>
+        match activity.phase {
+          AgentRunning => Some("#16a34a")
+          Checking => Some("#2563eb")
+          NoPhase => Some("#16a34a")
+        }
+      None => Some("#16a34a")
+    }
+  } else if project.status is Failed {
+    Some("var(--danger)")
+  } else {
+    None
   }
   match color {
     Some(value) =>
       @html.span(
-        title=if project.current_run_phase is NoPhase {
-          project.status.label()
-        } else {
-          project.current_run_phase.label()
-        },
+        title=project_activity_label(project),
         style=[
           "width: 8px",
           "height: 8px",
@@ -195,6 +194,23 @@ fn project_phase_dot(project : @sdk.ProjectSummary) -> @rabbita.Html {
 }
 
 ///|
+fn project_activity_label(project : @sdk.ProjectSummary) -> String {
+  if project.is_processing {
+    match project.activity {
+      Some(activity) =>
+        if activity.phase is NoPhase {
+          "Processing"
+        } else {
+          activity.phase.label()
+        }
+      None => "Processing"
+    }
+  } else {
+    project.status.label()
+  }
+}
+
+///|
 fn sidebar_project_item(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
@@ -205,7 +221,7 @@ fn sidebar_project_item(
   let confirming = model.delete_project_confirming == Some(project.id)
   let renaming = selected && model.rename_project_editing
   let menu_open = model.project_action_menu_open == Some(project.id)
-  let delete_enabled = !(project.status is Running || deleting)
+  let delete_enabled = !(project.is_processing || deleting)
   let edit_enabled = !deleting
   let delete_foreground = if confirming { "#ffffff" } else { "var(--danger)" }
   let delete_background = if confirming {

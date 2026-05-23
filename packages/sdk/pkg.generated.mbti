@@ -433,6 +433,12 @@ pub(all) struct PreviewTarget {
   healthy : Bool
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
+pub(all) struct ProjectActivity {
+  run_id : String
+  phase : RunPhase
+  message : String?
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
 pub(all) struct ProjectDetail {
   id : String
   preview_public_id : String
@@ -446,6 +452,8 @@ pub(all) struct ProjectDetail {
   model : String
   workspace_path : String
   status : RunState
+  is_processing : Bool
+  activity : ProjectActivity?
   current_run_phase : RunPhase
   preview : PreviewTarget?
   current_run_id : String?
@@ -463,6 +471,8 @@ pub(all) struct ProjectSummary {
   agent_cli : String
   model : String
   status : RunState
+  is_processing : Bool
+  activity : ProjectActivity?
   current_run_phase : RunPhase
   preview : PreviewTarget?
   current_run_id : String?

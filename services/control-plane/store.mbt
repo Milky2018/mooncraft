@@ -1723,6 +1723,7 @@ fn project_detail_from_row(row : Map[String, @db.Param]) -> @sdk.ProjectDetail {
     row_int(row, "preview_port"),
     row_int(row, "preview_healthy"),
   )
+  let activity = project_activity_from_row(row)
   {
     id: row_text(row, "id"),
     preview_public_id: row_text(row, "preview_public_id"),
@@ -1739,13 +1740,38 @@ fn project_detail_from_row(row : Map[String, @db.Param]) -> @sdk.ProjectDetail {
     agent_cli: row_text(row, "agent_cli"),
     model: row_text(row, "ai_model"),
     workspace_path: row_text(row, "workspace_path"),
-    status: run_state_from_db(row_text(row, "status")),
+    status: project_status_from_row(row),
+    is_processing: activity is Some(_),
+    activity,
     current_run_phase: run_phase_from_db(row_text(row, "current_run_phase")),
     preview,
     current_run_id: empty_to_none(row_text(row, "current_run_id")),
     last_error: empty_to_none(row_text(row, "last_error")),
     created_at: row_text(row, "created_at"),
     updated_at: row_text(row, "updated_at"),
+  }
+}
+
+///|
+fn project_status_from_row(row : Map[String, @db.Param]) -> @sdk.RunState {
+  match run_state_from_db(row_text(row, "status")) {
+    Running => Idle
+    state => state
+  }
+}
+
+///|
+fn project_activity_from_row(
+  row : Map[String, @db.Param],
+) -> @sdk.ProjectActivity? {
+  match empty_to_none(row_text(row, "current_run_id")) {
+    Some(run_id) =>
+      Some({
+        run_id,
+        phase: run_phase_from_db(row_text(row, "current_run_phase")),
+        message: empty_to_none(row_text(row, "current_run_activity_text")),
+      })
+    None => None
   }
 }
 
@@ -1859,6 +1885,13 @@ async fn Store::get_project_detail(
         #|  COALESCE(p.last_error, '') AS last_error,
         #|  COALESCE(p.current_run_id, '') AS current_run_id,
         #|  COALESCE(r.phase, 'none') AS current_run_phase,
+        #|  COALESCE((
+        #|    SELECT re.content
+        #|    FROM run_events re
+        #|    WHERE re.project_id = p.id AND re.run_id = p.current_run_id
+        #|    ORDER BY re.seq DESC
+        #|    LIMIT 1
+        #|  ), '') AS current_run_activity_text,
         #|  p.created_at,
         #|  p.updated_at
         #|FROM projects p
@@ -2181,14 +2214,13 @@ async fn Store::fail_orphaned_running_projects_on_startup(
         #|  current_run_id = NULL,
         #|  last_error = ?,
         #|  updated_at = ?
-        #|WHERE status = ?;
+        #|WHERE current_run_id IS NOT NULL AND current_run_id != '';
       ),
       "fail orphaned running projects",
       params=[
         String(run_state_to_db(Failed)),
         String(interrupted_worker_summary()),
         String(now),
-        String(run_state_to_db(Running)),
       ],
     ),
   )
@@ -2380,7 +2412,7 @@ async fn Store::start_run(
     Some(project) => project
     None => return Err("Project not found.")
   }
-  if project.status is Running {
+  if project.is_processing {
     return Err(
       "This project is already being updated. Wait for the current run to finish.",
     )
@@ -2437,7 +2469,6 @@ async fn Store::start_run(
       (
         #|UPDATE projects
         #|SET
-        #|  status = ?,
         #|  current_run_id = ?,
         #|  initial_project_prompt = CASE
         #|    WHEN initial_project_prompt IS NULL OR initial_project_prompt = '' THEN ?
@@ -2448,13 +2479,7 @@ async fn Store::start_run(
         #|WHERE id = ?;
       ),
       "mark project running",
-      params=[
-        String(run_state_to_db(Running)),
-        String(run_id),
-        String(content),
-        String(now),
-        String(project_id),
-      ],
+      params=[String(run_id), String(content), String(now), String(project_id)],
     ),
   )
   Ok({
@@ -3188,7 +3213,7 @@ async fn AppContext::ensure_project_preview_running(
   self : AppContext,
   project : @sdk.ProjectDetail,
 ) -> Result[@sdk.ProjectDetail, String] noraise {
-  if project.status is Running {
+  if project.is_processing {
     return Ok(project)
   }
   let preview = match project.preview {
@@ -3308,7 +3333,7 @@ async fn AppContext::delete_project(
     Some(project) => project
     None => return Err("Project not found.")
   }
-  if project.status is Running {
+  if project.is_processing {
     return Err(
       "This project is currently updating. Wait for the current run to finish before deleting it.",
     )

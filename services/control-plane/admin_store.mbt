@@ -49,6 +49,13 @@ fn admin_project_select_sql() -> String {
     #|  COALESCE(p.last_error, '') AS last_error,
     #|  COALESCE(p.current_run_id, '') AS current_run_id,
     #|  COALESCE(cr.phase, 'none') AS current_run_phase,
+    #|  COALESCE((
+    #|    SELECT re.content
+    #|    FROM run_events re
+    #|    WHERE re.project_id = p.id AND re.run_id = p.current_run_id
+    #|    ORDER BY re.seq DESC
+    #|    LIMIT 1
+    #|  ), '') AS current_run_activity_text,
     #|  p.created_at,
     #|  p.updated_at,
     #|  COALESCE(u.id, '') AS owner_id,
@@ -120,7 +127,7 @@ async fn Store::list_admin_users(
       #|  COALESCE(u.github_login, '') AS github_login,
       #|  u.created_at,
       #|  COUNT(DISTINCT p.id) AS project_count,
-      #|  SUM(CASE WHEN p.status = 'running' THEN 1 ELSE 0 END) AS running_project_count,
+      #|  SUM(CASE WHEN p.current_run_id IS NOT NULL AND p.current_run_id != '' THEN 1 ELSE 0 END) AS running_project_count,
       #|  COALESCE(MAX(p.updated_at), '') AS latest_project_updated_at,
       #|  COALESCE(MAX(r.started_at), '') AS latest_run_started_at
       #|FROM users u
@@ -155,7 +162,7 @@ async fn Store::get_admin_user_detail(
         #|  COALESCE(u.github_login, '') AS github_login,
         #|  u.created_at,
         #|  COUNT(DISTINCT p.id) AS project_count,
-        #|  SUM(CASE WHEN p.status = 'running' THEN 1 ELSE 0 END) AS running_project_count,
+        #|  SUM(CASE WHEN p.current_run_id IS NOT NULL AND p.current_run_id != '' THEN 1 ELSE 0 END) AS running_project_count,
         #|  COUNT(DISTINCT s.token_hash) AS session_count,
         #|  COALESCE(MAX(p.updated_at), '') AS latest_project_updated_at,
         #|  COALESCE(MAX(r.started_at), '') AS latest_run_started_at

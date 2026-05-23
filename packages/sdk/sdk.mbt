@@ -47,6 +47,13 @@ pub(all) struct PreviewTarget {
 } derive(Debug, ToJson, FromJson)
 
 ///|
+pub(all) struct ProjectActivity {
+  run_id : String
+  phase : RunPhase
+  message : String?
+} derive(Debug, ToJson, FromJson)
+
+///|
 pub(all) struct RuntimeSecretBinding {
   source : String
   env : String?
@@ -106,6 +113,8 @@ pub(all) struct ProjectSummary {
   agent_cli : String
   model : String
   status : RunState
+  is_processing : Bool
+  activity : ProjectActivity?
   current_run_phase : RunPhase
   preview : PreviewTarget?
   current_run_id : String?
@@ -126,6 +135,8 @@ pub(all) struct ProjectDetail {
   model : String
   workspace_path : String
   status : RunState
+  is_processing : Bool
+  activity : ProjectActivity?
   current_run_phase : RunPhase
   preview : PreviewTarget?
   current_run_id : String?

@@ -879,7 +879,7 @@ fn render_preview_panel(
   let preview = model.project_detail.bind(fn(project) { project.preview })
   let status = match preview {
     Some(target) => if target.healthy { @sdk.Succeeded } else { Failed }
-    None => if active_run(model) is Some(_) { Running } else { Idle }
+    None => Idle
   }
   let size_style = if expanded {
     ["flex: 1 1 100%", "min-width: 0"]
