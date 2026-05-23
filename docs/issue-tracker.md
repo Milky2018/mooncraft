@@ -18,7 +18,7 @@ Last updated: 2026-04-29
 | EPIC-003 | Runtime | Extract preview execution into a dedicated runner boundary. | IN_PROGRESS | Preview rebuild and restart are real, but they still live inside `services/control-plane`. |
 | EPIC-004 | UI | Build the chat-first app-develop page with projects, chat, and live preview. | DONE | Implemented in `apps/web` and served by `services/control-plane`. |
 | EPIC-005 | Persistence | Persist users, sessions, projects, messages, runs, preview metadata, and workspace snapshots in a dev-friendly store. | DONE | Implemented with SQLite; generated workspaces are runtime scratch. |
-| EPIC-006 | Runtime | Replace the local builder adapter with real Runtime-driven editing. | IN_PROGRESS | Docker-backed Codex, Claude Code, and Kimi Code Runtime runs are wired behind the same gateway; database-backed workspace snapshots and Runtime session persistence are in place; executor hardening still needs follow-up. |
+| EPIC-006 | Runtime | Replace the local builder adapter with real Runtime-driven editing. | IN_PROGRESS | Docker-backed Codex and Claude Code Runtime runs are wired behind the same gateway; database-backed workspace snapshots and Runtime session persistence are in place; executor hardening still needs follow-up. |
 | EPIC-007 | Generated Apps | Keep the generated workspace bootstrap small, validated, and dependency-ready. | IN_PROGRESS | Runtime templates were removed; dependency fetch validation now covers approved modules. |
 | EPIC-008 | Auth | Add multi-user platform auth, user-owned projects, and public preview tokens. | DONE | GitHub OAuth and cookie sessions are the only supported sign-in path; live credential verification is still required before public launch. |
 

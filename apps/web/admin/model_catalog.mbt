@@ -104,8 +104,6 @@ fn recommended_model(item : @sdk.AdminAiModelSummary) -> Bool {
   id.has_prefix("anthropic/claude-opus") ||
   id.has_prefix("google/gemini-pro") ||
   (id.contains("/gemini-3") && id.contains("pro")) ||
-  id.has_prefix("moonshotai/kimi-latest") ||
-  id.has_prefix("moonshotai/kimi-k2") ||
   id.has_prefix("deepseek/deepseek-chat") ||
   id.has_prefix("deepseek/deepseek-r1") ||
   id.has_prefix("deepseek/deepseek-v3") ||

@@ -11,7 +11,6 @@ Built-in Runtime files are named after the Runtime name:
 ```text
 runtime/builtin/Codex.json
 runtime/builtin/Claude.json
-runtime/builtin/Kimi.json
 ```
 
 Each file has this shape:
@@ -23,7 +22,7 @@ Each file has this shape:
   "is_default": true,
   "spec": {
     "protocol_version": 1,
-    "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.1.4",
+    "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.2.0",
     "agent": "codex",
     "model": "openai/gpt-5.4-mini",
     "provider": "openrouter",

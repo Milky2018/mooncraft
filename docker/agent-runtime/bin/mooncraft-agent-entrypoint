@@ -59,35 +59,6 @@ EOF
         export CLAUDE_CODE_SUBAGENT_MODEL="$model"
         export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
         ;;
-      kimi_code)
-        kimi_share_dir="${KIMI_SHARE_DIR:-${HOME:-/root}/.kimi}"
-        mkdir -p "$kimi_share_dir"
-        if [[ -d /opt/codex-skill-seed/skills ]]; then
-          mkdir -p "$kimi_share_dir/skills"
-          cp -R /opt/codex-skill-seed/skills/. "$kimi_share_dir/skills/"
-        fi
-        cat >"$kimi_share_dir/config.toml" <<EOF
-default_model = "mooncraft-openrouter"
-default_thinking = false
-default_yolo = true
-default_plan_mode = false
-merge_all_available_skills = true
-
-[providers.openrouter]
-type = "openai_legacy"
-base_url = "https://openrouter.ai/api/v1"
-api_key = "$api_key"
-
-[models.mooncraft-openrouter]
-provider = "openrouter"
-model = "$model"
-max_context_size = 262144
-capabilities = []
-EOF
-        export OPENAI_BASE_URL="https://openrouter.ai/api/v1"
-        export OPENAI_API_KEY="$api_key"
-        export KIMI_CLI_NO_AUTO_UPDATE=1
-        ;;
       *)
         echo "Unsupported MOONCRAFT_AGENT_CLI for OpenRouter: $agent_cli" >&2
         exit 64

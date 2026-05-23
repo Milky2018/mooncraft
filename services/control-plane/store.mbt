@@ -1155,72 +1155,6 @@ fn Store::blob_type(self : Store) -> String {
 }
 
 ///|
-async fn Store::backfill_builtin_claude_project_container_user(
-  self : Store,
-) -> Result[Unit, String] noraise {
-  let builtin_spec = match
-    self.query_one(
-      (
-        #|SELECT spec_json
-        #|FROM agent_runtimes
-        #|WHERE id = ?;
-      ),
-      params=[String("agent-runtime-003")],
-    ) {
-    Some(row) =>
-      match runtime_spec_from_json(row_text(row, "spec_json")) {
-        Ok(spec) => spec
-        Err(_) => return Ok(())
-      }
-    None => return Ok(())
-  }
-  let rows = self.query_rows(
-    (
-      #|SELECT id, runtime_spec_json
-      #|FROM projects
-      #|WHERE runtime_id = ?;
-    ),
-    params=[String("agent-runtime-003")],
-  )
-  let now = now_string()
-  for row in rows {
-    let project_id = row_text(row, "id")
-    let spec = match
-      runtime_spec_from_json(row_text(row, "runtime_spec_json")) {
-      Ok(spec) => spec
-      Err(_) => continue
-    }
-    if spec.agent != "claude_code" {
-      continue
-    }
-    if spec.image == builtin_spec.image &&
-      spec.container_user == builtin_spec.container_user {
-      continue
-    }
-    let updated_spec_json = runtime_spec_to_json({
-      ..spec,
-      image: builtin_spec.image,
-      container_user: builtin_spec.container_user,
-    })
-    match
-      self.exec_or_error(
-        (
-          #|UPDATE projects
-          #|SET runtime_spec_json = ?,
-          #|    updated_at = ?
-          #|WHERE id = ?;
-        ),
-        "backfill built-in Claude project container user",
-        params=[String(updated_spec_json), String(now), String(project_id)],
-      ) {
-      Ok(_) => ignore(())
-      Err(message) => return Err(message)
-    }
-  }
-  Ok(())
-}
-
-///|
 async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
   if self.backend is SQLite {
     match self.exec_or_error("PRAGMA journal_mode=WAL;", "enable WAL mode") {
@@ -1712,7 +1646,7 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
-  self.backfill_builtin_claude_project_container_user()
+  Ok(())
 }
 
 ///|

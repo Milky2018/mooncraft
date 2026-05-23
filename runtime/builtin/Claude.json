@@ -4,7 +4,7 @@
   "is_default": false,
   "spec": {
     "protocol_version": 1,
-    "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.1.4",
+    "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.2.0",
     "agent": "claude_code",
     "model": "anthropic/claude-sonnet-4.5",
     "provider": "openrouter",

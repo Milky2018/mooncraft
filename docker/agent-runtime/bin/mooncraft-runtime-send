@@ -100,27 +100,12 @@ run_claude() {
   write_result "$session_id"
 }
 
-run_kimi() {
-  kimi \
-    --model "mooncraft-openrouter" \
-    --work-dir /workspace \
-    --prompt "$prompt" \
-    --print \
-    --output-format stream-json \
-    --yolo \
-    --afk | tee "$output_path"
-  write_result "${runtime_session_id:-$agent_session_id}"
-}
-
 case "$agent" in
   codex)
     run_codex
     ;;
   claude_code)
     run_claude
-    ;;
-  kimi_code)
-    run_kimi
     ;;
   *)
     echo "Unsupported Runtime agent: $agent" >&2

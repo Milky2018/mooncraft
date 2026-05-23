@@ -802,11 +802,6 @@ fn command_display(command : Array[String]) -> String {
       index > 0 &&
       command[index - 1] == "-p" {
       "<prompt>"
-    } else if command.length() > 0 &&
-      command[0] == "kimi" &&
-      index > 0 &&
-      command[index - 1] == "--prompt" {
-      "<prompt>"
     } else {
       command[index]
     }

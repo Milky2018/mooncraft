@@ -434,8 +434,10 @@ async fn Store::ensure_agent_runtime_tables(
     Err(message) => return Err(message)
   }
   let now = now_string()
+  let builtin_ids : Array[String] = []
   for index, item in builtins {
     let id = builtin_runtime_id(index)
+    builtin_ids.push(id)
     match
       self.exec_or_error(
         (
@@ -472,6 +474,27 @@ async fn Store::ensure_agent_runtime_tables(
       ) {
       Ok(_) => ignore(())
       Err(message) => return Err(message)
+    }
+  }
+  let seeded_id_rows = self.query_rows(
+    (
+      #|SELECT id
+      #|FROM agent_runtimes
+      #|WHERE id LIKE 'agent-runtime-___';
+    ),
+  )
+  for row in seeded_id_rows {
+    let id = row_text(row, "id")
+    if !builtin_ids.any(fn(current) { current == id }) {
+      match
+        self.exec_or_error(
+          "DELETE FROM agent_runtimes WHERE id = ?;",
+          "remove retired built-in agent runtime",
+          params=[String(id)],
+        ) {
+        Ok(_) => ignore(())
+        Err(message) => return Err(message)
+      }
     }
   }
   Ok(())
