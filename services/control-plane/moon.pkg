@@ -2,6 +2,7 @@ import {
   "mooncraft/sdk",
   "oboard/mocket",
   "moonbitlang/async",
+  "moonbitlang/async/fs" @async_fs,
   "moonbitlang/async/http",
   "moonbitlang/async/io",
   "moonbitlang/async/socket",

@@ -195,50 +195,56 @@ async test "agent home is normalized after auth creates new directories" {
 }
 
 ///|
-async test "process log streaming polls structured child process" {
+async test "process log streaming waits on child process and reads output pipe" {
   let root = "/tmp/mooncraft-async-process-test-" + random_hex(6)
   let log_path = root + "/process.log"
   ensure_dir(root)
   ensure_dir(parent_dir(log_path))
   defer safe_remove_tree(root)
-  let exit_code = @async.with_task_group(group => {
-    let writer = @process.redirect_to_file(
+  let store = match try_new_async(root + "/state.sqlite") {
+    Ok(store) => store
+    Err(message) => abort(message)
+  }
+  let _ = store.create_project_with_runtime(
+    "project-stream",
+    "user-stream",
+    "preview-stream",
+    "Stream Project",
+    "agent-runtime-001",
+    "Runtime",
+    "{}",
+    "agent-session-stream",
+    "codex",
+    "openrouter/test-model",
+    root + "/workspace",
+  )
+  let run = match store.start_run("project-stream", "Build something") {
+    Ok(run) => run
+    Err(message) => abort(message)
+  }
+  let (exit_code, output) = match
+    run_streaming_command(
+      store,
+      root,
+      "project-stream",
+      run.run_id,
       log_path,
-      create=0o644,
-      truncate=true,
-    )
-    let process = @process.spawn(
-      group,
       "sh",
-      ["-c", "printf 'first\\n'; sleep 1; printf 'second\\n'"],
-      stdout=writer,
-      stderr=writer,
-      no_wait=true,
-    )
-    let seen_first = @ref.new(false)
-    let seen_second = @ref.new(false)
-    let mut status : Int? = None
-    while status is None {
-      let text = safe_read_string_or(log_path, "")
-      if text.contains("first") {
-        seen_first.val = true
-      }
-      if text.contains("second") {
-        seen_second.val = true
-      }
-      let next_status = process.try_wait() catch { _ => None }
-      match next_status {
-        Some(code) => status = Some(code)
-        None => @async.sleep(100)
-      }
-    }
-    assert_true(seen_first.val)
-    assert_true(seen_second.val)
-    match status {
-      Some(code) => code
-      None => process.wait()
-    }
-  })
+      [
+        "-c", "printf '{\"type\":\"turn.started\"}\\n'; sleep 1; printf '{\"type\":\"turn.completed\"}\\n'",
+      ],
+    ) {
+    Ok(result) => result
+    Err(message) => fail(message)
+  }
   inspect(exit_code, content="0")
-  inspect(safe_read_string_or(log_path, ""), content="first\nsecond\n")
+  let expected_output = "{\"type\":\"turn.started\"}\n{\"type\":\"turn.completed\"}\n"
+  inspect(output, content=expected_output)
+  inspect(safe_read_string_or(log_path, ""), content=expected_output)
+  let project = store.get_project_detail("project-stream").unwrap()
+  let message_code = match project.activity {
+    Some(activity) => activity.message_code
+    None => None
+  }
+  debug_inspect(message_code, content="Some(\"builder_ended\")")
 }

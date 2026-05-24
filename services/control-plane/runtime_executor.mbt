@@ -715,66 +715,6 @@ fn docker_run_timeout_script(
 }
 
 ///|
-async fn append_streaming_command_text(
-  store : Store,
-  project_id : String,
-  run_id : String,
-  pending : Ref[String],
-  chunk : String,
-) -> Unit {
-  let text = pending.val + chunk.replace_all(old="\r\n", new="\n")
-  let lines = text.split("\n").to_array()
-  if lines.length() == 0 {
-    pending.val = ""
-    return
-  }
-  for index in 0..<(lines.length() - 1) {
-    let line = lines[index].to_owned().trim(chars="\r").to_owned()
-    if line != "" {
-      append_runtime_display_event(store, project_id, run_id, line)
-    }
-  }
-  pending.val = lines[lines.length() - 1].to_owned()
-}
-
-///|
-async fn flush_streaming_command_text(
-  store : Store,
-  project_id : String,
-  run_id : String,
-  pending : Ref[String],
-) -> Unit {
-  let line = pending.val.trim(chars="\r").to_owned()
-  if line != "" {
-    append_runtime_display_event(store, project_id, run_id, line)
-  }
-  pending.val = ""
-}
-
-///|
-async fn stream_command_log_delta(
-  store : Store,
-  project_id : String,
-  run_id : String,
-  log_path : String,
-  seen_length : Ref[Int],
-  pending : Ref[String],
-  output_chunks : Array[String],
-) -> Unit {
-  let output = safe_read_string_or(log_path, "")
-  if output.length() <= seen_length.val {
-    return
-  }
-  let chunk = output.unsafe_substring(
-    start=seen_length.val,
-    end=output.length(),
-  )
-  seen_length.val = output.length()
-  output_chunks.push(chunk)
-  append_streaming_command_text(store, project_id, run_id, pending, chunk)
-}
-
-///|
 async fn run_streaming_command(
   store : Store,
   root : String,
@@ -787,14 +727,27 @@ async fn run_streaming_command(
   try
     @async.with_task_group(group => {
       ensure_dir(parent_dir(stream_log_path))
-      let writer = @process.redirect_to_file(
-        stream_log_path,
-        create=0o644,
-        truncate=true,
-      )
+      let (reader, writer) = @process.read_from_process()
       let output_chunks : Array[String] = []
-      let pending_line = @ref.new("")
-      let seen_length = @ref.new(0)
+      let reader_task = group.spawn(() => {
+        defer reader.close()
+        let stream_log = @async_fs.open(
+          stream_log_path,
+          mode=WriteOnly,
+          create=0o644,
+          truncate=true,
+        )
+        defer stream_log.close()
+        while reader.read_until("\n") is Some(raw_line) {
+          let output_line = raw_line + "\n"
+          output_chunks.push(output_line)
+          stream_log.write(@utf8.encode(output_line))
+          let line = raw_line.trim(chars="\r").to_owned()
+          if line != "" {
+            append_runtime_display_event(store, project_id, run_id, line)
+          }
+        }
+      })
       let process = @process.spawn(
         group,
         command,
@@ -811,26 +764,8 @@ async fn run_streaming_command(
         @sdk.run_event_code_runtime_container_running(),
         "Runtime container is running.",
       )
-      let mut exit_status : Int? = None
-      while exit_status is None {
-        stream_command_log_delta(
-          store, project_id, run_id, stream_log_path, seen_length, pending_line,
-          output_chunks,
-        )
-        let status = process.try_wait() catch { _ => None }
-        match status {
-          Some(code) => exit_status = Some(code)
-          None => @async.sleep(200)
-        }
-      }
-      stream_command_log_delta(
-        store, project_id, run_id, stream_log_path, seen_length, pending_line, output_chunks,
-      )
-      flush_streaming_command_text(store, project_id, run_id, pending_line)
-      let code = match exit_status {
-        Some(code) => code
-        None => process.wait()
-      }
+      let code = process.wait()
+      reader_task.wait()
       (code, output_chunks.join(""))
     })
   catch {
