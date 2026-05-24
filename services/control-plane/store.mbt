@@ -39,7 +39,16 @@ struct RunningRun {
 
 ///|
 struct RunningRunWorker {
+  worker_id : String
+  attempt : Int
   worker_pid : Int
+  pid_identity : String
+}
+
+///|
+priv struct RunWorkerRegistration {
+  worker_id : String
+  attempt : Int
 }
 
 ///|
@@ -101,14 +110,6 @@ async fn run_process_quiet(
 }
 
 ///|
-async fn worker_pid_is_running(pid : Int) -> Bool noraise {
-  if pid <= 0 {
-    return false
-  }
-  run_process_quiet("kill", ["-0", pid.to_string()]) == 0
-}
-
-///|
 async fn collect_process_text(
   command : String,
   args : Array[String],
@@ -130,6 +131,17 @@ async fn collect_process_text(
 }
 
 ///|
+async fn process_pid_identity(pid : Int) -> String noraise {
+  if pid <= 0 {
+    return ""
+  }
+  match collect_process_text("ps", ["-p", pid.to_string(), "-o", "lstart="]) {
+    Ok((0, output)) => output.trim().to_owned()
+    _ => ""
+  }
+}
+
+///|
 async fn terminate_process_tree(pid : Int) -> Unit noraise {
   if pid <= 0 {
     return
@@ -142,6 +154,19 @@ async fn terminate_process_tree(pid : Int) -> Unit noraise {
   }
   ignore(run_process_quiet("pkill", ["-KILL", "-P", id]))
   ignore(run_process_quiet("kill", ["-KILL", id]))
+}
+
+///|
+async fn terminate_process_if_identity_matches(
+  pid : Int,
+  pid_identity : String,
+) -> Unit noraise {
+  if pid <= 0 || pid_identity == "" {
+    return
+  }
+  if process_pid_identity(pid) == pid_identity {
+    terminate_process_tree(pid)
+  }
 }
 
 ///|
@@ -339,6 +364,13 @@ fn row_int(row : Map[String, @db.Param], key : String) -> Int {
 }
 
 ///|
+fn row_uint64(row : Map[String, @db.Param], key : String) -> UInt64 {
+  @string.parse_uint64(row_text(row, key)) catch {
+    _ => 0UL
+  }
+}
+
+///|
 fn row_bool(row : Map[String, @db.Param], key : String) -> Bool {
   param_to_bool(row_get(row, key))
 }
@@ -397,6 +429,57 @@ fn run_phase_from_db(value : String) -> @sdk.RunPhase {
     "checking" => Checking
     _ => NoPhase
   }
+}
+
+///|
+fn run_worker_status_running() -> String {
+  "running"
+}
+
+///|
+fn run_worker_status_succeeded() -> String {
+  "succeeded"
+}
+
+///|
+fn run_worker_status_failed() -> String {
+  "failed"
+}
+
+///|
+fn run_worker_status_cancelled() -> String {
+  "cancelled"
+}
+
+///|
+fn run_worker_status_expired() -> String {
+  "expired"
+}
+
+///|
+fn env_uint64_or(name : String, fallback : UInt64) -> UInt64 {
+  match @env.get_env_var(name) {
+    Some(value) =>
+      @string.parse_uint64(value.trim().to_owned()) catch {
+        _ => fallback
+      }
+    None => fallback
+  }
+}
+
+///|
+fn run_worker_startup_grace_millis() -> UInt64 {
+  env_uint64_or("MOONCRAFT_RUN_WORKER_STARTUP_GRACE_MS", 30UL * 1000UL)
+}
+
+///|
+fn run_worker_heartbeat_ttl_millis() -> UInt64 {
+  env_uint64_or("MOONCRAFT_RUN_WORKER_HEARTBEAT_TTL_MS", 90UL * 1000UL)
+}
+
+///|
+fn run_worker_reconcile_interval_millis() -> UInt64 {
+  env_uint64_or("MOONCRAFT_RUN_WORKER_RECONCILE_INTERVAL_MS", 10UL * 1000UL)
 }
 
 ///|
@@ -1571,6 +1654,68 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE TABLE IF NOT EXISTS run_workers (
+        #|  id TEXT PRIMARY KEY,
+        #|  project_id TEXT NOT NULL,
+        #|  run_id TEXT NOT NULL,
+        #|  worker_id TEXT NOT NULL,
+        #|  attempt INTEGER NOT NULL,
+        #|  pid INTEGER NOT NULL DEFAULT 0,
+        #|  pid_started_at TEXT NOT NULL,
+        #|  pid_identity TEXT NOT NULL DEFAULT '',
+        #|  status TEXT NOT NULL,
+        #|  phase TEXT NOT NULL DEFAULT '',
+        #|  started_at TEXT NOT NULL,
+        #|  heartbeat_at TEXT NOT NULL,
+        #|  finished_at TEXT,
+        #|  terminal_token TEXT NOT NULL DEFAULT '',
+        #|  UNIQUE(project_id, run_id, worker_id, attempt)
+        #|);
+      ),
+      "create run_workers table",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE INDEX IF NOT EXISTS run_workers_run_status_idx
+        #|ON run_workers(project_id, run_id, status);
+      ),
+      "create run worker status index",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.ensure_column(
+      "run_workers", "pid_identity", "TEXT NOT NULL DEFAULT ''",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.ensure_column(
+      "run_workers", "terminal_token", "TEXT NOT NULL DEFAULT ''",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE INDEX IF NOT EXISTS run_workers_heartbeat_idx
+        #|ON run_workers(status, started_at, heartbeat_at);
+      ),
+      "create run worker heartbeat index",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
   match self.ensure_column("runs", "phase", "TEXT NOT NULL DEFAULT 'none'") {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
@@ -1861,7 +2006,6 @@ async fn Store::get_project_detail(
   self : Store,
   project_id : String,
 ) -> @sdk.ProjectDetail? noraise {
-  self.recover_interrupted_registered_workers()
   match
     self.query_one(
       (
@@ -1944,7 +2088,6 @@ async fn Store::get_run(
   project_id : String,
   run_id : String,
 ) -> @sdk.RunStatusResponse? noraise {
-  self.recover_interrupted_registered_workers()
   match
     self.query_one(
       (
@@ -1983,7 +2126,6 @@ async fn Store::get_run_by_id(
   self : Store,
   run_id : String,
 ) -> @sdk.RunStatusResponse? noraise {
-  self.recover_interrupted_registered_workers()
   match
     self.query_one(
       (
@@ -2022,7 +2164,6 @@ async fn Store::list_recent_runs(
   self : Store,
   limit : Int,
 ) -> Array[@sdk.RunStatusResponse] noraise {
-  self.recover_interrupted_registered_workers()
   let rows = self.query_rows(
     (
       #|SELECT
@@ -2064,7 +2205,6 @@ async fn Store::list_project_runs(
   project_id : String,
   limit : Int,
 ) -> Array[@sdk.RunStatusResponse] noraise {
-  self.recover_interrupted_registered_workers()
   let rows = self.query_rows(
     (
       #|SELECT
@@ -2102,10 +2242,12 @@ async fn Store::list_project_runs(
 }
 
 ///|
-async fn Store::append_run_event(
+async fn Store::append_worker_run_event(
   self : Store,
   project_id : String,
   run_id : String,
+  worker_id : String,
+  attempt : Int,
   kind : String,
   code : String,
   content : String,
@@ -2113,6 +2255,7 @@ async fn Store::append_run_event(
   if content == "" {
     return
   }
+  self.touch_run_worker(project_id, run_id, worker_id, attempt, AgentRunning)
   let seq = match
     self.query_one(
       (
@@ -2137,9 +2280,23 @@ async fn Store::append_run_event(
         #|  code,
         #|  content,
         #|  created_at
-        #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+        #|)
+        #|SELECT ?, ?, ?, ?, ?, ?, ?, ?
+        #|WHERE EXISTS (
+        #|  SELECT 1
+        #|  FROM run_workers w
+        #|  JOIN runs r ON r.id = w.run_id AND r.project_id = w.project_id
+        #|  JOIN projects p ON p.id = r.project_id
+        #|  WHERE w.project_id = ?
+        #|    AND w.run_id = ?
+        #|    AND w.worker_id = ?
+        #|    AND w.attempt = ?
+        #|    AND w.status = ?
+        #|    AND r.state = ?
+        #|    AND p.current_run_id = w.run_id
+        #|);
       ),
-      "append run event",
+      "append worker run event",
       params=[
         String(next_id("event")),
         String(project_id),
@@ -2149,6 +2306,12 @@ async fn Store::append_run_event(
         String(code),
         String(content),
         String(now_string()),
+        String(project_id),
+        String(run_id),
+        String(worker_id),
+        Int(attempt),
+        String(run_worker_status_running()),
+        String(run_state_to_db(Running)),
       ],
     ),
   )
@@ -2261,6 +2424,85 @@ async fn Store::fail_stale_running_runs_on_startup(self : Store) -> Int noraise 
 }
 
 ///|
+async fn Store::reconcile_expired_run_workers(self : Store) -> Int noraise {
+  let now = @env.now()
+  let startup_grace = run_worker_startup_grace_millis()
+  let heartbeat_ttl = run_worker_heartbeat_ttl_millis()
+  let rows = self.query_rows(
+    (
+      #|SELECT
+      #|  w.project_id,
+      #|  w.run_id,
+      #|  w.worker_id,
+      #|  w.attempt,
+      #|  w.pid,
+      #|  w.pid_identity,
+      #|  w.started_at,
+      #|  w.heartbeat_at,
+      #|  COALESCE(p.runtime_session_id, '') AS thread_id
+      #|FROM run_workers w
+      #|JOIN runs r ON r.id = w.run_id AND r.project_id = w.project_id
+      #|JOIN projects p ON p.id = r.project_id
+      #|WHERE w.status = ?
+      #|  AND r.state = ?
+      #|  AND p.current_run_id = w.run_id;
+    ),
+    params=[
+      String(run_worker_status_running()),
+      String(run_state_to_db(Running)),
+    ],
+  )
+  let mut recovered = 0
+  for row in rows {
+    let started_at = row_uint64(row, "started_at")
+    let heartbeat_at = row_uint64(row, "heartbeat_at")
+    if started_at + startup_grace <= now && heartbeat_at + heartbeat_ttl <= now {
+      let project_id = row_text(row, "project_id")
+      let run_id = row_text(row, "run_id")
+      let worker_id = row_text(row, "worker_id")
+      let attempt = row_int(row, "attempt")
+      let worker_pid = row_int(row, "pid")
+      let pid_identity = row_text(row, "pid_identity")
+      let now_text = now_string()
+      if self.claim_run_worker_terminal(
+          project_id,
+          run_id,
+          worker_id,
+          attempt,
+          run_worker_status_expired(),
+          now_text,
+        ) {
+        self.finish_run_failure_with_debug(
+          project_id,
+          run_id,
+          "The background worker stopped before finishing this update.",
+          "The background worker heartbeat expired. Please send the request again.",
+          empty_to_none(row_text(row, "thread_id")),
+          Some({
+            stage: "Worker lease recovery",
+            command: None,
+            exit_code: None,
+            runtime_log_path: None,
+            validation_log_path: None,
+            final_summary_path: None,
+          }),
+        )
+        ignore(
+          run_process_quiet("docker", [
+            "rm",
+            "-f",
+            agent_runtime_container_name(project_id, run_id),
+          ]),
+        )
+        terminate_process_if_identity_matches(worker_pid, pid_identity)
+        recovered = recovered + 1
+      }
+    }
+  }
+  recovered
+}
+
+///|
 async fn Store::create_project_with_runtime(
   self : Store,
   project_id : String,
@@ -2349,28 +2591,6 @@ async fn Store::update_project_settings(
 }
 
 ///|
-async fn Store::set_project_runtime_session_id(
-  self : Store,
-  project_id : String,
-  runtime_session_id : String,
-) -> Result[Unit, String] noraise {
-  self.exec_or_error(
-    (
-      #|UPDATE projects
-      #|SET runtime_session_id = ?,
-      #|    updated_at = ?
-      #|WHERE id = ?;
-    ),
-    "update project runtime session id",
-    params=[
-      String(runtime_session_id),
-      String(now_string()),
-      String(project_id),
-    ],
-  )
-}
-
-///|
 async fn Store::delete_project(
   self : Store,
   project_id : String,
@@ -2417,7 +2637,6 @@ async fn Store::start_run(
   project_id : String,
   content : String,
 ) -> Result[@sdk.RunStatusResponse, String] noraise {
-  self.recover_interrupted_registered_workers()
   let project = match self.get_project_detail(project_id) {
     Some(project) => project
     None => return Err("Project not found.")
@@ -2555,53 +2774,160 @@ async fn Store::start_run(
 }
 
 ///|
-async fn Store::set_run_worker_pid(
+async fn Store::next_run_worker_registration(
   self : Store,
   project_id : String,
   run_id : String,
+) -> RunWorkerRegistration noraise {
+  let attempt = match
+    self.query_one(
+      (
+        #|SELECT COALESCE(MAX(attempt), 0) + 1 AS next_attempt
+        #|FROM run_workers
+        #|WHERE project_id = ? AND run_id = ?;
+      ),
+      params=[String(project_id), String(run_id)],
+    ) {
+    Some(row) => row_int(row, "next_attempt")
+    None => 1
+  }
+  { worker_id: next_id("worker"), attempt }
+}
+
+///|
+async fn Store::register_run_worker(
+  self : Store,
+  project_id : String,
+  run_id : String,
+  worker_id : String,
+  attempt : Int,
   worker_pid : Int,
 ) -> Result[Unit, String] noraise {
+  let now = now_string()
+  let pid_identity = process_pid_identity(worker_pid)
   match
+    self.exec_or_error(
+      (
+        #|INSERT INTO run_workers (
+        #|  id,
+        #|  project_id,
+        #|  run_id,
+        #|  worker_id,
+        #|  attempt,
+        #|  pid,
+        #|  pid_started_at,
+        #|  pid_identity,
+        #|  status,
+        #|  phase,
+        #|  started_at,
+        #|  heartbeat_at
+        #|)
+        #|SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        #|WHERE EXISTS (
+        #|  SELECT 1
+        #|  FROM runs r
+        #|  JOIN projects p ON p.id = r.project_id
+        #|  WHERE r.id = ?
+        #|    AND r.project_id = ?
+        #|    AND r.state = ?
+        #|    AND p.current_run_id = ?
+        #|    AND NOT EXISTS (
+        #|      SELECT 1
+        #|      FROM run_workers existing_worker
+        #|      WHERE existing_worker.project_id = ?
+        #|        AND existing_worker.run_id = ?
+        #|        AND existing_worker.status = ?
+        #|    )
+        #|);
+      ),
+      "register run worker",
+      params=[
+        String(worker_id),
+        String(project_id),
+        String(run_id),
+        String(worker_id),
+        Int(attempt),
+        Int(worker_pid),
+        String(now),
+        String(pid_identity),
+        String(run_worker_status_running()),
+        String(run_phase_to_db(AgentRunning)),
+        String(now),
+        String(now),
+        String(run_id),
+        String(project_id),
+        String(run_state_to_db(Running)),
+        String(run_id),
+        String(project_id),
+        String(run_id),
+        String(run_worker_status_running()),
+      ],
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  ignore(
     self.exec_or_error(
       (
         #|UPDATE runs
         #|SET worker_pid = ?
         #|WHERE id = ? AND project_id = ? AND state = ?;
       ),
-      "set run worker pid",
+      "set diagnostic run worker pid",
       params=[
         Int(worker_pid),
         String(run_id),
         String(project_id),
         String(run_state_to_db(Running)),
       ],
-    ) {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
-  }
-  let verification = self.exec_raw(
-    (
-      #|SELECT COALESCE(worker_pid, 0) AS worker_pid
-      #|FROM runs
-      #|WHERE id = ? AND project_id = ? AND state = ?;
     ),
-    [String(run_id), String(project_id), String(run_state_to_db(Running))],
   )
-  if !verification.ok {
-    return Err(
-      "Database operation failed while verifying run worker pid: " +
-      verification.error.unwrap_or("unknown database error"),
-    )
+  match self.get_running_run_worker(project_id, run_id) {
+    Some(worker) =>
+      if worker.worker_id == worker_id &&
+        worker.attempt == attempt &&
+        worker.worker_pid == worker_pid {
+        Ok(())
+      } else {
+        Err("The run is no longer active while registering its worker.")
+      }
+    _ => Err("The run is no longer active while registering its worker.")
   }
-  if verification.rows.length() == 0 {
-    return Err("The run is no longer active while registering its worker.")
-  }
-  let row = verification.rows[0]
-  if row_int(row, "worker_pid") == worker_pid {
-    Ok(())
-  } else {
-    Err("The worker pid was not persisted for that run.")
-  }
+}
+
+///|
+async fn Store::touch_run_worker(
+  self : Store,
+  project_id : String,
+  run_id : String,
+  worker_id : String,
+  attempt : Int,
+  phase : @sdk.RunPhase,
+) -> Unit noraise {
+  let now = now_string()
+  ignore(
+    self.exec_or_error(
+      (
+        #|UPDATE run_workers
+        #|SET heartbeat_at = ?, phase = ?
+        #|WHERE project_id = ?
+        #|  AND run_id = ?
+        #|  AND worker_id = ?
+        #|  AND attempt = ?
+        #|  AND status = ?;
+      ),
+      "touch run worker heartbeat",
+      params=[
+        String(now),
+        String(run_phase_to_db(phase)),
+        String(project_id),
+        String(run_id),
+        String(worker_id),
+        Int(attempt),
+        String(run_worker_status_running()),
+      ],
+    ),
+  )
 }
 
 ///|
@@ -2613,17 +2939,36 @@ async fn Store::get_running_run_worker(
   match
     self.query_one(
       (
-        #|SELECT COALESCE(worker_pid, 0) AS worker_pid
-        #|FROM runs
-        #|WHERE id = ? AND project_id = ? AND state = ?;
+        #|SELECT
+        #|  w.worker_id,
+        #|  w.attempt,
+        #|  w.pid,
+        #|  w.pid_identity
+        #|FROM run_workers w
+        #|JOIN runs r ON r.id = w.run_id AND r.project_id = w.project_id
+        #|JOIN projects p ON p.id = r.project_id
+        #|WHERE w.project_id = ?
+        #|  AND w.run_id = ?
+        #|  AND w.status = ?
+        #|  AND r.state = ?
+        #|  AND p.current_run_id = w.run_id
+        #|ORDER BY w.attempt DESC
+        #|LIMIT 1;
       ),
       params=[
-        String(run_id),
         String(project_id),
+        String(run_id),
+        String(run_worker_status_running()),
         String(run_state_to_db(Running)),
       ],
     ) {
-    Some(row) => Some({ worker_pid: row_int(row, "worker_pid") })
+    Some(row) =>
+      Some({
+        worker_id: row_text(row, "worker_id"),
+        attempt: row_int(row, "attempt"),
+        worker_pid: row_int(row, "pid"),
+        pid_identity: row_text(row, "pid_identity"),
+      })
     None => None
   }
 }
@@ -2648,44 +2993,6 @@ async fn Store::save_project_runtime_session_id(
 }
 
 ///|
-async fn Store::set_project_preview(
-  self : Store,
-  project_id : String,
-  preview : @sdk.PreviewTarget,
-) -> @sdk.ProjectDetail? noraise {
-  let now = now_string()
-  ignore(
-    self.exec_or_error(
-      (
-        #|UPDATE projects
-        #|SET
-        #|  preview_url = ?,
-        #|  preview_port = ?,
-        #|  preview_healthy = ?,
-        #|  last_preview_url = ?,
-        #|  last_preview_port = ?,
-        #|  last_preview_healthy = ?,
-        #|  last_error = NULL,
-        #|  updated_at = ?
-        #|WHERE id = ?;
-      ),
-      "set project preview",
-      params=[
-        String(preview.url),
-        Int(preview.port),
-        Int(bool_to_int(preview.healthy)),
-        String(preview.url),
-        Int(preview.port),
-        Int(bool_to_int(preview.healthy)),
-        String(now),
-        String(project_id),
-      ],
-    ),
-  )
-  self.get_project_detail(project_id)
-}
-
-///|
 async fn Store::mark_project_preview_unreachable(
   self : Store,
   project_id : String,
@@ -2707,6 +3014,112 @@ async fn Store::mark_project_preview_unreachable(
     ),
   )
   self.get_project_detail(project_id)
+}
+
+///|
+async fn Store::set_project_preview_for_worker(
+  self : Store,
+  project_id : String,
+  run_id : String,
+  worker_id : String,
+  attempt : Int,
+  preview : @sdk.PreviewTarget,
+) -> @sdk.ProjectDetail? noraise {
+  let now = now_string()
+  ignore(
+    self.exec_or_error(
+      (
+        #|UPDATE projects
+        #|SET
+        #|  preview_url = ?,
+        #|  preview_port = ?,
+        #|  preview_healthy = ?,
+        #|  last_preview_url = ?,
+        #|  last_preview_port = ?,
+        #|  last_preview_healthy = ?,
+        #|  last_error = NULL,
+        #|  updated_at = ?
+        #|WHERE id = ?
+        #|  AND current_run_id = ?
+        #|  AND EXISTS (
+        #|    SELECT 1
+        #|    FROM run_workers w
+        #|    JOIN runs r ON r.id = w.run_id AND r.project_id = w.project_id
+        #|    WHERE w.project_id = ?
+        #|      AND w.run_id = ?
+        #|      AND w.worker_id = ?
+        #|      AND w.attempt = ?
+        #|      AND w.status = ?
+        #|      AND r.state = ?
+        #|  );
+      ),
+      "set project preview for worker",
+      params=[
+        String(preview.url),
+        Int(preview.port),
+        Int(bool_to_int(preview.healthy)),
+        String(preview.url),
+        Int(preview.port),
+        Int(bool_to_int(preview.healthy)),
+        String(now),
+        String(project_id),
+        String(run_id),
+        String(project_id),
+        String(run_id),
+        String(worker_id),
+        Int(attempt),
+        String(run_worker_status_running()),
+        String(run_state_to_db(Running)),
+      ],
+    ),
+  )
+  self.get_project_detail(project_id)
+}
+
+///|
+async fn Store::save_project_runtime_session_id_for_worker(
+  self : Store,
+  project_id : String,
+  run_id : String,
+  worker_id : String,
+  attempt : Int,
+  session_id : String,
+) -> Unit noraise {
+  ignore(
+    self.exec_or_error(
+      (
+        #|UPDATE projects
+        #|SET runtime_session_id = ?,
+        #|    updated_at = ?
+        #|WHERE id = ?
+        #|  AND current_run_id = ?
+        #|  AND EXISTS (
+        #|    SELECT 1
+        #|    FROM run_workers w
+        #|    JOIN runs r ON r.id = w.run_id AND r.project_id = w.project_id
+        #|    WHERE w.project_id = ?
+        #|      AND w.run_id = ?
+        #|      AND w.worker_id = ?
+        #|      AND w.attempt = ?
+        #|      AND w.status = ?
+        #|      AND r.state = ?
+        #|  );
+      ),
+      "update project runtime session id for worker",
+      params=[
+        String(session_id),
+        String(now_string()),
+        String(project_id),
+        String(run_id),
+        String(project_id),
+        String(run_id),
+        String(worker_id),
+        Int(attempt),
+        String(run_worker_status_running()),
+        String(run_state_to_db(Running)),
+      ],
+    ),
+  )
 }
 
 ///|
@@ -2753,17 +3166,102 @@ async fn Store::get_initial_project_prompt(
 }
 
 ///|
-async fn Store::finish_run_success(
+async fn Store::claim_run_worker_terminal(
   self : Store,
   project_id : String,
   run_id : String,
+  worker_id : String,
+  attempt : Int,
+  status : String,
+  now : String,
+) -> Bool noraise {
+  let token = next_id("worker-claim")
+  ignore(
+    self.exec_or_error(
+      (
+        #|UPDATE run_workers
+        #|SET status = ?, finished_at = ?, heartbeat_at = ?, terminal_token = ?
+        #|WHERE project_id = ?
+        #|  AND run_id = ?
+        #|  AND worker_id = ?
+        #|  AND attempt = ?
+        #|  AND status = ?
+        #|  AND EXISTS (
+        #|    SELECT 1
+        #|    FROM runs r
+        #|    JOIN projects p ON p.id = r.project_id
+        #|    WHERE r.id = run_workers.run_id
+        #|      AND r.project_id = run_workers.project_id
+        #|      AND r.state = ?
+        #|      AND p.current_run_id = run_workers.run_id
+        #|  );
+      ),
+      "claim run worker terminal state",
+      params=[
+        String(status),
+        String(now),
+        String(now),
+        String(token),
+        String(project_id),
+        String(run_id),
+        String(worker_id),
+        Int(attempt),
+        String(run_worker_status_running()),
+        String(run_state_to_db(Running)),
+      ],
+    ),
+  )
+  match
+    self.query_one(
+      (
+        #|SELECT status, terminal_token
+        #|FROM run_workers
+        #|WHERE project_id = ?
+        #|  AND run_id = ?
+        #|  AND worker_id = ?
+        #|  AND attempt = ?;
+      ),
+      params=[
+        String(project_id),
+        String(run_id),
+        String(worker_id),
+        Int(attempt),
+      ],
+    ) {
+    Some(row) =>
+      row_text(row, "status") == status &&
+      row_text(row, "terminal_token") == token
+    None => false
+  }
+}
+
+///|
+async fn Store::finish_run_success_for_worker(
+  self : Store,
+  project_id : String,
+  run_id : String,
+  worker_id : String,
+  attempt : Int,
   summary : String,
   thread_id : String?,
   preview : @sdk.PreviewTarget,
 ) -> Unit noraise {
   let now = now_string()
+  if !self.claim_run_worker_terminal(
+      project_id,
+      run_id,
+      worker_id,
+      attempt,
+      run_worker_status_succeeded(),
+      now,
+    ) {
+    return
+  }
   match thread_id {
-    Some(value) => self.save_project_runtime_session_id(project_id, value)
+    Some(value) =>
+      self.save_project_runtime_session_id_for_worker(
+        project_id, run_id, worker_id, attempt, value,
+      )
     None => ignore(())
   }
   let assistant_message = if summary == "" {
@@ -2813,7 +3311,7 @@ async fn Store::finish_run_success(
         #|  preview_port = ?,
         #|  preview_healthy = ?,
         #|  finished_at = ?
-        #|WHERE id = ?;
+        #|WHERE id = ? AND project_id = ? AND state = ?;
       ),
       "finish run successfully",
       params=[
@@ -2825,6 +3323,8 @@ async fn Store::finish_run_success(
         Int(bool_to_int(preview.healthy)),
         String(now),
         String(run_id),
+        String(project_id),
+        String(run_state_to_db(Running)),
       ],
     ),
   )
@@ -2843,7 +3343,7 @@ async fn Store::finish_run_success(
         #|  current_run_id = NULL,
         #|  last_error = NULL,
         #|  updated_at = ?
-        #|WHERE id = ?;
+        #|WHERE id = ? AND current_run_id = ?;
       ),
       "mark project succeeded",
       params=[
@@ -2856,6 +3356,7 @@ async fn Store::finish_run_success(
         Int(bool_to_int(preview.healthy)),
         String(now),
         String(project_id),
+        String(run_id),
       ],
     ),
   )
@@ -2890,6 +3391,10 @@ async fn Store::finish_run_failure_with_debug(
   thread_id : String?,
   failure_debug : @sdk.RunFailureDebug?,
 ) -> Unit noraise {
+  match self.get_project_detail(project_id) {
+    Some(project) if project.current_run_id == Some(run_id) => ignore(())
+    _ => return
+  }
   let now = now_string()
   match thread_id {
     Some(value) => self.save_project_runtime_session_id(project_id, value)
@@ -2949,7 +3454,7 @@ async fn Store::finish_run_failure_with_debug(
         #|  validation_log_path = ?,
         #|  final_summary_path = ?,
         #|  finished_at = ?
-        #|WHERE id = ?;
+        #|WHERE id = ? AND project_id = ? AND state = ?;
       ),
       "finish run with failure",
       params=[
@@ -2965,6 +3470,8 @@ async fn Store::finish_run_failure_with_debug(
         nullable_text_param(final_summary_path),
         String(now),
         String(run_id),
+        String(project_id),
+        String(run_state_to_db(Running)),
       ],
     ),
   )
@@ -2977,7 +3484,7 @@ async fn Store::finish_run_failure_with_debug(
         #|  current_run_id = NULL,
         #|  last_error = ?,
         #|  updated_at = ?
-        #|WHERE id = ?;
+        #|WHERE id = ? AND current_run_id = ?;
       ),
       "mark project failed",
       params=[
@@ -2985,18 +3492,159 @@ async fn Store::finish_run_failure_with_debug(
         String(message_text),
         String(now),
         String(project_id),
+        String(run_id),
       ],
     ),
   )
 }
 
 ///|
-async fn Store::finish_run_cancelled(
+async fn Store::finish_run_failure_for_worker(
   self : Store,
   project_id : String,
   run_id : String,
+  worker_id : String,
+  attempt : Int,
+  assistant_message : String,
+  error_message : String,
+  thread_id : String?,
+  failure_debug : @sdk.RunFailureDebug?,
 ) -> Unit noraise {
   let now = now_string()
+  if !self.claim_run_worker_terminal(
+      project_id,
+      run_id,
+      worker_id,
+      attempt,
+      run_worker_status_failed(),
+      now,
+    ) {
+    return
+  }
+  match thread_id {
+    Some(value) =>
+      self.save_project_runtime_session_id_for_worker(
+        project_id, run_id, worker_id, attempt, value,
+      )
+    None => ignore(())
+  }
+  let message_text = if assistant_message == "" {
+    "The change could not be completed. The last working preview is still available."
+  } else {
+    assistant_message
+  }
+  let failure_stage = failure_debug.map(fn(debug) { debug.stage })
+  let failure_command = failure_debug.bind(fn(debug) { debug.command })
+  let failure_exit_code = failure_debug.bind(fn(debug) { debug.exit_code })
+  let runtime_log_path = failure_debug.bind(fn(debug) { debug.runtime_log_path })
+  let validation_log_path = failure_debug.bind(fn(debug) {
+    debug.validation_log_path
+  })
+  let final_summary_path = failure_debug.bind(fn(debug) {
+    debug.final_summary_path
+  })
+  ignore(
+    self.exec_or_error(
+      (
+        #|INSERT INTO messages (
+        #|  id,
+        #|  project_id,
+        #|  run_id,
+        #|  role,
+        #|  content,
+        #|  created_at
+        #|) VALUES (?, ?, ?, ?, ?, ?);
+      ),
+      "create assistant failure message",
+      params=[
+        String(next_id("message")),
+        String(project_id),
+        String(run_id),
+        String(chat_role_to_db(Assistant)),
+        String(message_text),
+        String(now),
+      ],
+    ),
+  )
+  ignore(
+    self.exec_or_error(
+      (
+        #|UPDATE runs
+        #|SET
+        #|  state = ?,
+        #|  phase = ?,
+        #|  summary = ?,
+        #|  error_message = ?,
+        #|  failure_stage = ?,
+        #|  failure_command = ?,
+        #|  failure_exit_code = ?,
+        #|  runtime_log_path = ?,
+        #|  validation_log_path = ?,
+        #|  final_summary_path = ?,
+        #|  finished_at = ?
+        #|WHERE id = ? AND project_id = ? AND state = ?;
+      ),
+      "finish run with failure",
+      params=[
+        String(run_state_to_db(Failed)),
+        String(run_phase_to_db(NoPhase)),
+        String(message_text),
+        String(error_message),
+        nullable_text_param(failure_stage),
+        nullable_text_param(failure_command),
+        nullable_int_param(failure_exit_code),
+        nullable_text_param(runtime_log_path),
+        nullable_text_param(validation_log_path),
+        nullable_text_param(final_summary_path),
+        String(now),
+        String(run_id),
+        String(project_id),
+        String(run_state_to_db(Running)),
+      ],
+    ),
+  )
+  ignore(
+    self.exec_or_error(
+      (
+        #|UPDATE projects
+        #|SET
+        #|  status = ?,
+        #|  current_run_id = NULL,
+        #|  last_error = ?,
+        #|  updated_at = ?
+        #|WHERE id = ? AND current_run_id = ?;
+      ),
+      "mark project failed",
+      params=[
+        String(run_state_to_db(Failed)),
+        String(message_text),
+        String(now),
+        String(project_id),
+        String(run_id),
+      ],
+    ),
+  )
+}
+
+///|
+async fn Store::finish_run_cancelled_for_worker(
+  self : Store,
+  project_id : String,
+  run_id : String,
+  worker_id : String,
+  attempt : Int,
+) -> Unit noraise {
+  let now = now_string()
+  if !self.claim_run_worker_terminal(
+      project_id,
+      run_id,
+      worker_id,
+      attempt,
+      run_worker_status_cancelled(),
+      now,
+    ) {
+    return
+  }
   let message_text = "Stopped."
   ignore(
     self.exec_or_error(
@@ -3078,11 +3726,13 @@ async fn AppContext::cancel_project_run(
   self : AppContext,
   project_id : String,
   run_id : String,
-  worker_pid : Int,
+  worker : RunningRunWorker,
 ) -> @sdk.RunStatusResponse? noraise {
-  self.store.append_run_event(
+  self.store.append_worker_run_event(
     project_id,
     run_id,
+    worker.worker_id,
+    worker.attempt,
     "status",
     @sdk.run_event_code_stopping_builder(),
     "Stopping the builder session.",
@@ -3094,58 +3744,25 @@ async fn AppContext::cancel_project_run(
       agent_runtime_container_name(project_id, run_id),
     ]),
   )
-  terminate_process_tree(worker_pid)
-  self.store.finish_run_cancelled(project_id, run_id)
+  terminate_process_if_identity_matches(worker.worker_pid, worker.pid_identity)
+  self.store.finish_run_cancelled_for_worker(
+    project_id,
+    run_id,
+    worker.worker_id,
+    worker.attempt,
+  )
   self.store.get_run(project_id, run_id)
 }
 
 ///|
-async fn Store::recover_interrupted_registered_workers(
-  self : Store,
+async fn AppContext::run_worker_reconciler_loop(
+  self : AppContext,
 ) -> Unit noraise {
-  let rows = self.query_rows(
-    (
-      #|SELECT
-      #|  r.id,
-      #|  r.project_id,
-      #|  COALESCE(r.worker_pid, 0) AS worker_pid,
-      #|  COALESCE(p.runtime_session_id, '') AS thread_id
-      #|FROM runs r
-      #|JOIN projects p ON p.id = r.project_id
-      #|WHERE r.state = ? AND COALESCE(r.worker_pid, 0) > 0;
-    ),
-    params=[String(run_state_to_db(Running))],
-  )
-  let interrupted : Array[(String, String, String?)] = []
-  for row in rows {
-    let worker_pid = row_int(row, "worker_pid")
-    if !worker_pid_is_running(worker_pid) {
-      interrupted.push(
-        (
-          row_text(row, "project_id"),
-          row_text(row, "id"),
-          empty_to_none(row_text(row, "thread_id")),
-        ),
-      )
+  while true {
+    ignore(self.store.reconcile_expired_run_workers())
+    @async.sleep(run_worker_reconcile_interval_millis().to_int()) catch {
+      _ => return
     }
-  }
-  for item in interrupted {
-    let (project_id, run_id, thread_id) = item
-    self.finish_run_failure_with_debug(
-      project_id,
-      run_id,
-      "The background worker stopped before finishing this update.",
-      "The background worker stopped unexpectedly. Please send the request again.",
-      thread_id,
-      Some({
-        stage: "Worker recovery",
-        command: None,
-        exit_code: None,
-        runtime_log_path: None,
-        validation_log_path: None,
-        final_summary_path: None,
-      }),
-    )
   }
 }
 
@@ -3156,7 +3773,7 @@ fn new_runtime_gateway(root : String) -> RuntimeGateway {
 
 ///|
 fn AppContext::try_new(root : String) -> Result[AppContext, String] {
-  AppContext::try_new_with_recovery(root, true)
+  AppContext::try_new_with_recovery(root)
 }
 
 ///|
@@ -3185,7 +3802,6 @@ async fn AppContext::try_new_for_worker_async(
 ///|
 fn AppContext::try_new_with_recovery(
   root : String,
-  recover_interrupted : Bool,
 ) -> Result[AppContext, String] {
   let build_profile = build_profile_from_env()
   let data_dir = root + "/data/control-plane"
@@ -3204,7 +3820,6 @@ fn AppContext::try_new_with_recovery(
     previews: PreviewManager::new(root),
     runtime_gateway: new_runtime_gateway(root),
   }
-  ignore(recover_interrupted)
   Ok(ctx)
 }
 

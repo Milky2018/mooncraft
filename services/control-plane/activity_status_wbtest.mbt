@@ -32,9 +32,26 @@ async test "starting a run sets activity without replacing final project status"
     project.activity.map(fn(activity) { activity.run_id }),
     content="Some(\"" + run.run_id + "\")",
   )
-  store.append_run_event(
+  let worker = store.next_run_worker_registration(
     "project-activity",
     run.run_id,
+  )
+  match
+    store.register_run_worker(
+      "project-activity",
+      run.run_id,
+      worker.worker_id,
+      worker.attempt,
+      1234,
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => fail(message)
+  }
+  store.append_worker_run_event(
+    "project-activity",
+    run.run_id,
+    worker.worker_id,
+    worker.attempt,
     "status",
     @sdk.run_event_code_turn_planning(),
     "Planning the change.",
@@ -111,13 +128,26 @@ async test "worker pid registration must target an active run" {
     Ok(run) => run
     Err(message) => abort(message)
   }
-  match store.set_run_worker_pid("project-worker-pid", run.run_id, 1234) {
+  let registration = store.next_run_worker_registration(
+    "project-worker-pid",
+    run.run_id,
+  )
+  match
+    store.register_run_worker(
+      "project-worker-pid",
+      run.run_id,
+      registration.worker_id,
+      registration.attempt,
+      1234,
+    ) {
     Ok(_) => ignore(())
     Err(message) => fail(message)
   }
   let worker = store
     .get_running_run_worker("project-worker-pid", run.run_id)
     .unwrap()
+  inspect(worker.worker_id, content=registration.worker_id)
+  inspect(worker.attempt, content="1")
   inspect(worker.worker_pid, content="1234")
   store.finish_run_failure(
     "project-worker-pid",
@@ -126,7 +156,18 @@ async test "worker pid registration must target an active run" {
     "Stopped for test.",
     None,
   )
-  match store.set_run_worker_pid("project-worker-pid", run.run_id, 5678) {
+  let rejected = store.next_run_worker_registration(
+    "project-worker-pid",
+    run.run_id,
+  )
+  match
+    store.register_run_worker(
+      "project-worker-pid",
+      run.run_id,
+      rejected.worker_id,
+      rejected.attempt,
+      5678,
+    ) {
     Ok(_) => fail("Expected worker pid registration to reject a finished run.")
     Err(message) =>
       inspect(
@@ -137,8 +178,8 @@ async test "worker pid registration must target an active run" {
 }
 
 ///|
-async test "registered dead worker is recovered without blocking retry" {
-  let root = "/tmp/mooncraft-dead-worker-recovery-test-" + random_hex(6)
+async test "reading a registered run does not recover dead worker pids" {
+  let root = "/tmp/mooncraft-read-pure-run-test-" + random_hex(6)
   ensure_dir(root)
   defer safe_remove_tree(root)
   let store = match try_new_async(root + "/state.sqlite") {
@@ -146,37 +187,159 @@ async test "registered dead worker is recovered without blocking retry" {
     Err(message) => abort(message)
   }
   let _ = store.create_project_with_runtime(
-    "project-dead-worker",
-    "user-dead-worker",
-    "preview-dead-worker",
-    "Dead Worker Project",
+    "project-read-pure",
+    "user-read-pure",
+    "preview-read-pure",
+    "Read Pure Project",
     "agent-runtime-001",
     "Runtime",
     "{}",
-    "agent-session-dead-worker",
+    "agent-session-read-pure",
     "codex",
     "openrouter/test-model",
     root + "/workspace",
   )
-  let run = match store.start_run("project-dead-worker", "Build something") {
+  let run = match store.start_run("project-read-pure", "Build something") {
     Ok(run) => run
     Err(message) => abort(message)
   }
-  match store.set_run_worker_pid("project-dead-worker", run.run_id, 99999999) {
+  let registration = store.next_run_worker_registration(
+    "project-read-pure",
+    run.run_id,
+  )
+  match
+    store.register_run_worker(
+      "project-read-pure",
+      run.run_id,
+      registration.worker_id,
+      registration.attempt,
+      99999999,
+    ) {
     Ok(_) => ignore(())
     Err(message) => fail(message)
   }
-  let recovered = store.get_run("project-dead-worker", run.run_id).unwrap()
-  debug_inspect(recovered.state, content="Failed")
-  debug_inspect(recovered.phase, content="NoPhase")
-  let project = store.get_project_detail("project-dead-worker").unwrap()
-  debug_inspect(project.is_processing, content="false")
-  debug_inspect(project.current_run_id, content="None")
-  let retry = match store.start_run("project-dead-worker", "Try again") {
+  let fetched = store.get_run("project-read-pure", run.run_id).unwrap()
+  debug_inspect(fetched.state, content="Running")
+  let project = store.get_project_detail("project-read-pure").unwrap()
+  debug_inspect(project.is_processing, content="true")
+  debug_inspect(project.current_run_id, content="Some(\"" + run.run_id + "\")")
+}
+
+///|
+async test "reconciler expires stale worker leases outside read paths" {
+  @env.set_env_var("MOONCRAFT_RUN_WORKER_STARTUP_GRACE_MS", "0")
+  @env.set_env_var("MOONCRAFT_RUN_WORKER_HEARTBEAT_TTL_MS", "0")
+  defer @env.unset_env_var("MOONCRAFT_RUN_WORKER_STARTUP_GRACE_MS")
+  defer @env.unset_env_var("MOONCRAFT_RUN_WORKER_HEARTBEAT_TTL_MS")
+  let root = "/tmp/mooncraft-worker-reconcile-test-" + random_hex(6)
+  ensure_dir(root)
+  defer safe_remove_tree(root)
+  let store = match try_new_async(root + "/state.sqlite") {
+    Ok(store) => store
+    Err(message) => abort(message)
+  }
+  let _ = store.create_project_with_runtime(
+    "project-worker-reconcile",
+    "user-worker-reconcile",
+    "preview-worker-reconcile",
+    "Worker Reconcile Project",
+    "agent-runtime-001",
+    "Runtime",
+    "{}",
+    "agent-session-worker-reconcile",
+    "codex",
+    "openrouter/test-model",
+    root + "/workspace",
+  )
+  let run = match
+    store.start_run("project-worker-reconcile", "Build something") {
     Ok(run) => run
     Err(message) => abort(message)
   }
-  debug_inspect(retry.state, content="Running")
+  let worker = store.next_run_worker_registration(
+    "project-worker-reconcile",
+    run.run_id,
+  )
+  match
+    store.register_run_worker(
+      "project-worker-reconcile",
+      run.run_id,
+      worker.worker_id,
+      worker.attempt,
+      99999999,
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => fail(message)
+  }
+  let before = store.get_run("project-worker-reconcile", run.run_id).unwrap()
+  debug_inspect(before.state, content="Running")
+  inspect(store.reconcile_expired_run_workers(), content="1")
+  let after = store.get_run("project-worker-reconcile", run.run_id).unwrap()
+  debug_inspect(after.state, content="Failed")
+  let project = store.get_project_detail("project-worker-reconcile").unwrap()
+  debug_inspect(project.is_processing, content="false")
+  debug_inspect(project.current_run_id, content="None")
+  inspect(store.list_messages("project-worker-reconcile").length(), content="2")
+}
+
+///|
+async test "expired worker cannot overwrite recovered run success" {
+  @env.set_env_var("MOONCRAFT_RUN_WORKER_STARTUP_GRACE_MS", "0")
+  @env.set_env_var("MOONCRAFT_RUN_WORKER_HEARTBEAT_TTL_MS", "0")
+  defer @env.unset_env_var("MOONCRAFT_RUN_WORKER_STARTUP_GRACE_MS")
+  defer @env.unset_env_var("MOONCRAFT_RUN_WORKER_HEARTBEAT_TTL_MS")
+  let root = "/tmp/mooncraft-worker-cas-test-" + random_hex(6)
+  ensure_dir(root)
+  defer safe_remove_tree(root)
+  let store = match try_new_async(root + "/state.sqlite") {
+    Ok(store) => store
+    Err(message) => abort(message)
+  }
+  let _ = store.create_project_with_runtime(
+    "project-worker-cas",
+    "user-worker-cas",
+    "preview-worker-cas",
+    "Worker CAS Project",
+    "agent-runtime-001",
+    "Runtime",
+    "{}",
+    "agent-session-worker-cas",
+    "codex",
+    "openrouter/test-model",
+    root + "/workspace",
+  )
+  let run = match store.start_run("project-worker-cas", "Build something") {
+    Ok(run) => run
+    Err(message) => abort(message)
+  }
+  let worker = store.next_run_worker_registration(
+    "project-worker-cas",
+    run.run_id,
+  )
+  match
+    store.register_run_worker(
+      "project-worker-cas",
+      run.run_id,
+      worker.worker_id,
+      worker.attempt,
+      1234,
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => fail(message)
+  }
+  inspect(store.reconcile_expired_run_workers(), content="1")
+  store.finish_run_success_for_worker(
+    "project-worker-cas",
+    run.run_id,
+    worker.worker_id,
+    worker.attempt,
+    "Late success",
+    Some("late-session"),
+    { url: "/p/late/", port: 4300, healthy: true },
+  )
+  let after = store.get_run("project-worker-cas", run.run_id).unwrap()
+  debug_inspect(after.state, content="Failed")
+  inspect(store.list_messages("project-worker-cas").length(), content="2")
 }
 
 ///|

@@ -222,12 +222,26 @@ async test "process log streaming waits on child process and reads output pipe" 
     Ok(run) => run
     Err(message) => abort(message)
   }
+  let worker = store.next_run_worker_registration("project-stream", run.run_id)
+  match
+    store.register_run_worker(
+      "project-stream",
+      run.run_id,
+      worker.worker_id,
+      worker.attempt,
+      1234,
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => fail(message)
+  }
   let (exit_code, output) = match
     run_streaming_command(
       store,
       root,
       "project-stream",
       run.run_id,
+      worker.worker_id,
+      worker.attempt,
       log_path,
       "sh",
       [
@@ -299,6 +313,21 @@ async test "runtime timeout watchdog does not own the streaming pipe" {
     Ok(run) => run
     Err(message) => abort(message)
   }
+  let worker = store.next_run_worker_registration(
+    "project-watchdog",
+    run.run_id,
+  )
+  match
+    store.register_run_worker(
+      "project-watchdog",
+      run.run_id,
+      worker.worker_id,
+      worker.attempt,
+      5678,
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => fail(message)
+  }
   let script = "PATH=" +
     shell_quote(bin_dir) +
     ":$PATH\nexport PATH\nMOONCRAFT_FAKE_DOCKER_STOP=" +
@@ -311,6 +340,8 @@ async test "runtime timeout watchdog does not own the streaming pipe" {
       root,
       "project-watchdog",
       run.run_id,
+      worker.worker_id,
+      worker.attempt,
       log_path,
       "sh",
       ["-c", script],

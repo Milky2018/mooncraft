@@ -371,7 +371,6 @@ async fn Store::list_projects_for_user(
   self : Store,
   user_id : String,
 ) -> Array[@sdk.ProjectSummary] noraise {
-  self.recover_interrupted_registered_workers()
   let rows = self.query_rows(
     (
       #|SELECT

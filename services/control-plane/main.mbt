@@ -918,8 +918,11 @@ fn main {
     run_static_preview_mode(port, args[3])
     return
   }
-  if args.length() > 3 && args[1] == "run-worker" {
-    @async.run_async_main(() => run_worker_mode(root, args[2], args[3]))
+  if args.length() > 5 && args[1] == "run-worker" {
+    let attempt = @string.parse_int(args[5]) catch { _ => 0 }
+    @async.run_async_main(() => {
+      run_worker_mode(root, args[2], args[3], args[4], attempt)
+    })
     return
   }
   let port = control_plane_port()
@@ -1681,9 +1684,23 @@ fn main {
       Ok(run) => run
       Err(message) => return api_error_response(Conflict, Conflict, message)
     }
-    match ctx.spawn_project_turn_worker(project_id, run.run_id) {
+    let worker = ctx.store.next_run_worker_registration(project_id, run.run_id)
+    match
+      ctx.spawn_project_turn_worker(
+        project_id,
+        run.run_id,
+        worker.worker_id,
+        worker.attempt,
+      ) {
       Ok(worker_pid) =>
-        match ctx.store.set_run_worker_pid(project_id, run.run_id, worker_pid) {
+        match
+          ctx.store.register_run_worker(
+            project_id,
+            run.run_id,
+            worker.worker_id,
+            worker.attempt,
+            worker_pid,
+          ) {
           Ok(_) =>
             json_created(@sdk.CreateRunResponse::{
               run: public_run_status(run),
@@ -1783,7 +1800,7 @@ fn main {
           "That run is no longer active.",
         )
     }
-    match ctx.cancel_project_run(project_id, run_id, worker.worker_pid) {
+    match ctx.cancel_project_run(project_id, run_id, worker) {
       Some(run) =>
         json_ok(@sdk.CancelRunResponse::{ run: public_run_status(run) })
       None => api_error_response(NotFound, NotFound, "Run not found.")
@@ -1831,5 +1848,10 @@ fn main {
   })
 
   println("MoonCraft running at http://localhost:\{port}")
-  @async.run_async_main(() => serve_mocket_async(app, port))
+  @async.run_async_main(() => {
+    @async.with_task_group(group => {
+      group.spawn_bg(() => ctx.run_worker_reconciler_loop())
+      serve_mocket_async(app, port)
+    })
+  })
 }

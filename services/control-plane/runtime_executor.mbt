@@ -503,13 +503,17 @@ async fn append_runtime_display_event(
   store : Store,
   project_id : String,
   run_id : String,
+  worker_id : String,
+  attempt : Int,
   line : String,
 ) -> Unit noraise {
   match runtime_display_event(line) {
     Some(event) =>
-      store.append_run_event(
+      store.append_worker_run_event(
         project_id,
         run_id,
+        worker_id,
+        attempt,
         event.kind,
         event.code,
         event.content,
@@ -722,6 +726,8 @@ async fn run_streaming_command(
   root : String,
   project_id : String,
   run_id : String,
+  worker_id : String,
+  attempt : Int,
   stream_log_path : String,
   command : String,
   args : Array[String],
@@ -746,7 +752,9 @@ async fn run_streaming_command(
           stream_log.write(@utf8.encode(output_line))
           let line = raw_line.trim(chars="\r").to_owned()
           if line != "" {
-            append_runtime_display_event(store, project_id, run_id, line)
+            append_runtime_display_event(
+              store, project_id, run_id, worker_id, attempt, line,
+            )
           }
         }
       })
@@ -759,9 +767,11 @@ async fn run_streaming_command(
         cwd=root,
         no_wait=true,
       )
-      store.append_run_event(
+      store.append_worker_run_event(
         project_id,
         run_id,
+        worker_id,
+        attempt,
         "status",
         @sdk.run_event_code_runtime_container_running(),
         "Runtime container is running.",
@@ -783,31 +793,39 @@ async fn stream_docker_output(
   root : String,
   project_id : String,
   run_id : String,
+  worker_id : String,
+  attempt : Int,
   config : AgentRuntimeConfig,
   workspace_path : String,
   agent_home_path : String,
   artifacts : RunArtifacts,
   container_command : Array[String],
 ) -> Result[(Int, String), String] noraise {
-  store.append_run_event(
+  store.append_worker_run_event(
     project_id,
     run_id,
+    worker_id,
+    attempt,
     "status",
     @sdk.run_event_code_builder_environment_preparing(),
     "Preparing the builder environment.",
   )
   let env_file_path = write_docker_env_file(config, artifacts)
-  store.append_run_event(
+  store.append_worker_run_event(
     project_id,
     run_id,
+    worker_id,
+    attempt,
     "status",
     @sdk.run_event_code_builder_mounts_preparing(),
     "Preparing builder workspace mounts.",
   )
   prepare_agent_mounts(workspace_path, Some(agent_home_path), artifacts)
-  store.append_run_event(
+  store.append_worker_run_event(
     project_id,
     run_id,
+    worker_id,
+    attempt,
     "status",
     @sdk.run_event_code_builder_auth_preparing(),
     "Preparing builder authentication.",
@@ -824,9 +842,11 @@ async fn stream_docker_output(
   let docker_args = docker_command_args(
     config, env_file_path, workspace_path, agent_home_path, artifacts, container_command,
   )
-  store.append_run_event(
+  store.append_worker_run_event(
     project_id,
     run_id,
+    worker_id,
+    attempt,
     "status",
     @sdk.run_event_code_runtime_container_launching(),
     "Launching the Runtime container.",
@@ -837,6 +857,8 @@ async fn stream_docker_output(
       root,
       project_id,
       run_id,
+      worker_id,
+      attempt,
       artifacts.agent_log_path + ".stream",
       "sh",
       [
@@ -862,6 +884,8 @@ async fn stream_docker_output(
 async fn collect_agent_command_output(
   store : Store,
   run_id : String,
+  worker_id : String,
+  attempt : Int,
   root : String,
   config : AgentRuntimeConfig?,
   project : @sdk.ProjectDetail,
@@ -875,9 +899,11 @@ async fn collect_agent_command_output(
       Ok(result) => result
       Err(message) => return Err(message)
     }
-    store.append_run_event(
+    store.append_worker_run_event(
       project.id,
       run_id,
+      worker_id,
+      attempt,
       "status",
       @sdk.run_event_code_local_builder_running(),
       "Running local builder.",
@@ -885,7 +911,14 @@ async fn collect_agent_command_output(
     for raw_line in result.1.replace_all(old="\r\n", new="\n").split("\n") {
       let line = raw_line.to_owned()
       if line != "" {
-        append_runtime_display_event(store, project.id, run_id, line)
+        append_runtime_display_event(
+          store,
+          project.id,
+          run_id,
+          worker_id,
+          attempt,
+          line,
+        )
       }
     }
     Ok(result)
@@ -903,6 +936,8 @@ async fn collect_agent_command_output(
             root,
             project.id,
             run_id,
+            worker_id,
+            attempt,
             config,
             workspace_path,
             agent_home_path,
@@ -969,6 +1004,8 @@ async fn run_runtime_turn(
   initial_project_prompt : String,
   workspace_path : String,
   run_id : String,
+  worker_id : String,
+  attempt : Int,
   user_prompt : String,
   reset_logs? : Bool = true,
   raw_prompt? : Bool = false,
@@ -1019,7 +1056,8 @@ async fn run_runtime_turn(
   let mut active_command = command
   let runtime_result = match
     collect_agent_command_output(
-      store, run_id, root, config, project, workspace_path, artifacts, command,
+      store, run_id, worker_id, attempt, root, config, project, workspace_path, artifacts,
+      command,
     ) {
     Ok(result) => result
     Err(message) =>
@@ -1117,7 +1155,8 @@ async fn run_runtime_turn(
     }
     let recovery_result = match
       collect_agent_command_output(
-        store, run_id, root, config, project, workspace_path, artifacts, recovery_command,
+        store, run_id, worker_id, attempt, root, config, project, workspace_path,
+        artifacts, recovery_command,
       ) {
       Ok(result) => result
       Err(message) =>
@@ -1370,6 +1409,8 @@ async fn RuntimeGateway::run_turn(
   initial_project_prompt : String,
   workspace_path : String,
   run_id : String,
+  worker_id : String,
+  attempt : Int,
   user_prompt : String,
   raw_prompt? : Bool = false,
   resume_existing? : Bool = true,
@@ -1410,6 +1451,8 @@ async fn RuntimeGateway::run_turn(
       initial_project_prompt,
       workspace_path,
       run_id,
+      worker_id,
+      attempt,
       user_prompt,
       raw_prompt~,
       resume_existing~,
@@ -1417,9 +1460,11 @@ async fn RuntimeGateway::run_turn(
     Ok(result) => result
     Err(failure) => return Err(failure)
   }
-  store.append_run_event(
+  store.append_worker_run_event(
     project.id,
     run_id,
+    worker_id,
+    attempt,
     "status",
     @sdk.run_event_code_workspace_saving(),
     "Saving the updated workspace.",
@@ -1447,6 +1492,8 @@ async fn AppContext::spawn_project_turn_worker(
   self : AppContext,
   project_id : String,
   run_id : String,
+  worker_id : String,
+  attempt : Int,
 ) -> Result[Int, String] noraise {
   let executable_path = control_plane_executable_path(
     self.root,
@@ -1465,6 +1512,8 @@ async fn AppContext::spawn_project_turn_worker(
     worker_log_path,
     project_id,
     run_id,
+    worker_id,
+    attempt,
   )
 }
 
@@ -1473,16 +1522,47 @@ async fn AppContext::run_project_turn(
   self : AppContext,
   project_id : String,
   run_id : String,
+  worker_id : String,
+  attempt : Int,
 ) -> Unit {
-  ProjectRunWorkflow::from_context(self).run(project_id, run_id)
+  @async.with_task_group(group => {
+    let done : Ref[Bool] = @ref.new(false)
+    defer {
+      done.val = true
+    }
+    group.spawn_bg(() => {
+      while !done.val {
+        self.store.touch_run_worker(
+          project_id,
+          run_id,
+          worker_id,
+          attempt,
+          AgentRunning,
+        )
+        @async.sleep(5000) catch {
+          _ => return
+        }
+      }
+    })
+    ProjectRunWorkflow::from_context(self, worker_id, attempt).run(
+      project_id, run_id,
+    )
+  })
 }
 
 ///|
-fn worker_process_args(project_id : String, run_id : String) -> Array[String] {
+fn worker_process_args(
+  project_id : String,
+  run_id : String,
+  worker_id : String,
+  attempt : Int,
+) -> Array[String] {
   let args : Array[String] = []
   args.push("run-worker")
   args.push(project_id)
   args.push(run_id)
+  args.push(worker_id)
+  args.push(attempt.to_string())
   args
 }
 
@@ -1493,6 +1573,8 @@ async fn spawn_worker_process(
   log_path : String,
   project_id : String,
   run_id : String,
+  worker_id : String,
+  attempt : Int,
 ) -> Result[Int, String] noraise {
   let stdout = try
     @process.redirect_to_file(log_path, create=0o644, truncate=true)
@@ -1513,7 +1595,7 @@ async fn spawn_worker_process(
   let pid = try
     @process.spawn_orphan(
       executable_path,
-      worker_process_args(project_id, run_id),
+      worker_process_args(project_id, run_id, worker_id, attempt),
       stdout~,
       stderr~,
       cwd=root,
@@ -1534,10 +1616,12 @@ async fn run_worker_mode(
   root : String,
   project_id : String,
   run_id : String,
+  worker_id : String,
+  attempt : Int,
 ) -> Unit {
   let ctx = match AppContext::try_new_for_worker_async(root) {
     Ok(ctx) => ctx
     Err(message) => abort("MoonCraft worker cannot start: " + message)
   }
-  ctx.run_project_turn(project_id, run_id)
+  ctx.run_project_turn(project_id, run_id, worker_id, attempt)
 }
