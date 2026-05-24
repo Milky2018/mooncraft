@@ -298,6 +298,17 @@ fn json_string_field(fields : Map[String, Json], name : String) -> String? {
 }
 
 ///|
+fn json_object_field(
+  fields : Map[String, Json],
+  name : String,
+) -> Map[String, Json]? {
+  match fields.get(name) {
+    Some(Object(value)) => Some(value)
+    _ => None
+  }
+}
+
+///|
 fn json_bool_field(fields : Map[String, Json], name : String) -> Bool? {
   match fields.get(name) {
     Some(True) => Some(true)
@@ -513,9 +524,75 @@ fn claude_stream_display_event(trimmed : String) -> RuntimeDisplayEvent? {
 }
 
 ///|
-fn runtime_command_progress_message(line : String) -> String? {
-  ignore(line)
-  None
+fn codex_agent_message_display_event(
+  fields : Map[String, Json],
+) -> RuntimeDisplayEvent? {
+  match json_string_field(fields, "text") {
+    Some(text) if text.trim() != "" =>
+      Some(
+        runtime_display_event_value(
+          "progress",
+          @sdk.run_event_code_agent_progress(),
+          text,
+        ),
+      )
+    _ => None
+  }
+}
+
+///|
+fn codex_file_change_display_event(
+  fields : Map[String, Json],
+) -> RuntimeDisplayEvent? {
+  match json_string_field(fields, "status") {
+    Some("completed") =>
+      Some(
+        runtime_display_event_value(
+          "status",
+          @sdk.run_event_code_files_updated(),
+          "Updated project files.",
+        ),
+      )
+    _ =>
+      Some(
+        runtime_display_event_value(
+          "status",
+          @sdk.run_event_code_files_editing(),
+          "Editing project files.",
+        ),
+      )
+  }
+}
+
+///|
+fn codex_command_execution_display_event(
+  fields : Map[String, Json],
+) -> RuntimeDisplayEvent? {
+  match json_string_field(fields, "status") {
+    Some("failed") =>
+      Some(
+        runtime_display_event_value(
+          "status",
+          @sdk.run_event_code_workspace_check_failed(),
+          "A workspace check failed; the builder is fixing it.",
+        ),
+      )
+    _ => None
+  }
+}
+
+///|
+fn codex_item_display_event(fields : Map[String, Json]) -> RuntimeDisplayEvent? {
+  match json_object_field(fields, "item") {
+    Some(item) =>
+      match json_string_field(item, "type") {
+        Some("agent_message") => codex_agent_message_display_event(item)
+        Some("file_change") => codex_file_change_display_event(item)
+        Some("command_execution") => codex_command_execution_display_event(item)
+        _ => None
+      }
+    None => None
+  }
 }
 
 ///|
@@ -524,7 +601,7 @@ fn codex_stream_display_event(trimmed : String) -> RuntimeDisplayEvent? {
     Some(fields) => {
       let event_type = json_string_field(fields, "type").unwrap_or("")
       match event_type {
-        "runtime.started" =>
+        "runtime.started" | "thread.started" =>
           Some(
             runtime_display_event_value(
               "status",
@@ -556,60 +633,10 @@ fn codex_stream_display_event(trimmed : String) -> RuntimeDisplayEvent? {
               "The app update failed.",
             ),
           )
-        "agent_message" =>
-          match json_string_field(fields, "text") {
-            Some(text) if text.trim() != "" =>
-              Some(
-                runtime_display_event_value(
-                  "progress",
-                  @sdk.run_event_code_agent_progress(),
-                  text,
-                ),
-              )
-            _ => None
-          }
-        "file_change" =>
-          match json_string_field(fields, "status") {
-            Some("completed") =>
-              Some(
-                runtime_display_event_value(
-                  "status",
-                  @sdk.run_event_code_files_updated(),
-                  "Updated project files.",
-                ),
-              )
-            _ =>
-              Some(
-                runtime_display_event_value(
-                  "status",
-                  @sdk.run_event_code_files_editing(),
-                  "Editing project files.",
-                ),
-              )
-          }
-        "command_execution" =>
-          match json_string_field(fields, "status") {
-            Some("failed") =>
-              Some(
-                runtime_display_event_value(
-                  "status",
-                  @sdk.run_event_code_workspace_check_failed(),
-                  "A workspace check failed; the builder is fixing it.",
-                ),
-              )
-            _ =>
-              match runtime_command_progress_message(trimmed) {
-                Some(message) =>
-                  Some(
-                    runtime_display_event_value(
-                      "status",
-                      @sdk.run_event_code_agent_progress(),
-                      message,
-                    ),
-                  )
-                None => None
-              }
-          }
+        "agent_message" => codex_agent_message_display_event(fields)
+        "file_change" => codex_file_change_display_event(fields)
+        "command_execution" => codex_command_execution_display_event(fields)
+        "item.started" | "item.completed" => codex_item_display_event(fields)
         _ => None
       }
     }
