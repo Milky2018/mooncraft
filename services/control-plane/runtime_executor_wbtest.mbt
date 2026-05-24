@@ -173,6 +173,41 @@ test "docker runtime command uses fixed container mounts" {
 }
 
 ///|
+fn path_is_other_writable(path : String) -> Bool {
+  shell_status(
+    "mode=$(ls -ld " +
+    shell_quote(path) +
+    " | awk '{print $1}'); case \"$mode\" in ????????w*) exit 0;; *) exit 1;; esac",
+  ) ==
+  0
+}
+
+///|
+test "agent home is normalized after auth creates new directories" {
+  let root = "/tmp/mooncraft-agent-home-perm-test-" + random_hex(6)
+  let agent_home_path = root + "/home"
+  ensure_dir(agent_home_path)
+  defer safe_remove_tree(root)
+  prepare_agent_mount_path(agent_home_path)
+  let config = {
+    ..test_runtime_config(),
+    auth_kind: "codex_auth_json",
+    secret: { env: None, file: Some(".codex/auth.json"), value: "{}" },
+  }
+  match materialize_runtime_file_secrets(config, agent_home_path) {
+    Ok(_) => ()
+    Err(message) => fail(message)
+  }
+  let codex_home = agent_home_path + "/.codex"
+  // Simulate a host-created auth directory that is not writable by the
+  // container's non-root runtime user on a Linux bind mount.
+  ignore(shell_status("chmod 755 " + shell_quote(codex_home)))
+  inspect(path_is_other_writable(codex_home), content="false")
+  prepare_agent_mount_path(agent_home_path)
+  inspect(path_is_other_writable(codex_home), content="true")
+}
+
+///|
 async test "process log streaming polls structured child process" {
   let root = "/tmp/mooncraft-async-process-test-" + random_hex(6)
   let log_path = root + "/process.log"

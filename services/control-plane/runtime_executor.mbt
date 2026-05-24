@@ -880,6 +880,8 @@ async fn stream_docker_output(
       return Err(message)
     }
   }
+  // Auth materialization can create fresh subdirectories after the initial mount chmod.
+  prepare_agent_mount_path(agent_home_path)
   let docker_args = docker_command_args(
     config, env_file_path, workspace_path, agent_home_path, artifacts, container_command,
   )
