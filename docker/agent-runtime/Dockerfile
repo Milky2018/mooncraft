@@ -39,10 +39,30 @@ LABEL mooncraft.moonbit.version="${MOONBIT_VERSION}"
 ENV MOON_HOME=/opt/moon
 ENV PATH=/opt/moon/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-RUN apt-get -o Acquire::Retries=5 update \
-  && apt-get -o Acquire::Retries=5 install -y --no-install-recommends ca-certificates curl git bash ripgrep jq coreutils libstdc++6 \
-  && rm -rf /var/lib/apt/lists/* \
-  && useradd --create-home --uid 10001 --shell /bin/bash mooncraft
+RUN set -eux; \
+  for attempt in 1 2 3 4 5; do \
+    apt-get -o Acquire::Retries=5 update \
+      && apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
+        bash \
+        build-essential \
+        ca-certificates \
+        coreutils \
+        curl \
+        git \
+        jq \
+        libstdc++6 \
+        pkg-config \
+        ripgrep \
+      && break; \
+    if [ "$attempt" = "5" ]; then \
+      exit 1; \
+    fi; \
+    apt-get clean; \
+    rm -rf /var/lib/apt/lists/*; \
+    sleep "$((attempt * 5))"; \
+  done; \
+  rm -rf /var/lib/apt/lists/*; \
+  useradd --create-home --uid 10001 --shell /bin/bash mooncraft
 
 COPY docker/agent-runtime/bin/ /usr/local/bin/
 COPY docker/agent-runtime/mooncraft-agent-system.md /opt/mooncraft/mooncraft-agent-system.md

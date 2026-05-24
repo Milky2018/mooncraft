@@ -38,7 +38,14 @@ docker run --rm \
     command -v rg >/dev/null
     command -v jq >/dev/null
     command -v sort >/dev/null
+    command -v cc >/dev/null
+    command -v gcc >/dev/null
+    command -v make >/dev/null
+    command -v pkg-config >/dev/null
     command -v mooncraft-runtime-send >/dev/null
+    printf "%s\n" "int main(void) { return 0; }" > /tmp/mooncraft-runtime-check.c
+    cc /tmp/mooncraft-runtime-check.c -o /tmp/mooncraft-runtime-check
+    /tmp/mooncraft-runtime-check
     test -n "${HOME:-}"
     test -d "$HOME/.codex/skills"
     test -d /opt/mooncraft/templates

@@ -49,7 +49,7 @@ assert_no_root_absolute_browser_urls() {
   local path="$1"
   local label="$2"
   if grep -En \
-    '(src|href|action)[[:space:]]*=[[:space:]]*["'\'']/|url\([[:space:]]*["'\'']?/|fetch[[:space:]]*\([[:space:]]*["'\'']/|import[[:space:]]*\([[:space:]]*["'\'']/|new[[:space:]]+Worker[[:space:]]*\([[:space:]]*["'\'']/|["'\'']/api/|["'\'']/[^"'\'']+\.(js|mjs|css|wasm|json|png|jpg|jpeg|webp|svg|woff|woff2)|["'\'']/vendor/' \
+    '(^|[[:space:]<])(src|href|action)[[:space:]]*=[[:space:]]*["'\'']/|url\([[:space:]]*["'\'']?/|fetch[[:space:]]*\([[:space:]]*["'\'']/|import[[:space:]]*\([[:space:]]*["'\'']/|new[[:space:]]+Worker[[:space:]]*\([[:space:]]*["'\'']/|["'\'']/api/|["'\'']/[^"'\'']+\.(js|mjs|css|wasm|json|png|jpg|jpeg|webp|svg|woff|woff2)|["'\'']/vendor/' \
     "$path" >"$root_absolute_matches_path" 2>/dev/null; then
     echo "Preview audit failed for $target_url: $label contains root-absolute browser URLs." >&2
     echo "MoonCraft previews are mounted under a path prefix such as /p/<preview-id>/." >&2
@@ -99,7 +99,7 @@ fi
 
 assert_no_root_absolute_browser_urls "$body_path" "the preview HTML"
 
-grep -Eoi '(src|href|action)[[:space:]]*=[[:space:]]*"[^"]+"' "$body_path" \
+grep -Eoi '(^|[[:space:]<])(src|href|action)[[:space:]]*=[[:space:]]*"[^"]+"' "$body_path" \
   | sed -E 's/^[^"]*"([^"]+)".*$/\1/' >"$asset_list_path" || true
 
 while IFS= read -r ref; do
