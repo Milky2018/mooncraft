@@ -108,7 +108,7 @@ Current state:
 - the boundary is real
 - the implementation uses Docker-backed agent CLI workers
 - supported agent CLIs are Codex and Claude Code
-- all agent CLIs receive OpenRouter credentials from the admin-managed key pool
+- all agent CLIs receive credentials from admin-managed Secrets named by the fixed Runtime snapshot
 
 Future state:
 

@@ -100,7 +100,7 @@ fn openrouter_models_from_response(
 async fn AppContext::fetch_openrouter_models(
   self : AppContext,
 ) -> Result[@sdk.AdminListAiModelsResponse, String] noraise {
-  let api_key = match self.store.get_active_openrouter_api_key() {
+  let api_key = match self.store.get_openrouter_model_catalog_api_key() {
     Ok(value) => value
     Err(message) => return Err(message)
   }

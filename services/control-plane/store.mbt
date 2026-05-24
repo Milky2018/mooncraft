@@ -1245,11 +1245,6 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
-  ignore(
-    self.exec_or_error(
-      "UPDATE users SET ai_api_key = NULL;", "clear legacy user AI keys",
-    ),
-  )
   match
     self.exec_or_error(
       (
@@ -1557,48 +1552,6 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
   match
     self.exec_or_error(
       (
-        #|CREATE TABLE IF NOT EXISTS ai_keys (
-        #|  id TEXT PRIMARY KEY,
-        #|  provider TEXT NOT NULL,
-        #|  label TEXT NOT NULL,
-        #|  key_secret TEXT NOT NULL,
-        #|  key_hint TEXT NOT NULL,
-        #|  status TEXT NOT NULL,
-        #|  priority INTEGER NOT NULL DEFAULT 0,
-        #|  last_used_at TEXT,
-        #|  last_error TEXT,
-        #|  created_at TEXT NOT NULL,
-        #|  updated_at TEXT NOT NULL
-        #|);
-      ),
-      "create ai_keys table",
-    ) {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
-  }
-  match
-    self.ensure_column("ai_keys", "key_secret", "TEXT NOT NULL DEFAULT ''") {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
-  }
-  match self.ensure_column("ai_keys", "key_hint", "TEXT NOT NULL DEFAULT ''") {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
-  }
-  match
-    self.exec_or_error(
-      (
-        #|CREATE INDEX IF NOT EXISTS ai_keys_provider_status_idx
-        #|ON ai_keys(provider, status, priority);
-      ),
-      "create AI key status index",
-    ) {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
-  }
-  match
-    self.exec_or_error(
-      (
         #|CREATE TABLE IF NOT EXISTS admin_secrets (
         #|  id TEXT PRIMARY KEY,
         #|  name TEXT NOT NULL UNIQUE,
@@ -1621,38 +1574,6 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
         #|ON admin_secrets(name);
       ),
       "create admin secrets name index",
-    ) {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
-  }
-  match
-    self.exec_or_error(
-      (
-        #|CREATE TABLE IF NOT EXISTS ai_key_usages (
-        #|  id TEXT PRIMARY KEY,
-        #|  key_id TEXT NOT NULL,
-        #|  run_id TEXT NOT NULL,
-        #|  project_id TEXT NOT NULL,
-        #|  user_id TEXT NOT NULL,
-        #|  model TEXT NOT NULL,
-        #|  state TEXT NOT NULL,
-        #|  error_code TEXT,
-        #|  started_at TEXT NOT NULL,
-        #|  finished_at TEXT
-        #|);
-      ),
-      "create ai_key_usages table",
-    ) {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
-  }
-  match
-    self.exec_or_error(
-      (
-        #|CREATE INDEX IF NOT EXISTS ai_key_usages_run_idx
-        #|ON ai_key_usages(run_id);
-      ),
-      "create AI key usage run index",
     ) {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
@@ -2677,7 +2598,6 @@ async fn Store::finish_run_success(
   } else {
     summary
   }
-  self.finish_ai_key_usage(run_id, "succeeded", None)
   ignore(
     self.exec_or_error(
       (
@@ -2817,7 +2737,6 @@ async fn Store::finish_run_failure_with_debug(
   let final_summary_path = failure_debug.bind(fn(debug) {
     debug.final_summary_path
   })
-  self.finish_ai_key_usage(run_id, "failed", failure_stage)
   ignore(
     self.exec_or_error(
       (
@@ -2906,7 +2825,6 @@ async fn Store::finish_run_cancelled(
 ) -> Unit noraise {
   let now = now_string()
   let message_text = "Stopped."
-  self.finish_ai_key_usage(run_id, "cancelled", Some("User stop"))
   ignore(
     self.exec_or_error(
       (

@@ -71,7 +71,7 @@ cp .env.test.example .env.test
 cp .env.prod.example .env.prod
 ```
 
-Then edit `.env.test` and `.env.prod` with real domains, ports, passwords, admin tokens, GitHub OAuth credentials, and an absolute `MOONCRAFT_HOST_DATA_DIR`. OpenRouter keys are managed from the admin page after startup. GitHub OAuth is required because it is the only supported sign-in provider.
+Then edit `.env.test` and `.env.prod` with real domains, ports, passwords, admin tokens, GitHub OAuth credentials, and an absolute `MOONCRAFT_HOST_DATA_DIR`. Runtime credentials are managed as named Secrets from the admin page after startup. GitHub OAuth is required because it is the only supported sign-in provider.
 
 Create the data directories before starting Compose:
 
@@ -141,7 +141,7 @@ If `.env.prod` binds to a different port, use that port in the health check. For
 curl -fsS http://127.0.0.1:8089/api/health
 ```
 
-## AI Key Pool
+## Secrets and Runtime Auth
 
 Users do not configure LLM providers or API keys.
 

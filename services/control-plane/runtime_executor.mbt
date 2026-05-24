@@ -1470,7 +1470,7 @@ async fn RuntimeGateway::run_turn(
     None
   } else {
     let settings = match
-      store.lease_ai_runtime_settings_for_project(project.id, run_id) {
+      store.lease_ai_runtime_settings_for_project(project.id) {
       Ok(settings) => settings
       Err(message) =>
         return Err(

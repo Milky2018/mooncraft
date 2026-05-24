@@ -1240,78 +1240,6 @@ fn main {
       Err(message) => api_error_response(NotFound, NotFound, message)
     }
   })
-  app.get(@sdk.admin_ai_keys_path(), event => {
-    match require_admin_token(event) {
-      Ok(_) => {
-        let response : @sdk.AdminListAiKeysResponse = {
-          items: ctx.store.list_admin_ai_keys(),
-        }
-        json_ok(response)
-      }
-      Err(response) => response
-    }
-  })
-  app.post(@sdk.admin_ai_keys_path(), async fn(event) noraise {
-    match require_admin_token(event) {
-      Ok(_) => ignore(())
-      Err(response) => return response
-    }
-    let request : @sdk.CreateAdminAiKeyRequest = match decode_json_body(event) {
-      Ok(request) => request
-      Err(response) => return response
-    }
-    match
-      ctx.store.create_admin_ai_key(
-        request.label,
-        request.api_key,
-        request.priority,
-      ) {
-      Ok(key) => json_created(key)
-      Err(message) =>
-        api_error_response(UnprocessableEntity, ValidationFailed, message)
-    }
-  })
-  app.patch(@sdk.admin_ai_key_route().path_pattern, async fn(event) noraise {
-    match require_admin_token(event) {
-      Ok(_) => ignore(())
-      Err(response) => return response
-    }
-    let id = match path_param(event, "id") {
-      Ok(id) => id
-      Err(response) => return response
-    }
-    let request : @sdk.UpdateAdminAiKeyRequest = match decode_json_body(event) {
-      Ok(request) => request
-      Err(response) => return response
-    }
-    match
-      ctx.store.update_admin_ai_key(
-        id,
-        request.label,
-        request.api_key,
-        request.status,
-        request.priority,
-      ) {
-      Ok(key) => json_ok(key)
-      Err(message) =>
-        api_error_response(UnprocessableEntity, ValidationFailed, message)
-    }
-  })
-  app.delete(@sdk.admin_ai_key_route().path_pattern, async fn(event) noraise {
-    match require_admin_token(event) {
-      Ok(_) => ignore(())
-      Err(response) => return response
-    }
-    let id = match path_param(event, "id") {
-      Ok(id) => id
-      Err(response) => return response
-    }
-    match ctx.store.delete_admin_ai_key(id) {
-      Ok(_) => json_no_content()
-      Err(message) =>
-        api_error_response(UnprocessableEntity, ValidationFailed, message)
-    }
-  })
   app.get(@sdk.admin_secrets_path(), event => {
     match require_admin_token(event) {
       Ok(_) => {
@@ -1372,17 +1300,6 @@ fn main {
       Ok(_) => json_no_content()
       Err(message) =>
         api_error_response(UnprocessableEntity, ValidationFailed, message)
-    }
-  })
-  app.get(@sdk.admin_ai_key_usages_recent_route().path_pattern, event => {
-    match require_admin_token(event) {
-      Ok(_) => {
-        let response : @sdk.AdminListAiKeyUsagesResponse = {
-          items: ctx.store.list_recent_ai_key_usages(admin_limit_param(event)),
-        }
-        json_ok(response)
-      }
-      Err(response) => response
     }
   })
   app.get(@sdk.admin_ai_config_path(), event => {

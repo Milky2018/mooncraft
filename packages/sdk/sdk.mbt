@@ -370,40 +370,6 @@ pub(all) struct AdminProjectMessagesResponse {
 } derive(Debug, ToJson, FromJson)
 
 ///|
-pub(all) struct AdminAiKeySummary {
-  id : String
-  provider : String
-  label : String
-  key_hint : String
-  status : String
-  priority : Int
-  last_used_at : String?
-  last_error : String?
-  created_at : String
-  updated_at : String
-} derive(Debug, ToJson, FromJson)
-
-///|
-pub(all) struct AdminListAiKeysResponse {
-  items : Array[AdminAiKeySummary]
-} derive(Debug, ToJson, FromJson)
-
-///|
-pub(all) struct CreateAdminAiKeyRequest {
-  label : String
-  api_key : String
-  priority : Int
-} derive(Debug, ToJson, FromJson)
-
-///|
-pub(all) struct UpdateAdminAiKeyRequest {
-  label : String
-  api_key : String
-  status : String
-  priority : Int
-} derive(Debug, ToJson, FromJson)
-
-///|
 pub(all) struct AdminSecretSummary {
   id : String
   name : String
@@ -427,25 +393,6 @@ pub(all) struct CreateAdminSecretRequest {
 pub(all) struct UpdateAdminSecretRequest {
   name : String
   value : String
-} derive(Debug, ToJson, FromJson)
-
-///|
-pub(all) struct AdminAiKeyUsageSummary {
-  id : String
-  key_id : String
-  run_id : String
-  project_id : String
-  user_id : String
-  model : String
-  state : String
-  error_code : String?
-  started_at : String
-  finished_at : String?
-} derive(Debug, ToJson, FromJson)
-
-///|
-pub(all) struct AdminListAiKeyUsagesResponse {
-  items : Array[AdminAiKeyUsageSummary]
 } derive(Debug, ToJson, FromJson)
 
 ///|

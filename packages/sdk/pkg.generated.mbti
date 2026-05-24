@@ -11,18 +11,6 @@ pub fn admin_ai_config_path() -> String
 
 pub fn admin_ai_config_route() -> RouteSpec
 
-pub fn admin_ai_key_path(String) -> String
-
-pub fn admin_ai_key_route() -> RouteSpec
-
-pub fn admin_ai_key_usages_recent_path(Int) -> String
-
-pub fn admin_ai_key_usages_recent_route() -> RouteSpec
-
-pub fn admin_ai_keys_path() -> String
-
-pub fn admin_ai_keys_route() -> RouteSpec
-
 pub fn admin_ai_models_path() -> String
 
 pub fn admin_ai_models_route() -> RouteSpec
@@ -90,8 +78,6 @@ pub fn ai_models_route() -> RouteSpec
 pub fn cancel_run_path(String, String) -> String
 
 pub fn cancel_run_route() -> RouteSpec
-
-pub fn create_admin_ai_key_route() -> RouteSpec
 
 pub fn create_admin_runtime_route() -> RouteSpec
 
@@ -228,46 +214,12 @@ pub(all) struct AdminAiConfigResponse {
   updated_at : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
-pub(all) struct AdminAiKeySummary {
-  id : String
-  provider : String
-  label : String
-  key_hint : String
-  status : String
-  priority : Int
-  last_used_at : String?
-  last_error : String?
-  created_at : String
-  updated_at : String
-} derive(ToJson, @debug.Debug, @json.FromJson)
-
-pub(all) struct AdminAiKeyUsageSummary {
-  id : String
-  key_id : String
-  run_id : String
-  project_id : String
-  user_id : String
-  model : String
-  state : String
-  error_code : String?
-  started_at : String
-  finished_at : String?
-} derive(ToJson, @debug.Debug, @json.FromJson)
-
 pub(all) struct AdminAiModelSummary {
   id : String
   name : String
   context_length : Int
   prompt_price : String
   completion_price : String
-} derive(ToJson, @debug.Debug, @json.FromJson)
-
-pub(all) struct AdminListAiKeyUsagesResponse {
-  items : Array[AdminAiKeyUsageSummary]
-} derive(ToJson, @debug.Debug, @json.FromJson)
-
-pub(all) struct AdminListAiKeysResponse {
-  items : Array[AdminAiKeySummary]
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct AdminListAiModelsResponse {
@@ -418,12 +370,6 @@ pub(all) enum ChatRole {
   System
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 pub fn ChatRole::label(Self) -> String
-
-pub(all) struct CreateAdminAiKeyRequest {
-  label : String
-  api_key : String
-  priority : Int
-} derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct CreateAdminRuntimeRequest {
   name : String
@@ -664,13 +610,6 @@ pub fn SuccessStatus::code(Self) -> Int
 pub(all) struct UpdateAdminAiConfigRequest {
   default_model : String
   allowed_models : Array[String]
-} derive(ToJson, @debug.Debug, @json.FromJson)
-
-pub(all) struct UpdateAdminAiKeyRequest {
-  label : String
-  api_key : String
-  status : String
-  priority : Int
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct UpdateAdminRuntimeRequest {

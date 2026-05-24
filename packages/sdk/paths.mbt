@@ -48,31 +48,6 @@ pub fn logout_path() -> String {
 }
 
 ///|
-pub fn admin_ai_keys_route() -> RouteSpec {
-  route(GET, "/api/admin/ai/keys", Ok)
-}
-
-///|
-pub fn create_admin_ai_key_route() -> RouteSpec {
-  route(POST, "/api/admin/ai/keys", Created)
-}
-
-///|
-pub fn admin_ai_keys_path() -> String {
-  admin_ai_keys_route().path_pattern
-}
-
-///|
-pub fn admin_ai_key_route() -> RouteSpec {
-  route(PATCH, "/api/admin/ai/keys/:id", Ok)
-}
-
-///|
-pub fn admin_ai_key_path(id : String) -> String {
-  "/api/admin/ai/keys/\{id}"
-}
-
-///|
 pub fn admin_secrets_route() -> RouteSpec {
   route(GET, "/api/admin/secrets", Ok)
 }
@@ -95,16 +70,6 @@ pub fn admin_secret_route() -> RouteSpec {
 ///|
 pub fn admin_secret_path(id : String) -> String {
   "/api/admin/secrets/\{id}"
-}
-
-///|
-pub fn admin_ai_key_usages_recent_route() -> RouteSpec {
-  route(GET, "/api/admin/ai/usages/recent/:limit", Ok)
-}
-
-///|
-pub fn admin_ai_key_usages_recent_path(limit : Int) -> String {
-  "/api/admin/ai/usages/recent/\{limit}"
 }
 
 ///|
