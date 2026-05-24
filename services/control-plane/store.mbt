@@ -101,6 +101,14 @@ async fn run_process_quiet(
 }
 
 ///|
+async fn worker_pid_is_running(pid : Int) -> Bool noraise {
+  if pid <= 0 {
+    return false
+  }
+  run_process_quiet("kill", ["-0", pid.to_string()]) == 0
+}
+
+///|
 async fn collect_process_text(
   command : String,
   args : Array[String],
@@ -1824,6 +1832,7 @@ async fn Store::get_project_detail(
   self : Store,
   project_id : String,
 ) -> @sdk.ProjectDetail? noraise {
+  self.recover_interrupted_registered_workers()
   match
     self.query_one(
       (
@@ -1906,6 +1915,7 @@ async fn Store::get_run(
   project_id : String,
   run_id : String,
 ) -> @sdk.RunStatusResponse? noraise {
+  self.recover_interrupted_registered_workers()
   match
     self.query_one(
       (
@@ -1944,6 +1954,7 @@ async fn Store::get_run_by_id(
   self : Store,
   run_id : String,
 ) -> @sdk.RunStatusResponse? noraise {
+  self.recover_interrupted_registered_workers()
   match
     self.query_one(
       (
@@ -1982,6 +1993,7 @@ async fn Store::list_recent_runs(
   self : Store,
   limit : Int,
 ) -> Array[@sdk.RunStatusResponse] noraise {
+  self.recover_interrupted_registered_workers()
   let rows = self.query_rows(
     (
       #|SELECT
@@ -2023,6 +2035,7 @@ async fn Store::list_project_runs(
   project_id : String,
   limit : Int,
 ) -> Array[@sdk.RunStatusResponse] noraise {
+  self.recover_interrupted_registered_workers()
   let rows = self.query_rows(
     (
       #|SELECT
@@ -2375,6 +2388,7 @@ async fn Store::start_run(
   project_id : String,
   content : String,
 ) -> Result[@sdk.RunStatusResponse, String] noraise {
+  self.recover_interrupted_registered_workers()
   let project = match self.get_project_detail(project_id) {
     Some(project) => project
     None => return Err("Project not found.")
@@ -3012,6 +3026,56 @@ async fn AppContext::cancel_project_run(
   terminate_process_tree(worker_pid)
   self.store.finish_run_cancelled(project_id, run_id)
   self.store.get_run(project_id, run_id)
+}
+
+///|
+async fn Store::recover_interrupted_registered_workers(
+  self : Store,
+) -> Unit noraise {
+  let rows = self.query_rows(
+    (
+      #|SELECT
+      #|  r.id,
+      #|  r.project_id,
+      #|  COALESCE(r.worker_pid, 0) AS worker_pid,
+      #|  COALESCE(p.runtime_session_id, '') AS thread_id
+      #|FROM runs r
+      #|JOIN projects p ON p.id = r.project_id
+      #|WHERE r.state = ? AND COALESCE(r.worker_pid, 0) > 0;
+    ),
+    params=[String(run_state_to_db(Running))],
+  )
+  let interrupted : Array[(String, String, String?)] = []
+  for row in rows {
+    let worker_pid = row_int(row, "worker_pid")
+    if !worker_pid_is_running(worker_pid) {
+      interrupted.push(
+        (
+          row_text(row, "project_id"),
+          row_text(row, "id"),
+          empty_to_none(row_text(row, "thread_id")),
+        ),
+      )
+    }
+  }
+  for item in interrupted {
+    let (project_id, run_id, thread_id) = item
+    self.finish_run_failure_with_debug(
+      project_id,
+      run_id,
+      "The background worker stopped before finishing this update.",
+      "The background worker stopped unexpectedly. Please send the request again.",
+      thread_id,
+      Some({
+        stage: "Worker recovery",
+        command: None,
+        exit_code: None,
+        runtime_log_path: None,
+        validation_log_path: None,
+        final_summary_path: None,
+      }),
+    )
+  }
 }
 
 ///|

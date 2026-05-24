@@ -135,3 +135,46 @@ async test "worker pid registration must target an active run" {
       )
   }
 }
+
+///|
+async test "registered dead worker is recovered without blocking retry" {
+  let root = "/tmp/mooncraft-dead-worker-recovery-test-" + random_hex(6)
+  ensure_dir(root)
+  defer safe_remove_tree(root)
+  let store = match try_new_async(root + "/state.sqlite") {
+    Ok(store) => store
+    Err(message) => abort(message)
+  }
+  let _ = store.create_project_with_runtime(
+    "project-dead-worker",
+    "user-dead-worker",
+    "preview-dead-worker",
+    "Dead Worker Project",
+    "agent-runtime-001",
+    "Runtime",
+    "{}",
+    "agent-session-dead-worker",
+    "codex",
+    "openrouter/test-model",
+    root + "/workspace",
+  )
+  let run = match store.start_run("project-dead-worker", "Build something") {
+    Ok(run) => run
+    Err(message) => abort(message)
+  }
+  match store.set_run_worker_pid("project-dead-worker", run.run_id, 99999999) {
+    Ok(_) => ignore(())
+    Err(message) => fail(message)
+  }
+  let recovered = store.get_run("project-dead-worker", run.run_id).unwrap()
+  debug_inspect(recovered.state, content="Failed")
+  debug_inspect(recovered.phase, content="NoPhase")
+  let project = store.get_project_detail("project-dead-worker").unwrap()
+  debug_inspect(project.is_processing, content="false")
+  debug_inspect(project.current_run_id, content="None")
+  let retry = match store.start_run("project-dead-worker", "Try again") {
+    Ok(run) => run
+    Err(message) => abort(message)
+  }
+  debug_inspect(retry.state, content="Running")
+}
