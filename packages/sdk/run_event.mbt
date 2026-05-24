@@ -84,6 +84,11 @@ pub fn run_event_code_preview_preparing() -> String {
 }
 
 ///|
+pub fn run_event_code_preview_auditing() -> String {
+  "preview_auditing"
+}
+
+///|
 pub fn run_event_code_preview_repairing() -> String {
   "preview_repairing"
 }
@@ -156,6 +161,7 @@ pub fn run_event_display_text(code : String, content : String) -> String {
     "files_editing" => "Editing files"
     "files_updated" => "Updated files"
     "local_builder_running" => "Building"
+    "preview_auditing" => "Checking preview"
     "preview_preparing" => "Preparing preview"
     "preview_repairing" => "Repairing preview"
     "provider_retrying" => "Waiting for provider"

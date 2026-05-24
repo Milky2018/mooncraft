@@ -167,6 +167,8 @@ pub fn run_event_code_local_builder_running() -> String
 
 pub fn run_event_code_preview_preparing() -> String
 
+pub fn run_event_code_preview_auditing() -> String
+
 pub fn run_event_code_preview_repairing() -> String
 
 pub fn run_event_code_provider_retrying() -> String
@@ -657,4 +659,3 @@ pub(all) struct UserSummary {
 // Type aliases
 
 // Traits
-

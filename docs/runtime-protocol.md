@@ -217,8 +217,9 @@ do not need to know the real deployment host name.
 
 Because each generated app is root-mounted at its own origin, preview audit
 should not reject root-relative browser URLs by scanning source text. The audit
-checks reachability, non-empty app response, same-origin asset reachability, and
-optional browser errors.
+checks reachability, non-empty app responses, and known platform preview error
+pages without depending on a browser or Node runtime inside the control-plane
+image.
 
 ## Hard Failures
 

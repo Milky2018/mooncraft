@@ -43,6 +43,13 @@ async fn ProjectRunWorkflow::finish_run_with_preview_audit(
       return
     }
   }
+  self.store.append_run_event(
+    project_id,
+    run_id,
+    "status",
+    @sdk.run_event_code_preview_auditing(),
+    "Checking the live preview.",
+  )
   let mut audit = run_preview_audit(
     self.root,
     project_id,
@@ -175,6 +182,13 @@ async fn ProjectRunWorkflow::finish_run_with_preview_audit(
         return
       }
     }
+    self.store.append_run_event(
+      project_id,
+      run_id,
+      "status",
+      @sdk.run_event_code_preview_auditing(),
+      "Checking the repaired live preview.",
+    )
     audit = run_preview_audit(self.root, project_id, run_id, current_preview)
     if !audit.enabled || audit.passed {
       self.store.finish_run_success(
@@ -303,6 +317,13 @@ async fn ProjectRunWorkflow::run(
           )
         None => ignore(())
       }
+      self.store.append_run_event(
+        project_id,
+        run_id,
+        "status",
+        @sdk.run_event_code_preview_preparing(),
+        "Preparing the live preview.",
+      )
       let preview_result = self.previews.rebuild_and_restart(updated_project)
       match preview_result {
         Ok(preview) =>
