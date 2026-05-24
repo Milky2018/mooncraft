@@ -16,7 +16,7 @@ Responsibilities:
 
 The platform no longer owns generated-app setup. Project rows do not carry template ids, and there is no template picker. Project creation saves an empty workspace as the first snapshot. The selected Runtime decides how to turn that workspace into an app; the control plane only requires the result to provide `mooncraft-preview.sh`.
 
-The current `RuntimeGateway` uses Docker-backed Runtime runs. Projects are bound to one Runtime snapshot at creation time and keep one platform-owned agent session directory under `data/agent-sessions/<project-id>/<agent-session-id>`. Each new chat message starts a detached worker process through `moonbitlang/async/process`, launches the selected Runtime image, runs the control-plane-owned Codex or Claude Agent Adapter inside the disposable container, persists the updated workspace, starts `mooncraft-preview.sh`, then runs a lightweight HTTP preview audit through the public preview proxy. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
+The current `RuntimeGateway` uses Docker-backed Runtime runs. Projects are bound to one Runtime snapshot at creation time and keep one platform-owned agent session directory under `data/agent-sessions/<project-id>/<agent-session-id>`. Each new chat message starts a detached worker process through `moonbitlang/async/process`, launches the selected Runtime image, runs the control-plane-owned Codex or Claude Agent Adapter inside the disposable container, persists the updated workspace, starts `mooncraft-preview.sh`, then runs a lightweight HTTP preview audit against the private preview port. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
 
 Workspace directories are no longer durable state. The control plane saves the latest source archive in SQLite after initial workspace generation and after agent edits. Each run hydrates that database snapshot into an isolated runtime workspace before starting the selected agent, then restores the local preview cache from the saved snapshot.
 
@@ -30,7 +30,7 @@ SQLite is a required dependency for the control plane. If the database cannot be
 
 For real Docker-backed runs, the MoonCraft agent runtime image installs the supported agent CLIs and any knowledge or templates that Runtime wants to expose to the agent. Normal user prompts are not wrapped with the generated-app contract; that project-aware contract lives in the runtime system layer.
 
-MoonCraft no longer runs generic app-framework validation gates after the builder returns. The generated app's runtime contract is `mooncraft-preview.sh <port>`: if that script can start a reachable preview and return a non-empty proxied page, the workspace is accepted. Lightweight preview audit may still request repairs when the public preview proxy returns an error or an empty response.
+MoonCraft no longer runs generic app-framework validation gates after the builder returns. The generated app's runtime contract is `mooncraft-preview.sh <port>`: if that script can start a reachable preview and return a non-empty page from its private port, the workspace is accepted. Lightweight preview audit may still request repairs when the private preview returns an error or an empty response.
 
 ## Web Assets
 
@@ -62,7 +62,7 @@ The generated app must serve the user-facing app at `/`. `/api/health` is the pr
 
 Preview process state is not durable. When an existing project is opened or a stored preview URL is requested, MoonCraft verifies the private preview port. If the process is gone, it restores the saved workspace snapshot and restarts `mooncraft-preview.sh` without running the AI agent or changing project code. If the saved snapshot cannot restart, the project preview is marked unhealthy so the UI keeps the Preview button disabled instead of opening a stale preview.
 
-After HTTP readiness succeeds, MoonCraft optionally runs `scripts/preview_audit.sh` against the same preview URL users see. The audit is intentionally dependency-light and fails on non-success HTTP status, empty response bodies, or known platform preview error pages. When it fails, MoonCraft sends the audit output back to the selected agent for a bounded repair loop before marking the run successful. Set `MOONCRAFT_PREVIEW_AUDIT=0` to disable it, `MOONCRAFT_PREVIEW_AUDIT_BASE_URL` to override the local control-plane audit origin, `MOONCRAFT_PREVIEW_AUDIT_TIMEOUT_SECONDS` to tune the curl timeout, or `MOONCRAFT_PREVIEW_AUDIT_REPAIR_ATTEMPTS` to tune the repair bound.
+After HTTP readiness succeeds, MoonCraft optionally runs `scripts/preview_audit.sh` directly against the private preview port. The audit is intentionally dependency-light and fails on non-success HTTP status, empty response bodies, or known platform preview error pages. It must not call the public preview proxy because that proxy may have user-request recovery behavior. When it fails, MoonCraft sends the audit output back to the selected agent for a bounded repair loop before marking the run successful. Set `MOONCRAFT_PREVIEW_AUDIT=0` to disable it, `MOONCRAFT_PREVIEW_AUDIT_TIMEOUT_SECONDS` to tune the curl timeout, or `MOONCRAFT_PREVIEW_AUDIT_REPAIR_ATTEMPTS` to tune the repair bound.
 
 ## Validation
 

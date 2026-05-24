@@ -217,9 +217,11 @@ do not need to know the real deployment host name.
 
 Because each generated app is root-mounted at its own origin, preview audit
 should not reject root-relative browser URLs by scanning source text. The audit
-checks reachability, non-empty app responses, and known platform preview error
-pages without depending on a browser or Node runtime inside the control-plane
-image.
+checks the private preview port for reachability, non-empty app responses, and
+known platform preview error pages without depending on a browser or Node
+runtime inside the control-plane image. Runtime Turn finalization must not audit
+through the public preview proxy because that proxy may run user-request preview
+recovery behavior.
 
 ## Hard Failures
 
