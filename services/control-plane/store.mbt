@@ -122,14 +122,6 @@ async fn collect_process_text(
 }
 
 ///|
-async fn worker_pid_is_running(pid : Int) -> Bool noraise {
-  if pid <= 0 {
-    return false
-  }
-  run_process_quiet("kill", ["-0", pid.to_string()]) == 0
-}
-
-///|
 async fn terminate_process_tree(pid : Int) -> Unit noraise {
   if pid <= 0 {
     return
@@ -1914,7 +1906,6 @@ async fn Store::get_run(
   project_id : String,
   run_id : String,
 ) -> @sdk.RunStatusResponse? noraise {
-  self.recover_interrupted_runs()
   match
     self.query_one(
       (
@@ -1953,7 +1944,6 @@ async fn Store::get_run_by_id(
   self : Store,
   run_id : String,
 ) -> @sdk.RunStatusResponse? noraise {
-  self.recover_interrupted_runs()
   match
     self.query_one(
       (
@@ -1992,7 +1982,6 @@ async fn Store::list_recent_runs(
   self : Store,
   limit : Int,
 ) -> Array[@sdk.RunStatusResponse] noraise {
-  self.recover_interrupted_runs()
   let rows = self.query_rows(
     (
       #|SELECT
@@ -2034,7 +2023,6 @@ async fn Store::list_project_runs(
   project_id : String,
   limit : Int,
 ) -> Array[@sdk.RunStatusResponse] noraise {
-  self.recover_interrupted_runs()
   let rows = self.query_rows(
     (
       #|SELECT
@@ -2387,7 +2375,6 @@ async fn Store::start_run(
   project_id : String,
   content : String,
 ) -> Result[@sdk.RunStatusResponse, String] noraise {
-  self.recover_interrupted_runs()
   let project = match self.get_project_detail(project_id) {
     Some(project) => project
     None => return Err("Project not found.")
@@ -2400,7 +2387,7 @@ async fn Store::start_run(
   let run_id = next_id("run")
   let message_id = next_id("message")
   let now = now_string()
-  ignore(
+  match
     self.exec_or_error(
       (
         #|INSERT INTO messages (
@@ -2421,9 +2408,11 @@ async fn Store::start_run(
         String(content),
         String(now),
       ],
-    ),
-  )
-  ignore(
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
     self.exec_or_error(
       (
         #|INSERT INTO runs (
@@ -2442,9 +2431,11 @@ async fn Store::start_run(
         String(run_phase_to_db(AgentRunning)),
         String(now),
       ],
-    ),
-  )
-  ignore(
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
     self.exec_or_error(
       (
         #|UPDATE projects
@@ -2460,8 +2451,10 @@ async fn Store::start_run(
       ),
       "mark project running",
       params=[String(run_id), String(content), String(now), String(project_id)],
-    ),
-  )
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
   Ok({
     run_id,
     project_id,
@@ -2482,14 +2475,48 @@ async fn Store::set_run_worker_pid(
   project_id : String,
   run_id : String,
   worker_pid : Int,
-) -> Unit noraise {
-  ignore(
+) -> Result[Unit, String] noraise {
+  match
     self.exec_or_error(
-      "UPDATE runs SET worker_pid = ? WHERE id = ? AND project_id = ?;",
+      (
+        #|UPDATE runs
+        #|SET worker_pid = ?
+        #|WHERE id = ? AND project_id = ? AND state = ?;
+      ),
       "set run worker pid",
-      params=[Int(worker_pid), String(run_id), String(project_id)],
+      params=[
+        Int(worker_pid),
+        String(run_id),
+        String(project_id),
+        String(run_state_to_db(Running)),
+      ],
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  let verification = self.exec_raw(
+    (
+      #|SELECT COALESCE(worker_pid, 0) AS worker_pid
+      #|FROM runs
+      #|WHERE id = ? AND project_id = ? AND state = ?;
     ),
+    [String(run_id), String(project_id), String(run_state_to_db(Running))],
   )
+  if !verification.ok {
+    return Err(
+      "Database operation failed while verifying run worker pid: " +
+      verification.error.unwrap_or("unknown database error"),
+    )
+  }
+  if verification.rows.length() == 0 {
+    return Err("The run is no longer active while registering its worker.")
+  }
+  let row = verification.rows[0]
+  if row_int(row, "worker_pid") == worker_pid {
+    Ok(())
+  } else {
+    Err("The worker pid was not persisted for that run.")
+  }
 }
 
 ///|
@@ -2985,37 +3012,6 @@ async fn AppContext::cancel_project_run(
   terminate_process_tree(worker_pid)
   self.store.finish_run_cancelled(project_id, run_id)
   self.store.get_run(project_id, run_id)
-}
-
-///|
-async fn Store::recover_interrupted_runs(self : Store) -> Unit noraise {
-  let rows = self.query_rows(
-    (
-      #|SELECT id, project_id, COALESCE(worker_pid, 0) AS worker_pid
-      #|FROM runs
-      #|WHERE state = ?;
-    ),
-    params=[String(run_state_to_db(Running))],
-  )
-  let interrupted : Array[(String, String)] = []
-  for row in rows {
-    let run_id = row_text(row, "id")
-    let project_id = row_text(row, "project_id")
-    let worker_pid = row_int(row, "worker_pid")
-    if worker_pid <= 0 || !worker_pid_is_running(worker_pid) {
-      interrupted.push((project_id, run_id))
-    }
-  }
-  for item in interrupted {
-    let (project_id, run_id) = item
-    self.finish_run_failure(
-      project_id,
-      run_id,
-      "The background worker stopped before finishing this update.",
-      "The background worker stopped unexpectedly. Please send the request again.",
-      None,
-    )
-  }
 }
 
 ///|

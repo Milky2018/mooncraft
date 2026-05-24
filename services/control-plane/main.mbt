@@ -1682,13 +1682,38 @@ fn main {
       Err(message) => return api_error_response(Conflict, Conflict, message)
     }
     match ctx.spawn_project_turn_worker(project_id, run.run_id) {
-      Ok(worker_pid) => {
-        ctx.store.set_run_worker_pid(project_id, run.run_id, worker_pid)
-        json_created(@sdk.CreateRunResponse::{
-          run: public_run_status(run),
-          poll_after_ms: Some(1000),
-        })
-      }
+      Ok(worker_pid) =>
+        match ctx.store.set_run_worker_pid(project_id, run.run_id, worker_pid) {
+          Ok(_) =>
+            json_created(@sdk.CreateRunResponse::{
+              run: public_run_status(run),
+              poll_after_ms: Some(1000),
+            })
+          Err(message) => {
+            ignore(
+              run_process_quiet("docker", [
+                "rm",
+                "-f",
+                agent_runtime_container_name(project_id, run.run_id),
+              ]),
+            )
+            terminate_process_tree(worker_pid)
+            ctx.store.finish_run_failure(
+              project_id,
+              run.run_id,
+              "The background worker could not be registered for that update.",
+              message,
+              None,
+            )
+            let latest_run = ctx.store
+              .get_run(project_id, run.run_id)
+              .unwrap_or(run)
+            json_created(@sdk.CreateRunResponse::{
+              run: public_run_status(latest_run),
+              poll_after_ms: None,
+            })
+          }
+        }
       Err(message) => {
         ctx.store.finish_run_failure(
           project_id,
