@@ -178,3 +178,53 @@ async test "registered dead worker is recovered without blocking retry" {
   }
   debug_inspect(retry.state, content="Running")
 }
+
+///|
+async test "start run rolls back partial writes when project update fails" {
+  let root = "/tmp/mooncraft-start-run-rollback-test-" + random_hex(6)
+  ensure_dir(root)
+  defer safe_remove_tree(root)
+  let store = match try_new_async(root + "/state.sqlite") {
+    Ok(store) => store
+    Err(message) => abort(message)
+  }
+  let _ = store.create_project_with_runtime(
+    "project-start-rollback",
+    "user-start-rollback",
+    "preview-start-rollback",
+    "Start Rollback Project",
+    "agent-runtime-001",
+    "Runtime",
+    "{}",
+    "agent-session-start-rollback",
+    "codex",
+    "openrouter/test-model",
+    root + "/workspace",
+  )
+  match
+    store.exec_or_error(
+      (
+        #|CREATE TRIGGER fail_start_run_project_update
+        #|BEFORE UPDATE OF current_run_id ON projects
+        #|BEGIN
+        #|  SELECT RAISE(FAIL, 'blocked project update');
+        #|END;
+      ),
+      "install start run rollback trigger",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => abort(message)
+  }
+  match store.start_run("project-start-rollback", "Build something") {
+    Ok(_) => fail("Expected start_run to fail when project update fails.")
+    Err(_) => ignore(())
+  }
+  inspect(store.list_messages("project-start-rollback").length(), content="0")
+  inspect(
+    store.list_project_runs("project-start-rollback", 10).length(),
+    content="0",
+  )
+  let project = store.get_project_detail("project-start-rollback").unwrap()
+  debug_inspect(project.is_processing, content="false")
+  debug_inspect(project.current_run_id, content="None")
+}

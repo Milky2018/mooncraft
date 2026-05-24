@@ -1026,6 +1026,35 @@ async fn Store::exec_or_error(
 }
 
 ///|
+async fn Store::begin_transaction(
+  self : Store,
+  label : String,
+) -> Result[Unit, String] noraise {
+  self.exec_or_error("BEGIN", "begin \{label} transaction")
+}
+
+///|
+async fn Store::commit_transaction(
+  self : Store,
+  label : String,
+) -> Result[Unit, String] noraise {
+  self.exec_or_error("COMMIT", "commit \{label} transaction")
+}
+
+///|
+async fn Store::rollback_transaction_error(
+  self : Store,
+  label : String,
+  message : String,
+) -> String noraise {
+  match self.exec_or_error("ROLLBACK", "rollback \{label} transaction") {
+    Ok(_) => message
+    Err(rollback_message) =>
+      message + " Rollback also failed: " + rollback_message
+  }
+}
+
+///|
 async fn Store::query_rows(
   self : Store,
   sql : String,
@@ -2401,6 +2430,10 @@ async fn Store::start_run(
   let run_id = next_id("run")
   let message_id = next_id("message")
   let now = now_string()
+  match self.begin_transaction("start run") {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
   match
     self.exec_or_error(
       (
@@ -2424,7 +2457,8 @@ async fn Store::start_run(
       ],
     ) {
     Ok(_) => ignore(())
-    Err(message) => return Err(message)
+    Err(message) =>
+      return Err(self.rollback_transaction_error("start run", message))
   }
   match
     self.exec_or_error(
@@ -2447,7 +2481,8 @@ async fn Store::start_run(
       ],
     ) {
     Ok(_) => ignore(())
-    Err(message) => return Err(message)
+    Err(message) =>
+      return Err(self.rollback_transaction_error("start run", message))
   }
   match
     self.exec_or_error(
@@ -2461,13 +2496,49 @@ async fn Store::start_run(
         #|  END,
         #|  last_error = NULL,
         #|  updated_at = ?
-        #|WHERE id = ?;
+        #|WHERE id = ?
+        #|  AND (current_run_id IS NULL OR current_run_id = '');
       ),
       "mark project running",
       params=[String(run_id), String(content), String(now), String(project_id)],
     ) {
     Ok(_) => ignore(())
-    Err(message) => return Err(message)
+    Err(message) =>
+      return Err(self.rollback_transaction_error("start run", message))
+  }
+  let verification = self.exec_raw(
+    (
+      #|SELECT COALESCE(current_run_id, '') AS current_run_id
+      #|FROM projects
+      #|WHERE id = ?;
+    ),
+    [String(project_id)],
+  )
+  if !verification.ok {
+    return Err(
+      self.rollback_transaction_error(
+        "start run",
+        "Database operation failed while verifying project running state: " +
+        verification.error.unwrap_or("unknown database error"),
+      ),
+    )
+  }
+  if verification.rows.length() == 0 {
+    return Err(
+      self.rollback_transaction_error("start run", "Project not found."),
+    )
+  }
+  if row_text(verification.rows[0], "current_run_id") != run_id {
+    return Err(
+      self.rollback_transaction_error(
+        "start run", "This project is already being updated. Wait for the current run to finish.",
+      ),
+    )
+  }
+  match self.commit_transaction("start run") {
+    Ok(_) => ignore(())
+    Err(message) =>
+      return Err(self.rollback_transaction_error("start run", message))
   }
   Ok({
     run_id,
