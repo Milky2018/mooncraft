@@ -198,10 +198,10 @@ fn remove_docker_env_file(path : String) -> Unit {
 }
 
 ///|
-fn materialize_runtime_file_secrets(
+async fn materialize_runtime_file_secrets(
   config : AgentRuntimeConfig,
   agent_home_path : String,
-) -> Result[Unit, String] {
+) -> Result[Unit, String] noraise {
   match config.secret.file {
     Some(file) => {
       let relative_path = match @sdk.validate_runtime_secret_file_path(file) {
@@ -213,7 +213,9 @@ fn materialize_runtime_file_secrets(
       @fs.write_string_to_file(target, config.secret.value) catch {
         err => return Err("Runtime secret file could not be written: \{err}")
       }
-      ignore(shell_status("chmod a+rw " + shell_quote(target)))
+      if run_process_quiet("chmod", ["a+rw", target]) != 0 {
+        return Err("Runtime secret file permissions could not be updated.")
+      }
     }
     None => ()
   }
@@ -293,17 +295,17 @@ async fn AgentRuntimeConfig::load(
 }
 
 ///|
-fn prepare_agent_mount_path(path : String) -> Unit {
+async fn prepare_agent_mount_path(path : String) -> Unit noraise {
   ensure_dir(path)
-  ignore(shell_status("chmod -R a+rwX " + shell_quote(path)))
+  ignore(run_process_quiet("chmod", ["-R", "a+rwX", path]))
 }
 
 ///|
-fn prepare_agent_mounts(
+async fn prepare_agent_mounts(
   workspace_path : String,
   agent_home_path : String?,
   artifacts : RunArtifacts,
-) -> Unit {
+) -> Unit noraise {
   match agent_home_path {
     Some(path) => prepare_agent_mount_path(path)
     None => ()

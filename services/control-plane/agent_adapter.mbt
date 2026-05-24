@@ -134,10 +134,10 @@ fn AgentAdapter::prepare_auth(
 }
 
 ///|
-fn prepare_agent_auth(
+async fn prepare_agent_auth(
   config : AgentRuntimeConfig,
   agent_home_path : String,
-) -> Result[Unit, String] {
+) -> Result[Unit, String] noraise {
   match materialize_runtime_file_secrets(config, agent_home_path) {
     Ok(_) => ()
     Err(message) => return Err(message)

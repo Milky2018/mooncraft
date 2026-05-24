@@ -75,38 +75,73 @@ fn bytes_to_string(bytes : Bytes) -> String {
 }
 
 ///|
-#borrow(command)
-extern "C" fn shell_status_ffi(command : Bytes) -> Int = "mooncraft_shell_status"
-
-///|
-#borrow(pid)
-extern "C" fn process_alive_ffi(pid : Int) -> Int = "mooncraft_process_alive"
-
-///|
-fn shell_status(command : String) -> Int {
-  shell_status_ffi(@utf8.encode(command))
-}
-
-///|
 fn shell_quote(value : String) -> String {
   "'" + value.split("'").to_array().join("'\\''") + "'"
 }
 
 ///|
-fn process_alive(pid : Int) -> Bool {
-  process_alive_ffi(pid) == 1
+async fn run_process_quiet(
+  command : String,
+  args : Array[String],
+  cwd? : String = "",
+) -> Int noraise {
+  let result = try {
+    if cwd == "" {
+      @process.collect_output_merged(command, args)
+    } else {
+      @process.collect_output_merged(command, args, cwd~)
+    }
+  } catch {
+    _ => return 1
+  } noraise {
+    value => value
+  }
+  let (exit_code, _) = result
+  exit_code
 }
 
 ///|
-fn terminate_worker_process(pid : Int) -> Unit {
+async fn collect_process_text(
+  command : String,
+  args : Array[String],
+  cwd? : String = "",
+) -> Result[(Int, String), String] noraise {
+  let result = try {
+    if cwd == "" {
+      @process.collect_output_merged(command, args)
+    } else {
+      @process.collect_output_merged(command, args, cwd~)
+    }
+  } catch {
+    err => return Err("Process `\{command}` could not be started: \{err}")
+  } noraise {
+    value => value
+  }
+  let (exit_code, output) = result
+  Ok((exit_code, output.text() catch { _ => "" }))
+}
+
+///|
+async fn worker_pid_is_running(pid : Int) -> Bool noraise {
+  if pid <= 0 {
+    return false
+  }
+  run_process_quiet("kill", ["-0", pid.to_string()]) == 0
+}
+
+///|
+async fn terminate_process_tree(pid : Int) -> Unit noraise {
   if pid <= 0 {
     return
   }
-  ignore(
-    shell_status(
-      "pkill -TERM -P \{pid} >/dev/null 2>&1 || true; kill -TERM \{pid} >/dev/null 2>&1 || true; sleep 1; pkill -KILL -P \{pid} >/dev/null 2>&1 || true; kill -KILL \{pid} >/dev/null 2>&1 || true",
-    ),
-  )
+  let id = pid.to_string()
+  ignore(run_process_quiet("pkill", ["-TERM", "-P", id]))
+  ignore(run_process_quiet("kill", ["-TERM", id]))
+  @async.sleep(1000) catch {
+    _ => ()
+  }
+  ignore(run_process_quiet("pkill", ["-KILL", "-P", id]))
+  ignore(run_process_quiet("kill", ["-KILL", id]))
 }
 
 ///|
@@ -136,8 +171,34 @@ fn safe_write_bytes(path : String, content : Bytes) -> Unit {
 }
 
 ///|
+fn path_join(base : String, name : String) -> String {
+  if base == "" || base == "/" {
+    base + name
+  } else {
+    base + "/" + name
+  }
+}
+
+///|
 fn safe_remove_tree(path : String) -> Unit {
-  ignore(shell_status("rm -rf '\{path}' >/dev/null 2>&1"))
+  if !@fs.path_exists(path) {
+    return
+  }
+  if !(@fs.is_dir(path) catch { _ => false }) {
+    @fs.remove_file(path) catch {
+      _ => ()
+    }
+    return
+  }
+  let names = @fs.read_dir(path) catch { _ => [] }
+  for name in names {
+    if name != "." && name != ".." {
+      safe_remove_tree(path_join(path, name))
+    }
+  }
+  @fs.remove_dir(path) catch {
+    _ => ()
+  }
 }
 
 ///|
@@ -2915,13 +2976,13 @@ async fn AppContext::cancel_project_run(
     "Stopping the builder session.",
   )
   ignore(
-    shell_status(
-      "docker rm -f " +
-      shell_quote(agent_runtime_container_name(project_id, run_id)) +
-      " >/dev/null 2>&1 || true",
-    ),
+    run_process_quiet("docker", [
+      "rm",
+      "-f",
+      agent_runtime_container_name(project_id, run_id),
+    ]),
   )
-  terminate_worker_process(worker_pid)
+  terminate_process_tree(worker_pid)
   self.store.finish_run_cancelled(project_id, run_id)
   self.store.get_run(project_id, run_id)
 }
@@ -2941,7 +3002,7 @@ async fn Store::recover_interrupted_runs(self : Store) -> Unit noraise {
     let run_id = row_text(row, "id")
     let project_id = row_text(row, "project_id")
     let worker_pid = row_int(row, "worker_pid")
-    if worker_pid <= 0 || !process_alive(worker_pid) {
+    if worker_pid <= 0 || !worker_pid_is_running(worker_pid) {
       interrupted.push((project_id, run_id))
     }
   }

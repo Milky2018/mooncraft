@@ -62,19 +62,39 @@ fn PreviewManager::is_port_in_use(
 }
 
 ///|
-fn PreviewManager::stop_port(self : PreviewManager, port : Int) -> Unit {
-  let _ = self
-  ignore(
-    shell_status("lsof -ti tcp:\{port} | xargs kill >/dev/null 2>&1 || true"),
-  )
+async fn PreviewManager::stop_port(
+  self : PreviewManager,
+  port : Int,
+) -> Unit noraise {
+  let result = match
+    collect_process_text(
+      "lsof",
+      ["-tiTCP:\{port}", "-sTCP:LISTEN"],
+      cwd=self.root,
+    ) {
+    Ok(result) => result
+    Err(_) => return
+  }
+  let (exit_code, output) = result
+  if exit_code != 0 {
+    return
+  }
+  for raw_line in output.split("\n") {
+    let line = raw_line.trim().to_owned()
+    if line == "" {
+      continue
+    }
+    let pid = @string.parse_int(line) catch { _ => continue }
+    terminate_process_tree(pid)
+  }
 }
 
 ///|
-fn PreviewManager::remove_project_runtime(
+async fn PreviewManager::remove_project_runtime(
   self : PreviewManager,
   project_id : String,
   preview : @sdk.PreviewTarget?,
-) -> Unit {
+) -> Unit noraise {
   match self.runtimes.get(project_id) {
     Some(runtime) => self.stop_port(runtime.port)
     None => ignore(())
@@ -87,37 +107,54 @@ fn PreviewManager::remove_project_runtime(
 }
 
 ///|
-fn PreviewManager::is_healthy(
+async fn PreviewManager::is_healthy(
   self : PreviewManager,
   port : Int,
   health_path : String,
-) -> Bool {
+) -> Bool noraise {
   let _ = self
-  shell_status(
-    "curl --silent --fail http://127.0.0.1:\{port}\{health_path} >/dev/null 2>&1",
-  ) ==
-  0
+  let target_url = "http://127.0.0.1:\{port}\{health_path}"
+  let result = try
+    @async.with_timeout_opt(1000, () => {
+      let response = try @mocket.fetch(target_url, GET) catch {
+        _ => return false
+      } noraise {
+        response => response
+      }
+      http_status_success(response.status_code)
+    })
+  catch {
+    _ => None
+  } noraise {
+    value => value
+  }
+  match result {
+    Some(ok) => ok
+    None => false
+  }
 }
 
 ///|
-fn PreviewManager::is_preview_reachable(
+async fn PreviewManager::is_preview_reachable(
   self : PreviewManager,
   port : Int,
-) -> Bool {
+) -> Bool noraise {
   self.is_healthy(port, preview_health_path()) || self.is_healthy(port, "/")
 }
 
 ///|
-fn PreviewManager::wait_until_preview_reachable(
+async fn PreviewManager::wait_until_preview_reachable(
   self : PreviewManager,
   port : Int,
   attempts : Int,
-) -> Bool {
+) -> Bool noraise {
   for _ in 0..<attempts {
     if self.is_preview_reachable(port) {
       return true
     }
-    ignore(shell_status("sleep 1"))
+    @async.sleep(1000) catch {
+      _ => ()
+    }
   }
   false
 }
@@ -150,18 +187,13 @@ fn preview_script_log_path(project_id : String) -> String {
 }
 
 ///|
-fn PreviewManager::rebuild_and_restart(
+async fn PreviewManager::rebuild_and_restart(
   self : PreviewManager,
   project : @sdk.ProjectDetail,
-) -> Result[@sdk.PreviewTarget, String] {
+) -> Result[@sdk.PreviewTarget, String] noraise {
   let workspace_path = project_workspace(self.root, project.id)
-  let script_probe_code = shell_status(
-    "cd " +
-    shell_quote(workspace_path) +
-    " && test -f " +
-    shell_quote(preview_script_relative_path()),
-  )
-  if script_probe_code != 0 {
+  let preview_script = workspace_path + "/" + preview_script_relative_path()
+  if !@fs.path_exists(preview_script) {
     return Err(preview_script_missing_message())
   }
   let preferred_port = project.preview.map(fn(target) { target.port })
@@ -170,19 +202,41 @@ fn PreviewManager::rebuild_and_restart(
     preferred=preferred_port.unwrap_or(0),
   )
   self.stop_port(port)
-  let start_code = shell_status(
-    "cd " +
-    shell_quote(workspace_path) +
-    " && chmod +x " +
-    shell_quote(preview_script_relative_path()) +
-    " && nohup " +
-    shell_quote(preview_script_relative_path()) +
-    " \{port} >" +
-    shell_quote(preview_script_log_path(project.id)) +
-    " 2>&1 &",
+  let chmod_code = run_process_quiet(
+    "chmod",
+    ["+x", preview_script_relative_path()],
+    cwd=workspace_path,
   )
-  if start_code != 0 {
+  if chmod_code != 0 {
     return Err("The preview process could not be started.")
+  }
+  let log_path = preview_script_log_path(project.id)
+  let stdout = try
+    @process.redirect_to_file(log_path, create=0o644, truncate=true)
+  catch {
+    _ => return Err("The preview process could not be started.")
+  } noraise {
+    output => output
+  }
+  let stderr = try
+    @process.redirect_to_file(log_path, append=true, create=0o644)
+  catch {
+    _ => return Err("The preview process could not be started.")
+  } noraise {
+    output => output
+  }
+  let _ = try
+    @process.spawn_orphan(
+      preview_script_relative_path(),
+      [port.to_string()],
+      stdout~,
+      stderr~,
+      cwd=workspace_path,
+    )
+  catch {
+    _ => return Err("The preview process could not be started.")
+  } noraise {
+    pid => pid
   }
   if !self.wait_until_preview_reachable(port, preview_health_attempts()) {
     return Err(

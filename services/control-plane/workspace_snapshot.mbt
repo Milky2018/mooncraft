@@ -21,22 +21,29 @@ async fn snapshot_workspace(
   let project_dir = project_root(root, project_id)
   ensure_dir(project_dir)
   let temp_path = project_workspace_snapshot_temp_path(root, project_id)
-  ignore(shell_status("rm -f " + shell_quote(temp_path)))
-  let archive_code = shell_status(
-    "cd " +
-    shell_quote(workspace_path) +
-    " && tar --exclude='./_build' --exclude='./.mooncakes' --exclude='./.repos' --exclude='./preview-dist' -cf " +
-    shell_quote(temp_path) +
-    " . >/dev/null 2>&1",
+  @fs.remove_file(temp_path) catch {
+    _ => ()
+  }
+  let archive_code = run_process_quiet(
+    "tar",
+    [
+      "--exclude=./_build", "--exclude=./.mooncakes", "--exclude=./.repos", "--exclude=./preview-dist",
+      "-cf", temp_path, "-C", workspace_path, ".",
+    ],
+    cwd=root,
   )
   if archive_code != 0 {
-    ignore(shell_status("rm -f " + shell_quote(temp_path)))
+    @fs.remove_file(temp_path) catch {
+      _ => ()
+    }
     return Err(
       "Saving the latest project snapshot failed for \{workspace_path}.",
     )
   }
   let archive = safe_read_bytes_or(temp_path, b"")
-  ignore(shell_status("rm -f " + shell_quote(temp_path)))
+  @fs.remove_file(temp_path) catch {
+    _ => ()
+  }
   if archive.is_empty() {
     return Err(
       "Saving the latest project snapshot produced an empty archive for \{workspace_path}.",
@@ -76,14 +83,14 @@ async fn restore_workspace_snapshot_to_path(
   safe_write_bytes(temp_path, archive)
   safe_remove_tree(target_path)
   ensure_dir(target_path)
-  let restore_code = shell_status(
-    "tar -xf " +
-    shell_quote(temp_path) +
-    " -C " +
-    shell_quote(target_path) +
-    " >/dev/null 2>&1",
+  let restore_code = run_process_quiet(
+    "tar",
+    ["-xf", temp_path, "-C", target_path],
+    cwd=root,
   )
-  ignore(shell_status("rm -f " + shell_quote(temp_path)))
+  @fs.remove_file(temp_path) catch {
+    _ => ()
+  }
   if restore_code != 0 {
     return Err(
       "Restoring the saved workspace snapshot failed for project \{project_id}.",

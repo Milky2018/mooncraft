@@ -1,34 +1,7 @@
 #include <moonbit.h>
-#include <errno.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-#include <sys/wait.h>
-
-MOONBIT_FFI_EXPORT
-int32_t mooncraft_shell_status(moonbit_bytes_t command) {
-  int status = system((const char *)command);
-  if (status < 0) {
-    return 1;
-  }
-  if (WIFEXITED(status)) {
-    return WEXITSTATUS(status);
-  }
-  return status;
-}
-
-MOONBIT_FFI_EXPORT
-int32_t mooncraft_process_alive(int32_t pid) {
-  if (pid <= 0) {
-    return 0;
-  }
-  if (kill(pid, 0) == 0) {
-    return 1;
-  }
-  return errno == EPERM ? 1 : 0;
-}
 
 MOONBIT_FFI_EXPORT
 moonbit_bytes_t mooncraft_random_hex(int32_t byte_count) {
