@@ -84,6 +84,16 @@ pub fn run_event_code_preview_preparing() -> String {
 }
 
 ///|
+pub fn run_event_code_preview_publishing() -> String {
+  "preview_publishing"
+}
+
+///|
+pub fn run_event_code_preview_starting() -> String {
+  "preview_starting"
+}
+
+///|
 pub fn run_event_code_preview_auditing() -> String {
   "preview_auditing"
 }
@@ -134,6 +144,16 @@ pub fn run_event_code_workspace_check_failed() -> String {
 }
 
 ///|
+pub fn run_event_code_workspace_restoring() -> String {
+  "workspace_restoring"
+}
+
+///|
+pub fn run_event_code_workspace_saving() -> String {
+  "workspace_saving"
+}
+
+///|
 pub fn run_event_display_text(code : String, content : String) -> String {
   match code {
     "activity_files_editing" => "Editing files"
@@ -154,7 +174,7 @@ pub fn run_event_display_text(code : String, content : String) -> String {
     "activity_tool_running" => if content == "" { "Working" } else { content }
     "builder_auth_preparing" => "Preparing auth"
     "builder_environment_preparing" => "Preparing"
-    "builder_ended" => "Finalizing"
+    "builder_ended" => "Builder finished"
     "builder_failed" => "Failed"
     "builder_mounts_preparing" => "Preparing workspace"
     "builder_started" => "Starting"
@@ -162,8 +182,10 @@ pub fn run_event_display_text(code : String, content : String) -> String {
     "files_updated" => "Updated files"
     "local_builder_running" => "Building"
     "preview_auditing" => "Checking preview"
+    "preview_publishing" => "Publishing preview"
     "preview_preparing" => "Preparing preview"
     "preview_repairing" => "Repairing preview"
+    "preview_starting" => "Starting preview"
     "provider_retrying" => "Waiting for provider"
     "runtime_container_launching" => "Launching runtime"
     "runtime_container_running" => "Runtime running"
@@ -172,6 +194,8 @@ pub fn run_event_display_text(code : String, content : String) -> String {
     "stopping_builder" => "Stopping"
     "turn_planning" => "Planning"
     "workspace_check_failed" => "Fixing workspace"
+    "workspace_restoring" => "Restoring workspace"
+    "workspace_saving" => "Saving workspace"
     _ => if content == "" { "Starting" } else { content }
   }
 }

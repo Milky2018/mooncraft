@@ -82,4 +82,39 @@ test "run event display uses structured code instead of content matching" {
     latest_run_event_text(fallback_events),
     content="Planning appears in arbitrary text",
   )
+  inspect(
+    @sdk.run_event_display_text(
+      @sdk.run_event_code_builder_ended(),
+      "Builder session ended.",
+    ),
+    content="Builder finished",
+  )
+  inspect(
+    @sdk.run_event_display_text(
+      @sdk.run_event_code_workspace_saving(),
+      "Saving the updated workspace.",
+    ),
+    content="Saving workspace",
+  )
+  inspect(
+    @sdk.run_event_display_text(
+      @sdk.run_event_code_workspace_restoring(),
+      "Restoring the updated workspace.",
+    ),
+    content="Restoring workspace",
+  )
+  inspect(
+    @sdk.run_event_display_text(
+      @sdk.run_event_code_preview_starting(),
+      "Starting the live preview.",
+    ),
+    content="Starting preview",
+  )
+  inspect(
+    @sdk.run_event_display_text(
+      @sdk.run_event_code_preview_publishing(),
+      "Publishing the live preview.",
+    ),
+    content="Publishing preview",
+  )
 }

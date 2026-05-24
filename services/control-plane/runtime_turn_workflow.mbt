@@ -17,6 +17,17 @@ fn ProjectRunWorkflow::from_context(ctx : AppContext) -> ProjectRunWorkflow {
 }
 
 ///|
+async fn ProjectRunWorkflow::append_status_event(
+  self : ProjectRunWorkflow,
+  project_id : String,
+  run_id : String,
+  code : String,
+  content : String,
+) -> Unit {
+  self.store.append_run_event(project_id, run_id, "status", code, content)
+}
+
+///|
 async fn ProjectRunWorkflow::finish_run_with_preview_audit(
   self : ProjectRunWorkflow,
   project_id : String,
@@ -30,6 +41,12 @@ async fn ProjectRunWorkflow::finish_run_with_preview_audit(
   let mut current_preview = preview
   let mut current_thread_id = result.thread_id
   let mut current_summary = result.summary
+  self.append_status_event(
+    project_id,
+    run_id,
+    @sdk.run_event_code_preview_publishing(),
+    "Publishing the live preview.",
+  )
   match self.store.set_project_preview(project_id, current_preview) {
     Some(_) => ignore(())
     None => {
@@ -115,6 +132,12 @@ async fn ProjectRunWorkflow::finish_run_with_preview_audit(
     }
     current_thread_id = repair.thread_id
     current_summary = successful_preview_assistant_message()
+    self.append_status_event(
+      project_id,
+      run_id,
+      @sdk.run_event_code_workspace_restoring(),
+      "Restoring the repaired workspace.",
+    )
     let repair_restore_result = restore_workspace_snapshot(
       self.store,
       self.root,
@@ -153,6 +176,12 @@ async fn ProjectRunWorkflow::finish_run_with_preview_audit(
         return
       }
     }
+    self.append_status_event(
+      project_id,
+      run_id,
+      @sdk.run_event_code_preview_starting(),
+      "Starting the repaired preview.",
+    )
     let repaired_preview = match
       self.previews.rebuild_and_restart(repaired_project) {
       Ok(preview) => preview
@@ -169,6 +198,12 @@ async fn ProjectRunWorkflow::finish_run_with_preview_audit(
       }
     }
     current_preview = repaired_preview
+    self.append_status_event(
+      project_id,
+      run_id,
+      @sdk.run_event_code_preview_publishing(),
+      "Publishing the repaired preview.",
+    )
     match self.store.set_project_preview(project_id, current_preview) {
       Some(_) => ignore(())
       None => {
@@ -277,6 +312,12 @@ async fn ProjectRunWorkflow::run(
   )
   match agent_result {
     Ok(result) => {
+      self.append_status_event(
+        project_id,
+        run_id,
+        @sdk.run_event_code_workspace_restoring(),
+        "Restoring the updated workspace.",
+      )
       let restore_cache_result = restore_workspace_snapshot(
         self.store,
         self.root,
@@ -317,12 +358,11 @@ async fn ProjectRunWorkflow::run(
           )
         None => ignore(())
       }
-      self.store.append_run_event(
+      self.append_status_event(
         project_id,
         run_id,
-        "status",
-        @sdk.run_event_code_preview_preparing(),
-        "Preparing the live preview.",
+        @sdk.run_event_code_preview_starting(),
+        "Starting the live preview.",
       )
       let preview_result = self.previews.rebuild_and_restart(updated_project)
       match preview_result {
@@ -333,12 +373,11 @@ async fn ProjectRunWorkflow::run(
           )
         Err(message) =>
           if preview_error_needs_startup_repair(message) {
-            self.store.append_run_event(
+            self.append_status_event(
               project_id,
               run_id,
-              "status",
-              @sdk.run_event_code_preview_preparing(),
-              "Preparing the live preview.",
+              @sdk.run_event_code_preview_repairing(),
+              "Repairing preview startup.",
             )
             let repair_project = match
               self.store.get_project_detail(project_id) {
@@ -366,6 +405,12 @@ async fn ProjectRunWorkflow::run(
             )
             match repair_result {
               Ok(repair) => {
+                self.append_status_event(
+                  project_id,
+                  run_id,
+                  @sdk.run_event_code_workspace_restoring(),
+                  "Restoring the repaired workspace.",
+                )
                 let repair_restore_result = restore_workspace_snapshot(
                   self.store,
                   self.root,
@@ -408,6 +453,12 @@ async fn ProjectRunWorkflow::run(
                     return
                   }
                 }
+                self.append_status_event(
+                  project_id,
+                  run_id,
+                  @sdk.run_event_code_preview_starting(),
+                  "Starting the repaired preview.",
+                )
                 match self.previews.rebuild_and_restart(repaired_project) {
                   Ok(preview) =>
                     self.finish_run_with_preview_audit(
@@ -435,6 +486,12 @@ async fn ProjectRunWorkflow::run(
                 }
               }
               Err(failure) => {
+                self.append_status_event(
+                  project_id,
+                  run_id,
+                  @sdk.run_event_code_workspace_restoring(),
+                  "Restoring the previous workspace.",
+                )
                 let repair_restore_result = restore_workspace_snapshot(
                   self.store,
                   self.root,
@@ -481,6 +538,12 @@ async fn ProjectRunWorkflow::run(
       }
     }
     Err(failure) => {
+      self.append_status_event(
+        project_id,
+        run_id,
+        @sdk.run_event_code_workspace_restoring(),
+        "Restoring the previous workspace.",
+      )
       let restore_cache_result = restore_workspace_snapshot(
         self.store,
         self.root,

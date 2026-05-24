@@ -1480,6 +1480,13 @@ async fn RuntimeGateway::run_turn(
     Ok(result) => result
     Err(failure) => return Err(failure)
   }
+  store.append_run_event(
+    project.id,
+    run_id,
+    "status",
+    @sdk.run_event_code_workspace_saving(),
+    "Saving the updated workspace.",
+  )
   match
     persist_builder_workspace_snapshot(
       store,

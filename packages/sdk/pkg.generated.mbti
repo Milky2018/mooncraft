@@ -165,11 +165,15 @@ pub fn run_event_code_files_updated() -> String
 
 pub fn run_event_code_local_builder_running() -> String
 
-pub fn run_event_code_preview_preparing() -> String
-
 pub fn run_event_code_preview_auditing() -> String
 
+pub fn run_event_code_preview_preparing() -> String
+
+pub fn run_event_code_preview_publishing() -> String
+
 pub fn run_event_code_preview_repairing() -> String
+
+pub fn run_event_code_preview_starting() -> String
 
 pub fn run_event_code_provider_retrying() -> String
 
@@ -186,6 +190,10 @@ pub fn run_event_code_stopping_builder() -> String
 pub fn run_event_code_turn_planning() -> String
 
 pub fn run_event_code_workspace_check_failed() -> String
+
+pub fn run_event_code_workspace_restoring() -> String
+
+pub fn run_event_code_workspace_saving() -> String
 
 pub fn run_event_display_text(String, String) -> String
 
@@ -659,3 +667,4 @@ pub(all) struct UserSummary {
 // Type aliases
 
 // Traits
+
