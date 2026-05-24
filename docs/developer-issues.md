@@ -98,3 +98,4 @@ Agents do not edit this. This file is maintainable by human developers.
 - [ ] Json manipulation in `agent_adapter.mbt` is bad
 - [ ] the runtime needs Python
 - [ ] The preview after updating will be hidden
+- [ ] preview rebuild is broken
