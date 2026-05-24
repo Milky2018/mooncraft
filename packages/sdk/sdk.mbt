@@ -54,10 +54,70 @@ pub(all) struct ProjectActivity {
 } derive(Debug, ToJson, FromJson)
 
 ///|
-pub(all) struct RuntimeSecretBinding {
+pub(all) struct RuntimeAuthTarget {
+  kind : String
+  name : String?
+  path : String?
+} derive(Debug)
+
+///|
+pub impl ToJson for RuntimeAuthTarget with to_json(self) {
+  let fields = { "type": self.kind.to_json() }
+  match self.name {
+    Some(name) => fields["name"] = name.to_json()
+    None => ()
+  }
+  match self.path {
+    Some(path) => fields["path"] = path.to_json()
+    None => ()
+  }
+  Json::object(fields)
+}
+
+///|
+pub impl @json.FromJson for RuntimeAuthTarget with from_json(json, path) {
+  match json {
+    Object(fields) => {
+      let kind = match fields.get("type") {
+        Some(String(value)) => value
+        _ =>
+          raise JsonDecodeError(
+            (path.add_key("type"), "Runtime auth target type is required"),
+          )
+      }
+      let name = match fields.get("name") {
+        Some(String(value)) => Some(value)
+        Some(Null) | None => None
+        _ =>
+          raise JsonDecodeError(
+            (path.add_key("name"), "Runtime auth target name must be a string"),
+          )
+      }
+      let file_path = match fields.get("path") {
+        Some(String(value)) => Some(value)
+        Some(Null) | None => None
+        _ =>
+          raise JsonDecodeError(
+            (path.add_key("path"), "Runtime auth target path must be a string"),
+          )
+      }
+      { kind, name, path: file_path }
+    }
+    _ =>
+      raise JsonDecodeError((path, "Runtime auth target must be a JSON object"))
+  }
+}
+
+///|
+pub(all) struct RuntimeAuthSecret {
   source : String
-  env : String?
-  file : String?
+  target : RuntimeAuthTarget
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct RuntimeAuth {
+  kind : String
+  secret : RuntimeAuthSecret
 } derive(Debug, ToJson, FromJson)
 
 ///|
@@ -66,11 +126,7 @@ pub(all) struct RuntimeSpec {
   image : String
   agent : String
   model : String
-  provider : String
-  send : Array[String]
-  container_home : String
-  container_user : String?
-  secrets : Array[RuntimeSecretBinding]
+  auth : RuntimeAuth
 } derive(Debug, ToJson, FromJson)
 
 ///|

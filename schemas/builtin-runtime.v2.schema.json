@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mooncraft.dev/schemas/builtin-runtime.v2.schema.json",
+  "title": "MoonCraft Built-in Runtime v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "enabled", "is_default", "spec"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "is_default": {
+      "type": "boolean"
+    },
+    "spec": {
+      "$ref": "./runtime-manifest.v2.schema.json"
+    }
+  }
+}

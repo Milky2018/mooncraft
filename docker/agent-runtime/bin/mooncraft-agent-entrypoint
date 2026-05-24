@@ -29,61 +29,9 @@ if [[ -f "$system_prompt_path" ]]; then
   cp "$system_prompt_path" "$codex_home/AGENTS.md"
 fi
 
-provider="$(require_env MOONCRAFT_AI_PROVIDER)"
-agent_cli="$(require_env MOONCRAFT_AGENT_CLI)"
-model="$(require_env MOONCRAFT_AI_MODEL)"
-
-case "$provider" in
-  openrouter)
-    api_key="$(require_env MOONCRAFT_AI_API_KEY)"
-    export OPENROUTER_API_KEY="$api_key"
-    case "$agent_cli" in
-      codex)
-        cat >"$codex_home/config.toml" <<EOF
-model_provider = "openrouter"
-
-[model_providers.openrouter]
-name = "OpenRouter"
-base_url = "https://openrouter.ai/api/v1"
-env_key = "OPENROUTER_API_KEY"
-wire_api = "responses"
-EOF
-        ;;
-      claude_code)
-        export ANTHROPIC_BASE_URL="https://openrouter.ai/api"
-        export ANTHROPIC_AUTH_TOKEN="$api_key"
-        export ANTHROPIC_API_KEY=""
-        export ANTHROPIC_DEFAULT_OPUS_MODEL="$model"
-        export ANTHROPIC_DEFAULT_SONNET_MODEL="$model"
-        export ANTHROPIC_DEFAULT_HAIKU_MODEL="$model"
-        export CLAUDE_CODE_SUBAGENT_MODEL="$model"
-        export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
-        ;;
-      *)
-        echo "Unsupported MOONCRAFT_AGENT_CLI for OpenRouter: $agent_cli" >&2
-        exit 64
-        ;;
-    esac
-    unset MOONCRAFT_AI_API_KEY
-    ;;
-  openai)
-    case "$agent_cli" in
-      codex)
-        if [[ ! -f "$codex_home/auth.json" ]]; then
-          echo "Codex auth.json is required for OpenAI-backed Codex runs." >&2
-          exit 64
-        fi
-        ;;
-      *)
-        echo "Only codex supports MOONCRAFT_AI_PROVIDER=openai." >&2
-        exit 64
-        ;;
-    esac
-    ;;
-  *)
-    echo "Unsupported MOONCRAFT_AI_PROVIDER: $provider" >&2
-    exit 64
-    ;;
-esac
+if [[ "$#" -eq 0 ]]; then
+  echo "Runtime command is required." >&2
+  exit 64
+fi
 
 exec "$@"

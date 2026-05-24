@@ -324,19 +324,20 @@ runtime_spec_json="$(
     --arg model "$model" \
     --arg secret_source "playwright_real_agent_ai_api_key_$$" \
     '{
-      protocol_version: 1,
+      protocol_version: 2,
       image: $image,
       agent: "codex",
       model: $model,
-      provider: "openrouter",
-      send: ["mooncraft-runtime-send"],
-      container_home: "/root",
-      secrets: [
-        {
+      auth: {
+        kind: "openrouter_api_key",
+        secret: {
           source: $secret_source,
-          env: "MOONCRAFT_AI_API_KEY"
+          target: {
+            type: "env",
+            name: "MOONCRAFT_AI_API_KEY"
+          }
         }
-      ]
+      }
     } | tostring'
 )"
 runtime_request="$(

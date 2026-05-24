@@ -454,7 +454,79 @@ fn project_runtime_agent_home(
 
 ///|
 fn public_preview_url(preview_public_id : String) -> String {
-  @sdk.preview_public_path(preview_public_id)
+  match preview_origin_template() {
+    Some(template) =>
+      ensure_trailing_slash(
+        template.replace_all(old="{preview_public_id}", new=preview_public_id),
+      )
+    None => @sdk.preview_public_path(preview_public_id)
+  }
+}
+
+///|
+fn preview_origin_template() -> String? {
+  match @env.get_env_var("MOONCRAFT_PREVIEW_ORIGIN_TEMPLATE") {
+    Some(value) if value.trim() != "" => Some(value.trim().to_owned())
+    _ => None
+  }
+}
+
+///|
+fn ensure_trailing_slash(value : String) -> String {
+  if value.has_suffix("/") {
+    value
+  } else {
+    value + "/"
+  }
+}
+
+///|
+fn origin_host_from_url(value : String) -> String {
+  let after_scheme = match value.find("://") {
+    Some(index) => value[index + 3:].to_owned()
+    None => value
+  }
+  match after_scheme.find("/") {
+    Some(index) => after_scheme[:index].to_owned()
+    None => after_scheme
+  }
+}
+
+///|
+fn preview_origin_host_template() -> String? {
+  match preview_origin_template() {
+    Some(template) => Some(origin_host_from_url(template))
+    None => None
+  }
+}
+
+///|
+fn preview_public_id_from_host(host : String) -> String? {
+  let template = match preview_origin_host_template() {
+    Some(value) => value
+    None => return None
+  }
+  let marker = "{preview_public_id}"
+  let marker_index = match template.find(marker) {
+    Some(index) => index
+    None => return None
+  }
+  let prefix = template[:marker_index].to_owned()
+  let suffix = template[marker_index + marker.length():].to_owned()
+  let normalized = host.trim().to_owned()
+  if !normalized.has_prefix(prefix) || !normalized.has_suffix(suffix) {
+    return None
+  }
+  let end = normalized.length() - suffix.length()
+  if end < prefix.length() {
+    return None
+  }
+  let preview_public_id = normalized[prefix.length():end].to_owned()
+  if preview_public_id == "" {
+    None
+  } else {
+    Some(preview_public_id)
+  }
 }
 
 ///|
@@ -3153,7 +3225,7 @@ async fn AppContext::ensure_project_preview_running(
   let preview = match project.preview {
     Some(preview) => preview
     None =>
-      if !(project.status is @sdk.Succeeded) {
+      if !(project.status is Succeeded) {
         return Ok(project)
       } else {
         {

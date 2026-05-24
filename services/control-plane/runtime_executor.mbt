@@ -14,22 +14,16 @@ struct AgentTurnFailure {
 
 ///|
 struct AgentRuntimeConfig {
-  runtime_id : String
-  runtime_name : String
   agent_session_id : String
   runtime_session_id : String?
-  protocol_version : Int
   image : String
   platform : String
   agent_cli : String
-  provider : String
+  auth_kind : String
   model : String
-  secrets : Array[ResolvedRuntimeSecret]
-  container_home : String
-  container_user : String?
+  secret : ResolvedRuntimeSecret
   container_data_dir : String
   host_data_dir : String?
-  send : Array[String]
 }
 
 ///|
@@ -41,35 +35,10 @@ struct RunArtifacts {
   run_id : String
   dir : String
   prompt_path : String
-  runtime_context_path : String
-  result_path : String
   last_message_path : String
   agent_log_path : String
   validation_log_path : String
 }
-
-///|
-struct RuntimeContext {
-  protocol_version : Int
-  project_id : String
-  run_id : String
-  agent_session_id : String
-  runtime_session_id : String?
-  prompt_file : String
-  workspace : String
-  artifacts : String
-  runtime_id : String
-  runtime_name : String
-  agent : String
-  model : String
-  provider : String
-} derive(ToJson)
-
-///|
-struct RuntimeResult {
-  runtime_session_id : String
-  last_message : String?
-} derive(FromJson)
 
 ///|
 struct PreviewAuditResult {
@@ -98,8 +67,6 @@ fn RunArtifacts::new(
     run_id,
     dir,
     prompt_path: dir + "/prompt.txt",
-    runtime_context_path: dir + "/runtime_context.json",
-    result_path: dir + "/result.json",
     last_message_path: dir + "/last_message.txt",
     agent_log_path: dir + "/agent.log",
     validation_log_path: dir + "/validation.log",
@@ -114,6 +81,11 @@ fn agent_container_workspace_dir() -> String {
 ///|
 fn agent_container_artifacts_dir() -> String {
   "/artifacts"
+}
+
+///|
+fn agent_container_home_dir() -> String {
+  "/home/mooncraft"
 }
 
 ///|
@@ -189,27 +161,49 @@ fn docker_env_file_path(artifacts : RunArtifacts) -> String {
 
 ///|
 fn docker_env_file_content(config : AgentRuntimeConfig) -> String {
-  let mut content = "HOME=" +
-    docker_env_value(config.container_home) +
-    "\n" +
-    "MOONCRAFT_AI_PROVIDER=" +
-    docker_env_value(config.provider) +
-    "\n" +
-    "MOONCRAFT_AGENT_CLI=" +
+  let mut content = "MOONCRAFT_AGENT_CLI=" +
     docker_env_value(config.agent_cli) +
     "\n" +
     "MOONCRAFT_AI_MODEL=" +
     docker_env_value(config.model) +
     "\n"
-  for secret in config.secrets {
-    match secret.env {
-      Some(env) =>
+  match config.secret.env {
+    Some(env) =>
+      content = content +
+        docker_env_value(env) +
+        "=" +
+        docker_env_value(config.secret.value) +
+        "\n"
+    None => ()
+  }
+  if config.auth_kind == "openrouter_api_key" {
+    match config.agent_cli {
+      "codex" =>
         content = content +
-          docker_env_value(env) +
-          "=" +
-          docker_env_value(secret.value) +
+          "OPENROUTER_API_KEY=" +
+          docker_env_value(config.secret.value) +
           "\n"
-      None => ()
+      "claude" =>
+        content = content +
+          "ANTHROPIC_BASE_URL=https://openrouter.ai/api\n" +
+          "ANTHROPIC_AUTH_TOKEN=" +
+          docker_env_value(config.secret.value) +
+          "\n" +
+          "ANTHROPIC_API_KEY=\n" +
+          "ANTHROPIC_DEFAULT_OPUS_MODEL=" +
+          docker_env_value(config.model) +
+          "\n" +
+          "ANTHROPIC_DEFAULT_SONNET_MODEL=" +
+          docker_env_value(config.model) +
+          "\n" +
+          "ANTHROPIC_DEFAULT_HAIKU_MODEL=" +
+          docker_env_value(config.model) +
+          "\n" +
+          "CLAUDE_CODE_SUBAGENT_MODEL=" +
+          docker_env_value(config.model) +
+          "\n" +
+          "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1\n"
+      _ => ()
     }
   }
   content
@@ -235,119 +229,61 @@ fn remove_docker_env_file(path : String) -> Unit {
 ///|
 fn materialize_runtime_file_secrets(
   config : AgentRuntimeConfig,
-  agent_home_path : String?,
+  agent_home_path : String,
 ) -> Result[Unit, String] {
-  for secret in config.secrets {
-    match secret.file {
-      Some(file) => {
-        let home = match agent_home_path {
-          Some(path) => path
-          None =>
-            return Err(
-              "Runtime file secrets require a mounted agent home directory.",
-            )
-        }
-        let relative_path = match validate_runtime_secret_file_path(file) {
-          Ok(path) => path
-          Err(message) => return Err(message)
-        }
-        let target = home + "/" + relative_path
-        ensure_dir(parent_dir(target))
-        @fs.write_string_to_file(target, secret.value) catch {
-          err => return Err("Runtime secret file could not be written: \{err}")
-        }
-        let mode = match config.container_user {
-          Some(_) => "a+r"
-          None => "600"
-        }
-        ignore(shell_status("chmod " + mode + " " + shell_quote(target)))
+  match config.secret.file {
+    Some(file) => {
+      let relative_path = match validate_runtime_secret_file_path(file) {
+        Ok(path) => path
+        Err(message) => return Err(message)
       }
-      None => ()
+      let target = agent_home_path + "/" + relative_path
+      ensure_dir(parent_dir(target))
+      @fs.write_string_to_file(target, config.secret.value) catch {
+        err => return Err("Runtime secret file could not be written: \{err}")
+      }
+      ignore(shell_status("chmod a+rw " + shell_quote(target)))
     }
+    None => ()
   }
   Ok(())
 }
 
 ///|
-fn write_runtime_context(
+fn write_codex_openrouter_config(
   config : AgentRuntimeConfig,
-  project : @sdk.ProjectDetail,
-  artifacts : RunArtifacts,
-  prompt : String,
+  agent_home_path : String,
 ) -> Unit {
-  safe_write_string(artifacts.prompt_path, prompt)
-  let context : RuntimeContext = {
-    protocol_version: config.protocol_version,
-    project_id: project.id,
-    run_id: artifacts.run_id,
-    agent_session_id: config.agent_session_id,
-    runtime_session_id: config.runtime_session_id,
-    prompt_file: agent_container_artifacts_dir() + "/prompt.txt",
-    workspace: agent_container_workspace_dir(),
-    artifacts: agent_container_artifacts_dir(),
-    runtime_id: config.runtime_id,
-    runtime_name: config.runtime_name,
-    agent: config.agent_cli,
-    model: config.model,
-    provider: config.provider,
-  }
+  ignore(config)
+  let codex_home = agent_home_path + "/.codex"
+  ensure_dir(codex_home)
   safe_write_string(
-    artifacts.runtime_context_path,
-    context.to_json().stringify(),
+    codex_home + "/config.toml",
+    (
+      #|model_provider = "openrouter"
+      #|
+      #|[model_providers.openrouter]
+      #|name = "OpenRouter"
+      #|base_url = "https://openrouter.ai/api/v1"
+      #|env_key = "OPENROUTER_API_KEY"
+      #|wire_api = "responses"
+    ),
   )
 }
 
 ///|
-fn runtime_command_arg(
+fn prepare_agent_auth(
   config : AgentRuntimeConfig,
-  artifacts : RunArtifacts,
-  value : String,
-) -> String {
-  match value {
-    "$prompt_file" => agent_container_artifacts_dir() + "/prompt.txt"
-    "$runtime_context" =>
-      agent_container_artifacts_dir() + "/runtime_context.json"
-    "$result_file" => agent_container_artifacts_dir() + "/result.json"
-    "$agent_session_id" => config.agent_session_id
-    "$runtime_session_id" => config.runtime_session_id.unwrap_or("")
-    "$workspace" => agent_container_workspace_dir()
-    "$artifacts" => agent_container_artifacts_dir()
-    "$project_id" => artifacts.project_id
-    "$run_id" => artifacts.run_id
-    "$model" => config.model
-    _ => value
+  agent_home_path : String,
+) -> Result[Unit, String] {
+  match materialize_runtime_file_secrets(config, agent_home_path) {
+    Ok(_) => ()
+    Err(message) => return Err(message)
   }
-}
-
-///|
-fn runtime_send_command(
-  config : AgentRuntimeConfig,
-  artifacts : RunArtifacts,
-) -> Array[String] {
-  config.send.map(fn(value) { runtime_command_arg(config, artifacts, value) })
-}
-
-///|
-fn read_runtime_result(
-  artifacts : RunArtifacts,
-) -> Result[RuntimeResult, String] {
-  if !@fs.path_exists(artifacts.result_path) {
-    return Err("Runtime did not write /artifacts/result.json.")
+  if config.agent_cli == "codex" && config.auth_kind == "openrouter_api_key" {
+    write_codex_openrouter_config(config, agent_home_path)
   }
-  let text = safe_read_string_or(artifacts.result_path, "")
-  let parsed = @json.parse(text) catch {
-    _ => return Err("Runtime result.json is not valid JSON.")
-  }
-  let result : RuntimeResult = @json.from_json(parsed) catch {
-    _ => return Err("Runtime result.json does not match the expected shape.")
-  }
-  if result.runtime_session_id.trim() == "" {
-    return Err("Runtime result.json did not include runtime_session_id.")
-  }
-  Ok({
-    runtime_session_id: result.runtime_session_id.trim().to_owned(),
-    last_message: result.last_message,
-  })
+  Ok(())
 }
 
 ///|
@@ -409,22 +345,16 @@ async fn AgentRuntimeConfig::load(
     Err(message) => return Err(message)
   }
   Ok({
-    runtime_id: settings.runtime_id,
-    runtime_name: settings.runtime_name,
     agent_session_id,
     runtime_session_id: settings.runtime_session_id,
-    protocol_version: settings.runtime_spec.protocol_version,
     image: settings.runtime_spec.image,
     platform,
     agent_cli: settings.runtime_spec.agent,
-    provider: settings.runtime_spec.provider,
+    auth_kind: settings.runtime_spec.auth.kind,
     model: settings.runtime_spec.model,
-    secrets: settings.secrets,
-    container_home: settings.runtime_spec.container_home,
-    container_user: settings.runtime_spec.container_user,
+    secret: settings.secret,
     container_data_dir: trim_mount_path(root) + "/data",
     host_data_dir,
-    send: settings.runtime_spec.send,
   })
 }
 
@@ -456,6 +386,96 @@ fn bootstrap_prompt(user_message : String) -> String {
 ///|
 fn followup_prompt(user_message : String) -> String {
   user_message
+}
+
+///|
+fn agent_container_last_message_path() -> String {
+  agent_container_artifacts_dir() + "/last_message.txt"
+}
+
+///|
+fn agent_system_prompt(root : String) -> String {
+  safe_read_string_or(
+    root + "/docker/agent-runtime/mooncraft-agent-system.md",
+    "",
+  )
+}
+
+///|
+fn codex_agent_command(
+  config : AgentRuntimeConfig,
+  prompt : String,
+  resume_existing : Bool,
+) -> Array[String] {
+  let command : Array[String] = ["codex", "exec"]
+  match config.runtime_session_id {
+    Some(session_id) if resume_existing => {
+      command.push("resume")
+      command.push("--model")
+      command.push(config.model)
+      command.push("--skip-git-repo-check")
+      command.push("--json")
+      command.push("--output-last-message")
+      command.push(agent_container_last_message_path())
+      command.push("--dangerously-bypass-approvals-and-sandbox")
+      command.push(session_id)
+      command.push(prompt)
+    }
+    _ => {
+      command.push("--model")
+      command.push(config.model)
+      command.push("--skip-git-repo-check")
+      command.push("--json")
+      command.push("--output-last-message")
+      command.push(agent_container_last_message_path())
+      command.push("--dangerously-bypass-approvals-and-sandbox")
+      command.push(prompt)
+    }
+  }
+  command
+}
+
+///|
+fn claude_agent_command(
+  root : String,
+  config : AgentRuntimeConfig,
+  prompt : String,
+  resume_existing : Bool,
+) -> Array[String] {
+  let command : Array[String] = ["claude"]
+  match config.runtime_session_id {
+    Some(session_id) if resume_existing => {
+      command.push("--resume")
+      command.push(session_id)
+    }
+    _ => ()
+  }
+  command.push("--bare")
+  command.push("-p")
+  command.push(prompt)
+  command.push("--model")
+  command.push(config.model)
+  command.push("--append-system-prompt")
+  command.push(agent_system_prompt(root))
+  command.push("--output-format")
+  command.push("stream-json")
+  command.push("--verbose")
+  command.push("--dangerously-skip-permissions")
+  command
+}
+
+///|
+fn agent_command(
+  root : String,
+  config : AgentRuntimeConfig,
+  prompt : String,
+  resume_existing : Bool,
+) -> Result[Array[String], String] {
+  match config.agent_cli {
+    "codex" => Ok(codex_agent_command(config, prompt, resume_existing))
+    "claude" => Ok(claude_agent_command(root, config, prompt, resume_existing))
+    _ => Err("Unsupported Runtime agent: \{config.agent_cli}")
+  }
 }
 
 ///|
@@ -509,8 +529,6 @@ fn preview_audit_repair_prompt(
     #|
     #|
     #|Repair the existing workspace so the user-facing preview at `/` returns a successful non-empty HTTP response through the MoonCraft preview proxy. Preserve the requested app behavior and keep the MoonCraft runtime contract intact.
-    #|
-    #|The public preview may be served under a path prefix such as `/p/<preview-id>/`. Browser asset URLs, module imports, CSS URLs, and API calls must be relative to the document. Do not use root-absolute browser URLs such as `/frontend.js`, `/styles.css`, or `/api/metrics`.
   )
 }
 
@@ -636,14 +654,23 @@ fn extract_json_string_field(line : String, field : String) -> String? {
 }
 
 ///|
-fn extract_runtime_session_id(events : String) -> String? {
+fn extract_agent_session_id(events : String, agent : String) -> String? {
+  let field = match agent {
+    "codex" => "thread_id"
+    "claude" => "session_id"
+    _ => "runtime_session_id"
+  }
+  let mut session_id : String? = None
   for raw_line in events.replace_all(old="\r\n", new="\n").split("\n") {
     let line = raw_line.to_owned()
-    if line.contains("\"type\":\"runtime.started\"") {
-      return extract_json_string_field(line, "runtime_session_id")
+    if line.contains("\"" + field + "\":\"") {
+      match extract_json_string_field(line, field) {
+        Some(value) if value.trim() != "" => session_id = Some(value)
+        _ => ()
+      }
     }
   }
-  None
+  session_id
 }
 
 ///|
@@ -802,6 +829,11 @@ fn command_display(command : Array[String]) -> String {
       index > 0 &&
       command[index - 1] == "-p" {
       "<prompt>"
+    } else if command.length() > 0 &&
+      command[0] == "claude" &&
+      index > 0 &&
+      command[index - 1] == "--append-system-prompt" {
+      "<system-prompt>"
     } else {
       command[index]
     }
@@ -836,7 +868,7 @@ fn docker_command_args(
   config : AgentRuntimeConfig,
   env_file_path : String,
   workspace_path : String,
-  agent_home_path : String?,
+  agent_home_path : String,
   artifacts : RunArtifacts,
   container_command : Array[String],
 ) -> Array[String] {
@@ -849,20 +881,12 @@ fn docker_command_args(
   args.push(config.platform)
   args.push("--env-file")
   args.push(env_file_path)
-  match config.container_user {
-    Some(user) => {
-      args.push("--user")
-      args.push(user)
-    }
-    None => ()
-  }
-  match agent_home_path {
-    Some(path) => {
-      args.push("-v")
-      args.push(docker_bind_source(config, path) + ":" + config.container_home)
-    }
-    None => ()
-  }
+  args.push("-v")
+  args.push(
+    docker_bind_source(config, agent_home_path) +
+    ":" +
+    agent_container_home_dir(),
+  )
   args.push("-v")
   args.push(
     docker_bind_source(config, workspace_path) +
@@ -878,7 +902,7 @@ fn docker_command_args(
   args.push("-w")
   args.push(agent_container_workspace_dir())
   args.push(config.image)
-  for part in agent_runtime_entry_command(container_command) {
+  for part in container_command {
     args.push(part)
   }
   args
@@ -952,19 +976,6 @@ fn docker_run_timeout_script(
     "fi",
     "exit \"$status\"",
   ].join("\n")
-}
-
-///|
-fn agent_runtime_entry_command(
-  container_command : Array[String],
-) -> Array[String] {
-  let wrapped : Array[String] = [
-    "sh", "-c", "set -e\nexec \"$@\"", "mooncraft-agent",
-  ]
-  for part in container_command {
-    wrapped.push(part)
-  }
-  wrapped
 }
 
 ///|
@@ -1097,7 +1108,7 @@ async fn stream_docker_output(
   run_id : String,
   config : AgentRuntimeConfig,
   workspace_path : String,
-  agent_home_path : String?,
+  agent_home_path : String,
   artifacts : RunArtifacts,
   container_command : Array[String],
 ) -> Result[(Int, String), String] noraise {
@@ -1108,11 +1119,11 @@ async fn stream_docker_output(
   store.append_run_event(
     project_id, run_id, "status", "Preparing builder workspace mounts.",
   )
-  prepare_agent_mounts(workspace_path, agent_home_path, artifacts)
+  prepare_agent_mounts(workspace_path, Some(agent_home_path), artifacts)
   store.append_run_event(
-    project_id, run_id, "status", "Injecting Runtime secrets.",
+    project_id, run_id, "status", "Preparing builder authentication.",
   )
-  match materialize_runtime_file_secrets(config, agent_home_path) {
+  match prepare_agent_auth(config, agent_home_path) {
     Ok(_) => ignore(())
     Err(message) => {
       remove_docker_env_file(env_file_path)
@@ -1185,8 +1196,10 @@ async fn collect_agent_command_output(
   } else {
     match config {
       Some(config) => {
-        let agent_home_path = Some(
-          project_runtime_agent_home(root, project.id, config.agent_session_id),
+        let agent_home_path = project_runtime_agent_home(
+          root,
+          project.id,
+          config.agent_session_id,
         )
         let result = match
           stream_docker_output(
@@ -1282,11 +1295,24 @@ async fn run_runtime_turn(
   } else {
     bootstrap_prompt(user_prompt)
   }
+  safe_write_string(artifacts.prompt_path, prompt)
   let command = match config {
-    Some(config) => {
-      write_runtime_context(config, project, artifacts, prompt)
-      runtime_send_command(config, artifacts)
-    }
+    Some(config) =>
+      match
+        agent_command(root, config, prompt, resume_existing && !raw_prompt) {
+        Ok(command) => command
+        Err(message) =>
+          return Err(
+            runtime_failure_with_debug(
+              "The AI builder could not be started for that update.",
+              message,
+              thread_id_before,
+              Some(
+                failure_debug("AI builder startup", None, None, Some(artifacts)),
+              ),
+            ),
+          )
+      }
     None =>
       match thread_id_before {
         Some(runtime_session_id) if resume_existing && !raw_prompt =>
@@ -1323,55 +1349,76 @@ async fn run_runtime_turn(
   let mut fake_summary = initial_fake_summary
   append_command_log(
     artifacts.agent_log_path,
-    "runtime send",
+    "agent run",
     active_command,
     exit_code,
     output,
   )
   let mut thread_id = thread_id_before
-  if config is None && thread_id_before is None {
-    let thread_id = match extract_runtime_session_id(output) {
-      Some(runtime_session_id) => runtime_session_id
-      None =>
-        return Err(
-          runtime_failure_with_debug(
-            ai_builder_failure_assistant_message(
-              model,
-              output,
-              default_failure_assistant_message(),
-            ),
-            stage_failure_message(
-              "AI builder session startup",
-              exit_code,
-              artifacts.agent_log_path,
-              output,
-            ),
-            None,
-            Some(
-              failure_debug(
-                "AI builder session startup",
-                Some(active_command),
-                Some(exit_code),
-                Some(artifacts),
-              ),
-            ),
-          ),
-        )
-    }
-    let summary = trim_or_default(
-      safe_read_string_or(artifacts.last_message_path, ""),
-      default_success_summary(),
-    )
-    return Ok({ summary, thread_id, artifacts })
+  let agent_name = match config {
+    Some(config) => config.agent_cli
+    None => "fake-runtime"
   }
-  if config is None &&
-    !raw_prompt &&
+  match extract_agent_session_id(output, agent_name) {
+    Some(runtime_session_id) => thread_id = Some(runtime_session_id)
+    None => ()
+  }
+  if thread_id_before is None && thread_id is None {
+    return Err(
+      runtime_failure_with_debug(
+        ai_builder_failure_assistant_message(
+          model,
+          output,
+          default_failure_assistant_message(),
+        ),
+        stage_failure_message(
+          "AI builder session startup",
+          exit_code,
+          artifacts.agent_log_path,
+          output,
+        ),
+        None,
+        Some(
+          failure_debug(
+            "AI builder session startup",
+            Some(active_command),
+            Some(exit_code),
+            Some(artifacts),
+          ),
+        ),
+      ),
+    )
+  }
+  if !raw_prompt &&
     thread_id_before is Some(_) &&
     exit_code != 0 &&
     resume_session_missing(output) {
-    let recovery_command = fake_runtime_send_command(
-      recovery_prompt(initial_project_prompt, user_prompt),
+    let recovery_prompt_text = recovery_prompt(
+      initial_project_prompt, user_prompt,
     )
+    let recovery_command = match config {
+      Some(config) =>
+        match agent_command(root, config, recovery_prompt_text, false) {
+          Ok(command) => command
+          Err(message) =>
+            return Err(
+              runtime_failure_with_debug(
+                "The builder session could not be recovered for that update.",
+                message,
+                thread_id_before,
+                Some(
+                  failure_debug(
+                    "AI builder session recovery startup",
+                    None,
+                    None,
+                    Some(artifacts),
+                  ),
+                ),
+              ),
+            )
+        }
+      None => fake_runtime_send_command(recovery_prompt_text)
+    }
     let recovery_result = match
       collect_agent_command_output(
         store, run_id, root, config, project, workspace_path, artifacts, recovery_command,
@@ -1403,7 +1450,8 @@ async fn run_runtime_turn(
       recovery_exit_code,
       recovery_output,
     )
-    let recovery_thread_id = match extract_runtime_session_id(recovery_output) {
+    let recovery_thread_id = match
+      extract_agent_session_id(recovery_output, agent_name) {
       Some(runtime_session_id) => runtime_session_id
       None =>
         return Err(
@@ -1436,62 +1484,6 @@ async fn run_runtime_turn(
     fake_summary = recovery_fake_summary
     thread_id = Some(recovery_thread_id)
   }
-  if config is None {
-    let thread_id = match thread_id {
-      Some(thread_id) => thread_id
-      None =>
-        return Err(
-          runtime_failure_with_debug(
-            default_failure_assistant_message(),
-            "The builder session could not be restored for this run.",
-            None,
-            Some(
-              failure_debug(
-                "AI builder session startup",
-                Some(active_command),
-                Some(exit_code),
-                Some(artifacts),
-              ),
-            ),
-          ),
-        )
-    }
-    let summary = match fake_summary {
-      Some(summary) => trim_or_default(summary, default_success_summary())
-      None =>
-        trim_or_default(
-          safe_read_string_or(artifacts.last_message_path, ""),
-          default_success_summary(),
-        )
-    }
-    if exit_code != 0 {
-      return Err(
-        runtime_failure_with_debug(
-          ai_builder_failure_assistant_message(
-            model,
-            output,
-            default_failure_assistant_message(),
-          ),
-          stage_failure_message(
-            "AI builder execution",
-            exit_code,
-            artifacts.agent_log_path,
-            output,
-          ),
-          Some(thread_id),
-          Some(
-            failure_debug(
-              "AI builder execution",
-              Some(active_command),
-              Some(exit_code),
-              Some(artifacts),
-            ),
-          ),
-        ),
-      )
-    }
-    return Ok({ summary, thread_id, artifacts })
-  }
   if exit_code != 0 {
     return Err(
       runtime_failure_with_debug(
@@ -1506,7 +1498,7 @@ async fn run_runtime_turn(
           artifacts.agent_log_path,
           output,
         ),
-        thread_id_before,
+        thread_id,
         Some(
           failure_debug(
             "AI builder execution",
@@ -1518,17 +1510,17 @@ async fn run_runtime_turn(
       ),
     )
   }
-  let runtime_result = match read_runtime_result(artifacts) {
-    Ok(result) => result
-    Err(message) =>
+  let thread_id = match thread_id {
+    Some(thread_id) => thread_id
+    None =>
       return Err(
         runtime_failure_with_debug(
           default_failure_assistant_message(),
-          message,
-          thread_id_before,
+          "The builder session id could not be determined for this run.",
+          None,
           Some(
             failure_debug(
-              "AI builder result",
+              "AI builder session startup",
               Some(active_command),
               Some(exit_code),
               Some(artifacts),
@@ -1537,19 +1529,15 @@ async fn run_runtime_turn(
         ),
       )
   }
-  let summary = match runtime_result.last_message {
-    Some(message) => trim_or_default(message, default_success_summary())
+  let summary = match fake_summary {
+    Some(summary) => trim_or_default(summary, default_success_summary())
     None =>
-      match fake_summary {
-        Some(summary) => trim_or_default(summary, default_success_summary())
-        None =>
-          trim_or_default(
-            safe_read_string_or(artifacts.last_message_path, ""),
-            default_success_summary(),
-          )
-      }
+      trim_or_default(
+        safe_read_string_or(artifacts.last_message_path, ""),
+        default_success_summary(),
+      )
   }
-  Ok({ summary, thread_id: runtime_result.runtime_session_id, artifacts })
+  Ok({ summary, thread_id, artifacts })
 }
 
 ///|
@@ -1629,7 +1617,11 @@ fn preview_audit_target_url_for_base(
   base_url : String,
   preview : @sdk.PreviewTarget,
 ) -> String {
-  trim_trailing_slash(base_url) + preview.url
+  if preview.url.has_prefix("http://") || preview.url.has_prefix("https://") {
+    preview.url
+  } else {
+    trim_trailing_slash(base_url) + preview.url
+  }
 }
 
 ///|

@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mooncraft.dev/schemas/runtime-manifest.v2.schema.json",
+  "title": "MoonCraft Runtime Manifest v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol_version", "image", "agent", "model", "auth"],
+  "properties": {
+    "protocol_version": {
+      "const": 2
+    },
+    "image": {
+      "type": "string",
+      "minLength": 1
+    },
+    "agent": {
+      "enum": ["codex", "claude"]
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "auth": {
+      "$ref": "#/$defs/auth"
+    }
+  },
+  "$defs": {
+    "auth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "secret"],
+      "properties": {
+        "kind": {
+          "enum": [
+            "openrouter_api_key",
+            "codex_auth_json",
+            "claude_auth_json"
+          ]
+        },
+        "secret": {
+          "$ref": "#/$defs/secret"
+        }
+      }
+    },
+    "secret": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "target"],
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target": {
+          "$ref": "#/$defs/secret_target"
+        }
+      }
+    },
+    "secret_target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "enum": ["env", "file"]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "env"
+              }
+            }
+          },
+          "then": {
+            "required": ["name"],
+            "not": {
+              "required": ["path"]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "file"
+              }
+            }
+          },
+          "then": {
+            "required": ["path"],
+            "not": {
+              "required": ["name"]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -12,8 +12,7 @@ fi
 body_path="$(mktemp)"
 asset_list_path="$(mktemp)"
 asset_body_path="$(mktemp)"
-root_absolute_matches_path="$(mktemp)"
-trap 'rm -f "$body_path" "$asset_list_path" "$asset_body_path" "$root_absolute_matches_path"' EXIT
+trap 'rm -f "$body_path" "$asset_list_path" "$asset_body_path"' EXIT
 
 if [[ "$target_url" =~ ^(https?://[^/]+)(/.*)?$ ]]; then
   origin="${BASH_REMATCH[1]}"
@@ -43,21 +42,6 @@ resolved_url() {
     /*) printf '%s%s\n' "$origin" "$ref" ;;
     *) printf '%s%s\n' "$document_base" "$ref" ;;
   esac
-}
-
-assert_no_root_absolute_browser_urls() {
-  local path="$1"
-  local label="$2"
-  if grep -En \
-    '(^|[[:space:]<])(src|href|action)[[:space:]]*=[[:space:]]*["'\'']/|url\([[:space:]]*["'\'']?/|fetch[[:space:]]*\([[:space:]]*["'\'']/|import[[:space:]]*\([[:space:]]*["'\'']/|new[[:space:]]+Worker[[:space:]]*\([[:space:]]*["'\'']/|["'\'']/api/|["'\'']/[^"'\'']+\.(js|mjs|css|wasm|json|png|jpg|jpeg|webp|svg|woff|woff2)|["'\'']/vendor/' \
-    "$path" >"$root_absolute_matches_path" 2>/dev/null; then
-    echo "Preview audit failed for $target_url: $label contains root-absolute browser URLs." >&2
-    echo "MoonCraft previews are mounted under a path prefix such as /p/<preview-id>/." >&2
-    echo "Use relative URLs like ./frontend.js and ./api/metrics instead of /frontend.js or /api/metrics." >&2
-    head -20 "$root_absolute_matches_path" >&2 || true
-    exit 1
-  fi
-  : >"$root_absolute_matches_path"
 }
 
 http_code="$(
@@ -97,8 +81,6 @@ if grep -Eiq 'No preview is available|preview process is not reachable|preview c
   exit 1
 fi
 
-assert_no_root_absolute_browser_urls "$body_path" "the preview HTML"
-
 grep -Eoi '(^|[[:space:]<])(src|href|action)[[:space:]]*=[[:space:]]*"[^"]+"' "$body_path" \
   | sed -E 's/^[^"]*"([^"]+)".*$/\1/' >"$asset_list_path" || true
 
@@ -130,9 +112,6 @@ while IFS= read -r ref; do
       echo "Preview audit failed for $target_url: asset $asset_url returned HTTP $asset_code." >&2
       exit 1
       ;;
-  esac
-  case "$asset_url" in
-    *.js|*.mjs|*.css|*.html|*/) assert_no_root_absolute_browser_urls "$asset_body_path" "$asset_url" ;;
   esac
 done <"$asset_list_path"
 

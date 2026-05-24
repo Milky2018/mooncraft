@@ -125,14 +125,9 @@ This separation matters because the frontend, persistence model, and preview lif
 - preview script startup
 - health checks
 
-The current preview path is same-origin and exposed through:
+Generated projects run their own `mooncraft-preview.sh` on a private local port. The control plane passes `<port>` as the first argument, proxies browser traffic through the project preview origin, and health-checks `/api/health` with `/` as a fallback.
 
-- stored `preview.url` values like `/p/<preview_public_id>/`
-- `ALL /p/:preview_public_id/*` reverse proxy handling in the control plane
-
-Generated projects run their own `mooncraft-preview.sh` on a private local port. The control plane passes `<port>` as the first argument, proxies browser traffic through `/p/<preview_public_id>/`, and health-checks `/api/health` with `/` as a fallback.
-
-Because the public preview is mounted under a path prefix, generated browser apps must be path-prefix compatible. HTML assets, module imports, CSS URLs, and frontend API calls should use document-relative URLs such as `./frontend.js` and `./api/metrics`, not root-absolute URLs such as `/frontend.js` or `/api/metrics`.
+Production deployments should configure project-scoped preview origins through the deployment preview origin policy. Local development can still use the `/p/<preview_public_id>/` fallback when no preview origin template is configured.
 
 ## Why This Shape
 

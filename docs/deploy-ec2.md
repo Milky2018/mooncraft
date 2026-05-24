@@ -62,7 +62,7 @@ Required fix:
 
 The repo now includes two deployment-oriented fixes:
 
-- preview URLs are same-origin paths like `/p/<preview_public_id>/`, and the control plane reverse-proxies them to the private preview port
+- preview URLs are assigned by the deployment preview origin policy, and the control plane reverse-proxies them to the private preview port
 - cookie-session auth is available for platform users through GitHub OAuth
 
 This is enough for a first staged multi-user demo, but not enough for hardened production auth.

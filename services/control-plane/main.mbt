@@ -646,6 +646,101 @@ async fn proxy_preview_response(
 }
 
 ///|
+fn request_url_path(url : String) -> String {
+  let without_scheme = match url.find("://") {
+    Some(index) => {
+      let rest = url[index + 3:].to_owned()
+      match rest.find("/") {
+        Some(path_index) => rest[path_index:].to_owned()
+        None => "/"
+      }
+    }
+    None => url
+  }
+  let without_query = match without_scheme.find("?") {
+    Some(index) => without_scheme[:index].to_owned()
+    None => without_scheme
+  }
+  if without_query == "" {
+    "/"
+  } else {
+    without_query
+  }
+}
+
+///|
+async fn project_preview_proxy_response(
+  ctx : AppContext,
+  event : @mocket.MocketEvent,
+  preview_public_id : String,
+  remainder : String,
+) -> @mocket.HttpResponse noraise {
+  let project = match
+    ctx.store.get_project_detail_by_preview_public_id(preview_public_id) {
+    Some(project) => project
+    None => return text_response(NotFound, "Project not found.")
+  }
+  match project.preview {
+    Some(preview) =>
+      match proxy_preview_response(event, preview, remainder) {
+        Ok(response) => response
+        Err(_) => {
+          let updated_project = match
+            ctx.ensure_project_preview_running(project) {
+            Ok(project) => project
+            Err(message) =>
+              return text_response(
+                BadGateway,
+                "The saved preview could not be restarted: " + message,
+              )
+          }
+          match updated_project.preview {
+            Some(updated_preview) =>
+              match proxy_preview_response(event, updated_preview, remainder) {
+                Ok(response) => response
+                Err(_) =>
+                  text_response(
+                    BadGateway,
+                    "The preview process stopped and could not be reached after restart.",
+                  )
+              }
+            None =>
+              text_response(
+                NotFound,
+                "No preview is available for this project yet.",
+              )
+          }
+        }
+      }
+    None =>
+      text_response(NotFound, "No preview is available for this project yet.")
+  }
+}
+
+///|
+async fn preview_origin_proxy_response(
+  ctx : AppContext,
+  event : @mocket.MocketEvent,
+) -> @mocket.HttpResponse? noraise {
+  let host = match request_header(event, "Host") {
+    Some(value) => value
+    None => return None
+  }
+  let preview_public_id = match preview_public_id_from_host(host) {
+    Some(value) => value
+    None => return None
+  }
+  Some(
+    project_preview_proxy_response(
+      ctx,
+      event,
+      preview_public_id,
+      request_url_path(event.req.url),
+    ),
+  )
+}
+
+///|
 fn preview_asset_response(
   path : String,
   content_type : String,
@@ -1810,46 +1905,12 @@ fn main {
       .get("_")
       .map(fn(value) { value.to_owned() })
       .unwrap_or("")
-    let project = match
-      ctx.store.get_project_detail_by_preview_public_id(preview_public_id) {
-      Some(project) => project
-      None => return text_response(NotFound, "Project not found.")
-    }
-    match project.preview {
-      Some(preview) =>
-        match proxy_preview_response(event, preview, remainder) {
-          Ok(response) => response
-          Err(_) => {
-            let updated_project = match
-              ctx.ensure_project_preview_running(project) {
-              Ok(project) => project
-              Err(message) =>
-                return text_response(
-                  BadGateway,
-                  "The saved preview could not be restarted: " + message,
-                )
-            }
-            match updated_project.preview {
-              Some(updated_preview) =>
-                match
-                  proxy_preview_response(event, updated_preview, remainder) {
-                  Ok(response) => response
-                  Err(_) =>
-                    text_response(
-                      BadGateway,
-                      "The preview process stopped and could not be reached after restart.",
-                    )
-                }
-              None =>
-                text_response(
-                  NotFound,
-                  "No preview is available for this project yet.",
-                )
-            }
-          }
-        }
-      None =>
-        text_response(NotFound, "No preview is available for this project yet.")
+    project_preview_proxy_response(ctx, event, preview_public_id, remainder)
+  })
+  app.all("/**", async fn(event) noraise {
+    match preview_origin_proxy_response(ctx, event) {
+      Some(response) => response
+      None => text_response(NotFound, "Not Found")
     }
   })
 

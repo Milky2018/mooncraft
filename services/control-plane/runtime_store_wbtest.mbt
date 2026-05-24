@@ -9,19 +9,20 @@ async test "runtime seeding removes retired built-in ids only" {
   }
   let spec_json =
     #|{
-    #|  "protocol_version": 1,
+    #|  "protocol_version": 2,
     #|  "image": "runtime:test",
     #|  "agent": "codex",
     #|  "model": "openai/test",
-    #|  "provider": "openrouter",
-    #|  "send": ["mooncraft-runtime-send"],
-    #|  "container_home": "/root",
-    #|  "secrets": [
-    #|    {
+    #|  "auth": {
+    #|    "kind": "openrouter_api_key",
+    #|    "secret": {
     #|      "source": "mooncraft_ai_api_key",
-    #|      "env": "MOONCRAFT_AI_API_KEY"
+    #|      "target": {
+    #|        "type": "env",
+    #|        "name": "MOONCRAFT_AI_API_KEY"
+    #|      }
     #|    }
-    #|  ]
+    #|  }
     #|}
   ignore(
     store.save_admin_runtime(

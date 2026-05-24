@@ -530,6 +530,24 @@ pub(all) struct RunStatusResponse {
   finished_at : String?
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
+pub(all) struct RuntimeAuth {
+  kind : String
+  secret : RuntimeAuthSecret
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RuntimeAuthSecret {
+  source : String
+  target : RuntimeAuthTarget
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RuntimeAuthTarget {
+  kind : String
+  name : String?
+  path : String?
+} derive(@debug.Debug)
+pub impl ToJson for RuntimeAuthTarget
+pub impl @json.FromJson for RuntimeAuthTarget
+
 pub(all) struct RuntimeDetail {
   id : String
   name : String
@@ -541,22 +559,12 @@ pub(all) struct RuntimeDetail {
   updated_at : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
-pub(all) struct RuntimeSecretBinding {
-  source : String
-  env : String?
-  file : String?
-} derive(ToJson, @debug.Debug, @json.FromJson)
-
 pub(all) struct RuntimeSpec {
   protocol_version : Int
   image : String
   agent : String
   model : String
-  provider : String
-  send : Array[String]
-  container_home : String
-  container_user : String?
-  secrets : Array[RuntimeSecretBinding]
+  auth : RuntimeAuth
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct RuntimeSummary {

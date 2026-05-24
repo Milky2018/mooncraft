@@ -3,19 +3,19 @@
   "enabled": true,
   "is_default": false,
   "spec": {
-    "protocol_version": 1,
-    "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.2.0",
-    "agent": "claude_code",
+    "protocol_version": 2,
+    "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.3.0",
+    "agent": "claude",
     "model": "anthropic/claude-sonnet-4.5",
-    "provider": "openrouter",
-    "send": ["mooncraft-runtime-send"],
-    "container_home": "/home/mooncraft",
-    "container_user": "mooncraft",
-    "secrets": [
-      {
+    "auth": {
+      "kind": "openrouter_api_key",
+      "secret": {
         "source": "mooncraft_ai_api_key",
-        "env": "MOONCRAFT_AI_API_KEY"
+        "target": {
+          "type": "env",
+          "name": "MOONCRAFT_AI_API_KEY"
+        }
       }
-    ]
+    }
   }
 }

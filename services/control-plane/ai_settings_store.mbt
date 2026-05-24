@@ -1,11 +1,9 @@
 ///|
 struct AiRuntimeSettings {
-  runtime_id : String
-  runtime_name : String
   runtime_spec : @sdk.RuntimeSpec
   agent_session_id : String
   runtime_session_id : String?
-  secrets : Array[ResolvedRuntimeSecret]
+  secret : ResolvedRuntimeSecret
 }
 
 ///|
@@ -573,8 +571,8 @@ async fn Store::lease_ai_runtime_settings_for_project(
     Err(message) =>
       return Err("Project Runtime snapshot is invalid: \{message}")
   }
-  let secrets = match
-    self.resolve_runtime_secrets(
+  let secret = match
+    self.resolve_runtime_secret(
       runtime_spec,
       project_id,
       row_text(project, "owner_user_id"),
@@ -584,169 +582,54 @@ async fn Store::lease_ai_runtime_settings_for_project(
     Err(message) => return Err(message)
   }
   Ok({
-    runtime_id: row_text(project, "runtime_id"),
-    runtime_name: row_text(project, "runtime_name"),
     runtime_spec,
     agent_session_id: row_text(project, "agent_session_id"),
     runtime_session_id: empty_to_none(row_text(project, "runtime_session_id")),
-    secrets,
+    secret,
   })
 }
 
 ///|
-async fn Store::resolve_runtime_secrets(
+async fn Store::resolve_runtime_secret(
   self : Store,
   runtime_spec : @sdk.RuntimeSpec,
   project_id : String,
   owner_user_id : String,
   run_id : String,
-) -> Result[Array[ResolvedRuntimeSecret], String] noraise {
-  let secrets : Array[ResolvedRuntimeSecret] = []
-  for secret in runtime_spec.secrets {
-    match secret.source {
-      "admin_openrouter_key_pool" => {
-        let env = match secret.env {
-          Some(value) if value.trim() != "" => value.trim().to_owned()
-          _ =>
-            return Err(
-              "Runtime secret source admin_openrouter_key_pool must bind to env.",
-            )
-        }
-        let value = match
-          self.lease_openrouter_secret(
-            project_id,
-            owner_user_id,
-            run_id,
-            runtime_spec.model,
-          ) {
-          Ok(value) => value
-          Err(message) => return Err(message)
-        }
-        secrets.push({ env: Some(env), file: None, value })
+) -> Result[ResolvedRuntimeSecret, String] noraise {
+  ignore(project_id)
+  ignore(owner_user_id)
+  ignore(run_id)
+  let binding = runtime_spec.auth.secret
+  let source = binding.source.trim().to_owned()
+  if source == "" {
+    return Err("Runtime auth secret source is required.")
+  }
+  let record = match self.get_admin_secret_record_by_name(source) {
+    Some(record) => record
+    None => return Err("Runtime secret source is not configured: \{source}")
+  }
+  match binding.target.kind {
+    "env" =>
+      match binding.target.name {
+        Some(name) if name.trim() != "" =>
+          Ok({
+            env: Some(name.trim().to_owned()),
+            file: None,
+            value: record.value,
+          })
+        _ => Err("Runtime auth env target name is required.")
       }
-      source => {
-        let record = match self.get_admin_secret_record_by_name(source) {
-          Some(record) => record
-          None =>
-            return Err("Runtime secret source is not configured: \{source}")
-        }
-        match (secret.env, secret.file) {
-          (Some(env), None) => {
-            if env.trim() == "" {
-              return Err("Runtime secret env is required.")
-            }
-            secrets.push({
-              env: Some(env.trim().to_owned()),
-              file: None,
-              value: record.value,
-            })
-          }
-          (None, Some(file)) =>
-            secrets.push({ env: None, file: Some(file), value: record.value })
-          _ => return Err("Runtime secret binding must declare env or file.")
-        }
+    "file" =>
+      match binding.target.path {
+        Some(path) if path.trim() != "" =>
+          Ok({
+            env: None,
+            file: Some(path.trim().to_owned()),
+            value: record.value,
+          })
+        _ => Err("Runtime auth file target path is required.")
       }
-    }
+    _ => Err("Runtime auth target type must be env or file.")
   }
-  Ok(secrets)
-}
-
-///|
-async fn Store::lease_openrouter_secret(
-  self : Store,
-  project_id : String,
-  owner_user_id : String,
-  run_id : String,
-  model : String,
-) -> Result[String, String] noraise {
-  let row = match
-    self.query_one(
-      (
-        #|SELECT
-        #|  id,
-        #|  COALESCE(key_secret, '') AS key_secret
-        #|FROM ai_keys
-        #|WHERE provider = ? AND status = ?
-        #|  AND COALESCE(key_secret, '') <> ''
-        #|ORDER BY priority DESC, COALESCE(last_used_at, '') ASC, created_at ASC
-        #|LIMIT 1;
-      ),
-      params=[String("openrouter"), String("active")],
-    ) {
-    Some(row) => row
-    None => return Err("MoonCraft's app builder is temporarily unavailable.")
-  }
-  let key_id = row_text(row, "id")
-  let api_key = row_text(row, "key_secret").trim().to_owned()
-  if api_key == "" {
-    ignore(self.mark_ai_key_error(key_id, "Stored OpenRouter key is missing."))
-    return Err("MoonCraft's app builder is temporarily unavailable.")
-  }
-  let usage_id = next_id("ai-usage")
-  let now = now_string()
-  ignore(
-    self.exec_or_error(
-      (
-        #|INSERT INTO ai_key_usages (
-        #|  id,
-        #|  key_id,
-        #|  run_id,
-        #|  project_id,
-        #|  user_id,
-        #|  model,
-        #|  state,
-        #|  started_at
-        #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-      ),
-      "record AI key usage",
-      params=[
-        String(usage_id),
-        String(key_id),
-        String(run_id),
-        String(project_id),
-        String(owner_user_id),
-        String(model),
-        String("started"),
-        String(now),
-      ],
-    ),
-  )
-  ignore(
-    self.exec_or_error(
-      (
-        #|UPDATE ai_keys
-        #|SET last_used_at = ?,
-        #|    last_error = NULL,
-        #|    updated_at = ?
-        #|WHERE id = ?;
-      ),
-      "mark AI key usage",
-      params=[String(now), String(now), String(key_id)],
-    ),
-  )
-  Ok(api_key)
-}
-
-///|
-async fn Store::mark_ai_key_error(
-  self : Store,
-  key_id : String,
-  message : String,
-) -> Result[Unit, String] noraise {
-  self.exec_or_error(
-    (
-      #|UPDATE ai_keys
-      #|SET status = ?,
-      #|    last_error = ?,
-      #|    updated_at = ?
-      #|WHERE id = ?;
-    ),
-    "mark AI key error",
-    params=[
-      String("error"),
-      String(message),
-      String(now_string()),
-      String(key_id),
-    ],
-  )
 }

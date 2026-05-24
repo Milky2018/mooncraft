@@ -34,97 +34,26 @@ fn builtin_runtime_id(index : Int) -> String {
 }
 
 ///|
-fn runtime_spec_string_field(
-  fields : Map[String, Json],
-  name : String,
-) -> String {
-  match fields.get(name) {
-    Some(String(value)) => value.trim().to_owned()
-    _ => ""
-  }
-}
-
-///|
-fn runtime_spec_optional_string_field(
-  fields : Map[String, Json],
-  name : String,
-) -> String? {
-  match fields.get(name) {
-    Some(String(value)) if value.trim() != "" => Some(value.trim().to_owned())
-    _ => None
-  }
-}
-
-///|
-fn normalize_runtime_container_user(value : String?) -> Result[String?, String] {
-  match value {
-    Some(user) => {
-      let trimmed = user.trim().to_owned()
-      if trimmed == "" {
-        Ok(None)
-      } else if trimmed.contains(" ") ||
-        trimmed.contains("\t") ||
-        trimmed.has_prefix("-") {
-        Err("Runtime container_user must be a Docker user name or uid.")
-      } else {
-        Ok(Some(trimmed))
-      }
-    }
-    None => Ok(None)
-  }
-}
-
-///|
 fn validate_runtime_secret_file_path(path : String) -> Result[String, String] {
   let trimmed = path.trim().to_owned()
   if trimmed == "" {
-    return Err("Runtime secret file is required.")
+    return Err("Runtime auth target path is required.")
   }
   if trimmed.has_prefix("/") {
-    return Err("Runtime secret file must be relative to container_home.")
+    return Err("Runtime auth target path must be relative to /home/mooncraft.")
   }
   if trimmed.contains("\\") {
-    return Err("Runtime secret file must use forward slashes.")
+    return Err("Runtime auth target path must use forward slashes.")
   }
   for part in trimmed.split("/").to_array() {
     let segment = part.to_owned()
     if segment == "" || segment == "." || segment == ".." {
       return Err(
-        "Runtime secret file must not contain empty, '.', or '..' path segments.",
+        "Runtime auth target path must not contain empty, '.', or '..' path segments.",
       )
     }
   }
   Ok(trimmed)
-}
-
-///|
-fn normalize_runtime_secret_binding(
-  source_input : String,
-  env_input : String?,
-  file_input : String?,
-) -> Result[@sdk.RuntimeSecretBinding, String] {
-  let source = source_input.trim().to_owned()
-  if source == "" {
-    return Err("Runtime secret source is required.")
-  }
-  let env = match env_input {
-    Some(value) if value.trim() != "" => Some(value.trim().to_owned())
-    _ => None
-  }
-  let file = match file_input {
-    Some(value) =>
-      match validate_runtime_secret_file_path(value) {
-        Ok(path) => Some(path)
-        Err(message) => return Err(message)
-      }
-    None => None
-  }
-  match (env, file) {
-    (Some(_), Some(_)) =>
-      Err("Runtime secret binding must use either env or file, not both.")
-    (None, None) => Err("Runtime secret binding must declare env or file.")
-    _ => Ok({ source, env, file })
-  }
 }
 
 ///|
@@ -150,55 +79,102 @@ fn runtime_spec_int_field(
 }
 
 ///|
-fn runtime_spec_send_field(
+fn runtime_spec_forbidden_v1_fields(
   fields : Map[String, Json],
-) -> Result[Array[String], String] {
-  match fields.get("send") {
-    Some(Array(items)) => {
-      let send : Array[String] = []
-      for item in items {
-        match item {
-          String(value) if value.trim() != "" =>
-            send.push(value.trim().to_owned())
-          String(_) => ()
-          _ =>
-            return Err(
-              "Runtime send command must contain only string argv items.",
-            )
-        }
-      }
-      Ok(send)
+) -> Result[Unit, String] {
+  for
+    name in ["provider", "send", "secrets", "container_home", "container_user"] {
+    if fields.contains(name) {
+      return Err("Runtime Protocol v2 does not support '\{name}'.")
     }
-    _ => Err("Runtime send command must be an argv array.")
+  }
+  Ok(())
+}
+
+///|
+fn runtime_spec_allowed_fields(
+  fields : Map[String, Json],
+) -> Result[Unit, String] {
+  for key in fields.keys() {
+    match key {
+      "protocol_version" | "image" | "agent" | "model" | "auth" => ()
+      _ => return Err("Runtime field is not supported: \{key}")
+    }
+  }
+  Ok(())
+}
+
+///|
+fn normalize_runtime_auth_target(
+  target : @sdk.RuntimeAuthTarget,
+) -> Result[@sdk.RuntimeAuthTarget, String] {
+  let kind = target.kind.trim().to_owned()
+  match kind {
+    "env" => {
+      let name = match target.name {
+        Some(value) if value.trim() != "" => value.trim().to_owned()
+        _ => return Err("Runtime auth env target name is required.")
+      }
+      match target.path {
+        Some(value) if value.trim() != "" =>
+          return Err("Runtime auth env target must not include path.")
+        _ => Ok({ kind, name: Some(name), path: None })
+      }
+    }
+    "file" => {
+      let file_path = match target.path {
+        Some(value) =>
+          match validate_runtime_secret_file_path(value) {
+            Ok(path) => path
+            Err(message) => return Err(message)
+          }
+        None => return Err("Runtime auth file target path is required.")
+      }
+      match target.name {
+        Some(value) if value.trim() != "" =>
+          return Err("Runtime auth file target must not include name.")
+        _ => Ok({ kind, name: None, path: Some(file_path) })
+      }
+    }
+    _ => Err("Runtime auth target type must be env or file.")
   }
 }
 
 ///|
-fn runtime_spec_secret_bindings_field(
-  fields : Map[String, Json],
-) -> Result[Array[@sdk.RuntimeSecretBinding], String] {
-  match fields.get("secrets") {
-    None | Some(Null) => Err("Runtime secrets must be an array.")
-    Some(Array(items)) => {
-      let secrets : Array[@sdk.RuntimeSecretBinding] = []
-      for item in items {
-        match item {
-          Object(fields) => {
-            let source = runtime_spec_string_field(fields, "source")
-            let env = runtime_spec_optional_string_field(fields, "env")
-            let file = runtime_spec_optional_string_field(fields, "file")
-            match normalize_runtime_secret_binding(source, env, file) {
-              Ok(secret) => secrets.push(secret)
-              Err(message) => return Err(message)
-            }
-          }
-          _ => return Err("Runtime secrets must be JSON objects.")
-        }
-      }
-      Ok(secrets)
-    }
-    _ => Err("Runtime secrets must be an array.")
+fn normalize_runtime_auth(
+  agent : String,
+  auth : @sdk.RuntimeAuth,
+) -> Result[@sdk.RuntimeAuth, String] {
+  let kind = auth.kind.trim().to_owned()
+  match kind {
+    "openrouter_api_key" | "codex_auth_json" | "claude_auth_json" => ()
+    _ =>
+      return Err(
+        "Runtime auth kind must be openrouter_api_key, codex_auth_json, or claude_auth_json.",
+      )
   }
+  if kind == "codex_auth_json" && agent != "codex" {
+    return Err("Runtime auth codex_auth_json requires agent codex.")
+  }
+  if kind == "claude_auth_json" && agent != "claude" {
+    return Err("Runtime auth claude_auth_json requires agent claude.")
+  }
+  let source = auth.secret.source.trim().to_owned()
+  if source == "" {
+    return Err("Runtime auth secret source is required.")
+  }
+  let target = match normalize_runtime_auth_target(auth.secret.target) {
+    Ok(value) => value
+    Err(message) => return Err(message)
+  }
+  if kind == "openrouter_api_key" && target.kind != "env" {
+    return Err("Runtime auth openrouter_api_key must target env.")
+  }
+  if (kind == "codex_auth_json" || kind == "claude_auth_json") &&
+    target.kind != "file" {
+    return Err("Runtime account-file auth must target file.")
+  }
+  Ok({ kind, secret: { source, target } })
 }
 
 ///|
@@ -206,63 +182,27 @@ fn normalize_runtime_spec(
   spec : @sdk.RuntimeSpec,
 ) -> Result[@sdk.RuntimeSpec, String] {
   let protocol_version = spec.protocol_version
-  if protocol_version != 1 {
-    return Err("Runtime protocol_version must be 1.")
+  if protocol_version != 2 {
+    return Err("Runtime protocol_version must be 2.")
   }
   let image = spec.image.trim().to_owned()
   if image == "" {
     return Err("Runtime image is required.")
   }
   let agent = spec.agent.trim().to_owned()
-  if agent == "" {
-    return Err("Runtime agent is required.")
+  match agent {
+    "codex" | "claude" => ()
+    _ => return Err("Runtime agent must be codex or claude.")
   }
   let model = spec.model.trim().to_owned()
   if model == "" {
     return Err("Runtime model is required.")
   }
-  let provider = spec.provider.trim().to_owned()
-  if provider == "" {
-    return Err("Runtime provider is required.")
-  }
-  let send : Array[String] = []
-  for part in spec.send {
-    let value = part.trim().to_owned()
-    if value != "" {
-      send.push(value)
-    }
-  }
-  if send.length() == 0 {
-    return Err("Runtime send command must contain at least one argv item.")
-  }
-  let container_home = spec.container_home.trim().to_owned()
-  if container_home == "" {
-    return Err("Runtime container_home is required.")
-  }
-  let container_user = match
-    normalize_runtime_container_user(spec.container_user) {
-    Ok(value) => value
+  let auth = match normalize_runtime_auth(agent, spec.auth) {
+    Ok(auth) => auth
     Err(message) => return Err(message)
   }
-  let secrets : Array[@sdk.RuntimeSecretBinding] = []
-  for secret in spec.secrets {
-    match
-      normalize_runtime_secret_binding(secret.source, secret.env, secret.file) {
-      Ok(secret) => secrets.push(secret)
-      Err(message) => return Err(message)
-    }
-  }
-  Ok({
-    protocol_version,
-    image,
-    agent,
-    model,
-    provider,
-    send,
-    container_home,
-    container_user,
-    secrets,
-  })
+  Ok({ protocol_version, image, agent, model, auth })
 }
 
 ///|
@@ -271,30 +211,27 @@ fn runtime_spec_from_json(text : String) -> Result[@sdk.RuntimeSpec, String] {
     _ => return Err("Runtime spec must be valid JSON.")
   }
   match parsed {
-    Object(fields) =>
-      normalize_runtime_spec({
-        protocol_version: match
-          runtime_spec_int_field(fields, "protocol_version") {
-          Ok(value) => value
-          Err(message) => return Err(message)
-        },
-        image: runtime_spec_string_field(fields, "image"),
-        agent: runtime_spec_string_field(fields, "agent"),
-        model: runtime_spec_string_field(fields, "model"),
-        provider: runtime_spec_string_field(fields, "provider"),
-        send: match runtime_spec_send_field(fields) {
-          Ok(send) => send
-          Err(message) => return Err(message)
-        },
-        container_home: runtime_spec_string_field(fields, "container_home"),
-        container_user: runtime_spec_optional_string_field(
-          fields, "container_user",
-        ),
-        secrets: match runtime_spec_secret_bindings_field(fields) {
-          Ok(secrets) => secrets
-          Err(message) => return Err(message)
-        },
-      })
+    Object(fields) => {
+      match runtime_spec_int_field(fields, "protocol_version") {
+        Ok(value) =>
+          if value != 2 {
+            return Err("Runtime protocol_version must be 2.")
+          }
+        Err(message) => return Err(message)
+      }
+      match runtime_spec_forbidden_v1_fields(fields) {
+        Ok(_) => ()
+        Err(message) => return Err(message)
+      }
+      match runtime_spec_allowed_fields(fields) {
+        Ok(_) => ()
+        Err(message) => return Err(message)
+      }
+      let spec : @sdk.RuntimeSpec = @json.from_json(parsed) catch {
+        err => return Err("Runtime spec does not match Protocol v2: \{err}")
+      }
+      normalize_runtime_spec(spec)
+    }
     _ => Err("Runtime spec must be a JSON object.")
   }
 }
@@ -406,6 +343,80 @@ fn runtime_snapshot_json(runtime : @sdk.RuntimeDetail) -> String {
 }
 
 ///|
+async fn Store::delete_invalid_agent_runtime_rows(
+  self : Store,
+) -> Result[Unit, String] noraise {
+  let rows = self.query_rows(
+    (
+      #|SELECT id, spec_json
+      #|FROM agent_runtimes;
+    ),
+  )
+  for row in rows {
+    let id = row_text(row, "id")
+    match runtime_spec_from_json(row_text(row, "spec_json")) {
+      Ok(_) => ()
+      Err(_) =>
+        match
+          self.exec_or_error(
+            "DELETE FROM agent_runtimes WHERE id = ?;",
+            "delete invalid agent runtime",
+            params=[String(id)],
+          ) {
+          Ok(_) => ()
+          Err(message) => return Err(message)
+        }
+    }
+  }
+  Ok(())
+}
+
+///|
+async fn Store::ensure_agent_runtime_default(
+  self : Store,
+) -> Result[Unit, String] noraise {
+  match
+    self.query_one(
+      (
+        #|SELECT id
+        #|FROM agent_runtimes
+        #|WHERE enabled = 1 AND is_default = 1
+        #|LIMIT 1;
+      ),
+    ) {
+    Some(_) => Ok(())
+    None => {
+      let row = match
+        self.query_one(
+          (
+            #|SELECT id
+            #|FROM agent_runtimes
+            #|WHERE enabled = 1
+            #|ORDER BY id ASC
+            #|LIMIT 1;
+          ),
+        ) {
+        Some(row) => row
+        None => return Err("At least one enabled Runtime is required.")
+      }
+      let id = row_text(row, "id")
+      match
+        self.exec_or_error(
+          (
+            #|UPDATE agent_runtimes
+            #|SET is_default = CASE WHEN id = ? THEN 1 ELSE 0 END;
+          ),
+          "repair default agent runtime",
+          params=[String(id)],
+        ) {
+        Ok(_) => Ok(())
+        Err(message) => Err(message)
+      }
+    }
+  }
+}
+
+///|
 async fn Store::ensure_agent_runtime_tables(
   self : Store,
 ) -> Result[Unit, String] noraise {
@@ -496,6 +507,14 @@ async fn Store::ensure_agent_runtime_tables(
         Err(message) => return Err(message)
       }
     }
+  }
+  match self.delete_invalid_agent_runtime_rows() {
+    Ok(_) => ()
+    Err(message) => return Err(message)
+  }
+  match self.ensure_agent_runtime_default() {
+    Ok(_) => ()
+    Err(message) => return Err(message)
   }
   Ok(())
 }

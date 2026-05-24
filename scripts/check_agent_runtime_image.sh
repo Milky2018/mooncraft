@@ -10,6 +10,8 @@ cleanup() {
   rm -rf "$tmp_root"
 }
 trap cleanup EXIT
+mkdir -p "$tmp_root/workspace" "$tmp_root/home" "$tmp_root/artifacts"
+chmod -R a+rwX "$tmp_root"
 
 if [[ "$platform" = host || "$platform" = auto ]]; then
   platform="$("$repo_root/scripts/publish_agent_runtime_image.sh" host-platform)"
@@ -26,15 +28,18 @@ esac
 
 docker run --rm \
   --platform "$platform" \
-  -e "MOONCRAFT_AI_PROVIDER=openrouter" \
-  -e "MOONCRAFT_AGENT_CLI=codex" \
-  -e "MOONCRAFT_AI_MODEL=openai/gpt-5.4-mini" \
-  -e "MOONCRAFT_AI_API_KEY=${MOONCRAFT_AGENT_RUNTIME_DEPS_CHECK_API_KEY:-dummy-runtime-check-key}" \
-  -v "$tmp_root:/workspace" \
+  -v "$tmp_root/workspace:/workspace" \
+  -v "$tmp_root/home:/home/mooncraft" \
+  -v "$tmp_root/artifacts:/artifacts" \
   -w /workspace \
   "$image" \
   bash -lc '
     set -euo pipefail
+    test "$(id -u)" != "0"
+    test "${HOME:-}" = "/home/mooncraft"
+    test -w /workspace
+    test -w /home/mooncraft
+    test -w /artifacts
     command -v rg >/dev/null
     command -v jq >/dev/null
     command -v sort >/dev/null
@@ -42,11 +47,11 @@ docker run --rm \
     command -v gcc >/dev/null
     command -v make >/dev/null
     command -v pkg-config >/dev/null
-    command -v mooncraft-runtime-send >/dev/null
+    command -v codex >/dev/null
+    command -v claude >/dev/null
     printf "%s\n" "int main(void) { return 0; }" > /tmp/mooncraft-runtime-check.c
     cc /tmp/mooncraft-runtime-check.c -o /tmp/mooncraft-runtime-check
     /tmp/mooncraft-runtime-check
-    test -n "${HOME:-}"
     test -d "$HOME/.codex/skills"
     test -d /opt/mooncraft/templates
     echo "Agent runtime image check completed."
