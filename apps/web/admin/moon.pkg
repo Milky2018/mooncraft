@@ -1,5 +1,6 @@
 import {
   "mooncraft/sdk",
+  "mooncraft/web/shared",
   "moonbit-community/rabbita",
   "moonbit-community/rabbita/cmd",
   "moonbit-community/rabbita/html",

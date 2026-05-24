@@ -27,23 +27,7 @@ fn project_action_button_style(
   background : String,
   enabled : Bool,
 ) -> Array[String] {
-  let cursor = if enabled { "pointer" } else { "not-allowed" }
-  let opacity = if enabled { "1" } else { "0.45" }
-  [
-    "width: 28px",
-    "height: 28px",
-    "padding: 0",
-    "border: 0",
-    "border-radius: var(--radius-control)",
-    "background: " + background,
-    "color: " + foreground,
-    "display: inline-flex",
-    "align-items: center",
-    "justify-content: center",
-    "cursor: " + cursor,
-    "opacity: " + opacity,
-    "flex-shrink: 0",
-  ]
+  @shared.action_button_box_style(foreground, background, enabled)
 }
 
 ///|
@@ -105,12 +89,10 @@ fn project_cancel_icon() -> @rabbita.Html {
 
 ///|
 fn project_action_menu_style() -> Array[String] {
-  [
-    "position: absolute", "right: 0", "top: 34px", "z-index: 40", "padding: 4px",
-    "border-radius: var(--radius-control)", "background: var(--surface-raised)",
-    "box-shadow: var(--shadow)", "display: flex", "flex-direction: column", "gap: 4px",
-    "min-width: 132px",
-  ]
+  @shared.menu_surface_style(
+    "34px", "0", "40", "132px", "var(--radius-control)", "var(--surface-raised)",
+    "", "flex",
+  )
 }
 
 ///|
@@ -119,25 +101,15 @@ fn project_menu_item_style(
   background : String,
   enabled : Bool,
 ) -> Array[String] {
-  let cursor = if enabled { "pointer" } else { "not-allowed" }
-  let opacity = if enabled { "1" } else { "0.45" }
-  value_text_style() +
-  [
-    "width: 100%",
-    "height: 30px",
-    "padding: 0 8px",
-    "border: 0",
-    "border-radius: var(--radius-control)",
-    "background: " + background,
-    "color: " + foreground,
-    "display: flex",
-    "align-items: center",
-    "justify-content: flex-start",
-    "cursor: " + cursor,
-    "opacity: " + opacity,
-    "text-align: left",
-    "white-space: nowrap",
-  ]
+  @shared.menu_item_base_style(
+    value_text_style(),
+    foreground,
+    background,
+    enabled,
+    "var(--radius-control)",
+    "flex",
+  ) +
+  ["white-space: nowrap"]
 }
 
 ///|

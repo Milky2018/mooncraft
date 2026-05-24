@@ -1,10 +1,6 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "mooncraft/web/admin"
 
-import {
-  "moonbitlang/core/json",
-}
-
 // Values
 
 // Errors
@@ -17,12 +13,6 @@ type AdminMsg
 type AdminView derive(Eq)
 
 type ModelCatalogMode derive(Eq)
-
-type RawHttpResponse derive(@json.FromJson)
-
-type Request
-
-type RequestBody
 
 // Type aliases
 

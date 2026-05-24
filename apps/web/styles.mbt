@@ -133,26 +133,17 @@ fn button_style(
   foreground : String,
   enabled : Bool,
 ) -> Array[String] {
-  let cursor = if enabled { "pointer" } else { "not-allowed" }
-  let opacity = if enabled { "1" } else { "0.45" }
-  [
-    "font-size: var(--font-mid)",
-    "font-weight: 600",
-    "line-height: 1.45",
-    "letter-spacing: 0",
-    "display: inline-flex",
-    "align-items: center",
-    "justify-content: center",
-    "gap: 6px",
-    "padding: 7px 10px",
-    "border: 1px solid transparent",
-    "border-radius: var(--radius-control)",
-    "background: " + background,
-    "color: " + foreground,
-    "cursor: " + cursor,
-    "opacity: " + opacity,
-    "transition: background 100ms ease, color 100ms ease, opacity 100ms ease",
-  ]
+  @shared.button_base_style(
+    [
+      "font-size: var(--font-mid)", "font-weight: 600", "line-height: 1.45", "letter-spacing: 0",
+    ],
+    background,
+    foreground,
+    enabled,
+    "7px 10px",
+    "1px solid transparent",
+  ) +
+  ["transition: background 100ms ease, color 100ms ease, opacity 100ms ease"]
 }
 
 ///|

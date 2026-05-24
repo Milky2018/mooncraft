@@ -123,22 +123,14 @@ fn actions_td_style() -> Array[String] {
 
 ///|
 fn button_style(enabled : Bool) -> Array[String] {
-  let cursor = if enabled { "pointer" } else { "not-allowed" }
-  let opacity = if enabled { "1" } else { "0.45" }
-  value_style() +
-  [
-    "border: 0",
-    "border-radius: var(--radius-control)",
-    "background: var(--foreground-5)",
-    "color: var(--text-1)",
-    "padding: 6px 9px",
-    "display: inline-flex",
-    "align-items: center",
-    "justify-content: center",
-    "gap: 6px",
-    "cursor: " + cursor,
-    "opacity: " + opacity,
-  ]
+  @shared.button_base_style(
+    value_style(),
+    "var(--foreground-5)",
+    "var(--text-1)",
+    enabled,
+    "6px 9px",
+    "0",
+  )
 }
 
 ///|
@@ -160,21 +152,10 @@ fn dots_button_style(active : Bool) -> Array[String] {
 ///|
 fn action_menu_style(open : Bool) -> Array[String] {
   let display = if open { "flex" } else { "none" }
-  [
-    "position: absolute",
-    "top: 32px",
-    "right: 0",
-    "z-index: 10",
-    "min-width: 132px",
-    "padding: 4px",
-    "border-radius: 8px",
-    "border: 1px solid var(--border)",
-    "background: var(--background)",
-    "box-shadow: var(--shadow)",
-    "display: " + display,
-    "flex-direction: column",
-    "gap: 4px",
-  ]
+  @shared.menu_surface_style(
+    "32px", "0", "10", "132px", "8px", "var(--background)", "1px solid var(--border)",
+    display,
+  )
 }
 
 ///|
@@ -185,21 +166,14 @@ fn menu_item_style(danger : Bool, confirming : Bool) -> Array[String] {
   } else {
     "transparent"
   }
-  value_style() +
-  [
-    "width: 100%",
-    "height: 30px",
-    "padding: 0 8px",
-    "border-radius: 6px",
-    "border: 0",
-    "background: " + background,
-    "color: " + color,
-    "display: inline-flex",
-    "align-items: center",
-    "justify-content: flex-start",
-    "text-align: left",
-    "cursor: pointer",
-  ]
+  @shared.menu_item_base_style(
+    value_style(),
+    color,
+    background,
+    true,
+    "6px",
+    "inline-flex",
+  )
 }
 
 ///|

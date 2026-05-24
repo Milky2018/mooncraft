@@ -2,19 +2,19 @@
 using @cmd {type Cmd, type Dispatch, trait Scheduler}
 
 ///|
-struct RawHttpResponse {
+priv struct RawHttpResponse {
   status : Int
   body : String
 } derive(FromJson)
 
 ///|
-enum RequestBody {
+priv enum RequestBody {
   Json(Json)
   Empty
 }
 
 ///|
-struct Request {
+priv struct Request {
   url : String
   http_method : String
   body : RequestBody
@@ -187,6 +187,15 @@ pub fn[Req : ToJson, Resp : FromJson] put_json(
 }
 
 ///|
+pub fn[Req : ToJson, Resp : FromJson] patch_json(
+  url : String,
+  payload : Req,
+  msg : Dispatch[Result[Resp, @sdk.ApiError]],
+) -> Cmd {
+  { url, http_method: "PATCH", body: Json(payload.to_json()) }.expect_json(msg)
+}
+
+///|
 pub fn post_empty(
   url : String,
   msg : Dispatch[Result[Unit, @sdk.ApiError]],
@@ -222,13 +231,9 @@ extern "js" fn js_request(
 ) =
   #| (url, method, contentType, body, hasBody, succeed, failed) => {
   #|   const headers = { "Accept": "application/json" };
-  #|   if (hasBody) {
-  #|     headers["Content-Type"] = contentType;
-  #|   }
+  #|   if (hasBody) headers["Content-Type"] = contentType;
   #|   const config = { method, headers };
-  #|   if (hasBody) {
-  #|     config.body = body;
-  #|   }
+  #|   if (hasBody) config.body = body;
   #|   fetch(url, config)
   #|     .then(async (response) => {
   #|       const text = await response.text();

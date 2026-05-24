@@ -1,13 +1,13 @@
 ///|
 fn load_users_cmd(dispatch : @rabbita.Dispatch[AdminMsg]) -> @rabbita.Cmd {
-  get_json(@sdk.admin_users_path(100), fn(result) {
+  @shared.get_json(@sdk.admin_users_path(100), fn(result) {
     dispatch(UsersLoaded(result))
   })
 }
 
 ///|
 fn load_secrets_cmd(dispatch : @rabbita.Dispatch[AdminMsg]) -> @rabbita.Cmd {
-  get_json(@sdk.admin_secrets_path(), fn(result) {
+  @shared.get_json(@sdk.admin_secrets_path(), fn(result) {
     dispatch(SecretsLoaded(result))
   })
 }
@@ -17,28 +17,28 @@ fn load_user_projects_cmd(
   dispatch : @rabbita.Dispatch[AdminMsg],
   user_id : String,
 ) -> @rabbita.Cmd {
-  get_json(@sdk.admin_user_projects_path(user_id), fn(result) {
+  @shared.get_json(@sdk.admin_user_projects_path(user_id), fn(result) {
     dispatch(UserProjectsLoaded(user_id, result))
   })
 }
 
 ///|
 fn load_config_cmd(dispatch : @rabbita.Dispatch[AdminMsg]) -> @rabbita.Cmd {
-  get_json(@sdk.admin_ai_config_path(), fn(result) {
+  @shared.get_json(@sdk.admin_ai_config_path(), fn(result) {
     dispatch(ConfigLoaded(result))
   })
 }
 
 ///|
 fn load_runtimes_cmd(dispatch : @rabbita.Dispatch[AdminMsg]) -> @rabbita.Cmd {
-  get_json(@sdk.admin_runtimes_path(), fn(result) {
+  @shared.get_json(@sdk.admin_runtimes_path(), fn(result) {
     dispatch(RuntimesLoaded(result))
   })
 }
 
 ///|
 fn load_catalog_cmd(dispatch : @rabbita.Dispatch[AdminMsg]) -> @rabbita.Cmd {
-  get_json(@sdk.admin_ai_models_path(), fn(result) {
+  @shared.get_json(@sdk.admin_ai_models_path(), fn(result) {
     dispatch(CatalogLoaded(result))
   })
 }
@@ -61,7 +61,7 @@ fn create_secret_cmd(
   value : String,
 ) -> @rabbita.Cmd {
   let payload : @sdk.CreateAdminSecretRequest = { name, value }
-  post_json(@sdk.admin_secrets_path(), payload, fn(result) {
+  @shared.post_json(@sdk.admin_secrets_path(), payload, fn(result) {
     dispatch(SecretCreated(result))
   })
 }
@@ -74,7 +74,7 @@ fn update_secret_cmd(
   value : String,
 ) -> @rabbita.Cmd {
   let payload : @sdk.UpdateAdminSecretRequest = { name, value }
-  patch_json(@sdk.admin_secret_path(id), payload, fn(result) {
+  @shared.patch_json(@sdk.admin_secret_path(id), payload, fn(result) {
     dispatch(SecretUpdated(result))
   })
 }
@@ -84,7 +84,7 @@ fn delete_secret_cmd(
   dispatch : @rabbita.Dispatch[AdminMsg],
   id : String,
 ) -> @rabbita.Cmd {
-  delete_empty(@sdk.admin_secret_path(id), fn(result) {
+  @shared.delete_empty(@sdk.admin_secret_path(id), fn(result) {
     dispatch(SecretDeleted(id, result))
   })
 }
@@ -104,7 +104,7 @@ fn save_runtime_cmd(
     enabled,
     is_default,
   }
-  put_json(@sdk.admin_runtime_path(id), payload, fn(result) {
+  @shared.put_json(@sdk.admin_runtime_path(id), payload, fn(result) {
     dispatch(RuntimeSaved(result))
   })
 }
@@ -123,7 +123,7 @@ fn create_runtime_cmd(
     enabled,
     is_default,
   }
-  post_json(@sdk.admin_runtimes_path(), payload, fn(result) {
+  @shared.post_json(@sdk.admin_runtimes_path(), payload, fn(result) {
     dispatch(RuntimeSaved(result))
   })
 }
@@ -138,14 +138,16 @@ fn save_models_cmd(
     default_model,
     allowed_models,
   }
-  put_json(@sdk.admin_ai_config_path(), payload, fn(result) {
+  @shared.put_json(@sdk.admin_ai_config_path(), payload, fn(result) {
     dispatch(ModelsUpdated(result))
   })
 }
 
 ///|
 fn logout_cmd(dispatch : @rabbita.Dispatch[AdminMsg]) -> @rabbita.Cmd {
-  post_empty("/api/admin/logout", fn(result) { dispatch(LoggedOut(result)) })
+  @shared.post_empty("/api/admin/logout", fn(result) {
+    dispatch(LoggedOut(result))
+  })
 }
 
 ///|

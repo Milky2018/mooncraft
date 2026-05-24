@@ -1,24 +1,7 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "mooncraft/web"
 
-import {
-  "moonbit-community/rabbita/cmd",
-  "moonbitlang/core/json",
-  "mooncraft/sdk",
-}
-
 // Values
-pub fn delete_empty(String, @cmd.Dispatch[Result[Unit, @sdk.ApiError]]) -> @cmd.Cmd
-
-pub fn[T : @json.FromJson] get_json(String, @cmd.Dispatch[Result[T, @sdk.ApiError]]) -> @cmd.Cmd
-
-pub fn post_empty(String, @cmd.Dispatch[Result[Unit, @sdk.ApiError]]) -> @cmd.Cmd
-
-pub fn[Resp : @json.FromJson] post_empty_json(String, @cmd.Dispatch[Result[Resp, @sdk.ApiError]]) -> @cmd.Cmd
-
-pub fn[Req : ToJson, Resp : @json.FromJson] post_json(String, Req, @cmd.Dispatch[Result[Resp, @sdk.ApiError]]) -> @cmd.Cmd
-
-pub fn[Req : ToJson, Resp : @json.FromJson] put_json(String, Req, @cmd.Dispatch[Result[Resp, @sdk.ApiError]]) -> @cmd.Cmd
 
 // Errors
 
@@ -28,12 +11,6 @@ type Model
 type Msg
 
 type PreviewPanelMode derive(Eq)
-
-type RawHttpResponse derive(@json.FromJson)
-
-type Request
-
-type RequestBody
 
 type ThemeMode derive(Eq)
 

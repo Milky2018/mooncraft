@@ -35,17 +35,23 @@ fn persist_theme_cmd(
 
 ///|
 fn load_session_cmd(dispatch : @rabbita.Dispatch[Msg]) -> @rabbita.Cmd {
-  get_json(@sdk.session_path(), fn(result) { dispatch(SessionLoaded(result)) })
+  @shared.get_json(@sdk.session_path(), fn(result) {
+    dispatch(SessionLoaded(result))
+  })
 }
 
 ///|
 fn load_projects_cmd(dispatch : @rabbita.Dispatch[Msg]) -> @rabbita.Cmd {
-  get_json(@sdk.projects_path(), fn(result) { dispatch(ProjectsLoaded(result)) })
+  @shared.get_json(@sdk.projects_path(), fn(result) {
+    dispatch(ProjectsLoaded(result))
+  })
 }
 
 ///|
 fn load_runtimes_cmd(dispatch : @rabbita.Dispatch[Msg]) -> @rabbita.Cmd {
-  get_json(@sdk.runtimes_path(), fn(result) { dispatch(RuntimesLoaded(result)) })
+  @shared.get_json(@sdk.runtimes_path(), fn(result) {
+    dispatch(RuntimesLoaded(result))
+  })
 }
 
 ///|
@@ -53,7 +59,7 @@ fn load_messages_cmd(
   dispatch : @rabbita.Dispatch[Msg],
   project_id : String,
 ) -> @rabbita.Cmd {
-  get_json(@sdk.messages_path(project_id), fn(result) {
+  @shared.get_json(@sdk.messages_path(project_id), fn(result) {
     dispatch(MessagesLoaded(project_id, result))
   })
 }
@@ -64,7 +70,7 @@ fn load_project_cmd(
   project_id : String,
 ) -> @rabbita.Cmd {
   @rabbita.batch([
-    get_json(@sdk.project_path(project_id), fn(result) {
+    @shared.get_json(@sdk.project_path(project_id), fn(result) {
       dispatch(ProjectLoaded(project_id, result))
     }),
     load_messages_cmd(dispatch, project_id),
@@ -83,7 +89,7 @@ fn create_project_cmd(
     agent_cli: None,
     model: None,
   }
-  post_json(@sdk.projects_path(), payload, fn(result) {
+  @shared.post_json(@sdk.projects_path(), payload, fn(result) {
     dispatch(ProjectCreated(result))
   })
 }
@@ -98,7 +104,7 @@ fn rename_project_cmd(
     display_name: Some(display_name),
     model: None,
   }
-  put_json(@sdk.project_path(project_id), payload, fn(result) {
+  @shared.put_json(@sdk.project_path(project_id), payload, fn(result) {
     dispatch(ProjectRenamed(result))
   })
 }
@@ -110,7 +116,7 @@ fn create_run_cmd(
   content : String,
 ) -> @rabbita.Cmd {
   let payload : @sdk.CreateRunRequest = { content, }
-  post_json(@sdk.create_run_path(project_id), payload, fn(result) {
+  @shared.post_json(@sdk.create_run_path(project_id), payload, fn(result) {
     dispatch(RunCreated(result))
   })
 }
@@ -121,7 +127,7 @@ fn cancel_run_cmd(
   project_id : String,
   run_id : String,
 ) -> @rabbita.Cmd {
-  post_empty_json(@sdk.cancel_run_path(project_id, run_id), fn(result) {
+  @shared.post_empty_json(@sdk.cancel_run_path(project_id, run_id), fn(result) {
     dispatch(RunCancelled(result))
   })
 }
@@ -131,7 +137,7 @@ fn delete_project_cmd(
   dispatch : @rabbita.Dispatch[Msg],
   project_id : String,
 ) -> @rabbita.Cmd {
-  delete_empty(@sdk.project_path(project_id), fn(result) {
+  @shared.delete_empty(@sdk.project_path(project_id), fn(result) {
     dispatch(ProjectDeleted(project_id, result))
   })
 }
@@ -142,7 +148,7 @@ fn load_run_cmd(
   project_id : String,
   run_id : String,
 ) -> @rabbita.Cmd {
-  get_json(@sdk.run_path(project_id, run_id), fn(result) {
+  @shared.get_json(@sdk.run_path(project_id, run_id), fn(result) {
     dispatch(RunLoaded(project_id, run_id, result))
   })
 }
@@ -154,12 +160,16 @@ fn load_run_events_cmd(
   run_id : String,
   after_seq : Int,
 ) -> @rabbita.Cmd {
-  get_json(@sdk.run_events_path(project_id, run_id, after_seq), fn(result) {
+  @shared.get_json(@sdk.run_events_path(project_id, run_id, after_seq), fn(
+    result,
+  ) {
     dispatch(RunEventsLoaded(project_id, result))
   })
 }
 
 ///|
 fn logout_cmd(dispatch : @rabbita.Dispatch[Msg]) -> @rabbita.Cmd {
-  post_empty(@sdk.logout_path(), fn(result) { dispatch(LoggedOut(result)) })
+  @shared.post_empty(@sdk.logout_path(), fn(result) {
+    dispatch(LoggedOut(result))
+  })
 }
