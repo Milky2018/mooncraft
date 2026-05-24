@@ -98,3 +98,5 @@ Agents do not edit this. This file is maintainable by human developers.
 - [ ] dockerfile is not good for layer reuse
 - [ ] `@async.sleep(200)` is bad
 - [ ] Json manipulation in `agent_adapter.mbt` is bad
+- [ ] the runtime needs Python
+- [ ] The preview after updating will be hidden
