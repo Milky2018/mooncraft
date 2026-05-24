@@ -248,3 +248,80 @@ async test "process log streaming waits on child process and reads output pipe" 
   }
   debug_inspect(message_code, content="Some(\"builder_ended\")")
 }
+
+///|
+async test "runtime timeout watchdog does not own the streaming pipe" {
+  let root = "/tmp/mooncraft-watchdog-pipe-test-" + random_hex(6)
+  let bin_dir = root + "/bin"
+  let stop_file = root + "/fake-docker.stop"
+  let log_path = root + "/watchdog.log"
+  ensure_dir(bin_dir)
+  ensure_dir(parent_dir(log_path))
+  defer safe_remove_tree(root)
+  safe_write_string(
+    bin_dir + "/docker",
+    (
+      #|#!/bin/sh
+      #|if [ "$1" = "run" ]; then
+      #|  printf 'docker started\n'
+      #|  while [ ! -f "$MOONCRAFT_FAKE_DOCKER_STOP" ]; do
+      #|    sleep 1
+      #|  done
+      #|  printf 'docker stopped\n'
+      #|  exit 137
+      #|fi
+      #|if [ "$1" = "rm" ]; then
+      #|  touch "$MOONCRAFT_FAKE_DOCKER_STOP"
+      #|  exit 0
+      #|fi
+      #|exit 2
+    ),
+  )
+  ignore(run_process_quiet("chmod", ["755", bin_dir + "/docker"]))
+  let store = match try_new_async(root + "/state.sqlite") {
+    Ok(store) => store
+    Err(message) => abort(message)
+  }
+  let _ = store.create_project_with_runtime(
+    "project-watchdog",
+    "user-watchdog",
+    "preview-watchdog",
+    "Watchdog Project",
+    "agent-runtime-001",
+    "Runtime",
+    "{}",
+    "agent-session-watchdog",
+    "codex",
+    "openrouter/test-model",
+    root + "/workspace",
+  )
+  let run = match store.start_run("project-watchdog", "Build something") {
+    Ok(run) => run
+    Err(message) => abort(message)
+  }
+  let script = "PATH=" +
+    shell_quote(bin_dir) +
+    ":$PATH\nexport PATH\nMOONCRAFT_FAKE_DOCKER_STOP=" +
+    shell_quote(stop_file) +
+    "\nexport MOONCRAFT_FAKE_DOCKER_STOP\n" +
+    docker_run_timeout_script(["run"], "fake-container", 1)
+  let (exit_code, output) = match
+    run_streaming_command(
+      store,
+      root,
+      "project-watchdog",
+      run.run_id,
+      log_path,
+      "sh",
+      ["-c", script],
+    ) {
+    Ok(result) => result
+    Err(message) => fail(message)
+  }
+  inspect(exit_code, content="137")
+  let expected_output = "docker started\n" +
+    "docker stopped\n" +
+    "MoonCraft builder exceeded the configured runtime limit of 1 seconds; stopping the Runtime container.\n"
+  inspect(output, content=expected_output)
+  inspect(safe_read_string_or(log_path, ""), content=expected_output)
+}

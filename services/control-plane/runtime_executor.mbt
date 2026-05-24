@@ -687,15 +687,15 @@ fn docker_run_timeout_script(
     "trap cleanup EXIT INT TERM",
     "rm -f \"$timeout_marker\"",
     "(",
+    "  exec </dev/null >/dev/null 2>&1",
     "  sleep " + timeout_seconds.to_string(),
-    "  touch \"$timeout_marker\"",
-    "  echo " +
+    "  printf '%s\\n' " +
     shell_quote(
       "MoonCraft builder exceeded the configured runtime limit of " +
       timeout_seconds.to_string() +
       " seconds; stopping the Runtime container.",
     ) +
-    " >&2",
+    " > \"$timeout_marker\"",
     "  docker rm -f " + shell_quote(container_name) + " >/dev/null 2>&1 || true",
     ") &",
     "watchdog_pid=\"$!\"",
@@ -705,7 +705,9 @@ fn docker_run_timeout_script(
     "wait \"$docker_pid\"",
     "status=\"$?\"",
     "set -e",
-    "if [ ! -f \"$timeout_marker\" ]; then",
+    "if [ -f \"$timeout_marker\" ]; then",
+    "  cat \"$timeout_marker\" >&2 || true",
+    "else",
     "  kill \"$watchdog_pid\" >/dev/null 2>&1 || true",
     "  wait \"$watchdog_pid\" >/dev/null 2>&1 || true",
     "  watchdog_pid=\"\"",
