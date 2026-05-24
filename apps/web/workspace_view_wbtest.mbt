@@ -56,3 +56,30 @@ test "preview panel target returns available preview targets" {
     content="Some(\"/p/preview-1/\")",
   )
 }
+
+///|
+test "run event display uses structured code instead of content matching" {
+  let events : Array[@sdk.RunEvent] = [
+    {
+      seq: 1,
+      kind: "status",
+      code: @sdk.run_event_code_turn_planning(),
+      content: "Started the builder session.",
+      created_at: "1",
+    },
+  ]
+  inspect(latest_run_event_text(events), content="Planning")
+  let fallback_events : Array[@sdk.RunEvent] = [
+    {
+      seq: 1,
+      kind: "status",
+      code: "",
+      content: "Planning appears in arbitrary text",
+      created_at: "1",
+    },
+  ]
+  inspect(
+    latest_run_event_text(fallback_events),
+    content="Planning appears in arbitrary text",
+  )
+}

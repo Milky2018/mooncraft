@@ -36,9 +36,10 @@ test "claude stream json emits lifecycle events" {
         #|{"type":"system","subtype":"init","session_id":"session-test"}
       ),
     ) {
-    Some((kind, content)) => {
-      inspect(kind, content="status")
-      inspect(content, content="Started the builder session.")
+    Some(event) => {
+      inspect(event.kind, content="status")
+      inspect(event.code, content="builder_started")
+      inspect(event.content, content="Started the builder session.")
     }
     None => fail("expected claude init event")
   }
@@ -48,9 +49,10 @@ test "claude stream json emits lifecycle events" {
         #|{"type":"result","subtype":"success","is_error":false}
       ),
     ) {
-    Some((kind, content)) => {
-      inspect(kind, content="status")
-      inspect(content, content="Builder session ended.")
+    Some(event) => {
+      inspect(event.kind, content="status")
+      inspect(event.code, content="builder_ended")
+      inspect(event.content, content="Builder session ended.")
     }
     None => fail("expected claude result event")
   }
@@ -64,9 +66,13 @@ test "claude stream json emits assistant progress and tool status" {
         #|{"type":"assistant","message":{"content":[{"type":"text","text":"Now I have a clear picture of the template."}]}}
       ),
     ) {
-    Some((kind, content)) => {
-      inspect(kind, content="progress")
-      inspect(content, content="Now I have a clear picture of the template.")
+    Some(event) => {
+      inspect(event.kind, content="progress")
+      inspect(event.code, content="agent_progress")
+      inspect(
+        event.content,
+        content="Now I have a clear picture of the template.",
+      )
     }
     None => fail("expected claude assistant progress")
   }
@@ -76,9 +82,10 @@ test "claude stream json emits assistant progress and tool status" {
         #|{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"description":"Check available MoonCraft templates","command":"cat /opt/mooncraft/templates/catalog.json"}}]}}
       ),
     ) {
-    Some((kind, content)) => {
-      inspect(kind, content="status")
-      inspect(content, content="Check available MoonCraft templates")
+    Some(event) => {
+      inspect(event.kind, content="status")
+      inspect(event.code, content="agent_progress")
+      inspect(event.content, content="Check available MoonCraft templates")
     }
     None => fail("expected claude tool status")
   }
@@ -92,9 +99,10 @@ test "codex stream json parses structured assistant progress" {
         #|{"type":"agent_message","text":"Escaped \"quote\" progress"}
       ),
     ) {
-    Some((kind, content)) => {
-      inspect(kind, content="progress")
-      inspect(content, content="Escaped \"quote\" progress")
+    Some(event) => {
+      inspect(event.kind, content="progress")
+      inspect(event.code, content="agent_progress")
+      inspect(event.content, content="Escaped \"quote\" progress")
     }
     None => fail("expected codex assistant progress")
   }
@@ -108,10 +116,11 @@ test "claude stream json emits failed tool repair status" {
         #|{"type":"user","message":{"content":[{"type":"tool_result","is_error":true,"content":"moon check failed"}]}}
       ),
     ) {
-    Some((kind, content)) => {
-      inspect(kind, content="status")
+    Some(event) => {
+      inspect(event.kind, content="status")
+      inspect(event.code, content="workspace_check_failed")
       inspect(
-        content,
+        event.content,
         content="A workspace check failed; the builder is fixing it.",
       )
     }

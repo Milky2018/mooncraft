@@ -39,38 +39,14 @@ fn render_message(message : @sdk.ChatMessage) -> @rabbita.Html {
 ///|
 fn latest_run_event_text(events : Array[@sdk.RunEvent]) -> String {
   let mut text = "Starting"
+  let mut code = ""
   for event in events {
     if event.content != "" {
       text = event.content
+      code = event.code
     }
   }
-  friendly_run_event_text(text)
-}
-
-///|
-fn friendly_run_event_text(text : String) -> String {
-  if text.contains("Fetching MoonBit project dependencies") ||
-    text.contains("moon fetch") {
-    "Fetching"
-  } else if text.contains("Formatting") || text.contains("moon fmt") {
-    "Formatting"
-  } else if text.contains("Checking") || text.contains("moon check") {
-    "Checking"
-  } else if text.contains("Running tests") || text.contains("moon test") {
-    "Testing"
-  } else if text.contains("Refreshing MoonBit registry") ||
-    text.contains("moon update") {
-    "Updating"
-  } else if text.contains("Updated project files") {
-    "Updated"
-  } else if text.contains("Started the builder session") ||
-    text.contains("Planning") {
-    "Planning"
-  } else if text.contains("Running local builder") {
-    "Building"
-  } else {
-    text
-  }
+  @sdk.run_event_display_text(code, text)
 }
 
 ///|

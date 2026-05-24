@@ -147,6 +147,48 @@ pub fn project_route() -> RouteSpec
 
 pub fn projects_path() -> String
 
+pub fn run_event_code_agent_progress() -> String
+
+pub fn run_event_code_builder_auth_preparing() -> String
+
+pub fn run_event_code_builder_ended() -> String
+
+pub fn run_event_code_builder_environment_preparing() -> String
+
+pub fn run_event_code_builder_failed() -> String
+
+pub fn run_event_code_builder_mounts_preparing() -> String
+
+pub fn run_event_code_builder_started() -> String
+
+pub fn run_event_code_files_editing() -> String
+
+pub fn run_event_code_files_updated() -> String
+
+pub fn run_event_code_local_builder_running() -> String
+
+pub fn run_event_code_preview_preparing() -> String
+
+pub fn run_event_code_preview_repairing() -> String
+
+pub fn run_event_code_provider_retrying() -> String
+
+pub fn run_event_code_runtime_container_launching() -> String
+
+pub fn run_event_code_runtime_container_running() -> String
+
+pub fn run_event_code_runtime_image_pulling() -> String
+
+pub fn run_event_code_runtime_image_ready() -> String
+
+pub fn run_event_code_stopping_builder() -> String
+
+pub fn run_event_code_turn_planning() -> String
+
+pub fn run_event_code_workspace_check_failed() -> String
+
+pub fn run_event_display_text(String, String) -> String
+
 pub fn run_events_path(String, String, Int) -> String
 
 pub fn run_path(String, String) -> String
@@ -460,6 +502,7 @@ pub(all) struct PreviewTarget {
 pub(all) struct ProjectActivity {
   run_id : String
   phase : RunPhase
+  message_code : String?
   message : String?
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
@@ -512,6 +555,7 @@ pub(all) struct RouteSpec {
 pub(all) struct RunEvent {
   seq : Int
   kind : String
+  code : String
   content : String
   created_at : String
 } derive(ToJson, @debug.Debug, @json.FromJson)

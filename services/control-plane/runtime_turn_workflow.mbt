@@ -58,7 +58,11 @@ async fn ProjectRunWorkflow::finish_run_with_preview_audit(
   let mut audit_error = audit.message
   for _ in 0..<preview_audit_repair_attempts() {
     self.store.append_run_event(
-      project_id, run_id, "status", "Repairing browser preview errors.",
+      project_id,
+      run_id,
+      "status",
+      @sdk.run_event_code_preview_repairing(),
+      "Repairing browser preview errors.",
     )
     let repair_project = match self.store.get_project_detail(project_id) {
       Some(project) => project
@@ -309,7 +313,11 @@ async fn ProjectRunWorkflow::run(
         Err(message) =>
           if preview_error_needs_startup_repair(message) {
             self.store.append_run_event(
-              project_id, run_id, "status", "Preparing the live preview.",
+              project_id,
+              run_id,
+              "status",
+              @sdk.run_event_code_preview_preparing(),
+              "Preparing the live preview.",
             )
             let repair_project = match
               self.store.get_project_detail(project_id) {

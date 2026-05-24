@@ -5,6 +5,22 @@ priv enum AgentAdapter {
 }
 
 ///|
+priv struct RuntimeDisplayEvent {
+  kind : String
+  code : String
+  content : String
+}
+
+///|
+fn runtime_display_event_value(
+  kind : String,
+  code : String,
+  content : String,
+) -> RuntimeDisplayEvent {
+  { kind, code, content }
+}
+
+///|
 fn AgentAdapter::from_cli(agent_cli : String) -> Result[AgentAdapter, String] {
   match agent_cli {
     "codex" => Ok(Codex)
@@ -376,7 +392,7 @@ fn claude_tool_result_failed(items : Array[Json]) -> Bool {
 }
 
 ///|
-fn claude_stream_display_event(trimmed : String) -> (String, String)? {
+fn claude_stream_display_event(trimmed : String) -> RuntimeDisplayEvent? {
   match json_object_fields(trimmed) {
     Some(fields) => {
       let event_type = json_string_field(fields, "type").unwrap_or("")
@@ -384,23 +400,44 @@ fn claude_stream_display_event(trimmed : String) -> (String, String)? {
       match event_type {
         "system" =>
           match subtype {
-            "init" => Some(("status", "Started the builder session."))
+            "init" =>
+              Some(
+                runtime_display_event_value(
+                  "status",
+                  @sdk.run_event_code_builder_started(),
+                  "Started the builder session.",
+                ),
+              )
             "api_retry" =>
               Some(
-                (
-                  "status", "Waiting for the model provider to retry the request.",
+                runtime_display_event_value(
+                  "status",
+                  @sdk.run_event_code_provider_retrying(),
+                  "Waiting for the model provider to retry the request.",
                 ),
               )
             "task_started" =>
               match json_string_field(fields, "description") {
                 Some(description) if description.trim() != "" =>
-                  Some(("status", description))
+                  Some(
+                    runtime_display_event_value(
+                      "status",
+                      @sdk.run_event_code_agent_progress(),
+                      description,
+                    ),
+                  )
                 _ => None
               }
             "task_notification" =>
               match json_string_field(fields, "summary") {
                 Some(summary) if summary.trim() != "" =>
-                  Some(("status", summary))
+                  Some(
+                    runtime_display_event_value(
+                      "status",
+                      @sdk.run_event_code_agent_progress(),
+                      summary,
+                    ),
+                  )
                 _ => None
               }
             _ => None
@@ -409,10 +446,24 @@ fn claude_stream_display_event(trimmed : String) -> (String, String)? {
           match claude_message_content(fields) {
             Some(items) =>
               match claude_content_text(items) {
-                Some(text) => Some(("progress", text))
+                Some(text) =>
+                  Some(
+                    runtime_display_event_value(
+                      "progress",
+                      @sdk.run_event_code_agent_progress(),
+                      text,
+                    ),
+                  )
                 None =>
                   match claude_tool_description(items) {
-                    Some(description) => Some(("status", description))
+                    Some(description) =>
+                      Some(
+                        runtime_display_event_value(
+                          "status",
+                          @sdk.run_event_code_agent_progress(),
+                          description,
+                        ),
+                      )
                     None => None
                   }
               }
@@ -423,8 +474,10 @@ fn claude_stream_display_event(trimmed : String) -> (String, String)? {
             Some(items) =>
               if claude_tool_result_failed(items) {
                 Some(
-                  (
-                    "status", "A workspace check failed; the builder is fixing it.",
+                  runtime_display_event_value(
+                    "status",
+                    @sdk.run_event_code_workspace_check_failed(),
+                    "A workspace check failed; the builder is fixing it.",
                   ),
                 )
               } else {
@@ -434,8 +487,22 @@ fn claude_stream_display_event(trimmed : String) -> (String, String)? {
           }
         "result" =>
           match subtype {
-            "success" => Some(("status", "Builder session ended."))
-            "error" => Some(("status", "The app update failed."))
+            "success" =>
+              Some(
+                runtime_display_event_value(
+                  "status",
+                  @sdk.run_event_code_builder_ended(),
+                  "Builder session ended.",
+                ),
+              )
+            "error" =>
+              Some(
+                runtime_display_event_value(
+                  "status",
+                  @sdk.run_event_code_builder_failed(),
+                  "The app update failed.",
+                ),
+              )
             _ => None
           }
         _ => None
@@ -452,36 +519,94 @@ fn runtime_command_progress_message(line : String) -> String? {
 }
 
 ///|
-fn codex_stream_display_event(trimmed : String) -> (String, String)? {
+fn codex_stream_display_event(trimmed : String) -> RuntimeDisplayEvent? {
   match json_object_fields(trimmed) {
     Some(fields) => {
       let event_type = json_string_field(fields, "type").unwrap_or("")
       match event_type {
-        "runtime.started" => Some(("status", "Started the builder session."))
-        "turn.started" => Some(("status", "Planning the change."))
-        "turn.completed" => Some(("status", "Builder session ended."))
-        "turn.failed" => Some(("status", "The app update failed."))
+        "runtime.started" =>
+          Some(
+            runtime_display_event_value(
+              "status",
+              @sdk.run_event_code_builder_started(),
+              "Started the builder session.",
+            ),
+          )
+        "turn.started" =>
+          Some(
+            runtime_display_event_value(
+              "status",
+              @sdk.run_event_code_turn_planning(),
+              "Planning the change.",
+            ),
+          )
+        "turn.completed" =>
+          Some(
+            runtime_display_event_value(
+              "status",
+              @sdk.run_event_code_builder_ended(),
+              "Builder session ended.",
+            ),
+          )
+        "turn.failed" =>
+          Some(
+            runtime_display_event_value(
+              "status",
+              @sdk.run_event_code_builder_failed(),
+              "The app update failed.",
+            ),
+          )
         "agent_message" =>
           match json_string_field(fields, "text") {
-            Some(text) if text.trim() != "" => Some(("progress", text))
+            Some(text) if text.trim() != "" =>
+              Some(
+                runtime_display_event_value(
+                  "progress",
+                  @sdk.run_event_code_agent_progress(),
+                  text,
+                ),
+              )
             _ => None
           }
         "file_change" =>
           match json_string_field(fields, "status") {
-            Some("completed") => Some(("status", "Updated project files."))
-            _ => Some(("status", "Editing project files."))
+            Some("completed") =>
+              Some(
+                runtime_display_event_value(
+                  "status",
+                  @sdk.run_event_code_files_updated(),
+                  "Updated project files.",
+                ),
+              )
+            _ =>
+              Some(
+                runtime_display_event_value(
+                  "status",
+                  @sdk.run_event_code_files_editing(),
+                  "Editing project files.",
+                ),
+              )
           }
         "command_execution" =>
           match json_string_field(fields, "status") {
             Some("failed") =>
               Some(
-                (
-                  "status", "A workspace check failed; the builder is fixing it.",
+                runtime_display_event_value(
+                  "status",
+                  @sdk.run_event_code_workspace_check_failed(),
+                  "A workspace check failed; the builder is fixing it.",
                 ),
               )
             _ =>
               match runtime_command_progress_message(trimmed) {
-                Some(message) => Some(("status", message))
+                Some(message) =>
+                  Some(
+                    runtime_display_event_value(
+                      "status",
+                      @sdk.run_event_code_agent_progress(),
+                      message,
+                    ),
+                  )
                 None => None
               }
           }
@@ -496,7 +621,7 @@ fn codex_stream_display_event(trimmed : String) -> (String, String)? {
 fn AgentAdapter::display_event(
   self : AgentAdapter,
   trimmed : String,
-) -> (String, String)? {
+) -> RuntimeDisplayEvent? {
   match self {
     Codex => codex_stream_display_event(trimmed)
     Claude => claude_stream_display_event(trimmed)
@@ -504,7 +629,7 @@ fn AgentAdapter::display_event(
 }
 
 ///|
-fn agent_stream_display_event(trimmed : String) -> (String, String)? {
+fn agent_stream_display_event(trimmed : String) -> RuntimeDisplayEvent? {
   match Codex.display_event(trimmed) {
     Some(event) => return Some(event)
     None => ()
@@ -513,7 +638,7 @@ fn agent_stream_display_event(trimmed : String) -> (String, String)? {
 }
 
 ///|
-fn runtime_display_event(line : String) -> (String, String)? {
+fn runtime_display_event(line : String) -> RuntimeDisplayEvent? {
   let trimmed = line.trim().to_owned()
   if trimmed == "" {
     return None
@@ -521,11 +646,23 @@ fn runtime_display_event(line : String) -> (String, String)? {
   if !trimmed.has_prefix("{") {
     if trimmed.contains("Unable to find image") ||
       trimmed.contains("Pulling from") {
-      return Some(("status", "Pulling the Runtime image."))
+      return Some(
+        runtime_display_event_value(
+          "status",
+          @sdk.run_event_code_runtime_image_pulling(),
+          "Pulling the Runtime image.",
+        ),
+      )
     }
     if trimmed.contains("Status: Image is up to date") ||
       trimmed.contains("Status: Downloaded newer image") {
-      return Some(("status", "Runtime image is ready."))
+      return Some(
+        runtime_display_event_value(
+          "status",
+          @sdk.run_event_code_runtime_image_ready(),
+          "Runtime image is ready.",
+        ),
+      )
     }
     return None
   }

@@ -50,6 +50,13 @@ fn admin_project_select_sql() -> String {
     #|  COALESCE(p.current_run_id, '') AS current_run_id,
     #|  COALESCE(cr.phase, 'none') AS current_run_phase,
     #|  COALESCE((
+    #|    SELECT re.code
+    #|    FROM run_events re
+    #|    WHERE re.project_id = p.id AND re.run_id = p.current_run_id
+    #|    ORDER BY re.seq DESC
+    #|    LIMIT 1
+    #|  ), '') AS current_run_activity_code,
+    #|  COALESCE((
     #|    SELECT re.content
     #|    FROM run_events re
     #|    WHERE re.project_id = p.id AND re.run_id = p.current_run_id

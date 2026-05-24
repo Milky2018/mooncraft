@@ -188,7 +188,12 @@ fn project_activity_from_run(
   run : @sdk.RunStatusResponse,
 ) -> @sdk.ProjectActivity? {
   if run.state is Running {
-    Some({ run_id: run.run_id, phase: run.phase, message: None })
+    Some({
+      run_id: run.run_id,
+      phase: run.phase,
+      message_code: None,
+      message: None,
+    })
   } else {
     None
   }
@@ -237,9 +242,21 @@ fn latest_event_content(events : Array[@sdk.RunEvent]) -> String? {
 }
 
 ///|
+fn latest_event_code(events : Array[@sdk.RunEvent]) -> String? {
+  let mut code : String? = None
+  for event in events {
+    if event.content != "" && event.code != "" {
+      code = Some(event.code)
+    }
+  }
+  code
+}
+
+///|
 fn update_project_activity_message(
   project : @sdk.ProjectDetail?,
   project_id : String,
+  message_code : String?,
   message : String?,
 ) -> @sdk.ProjectDetail? {
   match project {
@@ -247,7 +264,7 @@ fn update_project_activity_message(
       Some({
         ..item,
         activity: match item.activity {
-          Some(activity) => Some({ ..activity, message, })
+          Some(activity) => Some({ ..activity, message_code, message })
           None => None
         },
       })
@@ -259,6 +276,7 @@ fn update_project_activity_message(
 fn update_project_summary_activity_message(
   projects : Array[@sdk.ProjectSummary],
   project_id : String,
+  message_code : String?,
   message : String?,
 ) -> Array[@sdk.ProjectSummary] {
   let items : Array[@sdk.ProjectSummary] = []
@@ -267,7 +285,7 @@ fn update_project_summary_activity_message(
       items.push({
         ..item,
         activity: match item.activity {
-          Some(activity) => Some({ ..activity, message, })
+          Some(activity) => Some({ ..activity, message_code, message })
           None => None
         },
       })

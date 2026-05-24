@@ -32,4 +32,17 @@ async test "starting a run sets activity without replacing final project status"
     project.activity.map(fn(activity) { activity.run_id }),
     content="Some(\"" + run.run_id + "\")",
   )
+  store.append_run_event(
+    "project-activity",
+    run.run_id,
+    "status",
+    @sdk.run_event_code_turn_planning(),
+    "Planning the change.",
+  )
+  let updated = store.get_project_detail("project-activity").unwrap()
+  let message_code = match updated.activity {
+    Some(activity) => activity.message_code
+    None => None
+  }
+  debug_inspect(message_code, content="Some(\"turn_planning\")")
 }

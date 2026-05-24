@@ -816,11 +816,13 @@ fn update(
           projects: update_project_summary_activity_message(
             model.projects,
             project_id,
+            latest_event_code(events),
             latest_event_content(events),
           ),
           project_detail: update_project_activity_message(
             model.project_detail,
             project_id,
+            latest_event_code(events),
             latest_event_content(events),
           ),
           run_events: events,

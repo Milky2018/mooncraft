@@ -504,8 +504,14 @@ async fn append_runtime_display_event(
   line : String,
 ) -> Unit noraise {
   match runtime_display_event(line) {
-    Some((kind, content)) =>
-      store.append_run_event(project_id, run_id, kind, content)
+    Some(event) =>
+      store.append_run_event(
+        project_id,
+        run_id,
+        event.kind,
+        event.code,
+        event.content,
+      )
     None => ignore(())
   }
 }
@@ -797,7 +803,11 @@ async fn run_streaming_command(
         no_wait=true,
       )
       store.append_run_event(
-        project_id, run_id, "status", "Runtime container is running.",
+        project_id,
+        run_id,
+        "status",
+        @sdk.run_event_code_runtime_container_running(),
+        "Runtime container is running.",
       )
       let mut exit_status : Int? = None
       while exit_status is None {
@@ -841,15 +851,27 @@ async fn stream_docker_output(
   container_command : Array[String],
 ) -> Result[(Int, String), String] noraise {
   store.append_run_event(
-    project_id, run_id, "status", "Preparing the builder environment.",
+    project_id,
+    run_id,
+    "status",
+    @sdk.run_event_code_builder_environment_preparing(),
+    "Preparing the builder environment.",
   )
   let env_file_path = write_docker_env_file(config, artifacts)
   store.append_run_event(
-    project_id, run_id, "status", "Preparing builder workspace mounts.",
+    project_id,
+    run_id,
+    "status",
+    @sdk.run_event_code_builder_mounts_preparing(),
+    "Preparing builder workspace mounts.",
   )
   prepare_agent_mounts(workspace_path, Some(agent_home_path), artifacts)
   store.append_run_event(
-    project_id, run_id, "status", "Preparing builder authentication.",
+    project_id,
+    run_id,
+    "status",
+    @sdk.run_event_code_builder_auth_preparing(),
+    "Preparing builder authentication.",
   )
   match prepare_agent_auth(config, agent_home_path) {
     Ok(_) => ignore(())
@@ -862,7 +884,11 @@ async fn stream_docker_output(
     config, env_file_path, workspace_path, agent_home_path, artifacts, container_command,
   )
   store.append_run_event(
-    project_id, run_id, "status", "Launching the Runtime container.",
+    project_id,
+    run_id,
+    "status",
+    @sdk.run_event_code_runtime_container_launching(),
+    "Launching the Runtime container.",
   )
   let result = match
     run_streaming_command(
@@ -912,6 +938,7 @@ async fn collect_agent_command_output(
       project.id,
       run_id,
       "status",
+      @sdk.run_event_code_local_builder_running(),
       "Running local builder.",
     )
     for raw_line in result.1.replace_all(old="\r\n", new="\n").split("\n") {

@@ -1499,6 +1499,7 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
         #|  run_id TEXT NOT NULL,
         #|  seq INTEGER NOT NULL,
         #|  kind TEXT NOT NULL,
+        #|  code TEXT NOT NULL DEFAULT '',
         #|  content TEXT NOT NULL,
         #|  created_at TEXT NOT NULL,
         #|  UNIQUE(project_id, run_id, seq)
@@ -1506,6 +1507,10 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
       ),
       "create run_events table",
     ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match self.ensure_column("run_events", "code", "TEXT NOT NULL DEFAULT ''") {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
@@ -1750,6 +1755,7 @@ fn project_activity_from_row(
       Some({
         run_id,
         phase: run_phase_from_db(row_text(row, "current_run_phase")),
+        message_code: empty_to_none(row_text(row, "current_run_activity_code")),
         message: empty_to_none(row_text(row, "current_run_activity_text")),
       })
     None => None
@@ -1866,6 +1872,13 @@ async fn Store::get_project_detail(
         #|  COALESCE(p.last_error, '') AS last_error,
         #|  COALESCE(p.current_run_id, '') AS current_run_id,
         #|  COALESCE(r.phase, 'none') AS current_run_phase,
+        #|  COALESCE((
+        #|    SELECT re.code
+        #|    FROM run_events re
+        #|    WHERE re.project_id = p.id AND re.run_id = p.current_run_id
+        #|    ORDER BY re.seq DESC
+        #|    LIMIT 1
+        #|  ), '') AS current_run_activity_code,
         #|  COALESCE((
         #|    SELECT re.content
         #|    FROM run_events re
@@ -2082,6 +2095,7 @@ async fn Store::append_run_event(
   project_id : String,
   run_id : String,
   kind : String,
+  code : String,
   content : String,
 ) -> Unit noraise {
   if content == "" {
@@ -2108,9 +2122,10 @@ async fn Store::append_run_event(
         #|  run_id,
         #|  seq,
         #|  kind,
+        #|  code,
         #|  content,
         #|  created_at
-        #|) VALUES (?, ?, ?, ?, ?, ?, ?);
+        #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
       ),
       "append run event",
       params=[
@@ -2119,6 +2134,7 @@ async fn Store::append_run_event(
         String(run_id),
         Int(seq),
         String(kind),
+        String(code),
         String(content),
         String(now_string()),
       ],
@@ -2135,7 +2151,7 @@ async fn Store::list_run_events(
 ) -> Array[@sdk.RunEvent] noraise {
   let rows = self.query_rows(
     (
-      #|SELECT seq, kind, content, created_at
+      #|SELECT seq, kind, code, content, created_at
       #|FROM run_events
       #|WHERE project_id = ? AND run_id = ? AND seq > ?
       #|ORDER BY seq ASC
@@ -2148,6 +2164,7 @@ async fn Store::list_run_events(
     items.push({
       seq: row_int(row, "seq"),
       kind: row_text(row, "kind"),
+      code: row_text(row, "code"),
       content: row_text(row, "content"),
       created_at: row_text(row, "created_at"),
     })
@@ -2973,7 +2990,11 @@ async fn AppContext::cancel_project_run(
   worker_pid : Int,
 ) -> @sdk.RunStatusResponse? noraise {
   self.store.append_run_event(
-    project_id, run_id, "status", "Stopping the builder session.",
+    project_id,
+    run_id,
+    "status",
+    @sdk.run_event_code_stopping_builder(),
+    "Stopping the builder session.",
   )
   ignore(
     shell_status(

@@ -50,6 +50,7 @@ pub(all) struct PreviewTarget {
 pub(all) struct ProjectActivity {
   run_id : String
   phase : RunPhase
+  message_code : String?
   message : String?
 } derive(Debug, ToJson, FromJson)
 
@@ -239,6 +240,7 @@ pub(all) struct RunStatusResponse {
 pub(all) struct RunEvent {
   seq : Int
   kind : String
+  code : String
   content : String
   created_at : String
 } derive(Debug, ToJson, FromJson)

@@ -170,10 +170,18 @@ fn project_activity_label(project : @sdk.ProjectSummary) -> String {
   if project.is_processing {
     match project.activity {
       Some(activity) =>
-        if activity.phase is NoPhase {
-          "Processing"
-        } else {
-          activity.phase.label()
+        match activity.message {
+          Some(message) =>
+            @sdk.run_event_display_text(
+              activity.message_code.unwrap_or(""),
+              message,
+            )
+          None =>
+            if activity.phase is NoPhase {
+              "Processing"
+            } else {
+              activity.phase.label()
+            }
         }
       None => "Processing"
     }
