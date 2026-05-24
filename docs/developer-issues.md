@@ -7,7 +7,6 @@ Agents do not edit this. This file is maintainable by human developers.
 - [x] We should provide AGENTS.md for system prompt
 - [x] Admin manages Users and projects and runs
 - [x] Why `/js/debug/` instead of `/js/release/`
-- [x] React.ts frontend as backup
 - [x] Persist a workspace snapshot per project or per run, instead of treating workspace_path as the source of truth.
 - [x] Hydrate that snapshot into a temp directory before each Codex run.
 - [x] Run Codex against the hydrated temp workspace.
@@ -31,7 +30,6 @@ Agents do not edit this. This file is maintainable by human developers.
   - [ ] CSRF protection for cookie-authenticated write routes
   - [ ] Session management: “log out all devices” / revoke other sessions
   - [ ] Resend verification email
-- [x] Use `codex-sdk` instead of CLI
 - [x] Improve the generated workspace bootstrap
 - [x] OAuth with github account
 - [ ] Refactor, goal: Move MoonCraft from “single-node prototype” to “production-shaped platform” without adding product surface area. Keep the user flow simple: login, create project, chat, preview.
