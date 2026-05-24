@@ -566,7 +566,7 @@ async fn Store::lease_ai_runtime_settings_for_project(
     None => return Err("The project owner could not be loaded for this run.")
   }
   let runtime_spec = match
-    runtime_spec_from_json(row_text(project, "runtime_spec_json")) {
+    @sdk.runtime_spec_from_json(row_text(project, "runtime_spec_json")) {
     Ok(spec) => spec
     Err(message) =>
       return Err("Project Runtime snapshot is invalid: \{message}")

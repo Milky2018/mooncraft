@@ -1737,7 +1737,7 @@ fn project_detail_from_row(row : Map[String, @db.Param]) -> @sdk.ProjectDetail {
     runtime_id: row_text(row, "runtime_id"),
     runtime_name: row_text(row, "runtime_name"),
     runtime_spec: match
-      runtime_spec_from_json(row_text(row, "runtime_spec_json")) {
+      @sdk.runtime_spec_from_json(row_text(row, "runtime_spec_json")) {
       Ok(spec) => Some(spec)
       Err(_) => None
     },

@@ -204,7 +204,7 @@ fn materialize_runtime_file_secrets(
 ) -> Result[Unit, String] {
   match config.secret.file {
     Some(file) => {
-      let relative_path = match validate_runtime_secret_file_path(file) {
+      let relative_path = match @sdk.validate_runtime_secret_file_path(file) {
         Ok(path) => path
         Err(message) => return Err(message)
       }

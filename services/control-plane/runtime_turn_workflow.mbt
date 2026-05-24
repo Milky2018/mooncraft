@@ -1,5 +1,5 @@
 ///|
-struct ProjectRunWorkflow {
+priv struct ProjectRunWorkflow {
   root : String
   store : Store
   previews : PreviewManager

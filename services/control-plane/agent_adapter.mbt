@@ -1,8 +1,8 @@
 ///|
-enum AgentAdapter {
+priv enum AgentAdapter {
   Codex
   Claude
-} derive(Eq, Debug)
+}
 
 ///|
 fn AgentAdapter::from_cli(agent_cli : String) -> Result[AgentAdapter, String] {

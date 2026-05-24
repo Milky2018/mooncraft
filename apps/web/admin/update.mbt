@@ -101,24 +101,7 @@ fn admin_bool_value(value : String) -> Bool {
 
 ///|
 fn default_runtime_spec_json() -> String {
-  (
-    #|{
-    #|  "protocol_version": 2,
-    #|  "image": "docker.io/<org>/<image>:<version>",
-    #|  "agent": "codex",
-    #|  "model": "openai/gpt-5.4-mini",
-    #|  "auth": {
-    #|    "kind": "openrouter_api_key",
-    #|    "secret": {
-    #|      "source": "mooncraft_ai_api_key",
-    #|      "target": {
-    #|        "type": "env",
-    #|        "name": "MOONCRAFT_AI_API_KEY"
-    #|      }
-    #|    }
-    #|  }
-    #|}
-  )
+  @sdk.default_runtime_manifest_json()
 }
 
 ///|

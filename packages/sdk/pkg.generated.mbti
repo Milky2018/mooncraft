@@ -103,6 +103,8 @@ pub fn create_run_path(String) -> String
 
 pub fn create_run_route() -> RouteSpec
 
+pub fn default_runtime_manifest_json() -> String
+
 pub fn delete_admin_project_route() -> RouteSpec
 
 pub fn delete_project_route() -> RouteSpec
@@ -129,6 +131,12 @@ pub fn logout_route() -> RouteSpec
 
 pub fn messages_path(String) -> String
 
+pub fn normalize_runtime_auth(String, RuntimeAuth) -> Result[RuntimeAuth, String]
+
+pub fn normalize_runtime_auth_target(RuntimeAuthTarget) -> Result[RuntimeAuthTarget, String]
+
+pub fn normalize_runtime_spec(RuntimeSpec) -> Result[RuntimeSpec, String]
+
 pub fn preview_public_path(String) -> String
 
 pub fn preview_route_pattern() -> String
@@ -143,6 +151,20 @@ pub fn run_events_path(String, String, Int) -> String
 
 pub fn run_path(String, String) -> String
 
+pub fn runtime_manifest_allowed_fields() -> Array[String]
+
+pub fn runtime_manifest_forbidden_v1_fields() -> Array[String]
+
+pub fn runtime_manifest_protocol_version() -> Int
+
+pub fn runtime_manifest_supported_agents() -> Array[String]
+
+pub fn runtime_manifest_supported_auth_kinds() -> Array[String]
+
+pub fn runtime_spec_from_json(String) -> Result[RuntimeSpec, String]
+
+pub fn runtime_spec_to_json(RuntimeSpec) -> String
+
 pub fn runtimes_path() -> String
 
 pub fn runtimes_route() -> RouteSpec
@@ -152,6 +174,8 @@ pub fn session_path() -> String
 pub fn session_route() -> RouteSpec
 
 pub fn update_project_route() -> RouteSpec
+
+pub fn validate_runtime_secret_file_path(String) -> Result[String, String]
 
 // Errors
 
