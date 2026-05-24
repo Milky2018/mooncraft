@@ -37,141 +37,16 @@ fn render_message(message : @sdk.ChatMessage) -> @rabbita.Html {
 }
 
 ///|
-fn latest_run_status_text(events : Array[@sdk.RunEvent]) -> String {
+fn latest_run_event_text(events : Array[@sdk.RunEvent]) -> String {
   let mut text = "Starting"
   let mut code = ""
   for event in events {
-    if event.kind != "activity" && event.content != "" {
+    if event.content != "" {
       text = event.content
       code = event.code
     }
   }
   @sdk.run_event_display_text(code, text)
-}
-
-///|
-fn latest_run_event_text(events : Array[@sdk.RunEvent]) -> String {
-  latest_run_status_text(events)
-}
-
-///|
-fn run_activity_status(code : String) -> String {
-  match code {
-    "activity_tool_running" | "activity_files_editing" => "running"
-    "activity_tool_error" => "error"
-    "activity_tool_completed" | "activity_files_updated" => "completed"
-    _ => "message"
-  }
-}
-
-///|
-fn run_activity_icon(event : @sdk.RunEvent) -> @rabbita.Html {
-  match run_activity_status(event.code) {
-    "running" =>
-      @html.span(
-        style=[
-          "width: 12px", "height: 12px", "display: flex", "align-items: center",
-          "justify-content: center", "color: var(--accent)", "flex-shrink: 0",
-        ],
-        run_spinner(),
-      )
-    "completed" =>
-      @svg.svg(
-        width=12,
-        height=12,
-        view_box="0 0 12 12",
-        style=[
-          "width: 12px", "height: 12px", "display: block", "color: var(--success)",
-        ],
-        [
-          @svg.path(
-            d="M3 6.2 5.1 8.3 9 3.8",
-            fill="none",
-            stroke="currentColor",
-            stroke_width=2,
-          ),
-        ],
-      )
-    "error" =>
-      @svg.svg(
-        width=12,
-        height=12,
-        view_box="0 0 12 12",
-        style=[
-          "width: 12px", "height: 12px", "display: block", "color: var(--danger)",
-        ],
-        [
-          @svg.path(
-            d="M6 2.5v5",
-            fill="none",
-            stroke="currentColor",
-            stroke_width=2,
-          ),
-          @svg.circle(cx=6, cy=9, r=1, fill="currentColor"),
-        ],
-      )
-    _ =>
-      @svg.svg(
-        width=12,
-        height=12,
-        view_box="0 0 12 12",
-        style=[
-          "width: 12px", "height: 12px", "display: block", "color: var(--text-3)",
-        ],
-        [@svg.circle(cx=6, cy=6, r=2, fill="currentColor")],
-      )
-  }
-}
-
-///|
-fn render_run_activity_row(event : @sdk.RunEvent) -> @rabbita.Html {
-  @html.div(
-    style=normal_text_style() +
-      [
-        "display: flex", "align-items: center", "gap: 8px", "min-width: 0", "color: var(--text-2)",
-        "height: 22px",
-      ],
-    [
-      run_activity_icon(event),
-      @html.span(
-        style=[
-          "min-width: 0", "overflow: hidden", "text-overflow: ellipsis", "white-space: nowrap",
-        ],
-        @sdk.run_event_display_text(event.code, event.content),
-      ),
-    ],
-  )
-}
-
-///|
-fn render_run_activity_list(events : Array[@sdk.RunEvent]) -> @rabbita.Html {
-  let mut count = 0
-  for event in events {
-    if event.kind == "activity" {
-      count += 1
-    }
-  }
-  if count == 0 {
-    return @html.nothing
-  }
-  let skip = if count > 8 { count - 8 } else { 0 }
-  let rendered : Array[@rabbita.Html] = []
-  let mut seen = 0
-  for event in events {
-    if event.kind == "activity" {
-      if seen >= skip {
-        rendered.push(render_run_activity_row(event))
-      }
-      seen += 1
-    }
-  }
-  @html.div(
-    style=[
-      "display: flex", "flex-direction: column", "gap: 1px", "padding-left: 20px",
-      "max-height: 176px", "overflow-y: auto",
-    ],
-    rendered,
-  )
 }
 
 ///|
@@ -206,33 +81,25 @@ fn render_run_events(model : Model) -> @rabbita.Html {
   @html.div(
     style=normal_text_style() +
       [
-        "display: flex", "flex-direction: column", "gap: 3px", "padding: 4px 12px",
-        "margin-bottom: -4px", "min-width: 0",
+        "display: flex", "align-items: center", "gap: 8px", "padding: 4px 12px",
+        "margin-bottom: -4px",
       ],
     [
       @html.div(
+        style=[
+          "width: 12px", "height: 12px", "display: flex", "align-items: center",
+          "justify-content: center", "color: var(--accent)", "flex-shrink: 0",
+        ],
+        run_spinner(),
+      ),
+      @html.span(
         style=normal_text_style() +
           [
-            "display: flex", "align-items: center", "gap: 8px", "min-width: 0", "color: var(--text-2)",
+            "height: 20px", "display: flex", "align-items: center", "white-space: pre-wrap",
+            "overflow-wrap: anywhere",
           ],
-        [
-          @html.div(
-            style=[
-              "width: 12px", "height: 12px", "display: flex", "align-items: center",
-              "justify-content: center", "color: var(--accent)", "flex-shrink: 0",
-            ],
-            run_spinner(),
-          ),
-          @html.span(
-            style=[
-              "height: 20px", "display: flex", "align-items: center", "white-space: nowrap",
-              "overflow: hidden", "text-overflow: ellipsis", "min-width: 0",
-            ],
-            latest_run_event_text(model.run_events),
-          ),
-        ],
+        latest_run_event_text(model.run_events),
       ),
-      render_run_activity_list(model.run_events),
     ],
   )
 }
