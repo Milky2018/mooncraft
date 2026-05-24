@@ -41,13 +41,6 @@ type GitHubUserProfile derive(@debug.Debug)
 
 type PreviewAuditResult
 
-type PreviewManager
-
-pub(all) struct PreviewRuntime {
-  port : Int
-  pid : Int
-}
-
 type ResolvedRuntimeSecret
 
 type RunArtifacts
