@@ -67,8 +67,8 @@ test "claude stream json emits assistant progress and tool status" {
       ),
     ) {
     Some(event) => {
-      inspect(event.kind, content="progress")
-      inspect(event.code, content="agent_progress")
+      inspect(event.kind, content="activity")
+      inspect(event.code, content="activity_message")
       inspect(
         event.content,
         content="Now I have a clear picture of the template.",
@@ -83,8 +83,8 @@ test "claude stream json emits assistant progress and tool status" {
       ),
     ) {
     Some(event) => {
-      inspect(event.kind, content="status")
-      inspect(event.code, content="agent_progress")
+      inspect(event.kind, content="activity")
+      inspect(event.code, content="activity_tool_running")
       inspect(event.content, content="Check available MoonCraft templates")
     }
     None => fail("expected claude tool status")
@@ -100,8 +100,8 @@ test "codex stream json parses structured assistant progress" {
       ),
     ) {
     Some(event) => {
-      inspect(event.kind, content="progress")
-      inspect(event.code, content="agent_progress")
+      inspect(event.kind, content="activity")
+      inspect(event.code, content="activity_message")
       inspect(event.content, content="Escaped \"quote\" progress")
     }
     None => fail("expected codex assistant progress")
@@ -117,8 +117,8 @@ test "claude stream json emits failed tool repair status" {
       ),
     ) {
     Some(event) => {
-      inspect(event.kind, content="status")
-      inspect(event.code, content="workspace_check_failed")
+      inspect(event.kind, content="activity")
+      inspect(event.code, content="activity_tool_error")
       inspect(
         event.content,
         content="A workspace check failed; the builder is fixing it.",

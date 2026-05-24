@@ -21,6 +21,14 @@ fn runtime_display_event_value(
 }
 
 ///|
+fn runtime_activity_event_value(
+  code : String,
+  content : String,
+) -> RuntimeDisplayEvent {
+  runtime_display_event_value("activity", code, content)
+}
+
+///|
 fn AgentAdapter::from_cli(agent_cli : String) -> Result[AgentAdapter, String] {
   match agent_cli {
     "codex" => Ok(Codex)
@@ -431,9 +439,8 @@ fn claude_stream_display_event(trimmed : String) -> RuntimeDisplayEvent? {
               match json_string_field(fields, "description") {
                 Some(description) if description.trim() != "" =>
                   Some(
-                    runtime_display_event_value(
-                      "status",
-                      @sdk.run_event_code_agent_progress(),
+                    runtime_activity_event_value(
+                      @sdk.run_event_code_activity_tool_running(),
                       description,
                     ),
                   )
@@ -441,14 +448,16 @@ fn claude_stream_display_event(trimmed : String) -> RuntimeDisplayEvent? {
               }
             "task_notification" =>
               match json_string_field(fields, "summary") {
-                Some(summary) if summary.trim() != "" =>
-                  Some(
-                    runtime_display_event_value(
-                      "status",
-                      @sdk.run_event_code_agent_progress(),
-                      summary,
-                    ),
-                  )
+                Some(summary) if summary.trim() != "" => {
+                  let code = match json_string_field(fields, "status") {
+                    Some("completed") =>
+                      @sdk.run_event_code_activity_tool_completed()
+                    Some("failed") | Some("stopped") =>
+                      @sdk.run_event_code_activity_tool_error()
+                    _ => @sdk.run_event_code_activity_tool_running()
+                  }
+                  Some(runtime_activity_event_value(code, summary))
+                }
                 _ => None
               }
             _ => None
@@ -459,9 +468,8 @@ fn claude_stream_display_event(trimmed : String) -> RuntimeDisplayEvent? {
               match claude_content_text(items) {
                 Some(text) =>
                   Some(
-                    runtime_display_event_value(
-                      "progress",
-                      @sdk.run_event_code_agent_progress(),
+                    runtime_activity_event_value(
+                      @sdk.run_event_code_activity_message(),
                       text,
                     ),
                   )
@@ -469,9 +477,8 @@ fn claude_stream_display_event(trimmed : String) -> RuntimeDisplayEvent? {
                   match claude_tool_description(items) {
                     Some(description) =>
                       Some(
-                        runtime_display_event_value(
-                          "status",
-                          @sdk.run_event_code_agent_progress(),
+                        runtime_activity_event_value(
+                          @sdk.run_event_code_activity_tool_running(),
                           description,
                         ),
                       )
@@ -485,9 +492,8 @@ fn claude_stream_display_event(trimmed : String) -> RuntimeDisplayEvent? {
             Some(items) =>
               if claude_tool_result_failed(items) {
                 Some(
-                  runtime_display_event_value(
-                    "status",
-                    @sdk.run_event_code_workspace_check_failed(),
+                  runtime_activity_event_value(
+                    @sdk.run_event_code_activity_tool_error(),
                     "A workspace check failed; the builder is fixing it.",
                   ),
                 )
@@ -530,9 +536,8 @@ fn codex_agent_message_display_event(
   match json_string_field(fields, "text") {
     Some(text) if text.trim() != "" =>
       Some(
-        runtime_display_event_value(
-          "progress",
-          @sdk.run_event_code_agent_progress(),
+        runtime_activity_event_value(
+          @sdk.run_event_code_activity_message(),
           text,
         ),
       )
@@ -547,17 +552,15 @@ fn codex_file_change_display_event(
   match json_string_field(fields, "status") {
     Some("completed") =>
       Some(
-        runtime_display_event_value(
-          "status",
-          @sdk.run_event_code_files_updated(),
+        runtime_activity_event_value(
+          @sdk.run_event_code_activity_files_updated(),
           "Updated project files.",
         ),
       )
     _ =>
       Some(
-        runtime_display_event_value(
-          "status",
-          @sdk.run_event_code_files_editing(),
+        runtime_activity_event_value(
+          @sdk.run_event_code_activity_files_editing(),
           "Editing project files.",
         ),
       )
@@ -571,13 +574,25 @@ fn codex_command_execution_display_event(
   match json_string_field(fields, "status") {
     Some("failed") =>
       Some(
-        runtime_display_event_value(
-          "status",
-          @sdk.run_event_code_workspace_check_failed(),
+        runtime_activity_event_value(
+          @sdk.run_event_code_activity_tool_error(),
           "A workspace check failed; the builder is fixing it.",
         ),
       )
-    _ => None
+    Some("completed") =>
+      Some(
+        runtime_activity_event_value(
+          @sdk.run_event_code_activity_tool_completed(),
+          "Finished command.",
+        ),
+      )
+    _ =>
+      Some(
+        runtime_activity_event_value(
+          @sdk.run_event_code_activity_tool_running(),
+          "Running command.",
+        ),
+      )
   }
 }
 

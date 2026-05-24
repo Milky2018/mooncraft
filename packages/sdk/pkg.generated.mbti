@@ -133,6 +133,18 @@ pub fn project_route() -> RouteSpec
 
 pub fn projects_path() -> String
 
+pub fn run_event_code_activity_files_editing() -> String
+
+pub fn run_event_code_activity_files_updated() -> String
+
+pub fn run_event_code_activity_message() -> String
+
+pub fn run_event_code_activity_tool_completed() -> String
+
+pub fn run_event_code_activity_tool_error() -> String
+
+pub fn run_event_code_activity_tool_running() -> String
+
 pub fn run_event_code_agent_progress() -> String
 
 pub fn run_event_code_builder_auth_preparing() -> String

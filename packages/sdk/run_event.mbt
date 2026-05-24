@@ -4,6 +4,36 @@ pub fn run_event_code_agent_progress() -> String {
 }
 
 ///|
+pub fn run_event_code_activity_message() -> String {
+  "activity_message"
+}
+
+///|
+pub fn run_event_code_activity_tool_running() -> String {
+  "activity_tool_running"
+}
+
+///|
+pub fn run_event_code_activity_tool_completed() -> String {
+  "activity_tool_completed"
+}
+
+///|
+pub fn run_event_code_activity_tool_error() -> String {
+  "activity_tool_error"
+}
+
+///|
+pub fn run_event_code_activity_files_editing() -> String {
+  "activity_files_editing"
+}
+
+///|
+pub fn run_event_code_activity_files_updated() -> String {
+  "activity_files_updated"
+}
+
+///|
 pub fn run_event_code_builder_auth_preparing() -> String {
   "builder_auth_preparing"
 }
@@ -101,6 +131,22 @@ pub fn run_event_code_workspace_check_failed() -> String {
 ///|
 pub fn run_event_display_text(code : String, content : String) -> String {
   match code {
+    "activity_files_editing" => "Editing files"
+    "activity_files_updated" => "Updated files"
+    "activity_message" => if content == "" { "Thinking" } else { content }
+    "activity_tool_completed" =>
+      if content == "" {
+        "Completed"
+      } else {
+        content
+      }
+    "activity_tool_error" =>
+      if content == "" {
+        "Needs attention"
+      } else {
+        content
+      }
+    "activity_tool_running" => if content == "" { "Working" } else { content }
     "builder_auth_preparing" => "Preparing auth"
     "builder_environment_preparing" => "Preparing"
     "builder_ended" => "Finalizing"
