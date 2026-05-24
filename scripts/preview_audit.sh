@@ -29,7 +29,7 @@ fi
 
 is_skippable_url() {
   case "$1" in
-    ""|\#*|mailto:*|tel:*|data:*|blob:*|javascript:*) return 0 ;;
+    ""|\#*|mailto:*|tel:*|data:*|blob:*|javascript:*|*/favicon*|favicon*) return 0 ;;
     *) return 1 ;;
   esac
 }

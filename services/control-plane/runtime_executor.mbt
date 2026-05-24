@@ -684,6 +684,179 @@ fn resume_session_missing(output : String) -> Bool {
 }
 
 ///|
+fn json_string_field(fields : Map[String, Json], name : String) -> String? {
+  match fields.get(name) {
+    Some(String(value)) => Some(value)
+    _ => None
+  }
+}
+
+///|
+fn json_bool_field(fields : Map[String, Json], name : String) -> Bool? {
+  match fields.get(name) {
+    Some(True) => Some(true)
+    Some(False) => Some(false)
+    _ => None
+  }
+}
+
+///|
+fn claude_message_content(fields : Map[String, Json]) -> Array[Json]? {
+  match fields.get("message") {
+    Some(Object(message)) =>
+      match message.get("content") {
+        Some(Array(items)) => Some(items)
+        _ => None
+      }
+    _ => None
+  }
+}
+
+///|
+fn claude_content_text(items : Array[Json]) -> String? {
+  for item in items {
+    match item {
+      Object(content) =>
+        match json_string_field(content, "type") {
+          Some("text") =>
+            match json_string_field(content, "text") {
+              Some(text) if text.trim() != "" => return Some(text)
+              _ => ()
+            }
+          _ => ()
+        }
+      _ => ()
+    }
+  }
+  None
+}
+
+///|
+fn claude_tool_description(items : Array[Json]) -> String? {
+  for item in items {
+    match item {
+      Object(content) =>
+        match json_string_field(content, "type") {
+          Some("tool_use") => {
+            let tool_name = json_string_field(content, "name").unwrap_or("")
+            if tool_name == "Edit" {
+              return Some("Editing project files.")
+            }
+            if tool_name == "Read" {
+              return Some("Inspecting project files.")
+            }
+            match content.get("input") {
+              Some(Object(input)) =>
+                match json_string_field(input, "description") {
+                  Some(description) if description.trim() != "" =>
+                    return Some(description)
+                  _ => ()
+                }
+              _ => ()
+            }
+            if tool_name != "" {
+              return Some("Using \{tool_name}.")
+            }
+          }
+          _ => ()
+        }
+      _ => ()
+    }
+  }
+  None
+}
+
+///|
+fn claude_tool_result_failed(items : Array[Json]) -> Bool {
+  for item in items {
+    match item {
+      Object(content) =>
+        match json_string_field(content, "type") {
+          Some("tool_result") =>
+            match json_bool_field(content, "is_error") {
+              Some(true) => return true
+              _ => ()
+            }
+          _ => ()
+        }
+      _ => ()
+    }
+  }
+  false
+}
+
+///|
+fn claude_stream_display_event(trimmed : String) -> (String, String)? {
+  let parsed = @json.parse(trimmed) catch { _ => return None }
+  match parsed {
+    Object(fields) => {
+      let event_type = json_string_field(fields, "type").unwrap_or("")
+      let subtype = json_string_field(fields, "subtype").unwrap_or("")
+      match event_type {
+        "system" =>
+          match subtype {
+            "init" => Some(("status", "Started the builder session."))
+            "api_retry" =>
+              Some(
+                (
+                  "status", "Waiting for the model provider to retry the request.",
+                ),
+              )
+            "task_started" =>
+              match json_string_field(fields, "description") {
+                Some(description) if description.trim() != "" =>
+                  Some(("status", description))
+                _ => None
+              }
+            "task_notification" =>
+              match json_string_field(fields, "summary") {
+                Some(summary) if summary.trim() != "" =>
+                  Some(("status", summary))
+                _ => None
+              }
+            _ => None
+          }
+        "assistant" =>
+          match claude_message_content(fields) {
+            Some(items) =>
+              match claude_content_text(items) {
+                Some(text) => Some(("progress", text))
+                None =>
+                  match claude_tool_description(items) {
+                    Some(description) => Some(("status", description))
+                    None => None
+                  }
+              }
+            None => None
+          }
+        "user" =>
+          match claude_message_content(fields) {
+            Some(items) =>
+              if claude_tool_result_failed(items) {
+                Some(
+                  (
+                    "status", "A workspace check failed; the builder is fixing it.",
+                  ),
+                )
+              } else {
+                None
+              }
+            None => None
+          }
+        "result" =>
+          match subtype {
+            "success" => Some(("status", "Builder session ended."))
+            "error" => Some(("status", "The app update failed."))
+            _ => None
+          }
+        _ => None
+      }
+    }
+    _ => None
+  }
+}
+
+///|
 fn runtime_command_progress_message(line : String) -> String? {
   ignore(line)
   None
@@ -705,6 +878,10 @@ fn runtime_display_event(line : String) -> (String, String)? {
       return Some(("status", "Runtime image is ready."))
     }
     return None
+  }
+  match claude_stream_display_event(trimmed) {
+    Some(event) => return Some(event)
+    None => ()
   }
   if trimmed.contains("\"type\":\"runtime.started\"") {
     Some(("status", "Started the builder session."))
