@@ -2958,63 +2958,6 @@ async fn Store::recover_interrupted_runs(self : Store) -> Unit noraise {
 }
 
 ///|
-async fn AppContext::ensure_project_preview_running(
-  self : AppContext,
-  project : @sdk.ProjectDetail,
-) -> Result[@sdk.ProjectDetail, String] noraise {
-  if project.is_processing {
-    return Ok(project)
-  }
-  let preview = match project.preview {
-    Some(preview) => preview
-    None =>
-      if !(project.status is Succeeded) {
-        return Ok(project)
-      } else {
-        {
-          url: public_preview_url(project.preview_public_id),
-          port: 0,
-          healthy: false,
-        }
-      }
-  }
-  if preview.healthy && self.previews.is_preview_reachable(preview.port) {
-    return Ok(project)
-  }
-  let workspace_path = project_workspace(self.root, project.id)
-  match
-    restore_workspace_snapshot(
-      self.store,
-      self.root,
-      project.id,
-      workspace_path,
-    ) {
-    Ok(_) => ignore(())
-    Err(message) => {
-      let _ = self.store.mark_project_preview_unreachable(
-        project.id,
-        "Preview restart failed: " + message,
-      )
-      return Err(message)
-    }
-  }
-  match self.previews.rebuild_and_restart(project) {
-    Ok(next_preview) =>
-      match self.store.set_project_preview(project.id, next_preview) {
-        Some(updated_project) => Ok(updated_project)
-        None => Err("Project not found.")
-      }
-    Err(message) => {
-      let _ = self.store.mark_project_preview_unreachable(
-        project.id,
-        "Preview restart failed: " + message,
-      )
-      Err(message)
-    }
-  }
-}
-
-///|
 fn new_runtime_gateway(root : String) -> RuntimeGateway {
   { root, }
 }

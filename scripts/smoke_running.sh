@@ -129,7 +129,14 @@ wait_for_ok "$base_url${preview_url}api/health"
 
 if [[ -n "$preview_port" ]] && command -v lsof >/dev/null 2>&1; then
   lsof -tiTCP:"$preview_port" -sTCP:LISTEN | xargs kill >/dev/null 2>&1 || true
-  wait_for_ok "$base_url${preview_url}api/health"
+  curl -m 5 -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$project_id" >/dev/null
+  stale_preview_status="$(curl -m 5 -sS -o /dev/null -w '%{http_code}' "$base_url${preview_url}api/health" || true)"
+  if [[ "$stale_preview_status" != "502" ]]; then
+    echo "Expected stale preview access to fail fast with 502, got $stale_preview_status" >&2
+    exit 1
+  fi
+  stale_project_detail="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$project_id")"
+  printf '%s' "$stale_project_detail" | grep -q '"healthy":false'
 fi
 
 if [[ -z "${MOONCRAFT_DATABASE_URL:-}" ]]; then

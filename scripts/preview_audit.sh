@@ -53,6 +53,7 @@ fi
 
 for needle in \
   "No preview is available" \
+  "preview is not reachable" \
   "preview process is not reachable" \
   "preview could not be restarted" \
   "Bad Gateway"

@@ -685,31 +685,14 @@ async fn project_preview_proxy_response(
       match proxy_preview_response(event, preview, remainder) {
         Ok(response) => response
         Err(_) => {
-          let updated_project = match
-            ctx.ensure_project_preview_running(project) {
-            Ok(project) => project
-            Err(message) =>
-              return text_response(
-                BadGateway,
-                "The saved preview could not be restarted: " + message,
-              )
-          }
-          match updated_project.preview {
-            Some(updated_preview) =>
-              match proxy_preview_response(event, updated_preview, remainder) {
-                Ok(response) => response
-                Err(_) =>
-                  text_response(
-                    BadGateway,
-                    "The preview process stopped and could not be reached after restart.",
-                  )
-              }
-            None =>
-              text_response(
-                NotFound,
-                "No preview is available for this project yet.",
-              )
-          }
+          let _ = ctx.store.mark_project_preview_unreachable(
+            project.id,
+            "Preview is not reachable.",
+          )
+          text_response(
+            BadGateway,
+            "The preview is not reachable right now. Rerun the project to start a fresh preview.",
+          )
         }
       }
     None =>
@@ -1655,16 +1638,7 @@ fn main {
       Err(response) => return response
     }
     match ctx.store.get_project_detail_for_user(project_id, user.id) {
-      Some(project) =>
-        match ctx.ensure_project_preview_running(project) {
-          Ok(updated_project) => json_ok(updated_project)
-          Err(_) =>
-            match ctx.store.get_project_detail_for_user(project_id, user.id) {
-              Some(updated_project) => json_ok(updated_project)
-              None =>
-                api_error_response(NotFound, NotFound, "Project not found.")
-            }
-        }
+      Some(project) => json_ok(project)
       None => api_error_response(NotFound, NotFound, "Project not found.")
     }
   })
