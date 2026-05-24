@@ -85,6 +85,22 @@ test "claude stream json emits assistant progress and tool status" {
 }
 
 ///|
+test "codex stream json parses structured assistant progress" {
+  match
+    runtime_display_event(
+      (
+        #|{"type":"agent_message","text":"Escaped \"quote\" progress"}
+      ),
+    ) {
+    Some((kind, content)) => {
+      inspect(kind, content="progress")
+      inspect(content, content="Escaped \"quote\" progress")
+    }
+    None => fail("expected codex assistant progress")
+  }
+}
+
+///|
 test "claude stream json emits failed tool repair status" {
   match
     runtime_display_event(

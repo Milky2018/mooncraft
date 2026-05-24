@@ -223,19 +223,33 @@ fn agent_command(
 }
 
 ///|
-fn extract_json_string_field(line : String, field : String) -> String? {
-  let prefix = "\"" + field + "\":\""
-  match line.find(prefix) {
-    Some(start) => {
-      let value_start = start + prefix.length()
-      let rest = line.unsafe_substring(start=value_start, end=line.length())
-      match rest.find("\"") {
-        Some(end) => Some(rest.unsafe_substring(start=0, end~))
-        None => None
-      }
-    }
+fn json_object_fields(line : String) -> Map[String, Json]? {
+  let parsed = @json.parse(line) catch { _ => return None }
+  match parsed {
+    Object(fields) => Some(fields)
+    _ => None
+  }
+}
+
+///|
+fn json_line_string_field(line : String, field : String) -> String? {
+  match json_object_fields(line) {
+    Some(fields) => json_string_field(fields, field)
     None => None
   }
+}
+
+///|
+fn extract_json_lines_string_field(events : String, field : String) -> String? {
+  let mut session_id : String? = None
+  for raw_line in events.replace_all(old="\r\n", new="\n").split("\n") {
+    let line = raw_line.to_owned()
+    match json_line_string_field(line, field) {
+      Some(value) if value.trim() != "" => session_id = Some(value)
+      _ => ()
+    }
+  }
+  session_id
 }
 
 ///|
@@ -243,33 +257,12 @@ fn AgentAdapter::extract_session_id(
   self : AgentAdapter,
   events : String,
 ) -> String? {
-  let field = self.session_id_field()
-  let mut session_id : String? = None
-  for raw_line in events.replace_all(old="\r\n", new="\n").split("\n") {
-    let line = raw_line.to_owned()
-    if line.contains("\"" + field + "\":\"") {
-      match extract_json_string_field(line, field) {
-        Some(value) if value.trim() != "" => session_id = Some(value)
-        _ => ()
-      }
-    }
-  }
-  session_id
+  extract_json_lines_string_field(events, self.session_id_field())
 }
 
 ///|
 fn extract_fake_runtime_session_id(events : String) -> String? {
-  let mut session_id : String? = None
-  for raw_line in events.replace_all(old="\r\n", new="\n").split("\n") {
-    let line = raw_line.to_owned()
-    if line.contains("\"runtime_session_id\":\"") {
-      match extract_json_string_field(line, "runtime_session_id") {
-        Some(value) if value.trim() != "" => session_id = Some(value)
-        _ => ()
-      }
-    }
-  }
-  session_id
+  extract_json_lines_string_field(events, "runtime_session_id")
 }
 
 ///|
@@ -384,9 +377,8 @@ fn claude_tool_result_failed(items : Array[Json]) -> Bool {
 
 ///|
 fn claude_stream_display_event(trimmed : String) -> (String, String)? {
-  let parsed = @json.parse(trimmed) catch { _ => return None }
-  match parsed {
-    Object(fields) => {
+  match json_object_fields(trimmed) {
+    Some(fields) => {
       let event_type = json_string_field(fields, "type").unwrap_or("")
       let subtype = json_string_field(fields, "subtype").unwrap_or("")
       match event_type {
@@ -461,36 +453,42 @@ fn runtime_command_progress_message(line : String) -> String? {
 
 ///|
 fn codex_stream_display_event(trimmed : String) -> (String, String)? {
-  if trimmed.contains("\"type\":\"runtime.started\"") {
-    Some(("status", "Started the builder session."))
-  } else if trimmed.contains("\"type\":\"turn.started\"") {
-    Some(("status", "Planning the change."))
-  } else if trimmed.contains("\"type\":\"turn.completed\"") {
-    Some(("status", "Builder session ended."))
-  } else if trimmed.contains("\"type\":\"turn.failed\"") {
-    Some(("status", "The app update failed."))
-  } else if trimmed.contains("\"type\":\"agent_message\"") {
-    match extract_json_string_field(trimmed, "text") {
-      Some(text) if text.trim() != "" => Some(("progress", text))
-      _ => None
-    }
-  } else if trimmed.contains("\"type\":\"file_change\"") {
-    if trimmed.contains("\"status\":\"completed\"") {
-      Some(("status", "Updated project files."))
-    } else {
-      Some(("status", "Editing project files."))
-    }
-  } else if trimmed.contains("\"type\":\"command_execution\"") {
-    if trimmed.contains("\"status\":\"failed\"") {
-      Some(("status", "A workspace check failed; the builder is fixing it."))
-    } else {
-      match runtime_command_progress_message(trimmed) {
-        Some(message) => Some(("status", message))
-        None => None
+  match json_object_fields(trimmed) {
+    Some(fields) => {
+      let event_type = json_string_field(fields, "type").unwrap_or("")
+      match event_type {
+        "runtime.started" => Some(("status", "Started the builder session."))
+        "turn.started" => Some(("status", "Planning the change."))
+        "turn.completed" => Some(("status", "Builder session ended."))
+        "turn.failed" => Some(("status", "The app update failed."))
+        "agent_message" =>
+          match json_string_field(fields, "text") {
+            Some(text) if text.trim() != "" => Some(("progress", text))
+            _ => None
+          }
+        "file_change" =>
+          match json_string_field(fields, "status") {
+            Some("completed") => Some(("status", "Updated project files."))
+            _ => Some(("status", "Editing project files."))
+          }
+        "command_execution" =>
+          match json_string_field(fields, "status") {
+            Some("failed") =>
+              Some(
+                (
+                  "status", "A workspace check failed; the builder is fixing it.",
+                ),
+              )
+            _ =>
+              match runtime_command_progress_message(trimmed) {
+                Some(message) => Some(("status", message))
+                None => None
+              }
+          }
+        _ => None
       }
     }
-  } else {
-    None
+    None => None
   }
 }
 
