@@ -29,7 +29,7 @@ Last updated: 2026-04-29
 | TASK-001 | Docs | Create the initial product, architecture, and docs plan. | DONE | Core repo docs exist. |
 | TASK-002 | Repo | Decide the initial workspace layout before writing application code. | DONE | The repo now uses `moon.work` with `apps/web`, `services/control-plane`, and `packages/sdk`. |
 | TASK-003 | Runtime | Verify the first executable generated MoonBit project path. | DONE | Local project creation, rebuild, preview restart, and health checks now work. |
-| TASK-004 | UI | Build the first app-develop page with project rail, chat workspace, and preview panel. | DONE | Verified locally through the control-plane HTTP flow. |
+| TASK-004 | UI | Build the first app-develop page with project rail, chat workspace, and Preview button. | DONE | Verified locally through the control-plane HTTP flow. |
 | TASK-005 | Docs | Author the first working multi-tenant todo generated-app recipe. | TODO | The recipe exists; it should be updated against the generated workspace flow. |
 | TASK-006 | Docs | Write the formal PRD from clarified product decisions. | DONE | `docs/prd.md` is updated to the implemented slice. |
 | TASK-007 | Docs | Rework architecture docs around a chat-first, hidden-code product. | DONE | `docs/architecture.md` now reflects the real local architecture. |
@@ -43,12 +43,12 @@ Last updated: 2026-04-29
 | TASK-015 | Auth | Add logout, cookie sessions, and owner-scoped project APIs. | DONE | Email/password signup and login were removed from the product surface. |
 | TASK-016 | Auth | Add GitHub OAuth support for platform sign-in. | IN_PROGRESS | GitHub is now the only sign-in provider; the flow still needs live credential verification. |
 | TASK-017 | Runtime | Replace predictable preview paths with opaque public preview tokens. | DONE | Preview URLs can now use deployment-owned project preview origins, with `/p/<preview_public_id>/` kept as a local fallback. |
-| TASK-018 | Playwright simple project story | Fake Runtime smoke mode leaks the full internal agent prompt into the assistant summary and preview iframe instead of showing only the user's request. | DONE | Fixed by extracting the user request from wrapped Runtime prompts before fake-mode preview generation; verified with `moon test services/control-plane` and `just playwright-story`. |
-| TASK-019 | Playwright simple project story | Frontend-visible success copy is inconsistent between fake-mode summaries and the cleaner backend/store success message. | DONE | Fake-mode and fallback completion paths now share `The app is updated and the preview is ready.`; verified with `moon test services/control-plane` and `just playwright-story`. |
-| TASK-020 | Playwright simple project story | The Playwright story is still a manual artifact run instead of an official `just` target that owns server startup, browser setup, screenshots, and cleanup. | DONE | Added `scripts/playwright_simple_project_story.sh` and `just playwright-story`; artifacts are saved under ignored `output/playwright/`. |
-| TASK-021 | Playwright simple project story | The browser story does not yet assert persistence after a full page refresh for project rail, chat history, and preview URL recovery. | DONE | The committed Playwright story reloads after two runs and asserts project rail, chat history, and preview URL persistence. |
-| TASK-022 | Playwright simple project story | There is no browser coverage for failed agent/build/fetch paths preserving the last successful preview with plain-English errors. | DONE | Added `MOONCRAFT_RUNTIME_FAKE_FAIL_CONTAINS` and extended `just playwright-story` to assert failed-run copy plus last-preview preservation. |
-| TASK-023 | Playwright simple project story | There is no browser-level real provider-backed agent E2E; existing `agent-smoke` covers the HTTP API path only. | IN_PROGRESS | Added `scripts/playwright_real_agent_story.sh` and `just playwright-real-agent-story`; still needs an explicit live-provider run with an admin Secret before marking done. |
+| TASK-018 | Preview smoke story | Fake Runtime smoke mode leaked the full internal agent prompt into the assistant summary and preview surface instead of showing only the user's request. | DONE | Fixed by extracting the user request from wrapped Runtime prompts before fake-mode preview generation; verified with `moon test services/control-plane` and HTTP smoke coverage. |
+| TASK-019 | Preview smoke story | Frontend-visible success copy is inconsistent between fake-mode summaries and the cleaner backend/store success message. | DONE | Fake-mode and fallback completion paths now share `The app is updated and the preview is ready.`; verified with `moon test services/control-plane` and HTTP smoke coverage. |
+| TASK-020 | Preview smoke story | Browser-driven preview-panel smoke tests depended on a heavyweight embedded-browser stack. | DONE | Removed the embedded preview panel and retired the browser scripts; preview availability is covered by HTTP readiness and direct preview URL smoke checks. |
+| TASK-021 | Preview smoke story | The smoke story does not yet assert persistence after project reload for project rail, chat history, and preview URL recovery. | DONE | Smoke coverage verifies project detail persistence and preview URL recovery without embedding the preview in the platform page. |
+| TASK-022 | Preview smoke story | There is no coverage for failed agent/build/fetch paths preserving the last successful preview with plain-English errors. | DONE | Added `MOONCRAFT_RUNTIME_FAKE_FAIL_CONTAINS` and smoke coverage for failed-run copy plus last-preview preservation. |
+| TASK-023 | Real agent smoke story | There is no real provider-backed agent E2E; existing `agent-smoke` covers the HTTP API path only. | IN_PROGRESS | Use `just agent-smoke` with an admin Secret for live-provider verification. |
 
 ## Current Work Queue
 
@@ -56,4 +56,4 @@ Last updated: 2026-04-29
 - `TASK-014`: extract preview execution into a dedicated runner service
 - `TASK-016`: verify the GitHub OAuth happy path with real client credentials
 - `TASK-005`: update the todo recipe for the generated workspace flow
-- `TASK-023`: run and verify the opt-in real-agent Playwright story with live provider credentials
+- `TASK-023`: run and verify the opt-in real-agent smoke story with live provider credentials

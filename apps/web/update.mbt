@@ -81,8 +81,6 @@ fn update(
         @rabbita.none,
         { ..model, account_panel_open: !model.account_panel_open },
       )
-    SetPreviewPanelMode(mode) =>
-      (@rabbita.none, { ..model, preview_panel_mode: mode })
     ProjectsLoaded(Ok(response)) => {
       let projects = response.items
       let selected_project_id = pick_selected_project_id(model, projects)

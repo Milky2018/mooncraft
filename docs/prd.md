@@ -32,7 +32,7 @@ Included:
 - cookie sessions
 - projects rail
 - chat workspace
-- live preview panel
+- Preview button that opens a healthy generated app in a new tab
 - hidden code by default
 - plain-English agent feedback
 - local project runtime scratch under `data/runtime`

@@ -325,7 +325,6 @@ fn clear_workspace(model : Model) -> Model {
     projects: [],
     selected_project_id: None,
     project_detail: None,
-    preview_panel_mode: PreviewSplit,
     messages: [],
     run_status: None,
     run_events: [],

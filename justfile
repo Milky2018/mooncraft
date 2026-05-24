@@ -41,18 +41,6 @@ smoke:
 smoke-running:
   ./scripts/smoke_running.sh
 
-# Run a browser smoke test for auth, theme, project lifecycle, and recovery
-ui-smoke port='8094':
-  ./scripts/playwright_full_smoke.sh {{port}}
-
-# Run the browser simple-project story and save screenshots
-playwright-story:
-  ./scripts/playwright_simple_project_story.sh
-
-# Run an opt-in browser story against the real Docker-backed agent runtime
-playwright-real-agent-story:
-  ./scripts/playwright_real_agent_story.sh
-
 # Run an opt-in real Docker-backed default-agent smoke test
 agent-smoke:
   ./scripts/agent_smoke.sh "{{agent_runtime_image}}"

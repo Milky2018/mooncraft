@@ -9,7 +9,7 @@ It includes:
 - auth gate before the workspace when signed out
 - left project rail
 - center chat workspace
-- right live preview panel
+- Preview button that opens the generated app in a new tab
 
 It excludes:
 
@@ -29,7 +29,7 @@ The main user loop is:
 2. create or select a project
 3. type a request
 4. wait on a spinner
-5. inspect the live preview
+5. open the live preview
 6. continue in chat
 
 The signed-out state should feel like the same product, not a separate admin tool.
@@ -55,11 +55,11 @@ The signed-out state should feel like the same product, not a separate admin too
 - disables sending while a run is active
 - appends a short assistant summary when the run completes
 
-### Preview Panel
+### Preview Button
 
-- embeds the live preview URL in an iframe when available
-- loads same-origin public preview URLs backed by opaque tokens
-- shows clear empty, loading, and failure states
+- is disabled until a healthy preview exists
+- opens the live preview URL in a new browser tab
+- loads project-scoped public preview URLs backed by opaque tokens
 - never shows source code
 
 ## Working State
@@ -83,7 +83,7 @@ Do not surface:
 
 ## Current Preview Assumption
 
-The current prototype uses a real running generated app as the preview target. The right panel is not a fake demo card and not a raw API console.
+The current prototype uses a real running generated app as the preview target. The Preview button is not a fake demo card and not a raw API console.
 
 That is the important product decision:
 

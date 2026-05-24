@@ -90,7 +90,7 @@ The frontend is one desktop-first page:
 
 - left rail: projects
 - center panel: chat workspace
-- right panel: preview iframe
+- header action: Preview button opens the generated app in a new tab when a healthy preview exists
 
 Default UX constraints:
 

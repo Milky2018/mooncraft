@@ -6,7 +6,7 @@ The page is intentionally narrow:
 
 - left project rail
 - center chat workspace
-- right live preview panel
+- preview button that opens the generated app in a new tab
 
 Default UX rules:
 

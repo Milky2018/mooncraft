@@ -696,110 +696,6 @@ fn stop_square_icon() -> @rabbita.Html {
 }
 
 ///|
-fn preview_hide_icon() -> @rabbita.Html {
-  @svg.svg(
-    width=16,
-    height=16,
-    view_box="0 0 24 24",
-    style=["display: block"],
-    [
-      @svg.path(
-        d="M3 12s3.4-6 9-6 9 6 9 6-3.4 6-9 6-9-6-9-6z",
-        fill="none",
-        stroke="currentColor",
-        stroke_width=2,
-      ),
-      @svg.path(
-        d="M4 4l16 16",
-        fill="none",
-        stroke="currentColor",
-        stroke_width=2,
-      ),
-    ],
-  )
-}
-
-///|
-fn preview_show_icon() -> @rabbita.Html {
-  @svg.svg(
-    width=16,
-    height=16,
-    view_box="0 0 24 24",
-    style=["display: block"],
-    [
-      @svg.path(
-        d="M3 12s3.4-6 9-6 9 6 9 6-3.4 6-9 6-9-6-9-6z",
-        fill="none",
-        stroke="currentColor",
-        stroke_width=2,
-      ),
-      @svg.path(
-        d="M12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6z",
-        fill="none",
-        stroke="currentColor",
-        stroke_width=2,
-      ),
-    ],
-  )
-}
-
-///|
-fn preview_expand_icon() -> @rabbita.Html {
-  @svg.svg(
-    width=16,
-    height=16,
-    view_box="0 0 24 24",
-    style=["display: block"],
-    [
-      @svg.path(
-        d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5",
-        fill="none",
-        stroke="currentColor",
-        stroke_width=2,
-      ),
-    ],
-  )
-}
-
-///|
-fn preview_split_icon() -> @rabbita.Html {
-  @svg.svg(
-    width=16,
-    height=16,
-    view_box="0 0 24 24",
-    style=["display: block"],
-    [
-      @svg.path(
-        d="M4 5h16v14H4zM12 5v14",
-        fill="none",
-        stroke="currentColor",
-        stroke_width=2,
-      ),
-    ],
-  )
-}
-
-///|
-fn preview_action_button_style() -> Array[String] {
-  secondary_button_style(true) +
-  ["width: 28px", "height: 28px", "padding: 0", "justify-content: center"]
-}
-
-///|
-fn render_show_preview_button(
-  dispatch : @rabbita.Dispatch[Msg],
-) -> @rabbita.Html {
-  @html.button(
-    type_="button",
-    title="Show preview",
-    on_click=dispatch(SetPreviewPanelMode(PreviewSplit)),
-    style=secondary_button_style(true) +
-      ["height: 28px", "padding: 0 8px", "gap: 4px"],
-    [preview_show_icon(), @html.span("Preview")],
-  )
-}
-
-///|
 fn composer_keydown_attrs(
   dispatch : @rabbita.Dispatch[Msg],
   send_enabled : Bool,
@@ -816,6 +712,45 @@ fn composer_keydown_attrs(
       @rabbita.none
     }
   })
+}
+
+///|
+fn preview_open_target(model : Model) -> @sdk.PreviewTarget? {
+  match model.project_detail {
+    Some(project) =>
+      match project.preview {
+        Some(preview) if preview.healthy => Some(preview)
+        _ => None
+      }
+    None => None
+  }
+}
+
+///|
+fn render_preview_button(model : Model) -> @rabbita.Html {
+  match preview_open_target(model) {
+    Some(preview) =>
+      @html.a(
+        href=preview.url,
+        target=Blank,
+        rel="noopener noreferrer",
+        title="Open preview in a new tab",
+        style=secondary_button_style(true) +
+          [
+            "text-decoration: none", "height: 28px", "padding: 0 8px", "gap: 4px",
+          ],
+        [external_link_icon(), @html.span("Preview")],
+      )
+    None =>
+      @html.button(
+        type_="button",
+        title="Preview is not available yet",
+        disabled=true,
+        style=secondary_button_style(false) +
+          ["height: 28px", "padding: 0 8px", "gap: 4px"],
+        [external_link_icon(), @html.span("Preview")],
+      )
+  }
 }
 
 ///|
@@ -893,12 +828,7 @@ fn render_workspace_panel(
             "justify-content: flex-end",
           ],
           [
-            if preview_panel_target(model) is Some(_) &&
-              model.preview_panel_mode is PreviewHidden {
-              render_show_preview_button(dispatch)
-            } else {
-              @html.nothing
-            },
+            render_preview_button(model),
             maybe_status_badge(active_project_status(model)),
           ],
         ),
@@ -963,200 +893,4 @@ fn render_workspace_panel(
       )
     },
   ]
-}
-
-///|
-fn preview_url_with_theme(url : String, theme_mode : ThemeMode) -> String {
-  let separator = if url.contains("?") { "&" } else { "?" }
-  url + separator + "theme=" + theme_mode.storage_value()
-}
-
-///|
-fn preview_panel_target(model : Model) -> @sdk.PreviewTarget? {
-  match model.project_detail {
-    Some(project) => project.preview
-    None => None
-  }
-}
-
-///|
-fn render_preview_panel(
-  dispatch : @rabbita.Dispatch[Msg],
-  model : Model,
-  expanded~ : Bool,
-) -> @rabbita.Html {
-  let preview = model.project_detail.bind(fn(project) { project.preview })
-  let status = match preview {
-    Some(target) => if target.healthy { @sdk.Succeeded } else { Failed }
-    None => Idle
-  }
-  let size_style = if expanded {
-    ["flex: 1 1 100%", "min-width: 0"]
-  } else {
-    ["flex: 0.92 1 440px", "min-width: 360px"]
-  }
-  @html.div(
-    style=panel_style() +
-      size_style +
-      [
-        "display: flex", "flex-direction: column", "min-height: 0", "overflow: hidden",
-      ],
-  ) <| [
-    @html.div(
-      style=[
-        "height: 50px", "padding: 0 12px", "border-bottom: 1px solid var(--border-soft)",
-        "display: flex", "justify-content: space-between", "align-items: center",
-        "gap: 8px", "flex-wrap: wrap",
-      ],
-      [
-        @html.div(
-          style=["display: flex", "flex-direction: column", "gap: 8px"],
-          [@html.div(style=title_text_style(), "Preview")],
-        ),
-        @html.div(
-          style=[
-            "display: flex", "align-items: center", "gap: 8px", "flex-wrap: wrap",
-            "justify-content: flex-end",
-          ],
-          [
-            maybe_status_badge(status),
-            @html.button(
-              type_="button",
-              title=if expanded {
-                "Return to split view"
-              } else {
-                "Expand preview"
-              },
-              on_click=dispatch(
-                SetPreviewPanelMode(
-                  if expanded {
-                    PreviewSplit
-                  } else {
-                    PreviewExpanded
-                  },
-                ),
-              ),
-              style=preview_action_button_style(),
-              [
-                if expanded {
-                  preview_split_icon()
-                } else {
-                  preview_expand_icon()
-                },
-              ],
-            ),
-            @html.button(
-              type_="button",
-              title="Hide preview",
-              on_click=dispatch(SetPreviewPanelMode(PreviewHidden)),
-              style=preview_action_button_style(),
-              [preview_hide_icon()],
-            ),
-          ],
-        ),
-      ],
-    ),
-    @html.div(
-      style=[
-        "flex: 1", "min-height: 0", "padding: 6px", "background: var(--foreground-2)",
-      ],
-      @html.div(
-        style=[
-          "height: 100%", "border-radius: var(--radius-panel)", "overflow: hidden",
-          "background: var(--surface-raised)", "box-shadow: var(--shadow)", "display: flex",
-          "flex-direction: column",
-        ],
-        [
-          preview_browser_chrome(preview),
-          match preview {
-            Some(target) =>
-              @html.iframe(
-                title="Live Preview",
-                src=preview_url_with_theme(
-                  target.url,
-                  model.resolved_theme_mode,
-                ),
-                loading="eager",
-                style=[
-                  "flex: 1", "min-height: 0", "width: 100%", "border: none", "background: var(--preview-bg)",
-                ],
-              )
-            None => preview_empty_state(model)
-          },
-        ],
-      ),
-    ),
-  ]
-}
-
-///|
-fn preview_browser_chrome(preview : @sdk.PreviewTarget?) -> @rabbita.Html {
-  let url_text = match preview {
-    Some(target) => target.url
-    None => "Preview"
-  }
-  @html.div(
-    style=[
-      "height: 36px", "display: flex", "align-items: center", "gap: 8px", "padding: 0 10px",
-      "background: var(--foreground-3)", "border-bottom: 1px solid var(--border-soft)",
-    ],
-  ) <| [
-    @html.div(style=["display: flex", "gap: 5px"], [
-      browser_dot("#ef6461"),
-      browser_dot("#f5bd4f"),
-      browser_dot("#62c554"),
-    ]),
-    @html.div(
-      style=normal_text_style() +
-        [
-          "flex: 1", "min-width: 0", "padding: 4px 8px", "border-radius: var(--radius-control)",
-          "background: var(--background)", "white-space: nowrap", "overflow: hidden",
-          "text-overflow: ellipsis",
-        ],
-      url_text,
-    ),
-  ]
-}
-
-///|
-fn browser_dot(color : String) -> @rabbita.Html {
-  @html.div(
-    style=[
-      "width: 8px",
-      "height: 8px",
-      "border-radius: 999px",
-      "background: " + color,
-    ],
-  ) <| ""
-}
-
-///|
-fn preview_empty_state(model : Model) -> @rabbita.Html {
-  let title = if active_run(model) is Some(_) {
-    "Building"
-  } else if model.selected_project_id is Some(_) {
-    "No preview"
-  } else {
-    "No project selected"
-  }
-  @html.div(
-    style=[
-      "flex: 1", "min-height: 0", "display: grid", "place-items: center", "padding: 14px",
-      "background: var(--preview-bg)",
-    ],
-  ) <| (@html.div(
-    style=[
-      "max-width: 360px", "display: flex", "flex-direction: column", "gap: 8px",
-      "text-align: center", "align-items: center",
-    ],
-  ) <| [
-    @html.div(
-      style=[
-        "width: 40px", "height: 40px", "border-radius: var(--radius-control)", "background: var(--accent-soft)",
-        "box-shadow: none",
-      ],
-      "",
-    ),
-    @html.div(style=title_text_style(), title),
-  ])
 }

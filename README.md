@@ -8,7 +8,7 @@ Users describe what they want, MoonCraft updates the app, and the browser shows 
 
 - Create and manage projects.
 - Build apps through a chat workspace.
-- Show the generated app in a live preview panel.
+- Open healthy generated previews in a new browser tab.
 - Keep project ownership separated between signed-in users.
 - Run project builds through an admin-managed OpenRouter key pool.
 
