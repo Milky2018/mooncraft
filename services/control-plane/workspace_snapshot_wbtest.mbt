@@ -9,9 +9,9 @@ async test "workspace snapshot stores archive as file metadata" {
   }
   let workspace = root + "/workspace"
   ensure_dir(workspace)
-  ensure_dir(workspace + "/.moonhome/cache")
+  ensure_dir(workspace + "/.mooncakes/cache")
   safe_write_string(workspace + "/main.mbt", "fn main { println(\"ok\") }\n")
-  safe_write_string(workspace + "/.moonhome/cache/tool.cache", "cache")
+  safe_write_string(workspace + "/.mooncakes/cache/tool.cache", "cache")
   match snapshot_workspace(store, root, "project-snapshot", workspace) {
     Ok(_) => ignore(())
     Err(message) => abort(message)
@@ -51,5 +51,5 @@ async test "workspace snapshot stores archive as file metadata" {
   if !@fs.path_exists(workspace + "/main.mbt") {
     fail("expected restored source file")
   }
-  debug_inspect(@fs.path_exists(workspace + "/.moonhome"), content="false")
+  debug_inspect(@fs.path_exists(workspace + "/.mooncakes"), content="false")
 }

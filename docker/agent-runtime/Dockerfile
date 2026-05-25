@@ -1,7 +1,7 @@
 FROM node:24-bookworm AS build
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG MOONCRAFT_AGENT_RUNTIME_VERSION=0.3.0
+ARG MOONCRAFT_AGENT_RUNTIME_VERSION=0.3.1
 ARG MOONBIT_VERSION=latest
 ARG CODEX_CLI_VERSION=0.125.0
 
@@ -25,7 +25,7 @@ RUN rm -rf /root/.cache /root/.npm /tmp/*
 FROM debian:bookworm-slim AS run
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG MOONCRAFT_AGENT_RUNTIME_VERSION=0.3.0
+ARG MOONCRAFT_AGENT_RUNTIME_VERSION=0.3.1
 ARG MOONBIT_VERSION=latest
 ARG CODEX_CLI_VERSION=0.125.0
 
@@ -36,7 +36,7 @@ LABEL mooncraft.codex.version="${CODEX_CLI_VERSION}"
 LABEL mooncraft.node.version="24"
 LABEL mooncraft.moonbit.version="${MOONBIT_VERSION}"
 
-ENV MOON_HOME=/opt/moon
+ENV MOON_HOME=/home/mooncraft/.moon
 ENV HOME=/home/mooncraft
 ENV PATH=/opt/moon/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
@@ -64,7 +64,7 @@ RUN set -eux; \
   done; \
   rm -rf /var/lib/apt/lists/*; \
   useradd --create-home --uid 10001 --shell /bin/bash mooncraft; \
-  mkdir -p /workspace /artifacts /home/mooncraft; \
+  mkdir -p /workspace /artifacts /home/mooncraft/.moon; \
   chown -R mooncraft:mooncraft /workspace /artifacts /home/mooncraft
 
 COPY docker/agent-runtime/bin/ /usr/local/bin/

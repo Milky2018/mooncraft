@@ -12,6 +12,9 @@ require_env() {
 }
 
 home="$(require_env HOME)"
+moon_home="${MOON_HOME:-${home}/.moon}"
+export MOON_HOME="$moon_home"
+mkdir -p "$moon_home"
 codex_home="${home}/.codex"
 export CODEX_HOME="$codex_home"
 mkdir -p "$codex_home"

@@ -37,8 +37,10 @@ docker run --rm \
     set -euo pipefail
     test "$(id -u)" != "0"
     test "${HOME:-}" = "/home/mooncraft"
+    test "${MOON_HOME:-}" = "/home/mooncraft/.moon"
     test -w /workspace
     test -w /home/mooncraft
+    test -w "$MOON_HOME"
     test -w /artifacts
     command -v rg >/dev/null
     command -v jq >/dev/null
@@ -47,8 +49,10 @@ docker run --rm \
     command -v gcc >/dev/null
     command -v make >/dev/null
     command -v pkg-config >/dev/null
+    command -v moon >/dev/null
     command -v codex >/dev/null
     command -v claude >/dev/null
+    moon version >/dev/null
     printf "%s\n" "int main(void) { return 0; }" > /tmp/mooncraft-runtime-check.c
     cc /tmp/mooncraft-runtime-check.c -o /tmp/mooncraft-runtime-check
     /tmp/mooncraft-runtime-check
