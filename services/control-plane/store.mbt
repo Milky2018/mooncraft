@@ -52,6 +52,13 @@ priv struct RunWorkerRegistration {
 }
 
 ///|
+priv struct WorkspaceSnapshotMetadata {
+  path : String
+  checksum : String
+  size_bytes : String
+}
+
+///|
 struct RuntimeGateway {
   root : String
 }
@@ -186,13 +193,6 @@ fn safe_write_string(path : String, content : String) -> Unit {
 ///|
 fn safe_append_string(path : String, content : String) -> Unit {
   safe_write_string(path, safe_read_string_or(path, "") + content)
-}
-
-///|
-fn safe_write_bytes(path : String, content : Bytes) -> Unit {
-  @fs.write_bytes_to_file(path, content) catch {
-    _ => ()
-  }
 }
 
 ///|
@@ -336,15 +336,6 @@ fn param_to_bool(value : @db.Param) -> Bool {
     Int64(v) => v != 0L
     String(v) => v == "1" || v.to_lower() == "true"
     _ => false
-  }
-}
-
-///|
-fn param_to_bytes(value : @db.Param) -> Bytes? {
-  match value {
-    Bytes(v) => Some(v)
-    String(v) => Some(@utf8.encode(v))
-    _ => None
   }
 }
 
@@ -1367,14 +1358,6 @@ async fn Store::is_available(self : Store) -> Bool noraise {
 }
 
 ///|
-fn Store::blob_type(self : Store) -> String {
-  match self.backend {
-    SQLite => "BLOB"
-    Postgres => "BYTEA"
-  }
-}
-
-///|
 async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
   if self.backend is SQLite {
     match self.exec_or_error("PRAGMA journal_mode=WAL;", "enable WAL mode") {
@@ -1517,16 +1500,46 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
       (
         #|CREATE TABLE IF NOT EXISTS project_workspace_snapshots (
         #|  project_id TEXT PRIMARY KEY,
-        #|  archive 
-      ) +
-      self.blob_type() +
-      (
-        #| NOT NULL,
+        #|  path TEXT NOT NULL,
+        #|  checksum TEXT NOT NULL,
+        #|  size_bytes TEXT NOT NULL,
         #|  updated_at TEXT NOT NULL
         #|);
       ),
       "create project_workspace_snapshots table",
     ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.ensure_column(
+      "project_workspace_snapshots", "path", "TEXT NOT NULL DEFAULT ''",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.ensure_column(
+      "project_workspace_snapshots", "checksum", "TEXT NOT NULL DEFAULT ''",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.ensure_column(
+      "project_workspace_snapshots", "size_bytes", "TEXT NOT NULL DEFAULT '0'",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      "DELETE FROM project_workspace_snapshots WHERE path = '';", "remove obsolete in-database workspace snapshots",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match self.drop_column_if_exists("project_workspace_snapshots", "archive") {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
@@ -1961,42 +1974,65 @@ fn run_status_from_row(row : Map[String, @db.Param]) -> @sdk.RunStatusResponse {
 }
 
 ///|
-async fn Store::save_workspace_snapshot(
+async fn Store::save_workspace_snapshot_metadata(
   self : Store,
   project_id : String,
-  archive : Bytes,
+  path : String,
+  checksum : String,
+  size_bytes : String,
 ) -> Result[Unit, String] noraise {
   self.exec_or_error(
     (
       #|INSERT INTO project_workspace_snapshots (
       #|  project_id,
-      #|  archive,
+      #|  path,
+      #|  checksum,
+      #|  size_bytes,
       #|  updated_at
-      #|) VALUES (?, ?, ?)
+      #|) VALUES (?, ?, ?, ?, ?)
       #|ON CONFLICT(project_id) DO UPDATE SET
-      #|  archive = excluded.archive,
+      #|  path = excluded.path,
+      #|  checksum = excluded.checksum,
+      #|  size_bytes = excluded.size_bytes,
       #|  updated_at = excluded.updated_at;
     ),
     "save workspace snapshot",
-    params=[String(project_id), Bytes(archive), String(now_string())],
+    params=[
+      String(project_id),
+      String(path),
+      String(checksum),
+      String(size_bytes),
+      String(now_string()),
+    ],
   )
 }
 
 ///|
-async fn Store::get_workspace_snapshot(
+async fn Store::get_workspace_snapshot_metadata(
   self : Store,
   project_id : String,
-) -> Bytes? noraise {
+) -> WorkspaceSnapshotMetadata? noraise {
   match
     self.query_one(
       (
-        #|SELECT archive
+        #|SELECT path, checksum, size_bytes
         #|FROM project_workspace_snapshots
         #|WHERE project_id = ?;
       ),
       params=[String(project_id)],
     ) {
-    Some(row) => param_to_bytes(row_get(row, "archive"))
+    Some(row) => {
+      let path = row_text(row, "path")
+      if path == "" {
+        None
+      } else {
+        Some({
+          path,
+          checksum: row_text(row, "checksum"),
+          size_bytes: row_text(row, "size_bytes"),
+        })
+      }
+    }
     None => None
   }
 }
