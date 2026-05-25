@@ -6,7 +6,7 @@
     "protocol_version": 2,
     "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.3.1",
     "agent": "claude",
-    "model": "anthropic/claude-sonnet-4.5",
+    "model": "anthropic/claude-opus-4.6",
     "auth": {
       "kind": "openrouter_api_key",
       "secret": {
