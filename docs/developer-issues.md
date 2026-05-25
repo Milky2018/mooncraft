@@ -79,7 +79,7 @@ Agents do not edit this. This file is maintainable by human developers.
     - [ ] Add account deletion later, but project deletion must be complete and audited.
     - [ ] Keep runtime credentials out of user accounts and environment files; production credentials must be configured as admin Secrets.
 - [ ] 100% correct
-- [ ] experience, games are too primitive
+- [x] experience, games are too primitive
 - [ ] image replacement, for iteration
 - [ ] static sharing
 - [ ] github repo
@@ -99,3 +99,4 @@ Agents do not edit this. This file is maintainable by human developers.
 - [ ] the runtime needs Python
 - [ ] The preview after updating will be hidden
 - [ ] preview rebuild is broken
+- [ ] `core/argparse` needs to be used

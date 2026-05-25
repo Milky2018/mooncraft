@@ -27,8 +27,8 @@ async fn snapshot_workspace(
   let archive_code = run_process_quiet(
     "tar",
     [
-      "--exclude=./_build", "--exclude=./.mooncakes", "--exclude=./.repos", "--exclude=./preview-dist",
-      "-cf", temp_path, "-C", workspace_path, ".",
+      "--exclude=./_build", "--exclude=./.mooncakes", "--exclude=./.repos", "--exclude=./.moonhome",
+      "--exclude=./preview-dist", "-cf", temp_path, "-C", workspace_path, ".",
     ],
     cwd=root,
   )
