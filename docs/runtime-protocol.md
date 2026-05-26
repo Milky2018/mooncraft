@@ -17,7 +17,7 @@ shape:
 ```json
 {
   "protocol_version": 2,
-  "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.3.1",
+  "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.3.2",
   "agent": "codex",
   "model": "openai/gpt-5.4-mini",
   "auth": {
@@ -103,7 +103,7 @@ The file shape is:
   "is_default": true,
   "spec": {
     "protocol_version": 2,
-    "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.3.1",
+    "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.3.2",
     "agent": "codex",
     "model": "openai/gpt-5.4-mini",
     "auth": {

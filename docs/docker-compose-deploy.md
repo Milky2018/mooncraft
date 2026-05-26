@@ -36,13 +36,13 @@ just build-mooncraft-image mooncraft:local linux/amd64
 Make sure the agent runtime image is available. The `just deploy-*` commands below pull it automatically from the image configured in the matching env file.
 
 ```bash
-just build-agent-runtime-image docker.io/moonbitcloud/mooncraft-agent-runtime 0.3.1
+just build-agent-runtime-image docker.io/moonbitcloud/mooncraft-agent-runtime 0.3.2
 
 # Build local architecture-suffixed images for both supported platforms:
-just build-agent-runtime-images docker.io/moonbitcloud/mooncraft-agent-runtime 0.3.1
+just build-agent-runtime-images docker.io/moonbitcloud/mooncraft-agent-runtime 0.3.2
 
 # Publish the shared multi-architecture image:
-just docker-agent-runtime-publish docker.io/moonbitcloud/mooncraft-agent-runtime 0.3.1 linux/amd64,linux/arm64
+just docker-agent-runtime-publish docker.io/moonbitcloud/mooncraft-agent-runtime 0.3.2 linux/amd64,linux/arm64
 
 just deploy-test
 # or
@@ -56,7 +56,7 @@ MoonCraft detects the Docker daemon architecture before each real builder run an
 
 Any other Docker host architecture fails before the builder starts. The agent runtime image must therefore be available for both `linux/amd64` and `linux/arm64`.
 
-`just build-agent-runtime-image` defaults to the current Docker host platform, which is the right choice for local smoke tests. `just build-agent-runtime-images` builds both local platform-specific tags, such as `:0.3.1-amd64` and `:0.3.1-arm64`. Production and shared test deployments should use `just docker-agent-runtime-publish`, which builds and pushes one multi-architecture tag that Docker can resolve by host platform.
+`just build-agent-runtime-image` defaults to the current Docker host platform, which is the right choice for local smoke tests. `just build-agent-runtime-images` builds both local platform-specific tags, such as `:0.3.2-amd64` and `:0.3.2-arm64`. Production and shared test deployments should use `just docker-agent-runtime-publish`, which builds and pushes one multi-architecture tag that Docker can resolve by host platform.
 
 If you are publishing your own agent runtime image, push it first and register that image in a Runtime manifest. Official built-ins are packaged under `runtime/builtin/`; admin-created Runtimes are configured from the admin page.
 
@@ -213,7 +213,7 @@ If an official built-in Runtime image changes, update the matching manifest unde
 If a host previously cached the wrong-architecture runtime image, remove and repull it after upgrading:
 
 ```bash
-docker image rm docker.io/moonbitcloud/mooncraft-agent-runtime:0.3.1 || true
+docker image rm docker.io/moonbitcloud/mooncraft-agent-runtime:0.3.2 || true
 just deploy-prod
 ```
 

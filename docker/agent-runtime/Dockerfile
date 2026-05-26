@@ -1,7 +1,7 @@
 FROM node:24-bookworm AS build
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG MOONCRAFT_AGENT_RUNTIME_VERSION=0.3.1
+ARG MOONCRAFT_AGENT_RUNTIME_VERSION=0.3.2
 ARG MOONBIT_VERSION=latest
 ARG CODEX_CLI_VERSION=0.125.0
 
@@ -25,16 +25,6 @@ RUN rm -rf /root/.cache /root/.npm /tmp/*
 FROM debian:bookworm-slim AS run
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG MOONCRAFT_AGENT_RUNTIME_VERSION=0.3.1
-ARG MOONBIT_VERSION=latest
-ARG CODEX_CLI_VERSION=0.125.0
-
-LABEL org.opencontainers.image.title="MoonCraft Agent Runtime"
-LABEL org.opencontainers.image.description="MoonCraft runtime image for isolated app-building agents."
-LABEL mooncraft.agent_runtime.version="${MOONCRAFT_AGENT_RUNTIME_VERSION}"
-LABEL mooncraft.codex.version="${CODEX_CLI_VERSION}"
-LABEL mooncraft.node.version="24"
-LABEL mooncraft.moonbit.version="${MOONBIT_VERSION}"
 
 ENV MOON_HOME=/home/mooncraft/.moon
 ENV HOME=/home/mooncraft
@@ -43,7 +33,7 @@ ENV PATH=/opt/moon/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 RUN set -eux; \
   for attempt in 1 2 3 4 5; do \
     apt-get -o Acquire::Retries=5 update \
-      && apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
+      && apt-get -o Acquire::Retries=5 install -y --no-install-recommends --fix-missing \
         bash \
         build-essential \
         ca-certificates \
@@ -58,21 +48,29 @@ RUN set -eux; \
     if [ "$attempt" = "5" ]; then \
       exit 1; \
     fi; \
-    apt-get clean; \
     rm -rf /var/lib/apt/lists/*; \
     sleep "$((attempt * 5))"; \
   done; \
+  apt-get clean; \
   rm -rf /var/lib/apt/lists/*; \
   useradd --create-home --uid 10001 --shell /bin/bash mooncraft; \
   mkdir -p /workspace /artifacts /home/mooncraft/.moon; \
   chown -R mooncraft:mooncraft /workspace /artifacts /home/mooncraft
 
+ARG MOONCRAFT_AGENT_RUNTIME_VERSION=0.3.2
+ARG MOONBIT_VERSION=latest
+ARG CODEX_CLI_VERSION=0.125.0
+
+LABEL org.opencontainers.image.title="MoonCraft Agent Runtime"
+LABEL org.opencontainers.image.description="MoonCraft runtime image for isolated app-building agents."
+LABEL mooncraft.agent_runtime.version="${MOONCRAFT_AGENT_RUNTIME_VERSION}"
+LABEL mooncraft.codex.version="${CODEX_CLI_VERSION}"
+LABEL mooncraft.node.version="24"
+LABEL mooncraft.moonbit.version="${MOONBIT_VERSION}"
+
 COPY docker/agent-runtime/bin/ /usr/local/bin/
 COPY docker/agent-runtime/mooncraft-agent-system.md /opt/mooncraft/mooncraft-agent-system.md
 COPY --from=build /usr/local/bin/node /usr/local/bin/node
-COPY --from=build /usr/local/bin/npm /usr/local/bin/npm
-COPY --from=build /usr/local/bin/npx /usr/local/bin/npx
-COPY --from=build /usr/local/bin/corepack /usr/local/bin/corepack
 COPY --from=build /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
 COPY --from=build /usr/local/lib/node_modules/corepack /usr/local/lib/node_modules/corepack
 COPY --from=build /opt/moon /opt/moon
@@ -81,7 +79,10 @@ COPY --from=build /opt/mooncraft/templates /opt/mooncraft/templates
 COPY --from=build /usr/local/lib/node_modules/@openai /usr/local/lib/node_modules/@openai
 COPY --from=build /usr/local/lib/node_modules/@anthropic-ai /usr/local/lib/node_modules/@anthropic-ai
 
-RUN ln -sf ../lib/node_modules/@openai/codex/bin/codex.js /usr/local/bin/codex \
+RUN ln -sf ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+  && ln -sf ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
+  && ln -sf ../lib/node_modules/corepack/dist/corepack.js /usr/local/bin/corepack \
+  && ln -sf ../lib/node_modules/@openai/codex/bin/codex.js /usr/local/bin/codex \
   && ln -sf ../lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe /usr/local/bin/claude \
   && for tool in /opt/moon/bin/*; do \
     if [ -f "$tool" ] && [ -x "$tool" ]; then \
@@ -97,4 +98,4 @@ WORKDIR /workspace
 
 ENTRYPOINT ["mooncraft-agent-entrypoint"]
 
-RUN moon version && codex --version && claude --version
+RUN moon version && npm --version && npx --version && codex --version && claude --version

@@ -50,9 +50,13 @@ docker run --rm \
     command -v make >/dev/null
     command -v pkg-config >/dev/null
     command -v moon >/dev/null
+    command -v npm >/dev/null
+    command -v npx >/dev/null
     command -v codex >/dev/null
     command -v claude >/dev/null
     moon version >/dev/null
+    npm --version >/dev/null
+    npx --version >/dev/null
     printf "%s\n" "int main(void) { return 0; }" > /tmp/mooncraft-runtime-check.c
     cc /tmp/mooncraft-runtime-check.c -o /tmp/mooncraft-runtime-check
     /tmp/mooncraft-runtime-check
