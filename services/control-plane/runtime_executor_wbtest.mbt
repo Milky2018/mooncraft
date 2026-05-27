@@ -70,8 +70,8 @@ async fn path_is_other_writable(path : String) -> Bool {
 
 ///|
 async test "agent home is normalized after auth creates new directories" {
-  let root = "/tmp/mooncraft-agent-home-perm-test-" + random_hex(6)
-  let agent_home_path = root + "/home"
+  let root = "/tmp/mooncraft-agent-home-perm-test-\{random_hex(6)}"
+  let agent_home_path = "\{root}/home"
   ensure_dir(agent_home_path)
   defer safe_remove_tree(root)
   prepare_agent_mount_path(agent_home_path)
@@ -83,7 +83,7 @@ async test "agent home is normalized after auth creates new directories" {
     Ok(_) => ()
     Err(message) => fail(message)
   }
-  let codex_home = agent_home_path + "/.codex"
+  let codex_home = "\{agent_home_path}/.codex"
   // Simulate a host-created auth directory that is not writable by the
   // container's non-root runtime user on a Linux bind mount.
   ignore(run_process_quiet("chmod", ["755", codex_home]))
@@ -94,12 +94,12 @@ async test "agent home is normalized after auth creates new directories" {
 
 ///|
 async test "process log streaming waits on child process and reads output pipe" {
-  let root = "/tmp/mooncraft-async-process-test-" + random_hex(6)
-  let log_path = root + "/process.log"
+  let root = "/tmp/mooncraft-async-process-test-\{random_hex(6)}"
+  let log_path = "\{root}/process.log"
   ensure_dir(root)
   ensure_dir(parent_dir(log_path))
   defer safe_remove_tree(root)
-  let store = match try_new_async(root + "/state.sqlite") {
+  let store = match try_new_async("\{root}/state.sqlite") {
     Ok(store) => store
     Err(message) => abort(message)
   }
@@ -114,7 +114,7 @@ async test "process log streaming waits on child process and reads output pipe" 
     "agent-session-stream",
     "codex",
     "openrouter/test-model",
-    root + "/workspace",
+    "\{root}/workspace",
   )
   let run = match store.start_run("project-stream", "Build something") {
     Ok(run) => run
@@ -163,15 +163,15 @@ async test "process log streaming waits on child process and reads output pipe" 
 
 ///|
 async test "runtime timeout watchdog does not own the streaming pipe" {
-  let root = "/tmp/mooncraft-watchdog-pipe-test-" + random_hex(6)
-  let bin_dir = root + "/bin"
-  let stop_file = root + "/fake-docker.stop"
-  let log_path = root + "/watchdog.log"
+  let root = "/tmp/mooncraft-watchdog-pipe-test-\{random_hex(6)}"
+  let bin_dir = "\{root}/bin"
+  let stop_file = "\{root}/fake-docker.stop"
+  let log_path = "\{root}/watchdog.log"
   ensure_dir(bin_dir)
   ensure_dir(parent_dir(log_path))
   defer safe_remove_tree(root)
   safe_write_string(
-    bin_dir + "/docker",
+    "\{bin_dir}/docker",
     (
       #|#!/bin/sh
       #|if [ "$1" = "run" ]; then
@@ -189,8 +189,8 @@ async test "runtime timeout watchdog does not own the streaming pipe" {
       #|exit 2
     ),
   )
-  ignore(run_process_quiet("chmod", ["755", bin_dir + "/docker"]))
-  let store = match try_new_async(root + "/state.sqlite") {
+  ignore(run_process_quiet("chmod", ["755", "\{bin_dir}/docker"]))
+  let store = match try_new_async("\{root}/state.sqlite") {
     Ok(store) => store
     Err(message) => abort(message)
   }
@@ -205,7 +205,7 @@ async test "runtime timeout watchdog does not own the streaming pipe" {
     "agent-session-watchdog",
     "codex",
     "openrouter/test-model",
-    root + "/workspace",
+    "\{root}/workspace",
   )
   let run = match store.start_run("project-watchdog", "Build something") {
     Ok(run) => run
@@ -226,12 +226,8 @@ async test "runtime timeout watchdog does not own the streaming pipe" {
     Ok(_) => ignore(())
     Err(message) => fail(message)
   }
-  let script = "PATH=" +
-    shell_quote(bin_dir) +
-    ":$PATH\nexport PATH\nMOONCRAFT_FAKE_DOCKER_STOP=" +
-    shell_quote(stop_file) +
-    "\nexport MOONCRAFT_FAKE_DOCKER_STOP\n" +
-    docker_run_timeout_script(["run"], "fake-container", 1)
+  let docker_script = docker_run_timeout_script(["run"], "fake-container", 1)
+  let script = "PATH=\{shell_quote(bin_dir)}:$PATH\nexport PATH\nMOONCRAFT_FAKE_DOCKER_STOP=\{shell_quote(stop_file)}\nexport MOONCRAFT_FAKE_DOCKER_STOP\n\{docker_script}"
   let (exit_code, output) = match
     run_streaming_command(
       store,
@@ -248,9 +244,7 @@ async test "runtime timeout watchdog does not own the streaming pipe" {
     Err(message) => fail(message)
   }
   inspect(exit_code, content="137")
-  let expected_output = "docker started\n" +
-    "docker stopped\n" +
-    "MoonCraft builder exceeded the configured runtime limit of 1 seconds; stopping the Runtime container.\n"
+  let expected_output = "docker started\ndocker stopped\nMoonCraft builder exceeded the configured runtime limit of 1 seconds; stopping the Runtime container.\n"
   inspect(output, content=expected_output)
   inspect(safe_read_string_or(log_path, ""), content=expected_output)
 }

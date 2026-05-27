@@ -60,10 +60,10 @@ fn RunArtifacts::new(
     project_id,
     run_id,
     dir,
-    prompt_path: dir + "/prompt.txt",
-    last_message_path: dir + "/last_message.txt",
-    agent_log_path: dir + "/agent.log",
-    validation_log_path: dir + "/validation.log",
+    prompt_path: "\{dir}/prompt.txt",
+    last_message_path: "\{dir}/last_message.txt",
+    agent_log_path: "\{dir}/agent.log",
+    validation_log_path: "\{dir}/validation.log",
   }
 }
 
@@ -84,7 +84,7 @@ fn agent_container_home_dir() -> String {
 
 ///|
 fn agent_runtime_container_name(project_id : String, run_id : String) -> String {
-  "mooncraft-" + project_id + "-" + run_id
+  "mooncraft-\{project_id}-\{run_id}"
 }
 
 ///|
@@ -131,9 +131,9 @@ fn docker_bind_source(config : AgentRuntimeConfig, path : String) -> String {
       if source == container_data_dir {
         host_data_dir
       } else {
-        let prefix = container_data_dir + "/"
+        let prefix = "\{container_data_dir}/"
         if source.has_prefix(prefix) {
-          host_data_dir + source[container_data_dir.length():].to_owned()
+          "\{host_data_dir}\{source[container_data_dir.length():].to_owned()}"
         } else {
           source
         }
@@ -150,31 +150,24 @@ fn docker_env_value(value : String) -> String {
 
 ///|
 fn docker_env_file_path(artifacts : RunArtifacts) -> String {
-  artifacts.dir + "/agent.env"
+  "\{artifacts.dir}/agent.env"
 }
 
 ///|
 fn docker_env_file_content(config : AgentRuntimeConfig) -> String {
-  let mut content = ""
+  let content = StringBuilder()
   for key, value in config.env {
-    content = content +
-      docker_env_value(key) +
-      "=" +
-      docker_env_value(value) +
-      "\n"
+    content <+ "\{docker_env_value(key)}=\{docker_env_value(value)}\n"
   }
   for secret in config.secrets {
     match secret.env {
       Some(env) =>
-        content = content +
-          docker_env_value(env) +
-          "=" +
-          docker_env_value(secret.value) +
-          "\n"
+        content <+
+          "\{docker_env_value(env)}=\{docker_env_value(secret.value)}\n"
       None => ()
     }
   }
-  content
+  content.to_string()
 }
 
 ///|
@@ -206,7 +199,7 @@ async fn materialize_runtime_file_secrets(
           Ok(path) => path
           Err(message) => return Err(message)
         }
-        let target = agent_home_path + "/" + relative_path
+        let target = "\{agent_home_path}/\{relative_path}"
         ensure_dir(parent_dir(target))
         @fs.write_string_to_file(target, secret.value) catch {
           err => return Err("Runtime secret file could not be written: \{err}")
@@ -285,7 +278,7 @@ async fn AgentRuntimeConfig::load(
     platform,
     env: settings.env,
     secrets: settings.secrets,
-    container_data_dir: trim_mount_path(root) + "/data",
+    container_data_dir: "\{trim_mount_path(root)}/data",
     host_data_dir,
   })
 }
@@ -519,13 +512,10 @@ fn append_command_log(
   exit_code : Int,
   content : String,
 ) -> Unit {
+  let output = trim_or_default(content, "(no output)")
   safe_append_string(
     path,
-    "== \{label} ==\ncommand: " +
-    command_display(command) +
-    "\nexit_code: \{exit_code}\n\n" +
-    trim_or_default(content, "(no output)") +
-    "\n\n",
+    "== \{label} ==\ncommand: \{command_display(command)}\nexit_code: \{exit_code}\n\n\{output}\n\n",
   )
 }
 
@@ -540,14 +530,14 @@ fn command_args(command : Array[String]) -> Array[String] {
 
 ///|
 fn command_display(command : Array[String]) -> String {
-  let mut text = ""
+  let text = StringBuilder()
   for index in 0..<command.length() {
     if index > 0 {
-      text = text + " "
+      text <+ " "
     }
-    text = text + shell_quote(command[index])
+    text <+ "\{shell_quote(command[index])}"
   }
-  text
+  text.to_string()
 }
 
 ///|
@@ -624,21 +614,15 @@ fn docker_command_args(
   args.push(env_file_path)
   args.push("-v")
   args.push(
-    docker_bind_source(config, agent_home_path) +
-    ":" +
-    agent_container_home_dir(),
+    "\{docker_bind_source(config, agent_home_path)}:\{agent_container_home_dir()}",
   )
   args.push("-v")
   args.push(
-    docker_bind_source(config, workspace_path) +
-    ":" +
-    agent_container_workspace_dir(),
+    "\{docker_bind_source(config, workspace_path)}:\{agent_container_workspace_dir()}",
   )
   args.push("-v")
   args.push(
-    docker_bind_source(config, artifacts.dir) +
-    ":" +
-    agent_container_artifacts_dir(),
+    "\{docker_bind_source(config, artifacts.dir)}:\{agent_container_artifacts_dir()}",
   )
   args.push("-w")
   args.push(agent_container_workspace_dir())
@@ -678,6 +662,9 @@ fn docker_run_timeout_script(
   for arg in docker_args {
     docker_command.push(arg)
   }
+  let timeout_message = "MoonCraft builder exceeded the configured runtime limit of \{timeout_seconds} seconds; stopping the Runtime container."
+  let timeout_shell_message = shell_quote(timeout_message)
+  let container_shell_name = shell_quote(container_name)
   [
     "set -eu",
     "timeout_marker=\"${TMPDIR:-/tmp}/mooncraft-runtime-timeout.$$.marker\"",
@@ -693,19 +680,13 @@ fn docker_run_timeout_script(
     "rm -f \"$timeout_marker\"",
     "(",
     "  exec </dev/null >/dev/null 2>&1",
-    "  sleep " + timeout_seconds.to_string(),
-    "  printf '%s\\n' " +
-    shell_quote(
-      "MoonCraft builder exceeded the configured runtime limit of " +
-      timeout_seconds.to_string() +
-      " seconds; stopping the Runtime container.",
-    ) +
-    " > \"$timeout_marker\"",
-    "  docker rm -f " + shell_quote(container_name) + " >/dev/null 2>&1 || true",
+    "  sleep \{timeout_seconds}",
+    "  printf '%s\\n' \{timeout_shell_message} > \"$timeout_marker\"",
+    "  docker rm -f \{container_shell_name} >/dev/null 2>&1 || true",
     ") &",
     "watchdog_pid=\"$!\"",
     "set +e",
-    command_display(docker_command) + " &",
+    "\{command_display(docker_command)} &",
     "docker_pid=\"$!\"",
     "wait \"$docker_pid\"",
     "status=\"$?\"",
@@ -748,7 +729,7 @@ async fn run_streaming_command(
         )
         defer stream_log.close()
         while reader.read_until("\n") is Some(raw_line) {
-          let output_line = raw_line + "\n"
+          let output_line = "\{raw_line}\n"
           output_chunks.push(output_line)
           stream_log.write(@utf8.encode(output_line))
           let line = raw_line.trim(chars="\r").to_owned()
@@ -860,7 +841,7 @@ async fn stream_docker_output(
       run_id,
       worker_id,
       attempt,
-      artifacts.agent_log_path + ".stream",
+      "\{artifacts.agent_log_path}.stream",
       "sh",
       [
         "-c",
@@ -1262,7 +1243,7 @@ async fn run_runtime_turn(
 
 ///|
 fn preview_audit_script_path(root : String) -> String {
-  root + "/scripts/preview_audit.sh"
+  "\{root}/scripts/preview_audit.sh"
 }
 
 ///|
@@ -1271,7 +1252,7 @@ fn preview_audit_log_path(
   project_id : String,
   run_id : String,
 ) -> String {
-  RunArtifacts::new(root, project_id, run_id).dir + "/preview-audit.log"
+  "\{RunArtifacts::new(root, project_id, run_id).dir}/preview-audit.log"
 }
 
 ///|
@@ -1427,6 +1408,21 @@ async fn RuntimeGateway::run_turn(
         )
     }
   }
+  match config {
+    Some(_) =>
+      match self.ensure_project_runtime_service(store, project.id) {
+        Ok(_) => ()
+        Err(message) =>
+          return Err(
+            runtime_failure(
+              "The app builder runtime is not ready. Please retry after the server is updated.",
+              message,
+              project.runtime_session_id,
+            ),
+          )
+      }
+    None => ()
+  }
   let runtime_result = match
     run_runtime_turn(
       store,
@@ -1490,7 +1486,7 @@ async fn AppContext::spawn_project_turn_worker(
     )
   }
   let artifacts = RunArtifacts::new(self.root, project_id, run_id)
-  let worker_log_path = artifacts.dir + "/worker.log"
+  let worker_log_path = "\{artifacts.dir}/worker.log"
   spawn_worker_process(
     self.root,
     executable_path,
@@ -1606,7 +1602,7 @@ async fn run_worker_mode(
 ) -> Unit {
   let ctx = match AppContext::try_new_for_worker_async(root) {
     Ok(ctx) => ctx
-    Err(message) => abort("MoonCraft worker cannot start: " + message)
+    Err(message) => abort("MoonCraft worker cannot start: \{message}")
   }
   ctx.run_project_turn(project_id, run_id, worker_id, attempt)
 }

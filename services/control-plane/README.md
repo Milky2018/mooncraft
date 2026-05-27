@@ -4,19 +4,19 @@ This module is the local backend for the current MoonCraft prototype.
 
 Responsibilities:
 
-- persist users, sessions, projects, messages, runs, and workspace source snapshots
+- persist users, sessions, projects, messages, runs, workspace source snapshots, and Runtime Service state
 - initialize an empty workspace under `data/runtime/projects/<id>/workspace`
 - serve the app-develop HTTP API
 - serve the main workspace page, frontend bundles, and web-owned static shells
 - authenticate users through GitHub OAuth and cookie sessions
-- launch durable asynchronous agent workers against generated workspaces
-- start generated previews through their project-owned script
-- rebuild and restart local previews
+- launch durable asynchronous workers for project updates
+- supervise one project-scoped Runtime Service container per active project
+- keep Runtime Service APIs private on a MoonCraft-managed Docker network
 - store preview URLs and last-known run state
 
-The platform no longer owns generated-app setup. Project rows do not carry template ids, and there is no template picker. Project creation saves an empty workspace as the first snapshot. The selected Runtime decides how to turn that workspace into an app; the control plane only requires the result to provide `mooncraft-preview.sh`.
+The platform no longer owns generated-app setup. Project rows do not carry template ids, and there is no template picker. Project creation saves an empty workspace as the first snapshot. The selected Runtime decides how to turn that workspace into an app; Runtime Protocol v3 exposes that through a project-scoped Runtime Service.
 
-The current `RuntimeGateway` uses Docker-backed Runtime runs. Projects are bound to one Runtime snapshot at creation time and keep one platform-owned agent session directory under `data/agent-sessions/<project-id>/<agent-session-id>`. Each new chat message starts a detached worker process through `moonbitlang/async/process`, launches the selected Runtime image, runs the control-plane-owned Codex or Claude Agent Adapter inside the disposable container, persists the updated workspace, starts `mooncraft-preview.sh`, then runs a lightweight HTTP preview audit against the private preview port. On startup, stale `Running` runs are marked failed so the project is retryable after a crash or restart.
+The current `RuntimeGateway` ensures a project-scoped Runtime Service before real Runtime work begins. The supervisor starts the Runtime image through its default entrypoint, mounts Docker named volumes at `/workspace` and `/home/mooncraft`, attaches the container to the MoonCraft Runtime Docker network, checks `GET /health`, and records `stopped` or `ready` state with an idle TTL. `/exec` and Runtime-owned preview proxying are implemented by the next Runtime Protocol v3 slices.
 
 Workspace directories are no longer durable state. The control plane saves the latest source archive in SQLite after initial workspace generation and after agent edits. Each run hydrates that database snapshot into an isolated runtime workspace before starting the selected agent, then restores the local preview cache from the saved snapshot.
 

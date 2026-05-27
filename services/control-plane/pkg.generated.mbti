@@ -49,6 +49,12 @@ type RunningRunWorker
 
 type RuntimeGateway
 
+type RuntimeServiceEndpoint
+
+type RuntimeServiceRecord
+
+type RuntimeServiceSpec
+
 type Store
 
 // Type aliases

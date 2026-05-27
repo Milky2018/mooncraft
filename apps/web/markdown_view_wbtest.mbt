@@ -2,12 +2,20 @@
 fn markdown_block_summaries(content : String) -> Array[String] {
   parse_markdown_blocks(content).map(fn(block) {
     match block {
-      Heading(level, text) => "h\{level}:" + text
-      Paragraph(text) => "p:" + text
-      BulletList(items) => "ul:" + items.join("|")
-      NumberedList(items) => "ol:" + items.join("|")
-      CodeBlock(language, code) =>
-        "code:" + language + ":" + code.replace_all(old="\n", new="\\n")
+      Heading(level, text) => "h\{level}:\{text}"
+      Paragraph(text) => "p:\{text}"
+      BulletList(items) => {
+        let joined = items.join("|")
+        "ul:\{joined}"
+      }
+      NumberedList(items) => {
+        let joined = items.join("|")
+        "ol:\{joined}"
+      }
+      CodeBlock(language, code) => {
+        let normalized_code = code.replace_all(old="\n", new="\\n")
+        "code:\{language}:\{normalized_code}"
+      }
     }
   })
 }

@@ -212,7 +212,7 @@ fn markdown_inline_code_style(is_user : Bool) -> Array[String] {
   [
     "padding: 1px 5px",
     "border-radius: var(--radius-control)",
-    "background: " + background,
+    "background: \{background}",
   ]
 }
 
@@ -228,7 +228,7 @@ fn markdown_code_block_style(is_user : Bool) -> Array[String] {
     "margin: 0",
     "padding: 8px 10px",
     "border-radius: var(--radius-control)",
-    "background: " + background,
+    "background: \{background}",
     "overflow-x: auto",
     "white-space: pre",
   ]
@@ -250,51 +250,54 @@ fn render_markdown_inline(
   let mut index = 0
   while index < content.length() {
     let mut next_index = content.length()
-    let mut marker = ""
+    let mut marker = None
     match markdown_find_from(content, "`", index) {
       Some(found) if found < next_index => {
         next_index = found
-        marker = "`"
+        marker = Some("`")
       }
       _ => ignore(())
     }
     match markdown_find_from(content, "**", index) {
       Some(found) if found < next_index => {
         next_index = found
-        marker = "**"
+        marker = Some("**")
       }
       _ => ignore(())
     }
     match markdown_find_from(content, "*", index) {
       Some(found) if found < next_index => {
         next_index = found
-        marker = "*"
+        marker = Some("*")
       }
       _ => ignore(())
     }
-    if marker == "" {
-      markdown_push_text(nodes, content[index:].to_owned())
-      index = content.length()
-    } else {
-      markdown_push_text(nodes, content[index:next_index].to_owned())
-      let content_start = next_index + marker.length()
-      match markdown_find_from(content, marker, content_start) {
-        Some(end_index) => {
-          let inner = content[content_start:end_index].to_owned()
-          if marker == "`" {
-            nodes.push(
-              @html.code(style=markdown_inline_code_style(is_user), inner),
-            )
-          } else if marker == "**" {
-            nodes.push(@html.strong(render_markdown_inline(inner, is_user~)))
-          } else {
-            nodes.push(@html.em(render_markdown_inline(inner, is_user~)))
+    match marker {
+      None => {
+        markdown_push_text(nodes, content[index:].to_owned())
+        index = content.length()
+      }
+      Some(marker) => {
+        markdown_push_text(nodes, content[index:next_index].to_owned())
+        let content_start = next_index + marker.length()
+        match markdown_find_from(content, marker, content_start) {
+          Some(end_index) => {
+            let inner = content[content_start:end_index].to_owned()
+            if marker == "`" {
+              nodes.push(
+                @html.code(style=markdown_inline_code_style(is_user), inner),
+              )
+            } else if marker == "**" {
+              nodes.push(@html.strong(render_markdown_inline(inner, is_user~)))
+            } else {
+              nodes.push(@html.em(render_markdown_inline(inner, is_user~)))
+            }
+            index = end_index + marker.length()
           }
-          index = end_index + marker.length()
-        }
-        None => {
-          markdown_push_text(nodes, content[next_index:].to_owned())
-          index = content.length()
+          None => {
+            markdown_push_text(nodes, content[next_index:].to_owned())
+            index = content.length()
+          }
         }
       }
     }

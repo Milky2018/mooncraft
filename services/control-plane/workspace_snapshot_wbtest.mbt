@@ -1,17 +1,17 @@
 ///|
 async test "workspace snapshot stores archive as file metadata" {
-  let root = "/tmp/mooncraft-workspace-snapshot-test-" + random_hex(6)
+  let root = "/tmp/mooncraft-workspace-snapshot-test-\{random_hex(6)}"
   ensure_dir(root)
   defer safe_remove_tree(root)
-  let store = match try_new_async(root + "/state.sqlite") {
+  let store = match try_new_async("\{root}/state.sqlite") {
     Ok(store) => store
     Err(message) => abort(message)
   }
-  let workspace = root + "/workspace"
+  let workspace = "\{root}/workspace"
   ensure_dir(workspace)
-  ensure_dir(workspace + "/.mooncakes/cache")
-  safe_write_string(workspace + "/main.mbt", "fn main { println(\"ok\") }\n")
-  safe_write_string(workspace + "/.mooncakes/cache/tool.cache", "cache")
+  ensure_dir("\{workspace}/.mooncakes/cache")
+  safe_write_string("\{workspace}/main.mbt", "fn main { println(\"ok\") }\n")
+  safe_write_string("\{workspace}/.mooncakes/cache/tool.cache", "cache")
   match snapshot_workspace(store, root, "project-snapshot", workspace) {
     Ok(_) => ignore(())
     Err(message) => abort(message)
@@ -29,9 +29,7 @@ async test "workspace snapshot stores archive as file metadata" {
   }
   debug_inspect(
     metadata.path,
-    content="\"" +
-      root +
-      "/data/runtime/projects/project-snapshot/snapshots/workspace.tar\"",
+    content="\"\{root}/data/runtime/projects/project-snapshot/snapshots/workspace.tar\"",
   )
   if !@fs.path_exists(metadata.path) {
     fail("expected workspace snapshot archive file")
@@ -48,8 +46,8 @@ async test "workspace snapshot stores archive as file metadata" {
     Ok(_) => ignore(())
     Err(message) => abort(message)
   }
-  if !@fs.path_exists(workspace + "/main.mbt") {
+  if !@fs.path_exists("\{workspace}/main.mbt") {
     fail("expected restored source file")
   }
-  debug_inspect(@fs.path_exists(workspace + "/.mooncakes"), content="false")
+  debug_inspect(@fs.path_exists("\{workspace}/.mooncakes"), content="false")
 }

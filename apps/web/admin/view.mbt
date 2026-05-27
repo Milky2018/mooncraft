@@ -30,13 +30,13 @@ fn nav_button(
         "padding: 0 8px",
         "border: 0",
         "border-radius: 4px",
-        "background: " + background,
+        "background: \{background}",
         "display: flex",
         "align-items: center",
         "justify-content: space-between",
         "text-align: left",
         "cursor: pointer",
-        "color: " + foreground,
+        "color: \{foreground}",
       ],
     [
       @html.span(
@@ -44,7 +44,7 @@ fn nav_button(
           "width: 2px",
           "height: 18px",
           "border-radius: 2px",
-          "background: " + stripe,
+          "background: \{stripe}",
           "margin-right: 7px",
           "flex: 0 0 auto",
         ],
@@ -130,7 +130,7 @@ fn section_head(
 
 ///|
 fn action_menu_key(kind : String, id : String) -> String {
-  kind + ":" + id
+  "\{kind}:\{id}"
 }
 
 ///|
@@ -224,19 +224,21 @@ fn project_status_text(project : @sdk.AdminProjectSummary) -> String {
   match project.project.activity {
     Some(activity) =>
       match activity.message {
-        Some(message) =>
-          "Processing / " +
-          @sdk.run_event_display_text(
+        Some(message) => {
+          let text = @sdk.run_event_display_text(
             activity.message_code.unwrap_or(""),
             message,
           )
-        None =>
-          "Processing" +
-          (if activity.phase is NoPhase {
+          "Processing / \{text}"
+        }
+        None => {
+          let suffix = if activity.phase is NoPhase {
             ""
           } else {
-            " / " + activity.phase.label()
-          })
+            " / \{activity.phase.label()}"
+          }
+          "Processing\{suffix}"
+        }
       }
     None => project.project.status.label()
   }
@@ -559,8 +561,12 @@ fn secrets_view(
 
 ///|
 fn runtime_status_label(runtime : @sdk.RuntimeDetail) -> String {
-  (if runtime.enabled { "enabled" } else { "disabled" }) +
-  (if runtime.is_default { " / default" } else { "" })
+  let status = if runtime.enabled { "enabled" } else { "disabled" }
+  if runtime.is_default {
+    "\{status} / default"
+  } else {
+    status
+  }
 }
 
 ///|
@@ -807,9 +813,7 @@ fn runtime_row(
       @html.td(style=td_style(), @html.strong(runtime.name)),
       @html.td(style=td_style(), @html.code(runtime.id)),
       @html.td(style=td_style(), runtime_status_label(runtime)),
-      @html.td(style=td_style(), [
-        @html.code(runtime.spec.image),
-      ]),
+      @html.td(style=td_style(), [@html.code(runtime.spec.image)]),
       @html.td(style=actions_td_style(), [
         action_menu_button(dispatch, model, menu_key, "Runtime actions"),
         action_menu(model, menu_key, [
@@ -992,11 +996,11 @@ fn catalog_picker_rows(
 ) -> Array[@rabbita.Html] {
   let rows = []
   let items = filtered_catalog(model)
-  let mut current_provider = ""
+  let mut current_provider = None
   for item in items {
     let provider = model_provider(item.id)
-    if provider != current_provider {
-      current_provider = provider
+    if current_provider != Some(provider) {
+      current_provider = Some(provider)
       rows.push(
         @html.tr([
           @html.td(

@@ -192,7 +192,7 @@ async fn PreviewManager::rebuild_and_restart(
   project : @sdk.ProjectDetail,
 ) -> Result[@sdk.PreviewTarget, String] noraise {
   let workspace_path = project_workspace(self.root, project.id)
-  let preview_script = workspace_path + "/" + preview_script_relative_path()
+  let preview_script = "\{workspace_path}/\{preview_script_relative_path()}"
   if !@fs.path_exists(preview_script) {
     return Err(preview_script_missing_message())
   }

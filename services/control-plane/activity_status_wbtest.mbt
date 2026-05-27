@@ -1,9 +1,9 @@
 ///|
 async test "starting a run sets activity without replacing final project status" {
-  let root = "/tmp/mooncraft-activity-status-test-" + random_hex(6)
+  let root = "/tmp/mooncraft-activity-status-test-\{random_hex(6)}"
   ensure_dir(root)
   defer safe_remove_tree(root)
-  let store = match try_new_async(root + "/state.sqlite") {
+  let store = match try_new_async("\{root}/state.sqlite") {
     Ok(store) => store
     Err(message) => abort(message)
   }
@@ -18,7 +18,7 @@ async test "starting a run sets activity without replacing final project status"
     "agent-session-activity",
     "codex",
     "openrouter/test-model",
-    root + "/workspace",
+    "\{root}/workspace",
   )
   let run = match store.start_run("project-activity", "Build something") {
     Ok(run) => run
@@ -30,7 +30,7 @@ async test "starting a run sets activity without replacing final project status"
   debug_inspect(project.is_processing, content="true")
   debug_inspect(
     project.activity.map(fn(activity) { activity.run_id }),
-    content="Some(\"" + run.run_id + "\")",
+    content="Some(\"\{run.run_id}\")",
   )
   let worker = store.next_run_worker_registration(
     "project-activity",
@@ -66,10 +66,10 @@ async test "starting a run sets activity without replacing final project status"
 
 ///|
 async test "reading a new run does not recover it before worker registration" {
-  let root = "/tmp/mooncraft-run-read-test-" + random_hex(6)
+  let root = "/tmp/mooncraft-run-read-test-\{random_hex(6)}"
   ensure_dir(root)
   defer safe_remove_tree(root)
-  let store = match try_new_async(root + "/state.sqlite") {
+  let store = match try_new_async("\{root}/state.sqlite") {
     Ok(store) => store
     Err(message) => abort(message)
   }
@@ -84,7 +84,7 @@ async test "reading a new run does not recover it before worker registration" {
     "agent-session-run-read",
     "codex",
     "openrouter/test-model",
-    root + "/workspace",
+    "\{root}/workspace",
   )
   let run = match store.start_run("project-run-read", "Build something") {
     Ok(run) => run
@@ -104,10 +104,10 @@ async test "reading a new run does not recover it before worker registration" {
 
 ///|
 async test "worker pid registration must target an active run" {
-  let root = "/tmp/mooncraft-worker-pid-test-" + random_hex(6)
+  let root = "/tmp/mooncraft-worker-pid-test-\{random_hex(6)}"
   ensure_dir(root)
   defer safe_remove_tree(root)
-  let store = match try_new_async(root + "/state.sqlite") {
+  let store = match try_new_async("\{root}/state.sqlite") {
     Ok(store) => store
     Err(message) => abort(message)
   }
@@ -122,7 +122,7 @@ async test "worker pid registration must target an active run" {
     "agent-session-worker-pid",
     "codex",
     "openrouter/test-model",
-    root + "/workspace",
+    "\{root}/workspace",
   )
   let run = match store.start_run("project-worker-pid", "Build something") {
     Ok(run) => run
@@ -179,10 +179,10 @@ async test "worker pid registration must target an active run" {
 
 ///|
 async test "reading a registered run does not recover dead worker pids" {
-  let root = "/tmp/mooncraft-read-pure-run-test-" + random_hex(6)
+  let root = "/tmp/mooncraft-read-pure-run-test-\{random_hex(6)}"
   ensure_dir(root)
   defer safe_remove_tree(root)
-  let store = match try_new_async(root + "/state.sqlite") {
+  let store = match try_new_async("\{root}/state.sqlite") {
     Ok(store) => store
     Err(message) => abort(message)
   }
@@ -197,7 +197,7 @@ async test "reading a registered run does not recover dead worker pids" {
     "agent-session-read-pure",
     "codex",
     "openrouter/test-model",
-    root + "/workspace",
+    "\{root}/workspace",
   )
   let run = match store.start_run("project-read-pure", "Build something") {
     Ok(run) => run
@@ -222,7 +222,7 @@ async test "reading a registered run does not recover dead worker pids" {
   debug_inspect(fetched.state, content="Running")
   let project = store.get_project_detail("project-read-pure").unwrap()
   debug_inspect(project.is_processing, content="true")
-  debug_inspect(project.current_run_id, content="Some(\"" + run.run_id + "\")")
+  debug_inspect(project.current_run_id, content="Some(\"\{run.run_id}\")")
 }
 
 ///|
@@ -231,10 +231,10 @@ async test "reconciler expires stale worker leases outside read paths" {
   @env.set_env_var("MOONCRAFT_RUN_WORKER_HEARTBEAT_TTL_MS", "0")
   defer @env.unset_env_var("MOONCRAFT_RUN_WORKER_STARTUP_GRACE_MS")
   defer @env.unset_env_var("MOONCRAFT_RUN_WORKER_HEARTBEAT_TTL_MS")
-  let root = "/tmp/mooncraft-worker-reconcile-test-" + random_hex(6)
+  let root = "/tmp/mooncraft-worker-reconcile-test-\{random_hex(6)}"
   ensure_dir(root)
   defer safe_remove_tree(root)
-  let store = match try_new_async(root + "/state.sqlite") {
+  let store = match try_new_async("\{root}/state.sqlite") {
     Ok(store) => store
     Err(message) => abort(message)
   }
@@ -249,7 +249,7 @@ async test "reconciler expires stale worker leases outside read paths" {
     "agent-session-worker-reconcile",
     "codex",
     "openrouter/test-model",
-    root + "/workspace",
+    "\{root}/workspace",
   )
   let run = match
     store.start_run("project-worker-reconcile", "Build something") {
@@ -288,10 +288,10 @@ async test "expired worker cannot overwrite recovered run success" {
   @env.set_env_var("MOONCRAFT_RUN_WORKER_HEARTBEAT_TTL_MS", "0")
   defer @env.unset_env_var("MOONCRAFT_RUN_WORKER_STARTUP_GRACE_MS")
   defer @env.unset_env_var("MOONCRAFT_RUN_WORKER_HEARTBEAT_TTL_MS")
-  let root = "/tmp/mooncraft-worker-cas-test-" + random_hex(6)
+  let root = "/tmp/mooncraft-worker-cas-test-\{random_hex(6)}"
   ensure_dir(root)
   defer safe_remove_tree(root)
-  let store = match try_new_async(root + "/state.sqlite") {
+  let store = match try_new_async("\{root}/state.sqlite") {
     Ok(store) => store
     Err(message) => abort(message)
   }
@@ -306,7 +306,7 @@ async test "expired worker cannot overwrite recovered run success" {
     "agent-session-worker-cas",
     "codex",
     "openrouter/test-model",
-    root + "/workspace",
+    "\{root}/workspace",
   )
   let run = match store.start_run("project-worker-cas", "Build something") {
     Ok(run) => run
@@ -344,10 +344,10 @@ async test "expired worker cannot overwrite recovered run success" {
 
 ///|
 async test "start run rolls back partial writes when project update fails" {
-  let root = "/tmp/mooncraft-start-run-rollback-test-" + random_hex(6)
+  let root = "/tmp/mooncraft-start-run-rollback-test-\{random_hex(6)}"
   ensure_dir(root)
   defer safe_remove_tree(root)
-  let store = match try_new_async(root + "/state.sqlite") {
+  let store = match try_new_async("\{root}/state.sqlite") {
     Ok(store) => store
     Err(message) => abort(message)
   }
@@ -362,7 +362,7 @@ async test "start run rolls back partial writes when project update fails" {
     "agent-session-start-rollback",
     "codex",
     "openrouter/test-model",
-    root + "/workspace",
+    "\{root}/workspace",
   )
   match
     store.exec_or_error(

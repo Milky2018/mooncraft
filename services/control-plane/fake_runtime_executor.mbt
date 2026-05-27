@@ -66,7 +66,7 @@ fn fake_runtime_forced_failure(prompt : String) -> String? {
 
 ///|
 fn fake_runtime_state_dir(root : String, project_id : String) -> String {
-  project_root(root, project_id) + "/fake-runtime"
+  "\{project_root(root, project_id)}/fake-runtime"
 }
 
 ///|
@@ -74,7 +74,7 @@ fn fake_runtime_resume_reset_marker(
   root : String,
   project_id : String,
 ) -> String {
-  fake_runtime_state_dir(root, project_id) + "/resume-reset-once"
+  "\{fake_runtime_state_dir(root, project_id)}/resume-reset-once"
 }
 
 ///|
@@ -97,29 +97,36 @@ fn fake_runtime_update_workspace(
   let async_version = "0.18.1"
   let mocket_version = "0.7.1"
   let x_version = "0.4.43"
+  let moon_mod = StringBuilder()
+  moon_mod <+
+    #|{
+  moon_mod <+
+    #|  "name": "mooncraft/smoke-app",
+  moon_mod <+
+    #|  "version": "0.1.0",
+  moon_mod <+
+    #|  "preferred-target": "native",
+  moon_mod <+
+    #|  "deps": {
+  moon_mod <+ "    \"moonbitlang/async\": \"\{async_version}\",\n"
+  moon_mod <+ "    \"oboard/mocket\": \"\{mocket_version}\",\n"
+  moon_mod <+ "    \"moonbitlang/x\": \"\{x_version}\"\n"
+  moon_mod <+
+    #|  },
+  moon_mod <+
+    #|  "readme": "README.md",
+  moon_mod <+
+    #|  "repository": "",
+  moon_mod <+
+    #|  "license": "Apache-2.0",
+  moon_mod <+
+    #|  "keywords": [],
+  moon_mod <+
+    #|  "description": "MoonCraft smoke app"
+  moon_mod <+
+    #|}
   let files : Array[(String, String)] = [
-    (
-      "/moon.mod.json",
-      (
-        #|{
-        #|  "name": "mooncraft/smoke-app",
-        #|  "version": "0.1.0",
-        #|  "preferred-target": "native",
-        #|  "deps": {
-      ) +
-      "    \"moonbitlang/async\": \"\{async_version}\",\n" +
-      "    \"oboard/mocket\": \"\{mocket_version}\",\n" +
-      "    \"moonbitlang/x\": \"\{x_version}\"\n" +
-      (
-        #|  },
-        #|  "readme": "README.md",
-        #|  "repository": "",
-        #|  "license": "Apache-2.0",
-        #|  "keywords": [],
-        #|  "description": "MoonCraft smoke app"
-        #|}
-      ),
-    ),
+    ("/moon.mod.json", moon_mod.to_string()),
     (
       "/moon.pkg",
       (
@@ -186,10 +193,10 @@ fn fake_runtime_update_workspace(
         #|}
       ),
     ),
-    ("/README.md", "# MoonCraft Smoke App\n\n" + normalized + "\n"),
+    ("/README.md", "# MoonCraft Smoke App\n\n\{normalized}\n"),
   ]
   for file in files {
-    match write_workspace_file(workspace_path + file.0, file.1) {
+    match write_workspace_file("\{workspace_path}\{file.0}", file.1) {
       Ok(_) => ignore(())
       Err(message) => return Err(message)
     }

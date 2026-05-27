@@ -12,8 +12,8 @@ fn status_badge(state : @sdk.RunState) -> @rabbita.Html {
       [
         "padding: 2px 6px",
         "border-radius: var(--radius-control)",
-        "background: " + background,
-        "color: " + foreground,
+        "background: \{background}",
+        "color: \{foreground}",
         "font-size: 11px",
       ],
   ) <| state.label()
@@ -34,11 +34,11 @@ fn logo_asset_url() -> String {
 
 ///|
 fn brand_logo(size : Int) -> @rabbita.Html {
-  let px = size.to_string() + "px"
+  let px = "\{size}px"
   @html.div(
     style=[
-      "width: " + px,
-      "height: " + px,
+      "width: \{px}",
+      "height: \{px}",
       "display: grid",
       "place-items: center",
       "border-radius: var(--radius-control)",

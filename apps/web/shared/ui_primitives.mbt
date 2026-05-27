@@ -11,17 +11,17 @@ pub fn button_base_style(
   let opacity = if enabled { "1" } else { "0.45" }
   text_style +
   [
-    "border: " + border,
+    "border: \{border}",
     "border-radius: var(--radius-control)",
-    "background: " + background,
-    "color: " + foreground,
-    "padding: " + padding,
+    "background: \{background}",
+    "color: \{foreground}",
+    "padding: \{padding}",
     "display: inline-flex",
     "align-items: center",
     "justify-content: center",
     "gap: 6px",
-    "cursor: " + cursor,
-    "opacity: " + opacity,
+    "cursor: \{cursor}",
+    "opacity: \{opacity}",
   ]
 }
 
@@ -46,18 +46,18 @@ pub fn menu_surface_style(
   border : String,
   display : String,
 ) -> Array[String] {
-  let border_style = if border == "" { [] } else { ["border: " + border] }
+  let border_style = if border == "" { [] } else { ["border: \{border}"] }
   [
     "position: absolute",
-    "top: " + top,
-    "right: " + right,
-    "z-index: " + z_index,
-    "min-width: " + min_width,
+    "top: \{top}",
+    "right: \{right}",
+    "z-index: \{z_index}",
+    "min-width: \{min_width}",
     "padding: 4px",
-    "border-radius: " + radius,
-    "background: " + background,
+    "border-radius: \{radius}",
+    "background: \{background}",
     "box-shadow: var(--shadow)",
-    "display: " + display,
+    "display: \{display}",
     "flex-direction: column",
     "gap: 4px",
   ] +
@@ -81,14 +81,14 @@ pub fn menu_item_base_style(
     "height: 30px",
     "padding: 0 8px",
     "border: 0",
-    "border-radius: " + radius,
-    "background: " + background,
-    "color: " + foreground,
-    "display: " + display,
+    "border-radius: \{radius}",
+    "background: \{background}",
+    "color: \{foreground}",
+    "display: \{display}",
     "align-items: center",
     "justify-content: flex-start",
     "text-align: left",
-    "cursor: " + cursor,
-    "opacity: " + opacity,
+    "cursor: \{cursor}",
+    "opacity: \{opacity}",
   ]
 }

@@ -99,7 +99,7 @@ fn append_local_user_message(
 ) -> Array[@sdk.ChatMessage] {
   let messages = model.messages.copy()
   messages.push({
-    id: "local-" + content.length().to_string(),
+    id: "local-\{content.length()}",
     project_id,
     run_id: None,
     role: User,
@@ -298,7 +298,7 @@ fn update_project_summary_activity_message(
 
 ///|
 fn error_notice(prefix : String, error : @sdk.ApiError) -> String {
-  prefix + " " + error.message
+  "\{prefix} \{error.message}"
 }
 
 ///|

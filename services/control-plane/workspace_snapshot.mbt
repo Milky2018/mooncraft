@@ -3,12 +3,12 @@ fn project_workspace_snapshot_temp_path(
   root : String,
   project_id : String,
 ) -> String {
-  project_workspace_snapshot_dir(root, project_id) + "/workspace.tar.tmp"
+  "\{project_workspace_snapshot_dir(root, project_id)}/workspace.tar.tmp"
 }
 
 ///|
 fn project_workspace_snapshot_dir(root : String, project_id : String) -> String {
-  project_root(root, project_id) + "/snapshots"
+  "\{project_root(root, project_id)}/snapshots"
 }
 
 ///|
@@ -16,7 +16,7 @@ fn project_workspace_snapshot_archive_path(
   root : String,
   project_id : String,
 ) -> String {
-  project_workspace_snapshot_dir(root, project_id) + "/workspace.tar"
+  "\{project_workspace_snapshot_dir(root, project_id)}/workspace.tar"
 }
 
 ///|

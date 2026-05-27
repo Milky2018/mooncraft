@@ -1,9 +1,9 @@
 ///|
 async test "runtime seeding allows an empty built-in catalog" {
-  let root = "/tmp/mooncraft-runtime-store-test-" + random_hex(6)
+  let root = "/tmp/mooncraft-runtime-store-test-\{random_hex(6)}"
   ensure_dir(root)
   defer safe_remove_tree(root)
-  let store = match try_new_async(root + "/state.sqlite") {
+  let store = match try_new_async("\{root}/state.sqlite") {
     Ok(store) => store
     Err(message) => abort(message)
   }

@@ -13,21 +13,21 @@ fn render_message(message : @sdk.ChatMessage) -> @rabbita.Html {
   }
   let justify = if is_user { "flex-end" } else { "flex-start" }
   let bubble_border = if is_user { "transparent" } else { "transparent" }
-  @html.div(style=["display: flex", "justify-content: " + justify]) <| (@html.div(
+  @html.div(style=["display: flex", "justify-content: \{justify}"]) <| (@html.div(
     style=[
       "max-width: min(720px, 82%)",
       "padding: 8px 10px",
       "border-radius: 12px",
-      "background: " + bubble_background,
-      "color: " + bubble_foreground,
-      "border: 1px solid " + bubble_border,
+      "background: \{bubble_background}",
+      "color: \{bubble_foreground}",
+      "border: 1px solid \{bubble_border}",
       "box-shadow: none",
     ],
   ) <| [
     if is_user {
       @html.div(
         style=value_text_style() +
-          ["white-space: pre-wrap", "color: " + bubble_foreground],
+          ["white-space: pre-wrap", "color: \{bubble_foreground}"],
         message.content,
       )
     } else {
@@ -39,14 +39,14 @@ fn render_message(message : @sdk.ChatMessage) -> @rabbita.Html {
 ///|
 fn latest_run_event_text(events : Array[@sdk.RunEvent]) -> String {
   let mut text = "Starting"
-  let mut code = ""
+  let mut code = None
   for event in events {
     if event.content != "" {
       text = event.content
-      code = event.code
+      code = Some(event.code)
     }
   }
-  @sdk.run_event_display_text(code, text)
+  @sdk.run_event_display_text(code.unwrap_or(""), text)
 }
 
 ///|
@@ -224,7 +224,7 @@ fn render_open_project_button(
     title=label,
     on_click=dispatch(OpenNewProjectDialog),
     style=primary_button_style(true) +
-      ["width: " + width, "min-width: 32px", "height: 32px", "padding: 0"],
+      ["width: \{width}", "min-width: 32px", "height: 32px", "padding: 0"],
     [plus_icon()],
   )
 }
@@ -232,7 +232,7 @@ fn render_open_project_button(
 ///|
 fn runtime_display_label(item : @sdk.RuntimeSummary) -> String {
   if item.is_default {
-    item.name + " (default)"
+    "\{item.name} (default)"
   } else {
     item.name
   }

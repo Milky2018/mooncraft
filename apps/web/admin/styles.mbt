@@ -146,7 +146,7 @@ fn dots_button_style(active : Bool) -> Array[String] {
     "var(--foreground-5)"
   }
   icon_button_style(true) +
-  ["background: " + background, "color: var(--text-1)"]
+  ["background: \{background}", "color: var(--text-1)"]
 }
 
 ///|
@@ -207,8 +207,8 @@ fn badge_style(kind : String) -> Array[String] {
     "align-items: center",
     "padding: 2px 6px",
     "border-radius: var(--radius-control)",
-    "background: " + background,
-    "color: " + color,
+    "background: \{background}",
+    "color: \{color}",
     "font-weight: 550",
   ]
 }

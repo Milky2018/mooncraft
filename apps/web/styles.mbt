@@ -173,9 +173,9 @@ fn input_style(disabled : Bool) -> Array[String] {
   [
     "width: 100%",
     "padding: 8px 10px",
-    "border: 1px solid " + border_color,
+    "border: 1px solid \{border_color}",
     "border-radius: var(--radius-control)",
-    "background: " + background,
+    "background: \{background}",
     "outline: none",
     "box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02)",
   ]

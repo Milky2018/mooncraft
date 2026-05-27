@@ -1,11 +1,11 @@
 ///|
 fn web_public_root(root : String) -> String {
-  root + "/apps/web/public"
+  "\{root}/apps/web/public"
 }
 
 ///|
 fn web_public_path(root : String, relative : String) -> String {
-  web_public_root(root) + "/" + relative
+  "\{web_public_root(root)}/\{relative}"
 }
 
 ///|

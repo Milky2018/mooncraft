@@ -231,10 +231,7 @@ async fn ProjectRunWorkflow::finish_run_with_preview_audit(
           project_id,
           run_id,
           preview_audit_repair_failed_assistant_message(),
-          "Preview audit failed: " +
-          audit_error +
-          "\n\nPreview audit repair failed: " +
-          failure.error_message,
+          "Preview audit failed: \{audit_error}\n\nPreview audit repair failed: \{failure.error_message}",
           failure.thread_id,
           failure.failure_debug,
         )
@@ -262,8 +259,7 @@ async fn ProjectRunWorkflow::finish_run_with_preview_audit(
           project_id,
           run_id,
           preview_audit_repair_failed_assistant_message(),
-          "Preview audit repair completed, but the saved snapshot could not be restored into the local cache: " +
-          restore_message,
+          "Preview audit repair completed, but the saved snapshot could not be restored into the local cache: \{restore_message}",
           current_thread_id,
         )
         return
@@ -301,8 +297,7 @@ async fn ProjectRunWorkflow::finish_run_with_preview_audit(
           project_id,
           run_id,
           preview_audit_repair_failed_assistant_message(),
-          "Preview audit repair completed, but the repaired preview could not be started: " +
-          message,
+          "Preview audit repair completed, but the repaired preview could not be started: \{message}",
           current_thread_id,
         )
         return
@@ -347,7 +342,7 @@ async fn ProjectRunWorkflow::finish_run_with_preview_audit(
     project_id,
     run_id,
     preview_audit_repair_failed_assistant_message(),
-    "Preview audit failed: " + audit_error,
+    "Preview audit failed: \{audit_error}",
     current_thread_id,
   )
 }
@@ -588,9 +583,7 @@ async fn ProjectRunWorkflow::run(
                       project_id,
                       run_id,
                       preview_setup_repair_failed_assistant_message(),
-                      message +
-                      "\n\nPreview repair did not produce a usable preview: " +
-                      repair_preview_message,
+                      "\{message}\n\nPreview repair did not produce a usable preview: \{repair_preview_message}",
                       repair.thread_id,
                     )
                 }
@@ -615,11 +608,7 @@ async fn ProjectRunWorkflow::run(
                       project_id,
                       run_id,
                       preview_setup_repair_failed_assistant_message(),
-                      message +
-                      "\n\nPreview repair failed: " +
-                      failure.error_message +
-                      "\n\nWorkspace restore failed: " +
-                      restore_message,
+                      "\{message}\n\nPreview repair failed: \{failure.error_message}\n\nWorkspace restore failed: \{restore_message}",
                       failure.thread_id,
                       failure.failure_debug,
                     )
@@ -628,9 +617,7 @@ async fn ProjectRunWorkflow::run(
                   project_id,
                   run_id,
                   preview_setup_repair_failed_assistant_message(),
-                  message +
-                  "\n\nPreview repair failed: " +
-                  failure.error_message,
+                  "\{message}\n\nPreview repair failed: \{failure.error_message}",
                   failure.thread_id,
                   failure.failure_debug,
                 )
@@ -666,9 +653,8 @@ async fn ProjectRunWorkflow::run(
           return self.finish_run_failure_with_debug(
             project_id,
             run_id,
-            failure.assistant_message +
-            "\n\nWorkspace status: the saved snapshot could not be restored into the local cache.",
-            failure.error_message + "\n\nWorkspace restore failed: " + message,
+            "\{failure.assistant_message}\n\nWorkspace status: the saved snapshot could not be restored into the local cache.",
+            "\{failure.error_message}\n\nWorkspace restore failed: \{message}",
             failure.thread_id,
             failure.failure_debug,
           )

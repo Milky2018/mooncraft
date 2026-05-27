@@ -32,7 +32,7 @@ fn oauth_push_param(
   key : String,
   value : String,
 ) -> Unit {
-  parts.push(oauth_url_encode(key) + "=" + oauth_url_encode(value))
+  parts.push("\{oauth_url_encode(key)}=\{oauth_url_encode(value)}")
 }
 
 ///|
@@ -65,7 +65,7 @@ fn github_authorization_url(
   oauth_push_param(parts, "code_challenge", pkce_s256_challenge(verifier))
   oauth_push_param(parts, "code_challenge_method", "S256")
   oauth_push_param(parts, "prompt", "select_account")
-  "https://github.com/login/oauth/authorize?" + oauth_form_body(parts)
+  "https://github.com/login/oauth/authorize?\{oauth_form_body(parts)}"
 }
 
 ///|

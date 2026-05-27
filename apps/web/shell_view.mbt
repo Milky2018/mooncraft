@@ -155,7 +155,7 @@ fn project_phase_dot(project : @sdk.ProjectSummary) -> @rabbita.Html {
           "width: 8px",
           "height: 8px",
           "border-radius: 999px",
-          "background: " + value,
+          "background: \{value}",
           "display: inline-block",
           "flex: 0 0 auto",
         ],

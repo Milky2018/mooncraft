@@ -64,6 +64,12 @@ struct RuntimeGateway {
 }
 
 ///|
+struct RuntimeServiceRecord {
+  project_id : String
+  container_name : String
+}
+
+///|
 struct AppContext {
   root : String
   build_profile : BuildProfile
@@ -92,7 +98,8 @@ fn bytes_to_string(bytes : Bytes) -> String {
 
 ///|
 fn shell_quote(value : String) -> String {
-  "'" + value.split("'").to_array().join("'\\''") + "'"
+  let escaped = value.split("'").to_array().join("'\\''")
+  "'\{escaped}'"
 }
 
 ///|
@@ -192,15 +199,15 @@ fn safe_write_string(path : String, content : String) -> Unit {
 
 ///|
 fn safe_append_string(path : String, content : String) -> Unit {
-  safe_write_string(path, safe_read_string_or(path, "") + content)
+  safe_write_string(path, "\{safe_read_string_or(path, "")}\{content}")
 }
 
 ///|
 fn path_join(base : String, name : String) -> String {
   if base == "" || base == "/" {
-    base + name
+    "\{base}\{name}"
   } else {
-    base + "/" + name
+    "\{base}/\{name}"
   }
 }
 
@@ -474,6 +481,26 @@ fn run_worker_reconcile_interval_millis() -> UInt64 {
 }
 
 ///|
+fn runtime_service_state_stopped() -> String {
+  "stopped"
+}
+
+///|
+fn runtime_service_state_ready() -> String {
+  "ready"
+}
+
+///|
+fn runtime_service_idle_ttl_millis() -> UInt64 {
+  env_uint64_or("MOONCRAFT_RUNTIME_IDLE_TTL_SECONDS", 600UL) * 1000UL
+}
+
+///|
+fn runtime_service_idle_expires_at() -> String {
+  (@env.now() + runtime_service_idle_ttl_millis()).to_string()
+}
+
+///|
 fn chat_role_to_db(role : @sdk.ChatRole) -> String {
   match role {
     User => "user"
@@ -501,9 +528,9 @@ fn ensure_dir(path : String) -> Unit {
       continue
     }
     current = if current == "" || current == "/" {
-      current + piece
+      "\{current}\{piece}"
     } else {
-      current + "/" + piece
+      "\{current}/\{piece}"
     }
     if !@fs.path_exists(current) {
       safe_create_dir(current)
@@ -528,12 +555,12 @@ fn parent_dir(path : String) -> String {
 
 ///|
 fn project_root(root : String, project_id : String) -> String {
-  root + "/data/runtime/projects/" + project_id
+  "\{root}/data/runtime/projects/\{project_id}"
 }
 
 ///|
 fn legacy_project_workspaces_root(root : String) -> String {
-  root + "/data/projects"
+  "\{root}/data/projects"
 }
 
 ///|
@@ -543,12 +570,12 @@ fn clean_legacy_project_workspaces(root : String) -> Unit {
 
 ///|
 fn project_workspace(root : String, project_id : String) -> String {
-  project_root(root, project_id) + "/workspace"
+  "\{project_root(root, project_id)}/workspace"
 }
 
 ///|
 fn project_agent_session_root(root : String, project_id : String) -> String {
-  root + "/data/agent-sessions/" + project_id
+  "\{root}/data/agent-sessions/\{project_id}"
 }
 
 ///|
@@ -557,9 +584,7 @@ fn project_runtime_agent_home(
   project_id : String,
   agent_session_id : String,
 ) -> String {
-  project_agent_session_root(root, project_id) +
-  "/" +
-  agent_session_id.trim().to_owned()
+  "\{project_agent_session_root(root, project_id)}/\{agent_session_id.trim().to_owned()}"
 }
 
 ///|
@@ -586,7 +611,7 @@ fn ensure_trailing_slash(value : String) -> String {
   if value.has_suffix("/") {
     value
   } else {
-    value + "/"
+    "\{value}/"
   }
 }
 
@@ -641,7 +666,7 @@ fn preview_public_id_from_host(host : String) -> String? {
 
 ///|
 fn project_artifacts_root(root : String, project_id : String) -> String {
-  project_root(root, project_id) + "/artifacts"
+  "\{project_root(root, project_id)}/artifacts"
 }
 
 ///|
@@ -650,7 +675,7 @@ fn run_artifacts_dir(
   project_id : String,
   run_id : String,
 ) -> String {
-  project_artifacts_root(root, project_id) + "/runs/" + run_id
+  "\{project_artifacts_root(root, project_id)}/runs/\{run_id}"
 }
 
 ///|
@@ -658,10 +683,7 @@ fn platform_web_build_output_path(
   root : String,
   build_profile : BuildProfile,
 ) -> String {
-  root +
-  "/_build/js/" +
-  build_profile.build_dir() +
-  "/build/mooncraft/web/web.js"
+  "\{root}/_build/js/\{build_profile.build_dir()}/build/mooncraft/web/web.js"
 }
 
 ///|
@@ -669,10 +691,7 @@ fn admin_web_build_output_path(
   root : String,
   build_profile : BuildProfile,
 ) -> String {
-  root +
-  "/_build/js/" +
-  build_profile.build_dir() +
-  "/build/mooncraft/web/admin/admin.js"
+  "\{root}/_build/js/\{build_profile.build_dir()}/build/mooncraft/web/admin/admin.js"
 }
 
 ///|
@@ -680,10 +699,7 @@ fn control_plane_executable_path(
   root : String,
   build_profile : BuildProfile,
 ) -> String {
-  root +
-  "/_build/native/" +
-  build_profile.build_dir() +
-  "/build/mooncraft/control-plane/control-plane.exe"
+  "\{root}/_build/native/\{build_profile.build_dir()}/build/mooncraft/control-plane/control-plane.exe"
 }
 
 ///|
@@ -810,7 +826,8 @@ fn parse_database_url(url : String) -> Result[@pg.Config, String] {
 
 ///|
 fn postgres_quote(value : String) -> String {
-  "'" + value.replace_all(old="'", new="''") + "'"
+  let escaped = value.replace_all(old="'", new="''")
+  "'\{escaped}'"
 }
 
 ///|
@@ -846,7 +863,7 @@ fn inline_postgres_sql(sql : String, params : FixedArray[@db.Param]) -> String {
   let mut index = params.length() - 1
   while index >= 0 {
     out = out.replace(
-      old="$" + (index + 1).to_string(),
+      old="$\{index + 1}",
       new=postgres_param_sql(params[index]),
     )
     index = index - 1
@@ -985,7 +1002,7 @@ fn StoreSQLiteEngine::exec_raw(
   let rows : Array[Map[String, @db.Param]] = []
   let mut error = None
   try {
-    let stmt = self.conn.prepare(sql + ";")
+    let stmt = self.conn.prepare("\{sql};")
     params.eachi((index, param) => sqlite_bind_param(stmt, index, param))
     while stmt.step() {
       let row : Map[String, @db.Param] = {}
@@ -1091,10 +1108,8 @@ async fn Store::exec_or_error(
   if result.ok {
     Ok(())
   } else {
-    Err(
-      "Database operation failed while trying to \{label}: " +
-      result.error.unwrap_or("unknown database error"),
-    )
+    let detail = result.error.unwrap_or("unknown database error")
+    Err("Database operation failed while trying to \{label}: \{detail}")
   }
 }
 
@@ -1123,7 +1138,7 @@ async fn Store::rollback_transaction_error(
   match self.exec_or_error("ROLLBACK", "rollback \{label} transaction") {
     Ok(_) => message
     Err(rollback_message) =>
-      message + " Rollback also failed: " + rollback_message
+      "\{message} Rollback also failed: \{rollback_message}"
   }
 }
 
@@ -1559,6 +1574,25 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE TABLE IF NOT EXISTS project_runtime_services (
+        #|  project_id TEXT PRIMARY KEY,
+        #|  container_name TEXT NOT NULL,
+        #|  workspace_volume TEXT NOT NULL,
+        #|  home_volume TEXT NOT NULL,
+        #|  network_name TEXT NOT NULL,
+        #|  state TEXT NOT NULL,
+        #|  idle_expires_at TEXT,
+        #|  updated_at TEXT NOT NULL
+        #|);
+      ),
+      "create project_runtime_services table",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
   match self.ensure_column("projects", "initial_project_prompt", "TEXT") {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
@@ -1912,6 +1946,110 @@ fn project_status_from_row(row : Map[String, @db.Param]) -> @sdk.RunState {
     Running => Idle
     state => state
   }
+}
+
+///|
+fn runtime_service_record_from_row(
+  row : Map[String, @db.Param],
+) -> RuntimeServiceRecord {
+  {
+    project_id: row_text(row, "project_id"),
+    container_name: row_text(row, "container_name"),
+  }
+}
+
+///|
+async fn Store::upsert_runtime_service_record(
+  self : Store,
+  project_id : String,
+  container_name : String,
+  workspace_volume : String,
+  home_volume : String,
+  network_name : String,
+  state : String,
+  idle_expires_at : String?,
+) -> Result[Unit, String] noraise {
+  self.exec_or_error(
+    (
+      #|INSERT INTO project_runtime_services (
+      #|  project_id,
+      #|  container_name,
+      #|  workspace_volume,
+      #|  home_volume,
+      #|  network_name,
+      #|  state,
+      #|  idle_expires_at,
+      #|  updated_at
+      #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      #|ON CONFLICT(project_id) DO UPDATE SET
+      #|  container_name = excluded.container_name,
+      #|  workspace_volume = excluded.workspace_volume,
+      #|  home_volume = excluded.home_volume,
+      #|  network_name = excluded.network_name,
+      #|  state = excluded.state,
+      #|  idle_expires_at = excluded.idle_expires_at,
+      #|  updated_at = excluded.updated_at;
+    ),
+    "upsert project runtime service",
+    params=[
+      String(project_id),
+      String(container_name),
+      String(workspace_volume),
+      String(home_volume),
+      String(network_name),
+      String(state),
+      nullable_text_param(idle_expires_at),
+      String(now_string()),
+    ],
+  )
+}
+
+///|
+async fn Store::set_runtime_service_state(
+  self : Store,
+  project_id : String,
+  state : String,
+  idle_expires_at : String?,
+) -> Result[Unit, String] noraise {
+  self.exec_or_error(
+    (
+      #|UPDATE project_runtime_services
+      #|SET state = ?,
+      #|    idle_expires_at = ?,
+      #|    updated_at = ?
+      #|WHERE project_id = ?;
+    ),
+    "update project runtime service state",
+    params=[
+      String(state),
+      nullable_text_param(idle_expires_at),
+      String(now_string()),
+      String(project_id),
+    ],
+  )
+}
+
+///|
+async fn Store::list_expired_ready_runtime_services(
+  self : Store,
+) -> Array[RuntimeServiceRecord] noraise {
+  let rows = self.query_rows(
+    (
+      #|SELECT
+      #|  project_id,
+      #|  container_name
+      #|FROM project_runtime_services
+      #|WHERE state = ?
+      #|  AND idle_expires_at IS NOT NULL
+      #|  AND idle_expires_at <= ?;
+    ),
+    params=[String(runtime_service_state_ready()), String(now_string())],
+  )
+  let records : Array[RuntimeServiceRecord] = []
+  for row in rows {
+    records.push(runtime_service_record_from_row(row))
+  }
+  records
 }
 
 ///|
@@ -2769,11 +2907,11 @@ async fn Store::start_run(
     [String(project_id)],
   )
   if !verification.ok {
+    let detail = verification.error.unwrap_or("unknown database error")
     return Err(
       self.rollback_transaction_error(
         "start run",
-        "Database operation failed while verifying project running state: " +
-        verification.error.unwrap_or("unknown database error"),
+        "Database operation failed while verifying project running state: \{detail}",
       ),
     )
   }
@@ -3816,11 +3954,11 @@ async fn AppContext::try_new_for_worker_async(
   root : String,
 ) -> Result[AppContext, String] noraise {
   let build_profile = build_profile_from_env()
-  let data_dir = root + "/data/control-plane"
-  ensure_dir(root + "/data")
+  let data_dir = "\{root}/data/control-plane"
+  ensure_dir("\{root}/data")
   ensure_dir(data_dir)
   clean_legacy_project_workspaces(root)
-  let db_path = data_dir + "/state-v2.sqlite"
+  let db_path = "\{data_dir}/state-v2.sqlite"
   let store = match try_new_async(db_path) {
     Ok(store) => store
     Err(message) => return Err(message)
@@ -3839,11 +3977,11 @@ fn AppContext::try_new_with_recovery(
   root : String,
 ) -> Result[AppContext, String] {
   let build_profile = build_profile_from_env()
-  let data_dir = root + "/data/control-plane"
-  ensure_dir(root + "/data")
+  let data_dir = "\{root}/data/control-plane"
+  ensure_dir("\{root}/data")
   ensure_dir(data_dir)
   clean_legacy_project_workspaces(root)
-  let db_path = data_dir + "/state-v2.sqlite"
+  let db_path = "\{data_dir}/state-v2.sqlite"
   let store = match try_new(db_path) {
     Ok(store) => store
     Err(message) => return Err(message)

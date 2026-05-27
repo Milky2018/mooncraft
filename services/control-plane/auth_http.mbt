@@ -88,7 +88,7 @@ fn github_public_base_url() -> String {
 
 ///|
 fn github_callback_url() -> String {
-  github_public_base_url() + "/auth/github/callback"
+  "\{github_public_base_url()}/auth/github/callback"
 }
 
 ///|
@@ -102,7 +102,7 @@ fn github_client_id_hint(client_id : String) -> String {
   if client_id.length() <= 8 {
     client_id
   } else {
-    client_id[:8].to_owned() + "..."
+    "\{client_id[:8].to_owned()}..."
   }
 }
 
@@ -124,34 +124,14 @@ fn log_github_token_exchange_failure(
     _ => "<empty>"
   }
   println(
-    "warning: GitHub OAuth token exchange failed\n" +
-    "  stage: " +
-    stage +
-    "\n" +
-    "  status: " +
-    status_text +
-    "\n" +
-    "  callback_url: " +
-    github_callback_url() +
-    "\n" +
-    "  client_id: " +
-    github_client_id_hint(client_id) +
-    "\n" +
-    "  client_secret: <redacted>\n" +
-    "  response_body: " +
-    body_text,
+    "warning: GitHub OAuth token exchange failed\n  stage: \{stage}\n  status: \{status_text}\n  callback_url: \{github_callback_url()}\n  client_id: \{github_client_id_hint(client_id)}\n  client_secret: <redacted>\n  response_body: \{body_text}",
   )
 }
 
 ///|
 fn log_github_callback_failure(reason : String) -> Unit {
   println(
-    "warning: GitHub OAuth callback failed\n" +
-    "  reason: " +
-    reason +
-    "\n" +
-    "  callback_url: " +
-    github_callback_url(),
+    "warning: GitHub OAuth callback failed\n  reason: \{reason}\n  callback_url: \{github_callback_url()}",
   )
 }
 

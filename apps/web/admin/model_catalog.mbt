@@ -19,7 +19,7 @@ fn model_label(
   match model_by_id(catalog, id) {
     Some(item) =>
       if item.name != "" && item.name != item.id {
-        item.name + " - " + item.id
+        "\{item.name} - \{item.id}"
       } else {
         item.id
       }
@@ -117,7 +117,7 @@ fn recommended_model(item : @sdk.AdminAiModelSummary) -> Bool {
 
 ///|
 fn search_text(item : @sdk.AdminAiModelSummary) -> String {
-  (item.id + " " + item.name + " " + provider_label(model_provider(item.id))).to_lower()
+  "\{item.id} \{item.name} \{provider_label(model_provider(item.id))}".to_lower()
 }
 
 ///|

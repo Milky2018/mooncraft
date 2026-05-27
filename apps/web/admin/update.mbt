@@ -1,6 +1,6 @@
 ///|
 fn api_notice(prefix : String, error : @sdk.ApiError) -> String {
-  prefix + " " + error.message
+  "\{prefix} \{error.message}"
 }
 
 ///|

@@ -4,7 +4,7 @@ fn theme_toggle_button(
   model : Model,
 ) -> @rabbita.Html {
   let mode_label = model.theme_mode.storage_value()
-  let label = "Theme: " + mode_label
+  let label = "Theme: \{mode_label}"
   @html.button(
     type_="button",
     title=label,
@@ -49,7 +49,7 @@ fn render_notice_card(notice : String?, tone : String) -> @rabbita.Html {
           [
             "padding: 8px 10px",
             "border-radius: var(--radius-control)",
-            "background: " + tone,
+            "background: \{tone}",
             "border: 1px solid var(--border-soft)",
           ],
       ) <| message

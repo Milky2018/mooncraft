@@ -606,7 +606,7 @@ fn preview_target_path(remainder : String) -> String {
   } else if remainder.has_prefix("/") {
     remainder
   } else {
-    "/" + remainder
+    "/\{remainder}"
   }
 }
 
@@ -801,7 +801,7 @@ fn static_preview_response(
   match static_preview_relative_path(target_path) {
     Some(relative_path) =>
       preview_asset_response(
-        static_dir + "/" + relative_path,
+        "\{static_dir}/\{relative_path}",
         static_preview_content_type(relative_path),
       )
     None => text_response(NotFound, "Not Found")
@@ -886,7 +886,7 @@ fn AppContext::serve_platform_asset(
     Some(value) =>
       match safe_web_public_relative_path(value.to_owned()) {
         Some(relative) => {
-          let asset_path = web_public_path(self.root, "assets/" + relative)
+          let asset_path = web_public_path(self.root, "assets/\{relative}")
           if !(@fs.is_file(asset_path) catch { _ => false }) {
             return text_response(NotFound, "Not found")
           }
@@ -928,7 +928,7 @@ fn main {
   let port = control_plane_port()
   let ctx = match AppContext::try_new(root) {
     Ok(ctx) => ctx
-    Err(message) => abort("MoonCraft cannot start: " + message)
+    Err(message) => abort("MoonCraft cannot start: \{message}")
   }
   let stale_runs_ref : Ref[Int] = @ref.new(0)
   @async.run_async_main(async fn() {
@@ -982,7 +982,7 @@ fn main {
       .get("_")
       .map(fn(value) { value.to_owned() })
       .unwrap_or("")
-    web_public_response(ctx.root, "control-plane-assets/" + remainder)
+    web_public_response(ctx.root, "control-plane-assets/\{remainder}")
   })
   app.get("/app", _ => ctx.serve_platform_bundle())
   app.get("/admin/app", event => {
@@ -1841,6 +1841,7 @@ fn main {
   @async.run_async_main(() => {
     @async.with_task_group(group => {
       group.spawn_bg(() => ctx.run_worker_reconciler_loop())
+      group.spawn_bg(() => ctx.run_runtime_service_ttl_loop())
       serve_mocket_async(app, port)
     })
   })
