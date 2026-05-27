@@ -78,25 +78,24 @@ fn fake_runtime_resume_reset_marker(
 }
 
 ///|
-fn fake_runtime_preview_html(root : String) -> String {
+async fn fake_runtime_preview_html(root : String) -> String noraise {
   web_public_string(
     root, "control-plane-assets/smoke-preview/index.html", "MoonCraft smoke preview",
   )
 }
 
 ///|
-fn fake_runtime_update_workspace(
+async fn fake_runtime_update_workspace(
   root : String,
   workspace_path : String,
   prompt : String,
-) -> Result[String, String] {
+) -> Result[String, String] noraise {
   let normalized = trim_or_default(
     fake_runtime_user_request(prompt),
     "MoonCraft update",
   )
   let async_version = "0.18.1"
   let mocket_version = "0.7.1"
-  let x_version = "0.4.43"
   let moon_mod = StringBuilder()
   moon_mod <+
     #|{
@@ -109,8 +108,7 @@ fn fake_runtime_update_workspace(
   moon_mod <+
     #|  "deps": {
   moon_mod <+ "    \"moonbitlang/async\": \"\{async_version}\",\n"
-  moon_mod <+ "    \"oboard/mocket\": \"\{mocket_version}\",\n"
-  moon_mod <+ "    \"moonbitlang/x\": \"\{x_version}\"\n"
+  moon_mod <+ "    \"oboard/mocket\": \"\{mocket_version}\"\n"
   moon_mod <+
     #|  },
   moon_mod <+
@@ -135,7 +133,7 @@ fn fake_runtime_update_workspace(
         #|  "oboard/mocket",
         #|  "moonbitlang/core/env",
         #|  "moonbitlang/core/string",
-        #|  "moonbitlang/x/fs",
+        #|  "moonbitlang/async/fs" @async_fs,
         #|}
         #|
         #|options(
@@ -150,8 +148,8 @@ fn fake_runtime_update_workspace(
       "/main.mbt",
       (
         #|///|
-        #|fn app_page_html() -> String {
-        #|  @fs.read_file_to_string("index.html") catch {
+        #|async fn app_page_html() -> String {
+        #|  @async_fs.read_file("index.html").text() catch {
         #|    _ => "MoonCraft smoke preview"
         #|  }
         #|}
@@ -168,7 +166,7 @@ fn fake_runtime_update_workspace(
         #|  }
         #|  let app = @mocket.new()
         #|  app.get("/api/health", _ => @mocket.HttpResponse::new(OK, headers={ "Content-Type": "application/json" }).body("{\"ok\":true}"))
-        #|  app.get("/", _ => @mocket.HttpResponse::new(OK, headers={ "Content-Type": "text/html; charset=utf-8" }).body(app_page_html()))
+        #|  app.get("/", async fn(_) noraise { @mocket.HttpResponse::new(OK, headers={ "Content-Type": "text/html; charset=utf-8" }).body(app_page_html()) })
         #|  app.listen("0.0.0.0:\{port}")
         #|}
       ),
@@ -188,7 +186,7 @@ fn fake_runtime_update_workspace(
       "/main_wbtest.mbt",
       (
         #|///|
-        #|test "page includes smoke title" {
+        #|async test "page includes smoke title" {
         #|  assert_true(app_page_html().contains("MoonCraft smoke preview"))
         #|}
       ),
@@ -215,26 +213,36 @@ fn fake_runtime_command_is_resume(command : Array[String]) -> Bool {
 }
 
 ///|
-fn collect_fake_runtime_output(
+async fn collect_fake_runtime_output(
   root : String,
   project : @sdk.ProjectDetail,
   workspace_path : String,
   command : Array[String],
-) -> Result[(Int, String, String?), String] {
+) -> Result[(Int, String, String?), String] noraise {
   if command.length() < 2 {
     return Err("The local builder command was malformed.")
   }
   let is_resume = fake_runtime_command_is_resume(command)
   let prompt = command[command.length() - 1]
-  ensure_dir(fake_runtime_state_dir(root, project.id))
+  ensure_dir(fake_runtime_state_dir(root, project.id)) catch {
+    err =>
+      return Err("Fake Runtime state directory could not be created: \{err}")
+  }
   if fake_runtime_forced_failure(prompt) is Some(message) {
     return Ok((1, message, None))
   }
   if is_resume {
     let runtime_session_id = command[command.length() - 2]
     let reset_marker = fake_runtime_resume_reset_marker(root, project.id)
-    if !@fs.path_exists(reset_marker) {
-      safe_write_string(reset_marker, "reset")
+    let reset_marker_exists = @async_fs.exists(reset_marker) catch {
+      err =>
+        return Err("Fake Runtime reset marker could not be checked: \{err}")
+    }
+    if !reset_marker_exists {
+      @async_fs.write_file(reset_marker, "reset", create=0o644, truncate=true) catch {
+        err =>
+          return Err("Fake Runtime reset marker could not be written: \{err}")
+      }
       return Ok(
         (
           1,

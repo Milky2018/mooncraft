@@ -191,7 +191,10 @@ async fn PreviewManager::rebuild_and_restart(
 ) -> Result[@sdk.PreviewTarget, String] noraise {
   let workspace_path = project_workspace(self.root, project.id)
   let preview_script = "\{workspace_path}/\{preview_script_relative_path()}"
-  if !@fs.path_exists(preview_script) {
+  let preview_script_exists = @async_fs.exists(preview_script) catch {
+    err => return Err("Preview script could not be checked: \{err}")
+  }
+  if !preview_script_exists {
     return Err(preview_script_missing_message())
   }
   let preferred_port = project.preview.map(fn(target) { target.port })

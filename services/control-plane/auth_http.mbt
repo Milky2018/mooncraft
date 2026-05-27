@@ -589,7 +589,7 @@ async fn session_status_response(
 }
 
 ///|
-fn github_callback_page_html(root : String) -> String {
+async fn github_callback_page_html(root : String) -> String noraise {
   web_public_string(
     root, "control-plane-assets/auth/github-callback/index.html", "",
   )

@@ -17,8 +17,6 @@ type AdminSecretRecord
 
 type AgentExecutionResult
 
-type AgentRuntimeConfig
-
 type AgentTurnFailure
 
 type AgentTurnSuccess
@@ -51,7 +49,17 @@ type RuntimeGateway
 
 type RuntimeServiceEndpoint
 
+type RuntimeServiceError derive(@json.FromJson)
+
+type RuntimeServiceEvent derive(@json.FromJson)
+
+type RuntimeServiceEventsResponse derive(@json.FromJson)
+
+type RuntimeServiceExecRequest derive(ToJson)
+
 type RuntimeServiceRecord
+
+type RuntimeServiceRun derive(@json.FromJson)
 
 type RuntimeServiceSpec
 

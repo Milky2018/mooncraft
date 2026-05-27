@@ -13,20 +13,7 @@ struct AgentTurnFailure {
 }
 
 ///|
-struct AgentRuntimeConfig {
-  agent_session_id : String
-  image : String
-  platform : String
-  env : Map[String, String]
-  secrets : Array[ResolvedRuntimeSecret]
-  container_data_dir : String
-  host_data_dir : String?
-}
-
-///|
 struct RunArtifacts {
-  project_id : String
-  run_id : String
   dir : String
   prompt_path : String
   last_message_path : String
@@ -44,12 +31,12 @@ struct PreviewAuditResult {
 ///|
 struct AgentExecutionResult {
   summary : String
-  thread_id : String
+  thread_id : String?
   artifacts : RunArtifacts
 }
 
 ///|
-fn RunArtifacts::new(
+async fn RunArtifacts::new(
   root : String,
   project_id : String,
   run_id : String,
@@ -57,8 +44,6 @@ fn RunArtifacts::new(
   let dir = run_artifacts_dir(root, project_id, run_id)
   ensure_dir(dir)
   {
-    project_id,
-    run_id,
     dir,
     prompt_path: "\{dir}/prompt.txt",
     last_message_path: "\{dir}/last_message.txt",
@@ -73,11 +58,6 @@ fn agent_container_workspace_dir() -> String {
 }
 
 ///|
-fn agent_container_artifacts_dir() -> String {
-  "/artifacts"
-}
-
-///|
 fn agent_container_home_dir() -> String {
   "/home/mooncraft"
 }
@@ -88,124 +68,8 @@ fn agent_runtime_container_name(project_id : String, run_id : String) -> String 
 }
 
 ///|
-fn trim_mount_path(path : String) -> String {
-  let mut value = path.trim().to_owned()
-  while value.length() > 1 && value.has_suffix("/") {
-    value = value[:value.length() - 1].to_owned()
-  }
-  value
-}
-
-///|
-fn configured_host_data_dir(root : String) -> Result[String?, String] {
-  let host_data_dir = match @env.get_env_var("MOONCRAFT_HOST_DATA_DIR") {
-    Some(value) if value.trim() != "" => Some(trim_mount_path(value))
-    _ => None
-  }
-  match host_data_dir {
-    Some(path) =>
-      if !path.has_prefix("/") {
-        Err(
-          "MOONCRAFT_HOST_DATA_DIR must be an absolute host path so Docker bind mounts resolve correctly.",
-        )
-      } else {
-        Ok(Some(path))
-      }
-    None =>
-      if trim_mount_path(root) == "/app" {
-        Err(
-          "MOONCRAFT_HOST_DATA_DIR must be set when MoonCraft runs in Docker. It must point to the host directory bind-mounted as /app/data.",
-        )
-      } else {
-        Ok(None)
-      }
-  }
-}
-
-///|
-fn docker_bind_source(config : AgentRuntimeConfig, path : String) -> String {
-  match config.host_data_dir {
-    Some(host_data_dir) => {
-      let container_data_dir = trim_mount_path(config.container_data_dir)
-      let source = trim_mount_path(path)
-      if source == container_data_dir {
-        host_data_dir
-      } else {
-        let prefix = "\{container_data_dir}/"
-        if source.has_prefix(prefix) {
-          "\{host_data_dir}\{source[container_data_dir.length():].to_owned()}"
-        } else {
-          source
-        }
-      }
-    }
-    None => path
-  }
-}
-
-///|
 fn docker_env_value(value : String) -> String {
   value.replace_all(old="\r", new="").replace_all(old="\n", new="")
-}
-
-///|
-fn docker_env_file_path(artifacts : RunArtifacts) -> String {
-  "\{artifacts.dir}/agent.env"
-}
-
-///|
-fn docker_env_file_content(config : AgentRuntimeConfig) -> String {
-  let content = StringBuilder()
-  for key, value in config.env {
-    content <+ "\{docker_env_value(key)}=\{docker_env_value(value)}\n"
-  }
-  for secret in config.secrets {
-    if secret.env is Some(env) {
-      content <+ "\{docker_env_value(env)}=\{docker_env_value(secret.value)}\n"
-    }
-  }
-  content.to_string()
-}
-
-///|
-fn write_docker_env_file(
-  config : AgentRuntimeConfig,
-  artifacts : RunArtifacts,
-) -> String {
-  let path = docker_env_file_path(artifacts)
-  safe_write_string(path, docker_env_file_content(config))
-  path
-}
-
-///|
-fn remove_docker_env_file(path : String) -> Unit {
-  @fs.remove_file(path) catch {
-    _ => ()
-  }
-}
-
-///|
-async fn materialize_runtime_file_secrets(
-  config : AgentRuntimeConfig,
-  agent_home_path : String,
-) -> Result[Unit, String] noraise {
-  for secret in config.secrets {
-    if secret.file is Some(file) {
-      let relative_path = match @sdk.validate_runtime_secret_file_path(file) {
-        Ok(path) => path
-        Err(message) => return Err(message)
-      }
-      let target = "\{agent_home_path}/\{relative_path}"
-      ensure_dir(parent_dir(target))
-      @fs.write_string_to_file(target, secret.value) catch {
-        err => return Err("Runtime secret file could not be written: \{err}")
-      }
-      if run_process_quiet("chmod", ["a+rw", target]) != 0 {
-        return Err("Runtime secret file permissions could not be updated.")
-      }
-    }
-  }
-  Ok(())
 }
 
 ///|
@@ -247,53 +111,6 @@ async fn detect_docker_platform(
     )
   }
   normalize_docker_architecture(text)
-}
-
-///|
-async fn AgentRuntimeConfig::load(
-  root : String,
-  settings : AiRuntimeSettings,
-) -> Result[AgentRuntimeConfig, String] noraise {
-  let agent_session_id = settings.agent_session_id.trim().to_owned()
-  if agent_session_id == "" {
-    return Err("Project Runtime agent session id is missing.")
-  }
-  let platform = match detect_docker_platform(root) {
-    Ok(platform) => platform
-    Err(message) => return Err(message)
-  }
-  let host_data_dir = match configured_host_data_dir(root) {
-    Ok(value) => value
-    Err(message) => return Err(message)
-  }
-  Ok({
-    agent_session_id,
-    image: settings.runtime_spec.image,
-    platform,
-    env: settings.env,
-    secrets: settings.secrets,
-    container_data_dir: "\{trim_mount_path(root)}/data",
-    host_data_dir,
-  })
-}
-
-///|
-async fn prepare_agent_mount_path(path : String) -> Unit noraise {
-  ensure_dir(path)
-  ignore(run_process_quiet("chmod", ["-R", "a+rwX", path]))
-}
-
-///|
-async fn prepare_agent_mounts(
-  workspace_path : String,
-  agent_home_path : String?,
-  artifacts : RunArtifacts,
-) -> Unit noraise {
-  if agent_home_path is Some(path) {
-    prepare_agent_mount_path(path)
-  }
-  prepare_agent_mount_path(workspace_path)
-  prepare_agent_mount_path(artifacts.dir)
 }
 
 ///|
@@ -496,18 +313,23 @@ async fn append_runtime_display_event(
 }
 
 ///|
-fn append_command_log(
+async fn append_command_log(
   path : String,
   label : String,
   command : Array[String],
   exit_code : Int,
   content : String,
-) -> Unit {
+) -> Result[Unit, String] noraise {
   let output = trim_or_default(content, "(no output)")
-  safe_append_string(
+  @async_fs.write_file(
     path,
     "== \{label} ==\ncommand: \{command_display(command)}\nexit_code: \{exit_code}\n\n\{output}\n\n",
-  )
+    append=true,
+    create=0o644,
+  ) catch {
+    err => return Err("Could not append command log \{path}: \{err}")
+  }
+  Ok(())
 }
 
 ///|
@@ -586,342 +408,44 @@ fn failure_debug(
 }
 
 ///|
-fn docker_command_args(
-  config : AgentRuntimeConfig,
-  env_file_path : String,
-  workspace_path : String,
-  agent_home_path : String,
-  artifacts : RunArtifacts,
-  container_command : Array[String],
-) -> Array[String] {
-  let args : Array[String] = ["run", "--rm"]
-  args.push("--name")
-  args.push(
-    agent_runtime_container_name(artifacts.project_id, artifacts.run_id),
-  )
-  args.push("--platform")
-  args.push(config.platform)
-  args.push("--env-file")
-  args.push(env_file_path)
-  args.push("-v")
-  args.push(
-    "\{docker_bind_source(config, agent_home_path)}:\{agent_container_home_dir()}",
-  )
-  args.push("-v")
-  args.push(
-    "\{docker_bind_source(config, workspace_path)}:\{agent_container_workspace_dir()}",
-  )
-  args.push("-v")
-  args.push(
-    "\{docker_bind_source(config, artifacts.dir)}:\{agent_container_artifacts_dir()}",
-  )
-  args.push("-w")
-  args.push(agent_container_workspace_dir())
-  args.push(config.image)
-  for part in container_command {
-    args.push(part)
-  }
-  args
-}
-
-///|
-fn agent_runtime_timeout_seconds() -> Int {
-  match @env.get_env_var("MOONCRAFT_AGENT_RUNTIME_TIMEOUT_SECONDS") {
-    Some(value) => {
-      let parsed = @string.parse_int(value.trim().to_owned()) catch {
-        _ => 3600
-      }
-      if parsed <= 0 {
-        3600
-      } else if parsed > 3600 {
-        3600
-      } else {
-        parsed
-      }
-    }
-    None => 3600
-  }
-}
-
-///|
-fn docker_run_timeout_script(
-  docker_args : Array[String],
-  container_name : String,
-  timeout_seconds : Int,
-) -> String {
-  let docker_command : Array[String] = ["docker"]
-  for arg in docker_args {
-    docker_command.push(arg)
-  }
-  let timeout_message = "MoonCraft builder exceeded the configured runtime limit of \{timeout_seconds} seconds; stopping the Runtime container."
-  let timeout_shell_message = shell_quote(timeout_message)
-  let container_shell_name = shell_quote(container_name)
-  [
-    "set -eu",
-    "timeout_marker=\"${TMPDIR:-/tmp}/mooncraft-runtime-timeout.$$.marker\"",
-    "watchdog_pid=\"\"",
-    "cleanup() {",
-    "  if [ -n \"$watchdog_pid\" ]; then",
-    "    kill \"$watchdog_pid\" >/dev/null 2>&1 || true",
-    "    wait \"$watchdog_pid\" >/dev/null 2>&1 || true",
-    "  fi",
-    "  rm -f \"$timeout_marker\"",
-    "}",
-    "trap cleanup EXIT INT TERM",
-    "rm -f \"$timeout_marker\"",
-    "(",
-    "  exec </dev/null >/dev/null 2>&1",
-    "  sleep \{timeout_seconds}",
-    "  printf '%s\\n' \{timeout_shell_message} > \"$timeout_marker\"",
-    "  docker rm -f \{container_shell_name} >/dev/null 2>&1 || true",
-    ") &",
-    "watchdog_pid=\"$!\"",
-    "set +e",
-    "\{command_display(docker_command)} &",
-    "docker_pid=\"$!\"",
-    "wait \"$docker_pid\"",
-    "status=\"$?\"",
-    "set -e",
-    "if [ -f \"$timeout_marker\" ]; then",
-    "  cat \"$timeout_marker\" >&2 || true",
-    "else",
-    "  kill \"$watchdog_pid\" >/dev/null 2>&1 || true",
-    "  wait \"$watchdog_pid\" >/dev/null 2>&1 || true",
-    "  watchdog_pid=\"\"",
-    "fi",
-    "exit \"$status\"",
-  ].join("\n")
-}
-
-///|
-async fn run_streaming_command(
-  store : Store,
-  root : String,
-  project_id : String,
-  run_id : String,
-  worker_id : String,
-  attempt : Int,
-  stream_log_path : String,
-  command : String,
-  args : Array[String],
-) -> Result[(Int, String), String] noraise {
-  try
-    @async.with_task_group(group => {
-      ensure_dir(parent_dir(stream_log_path))
-      let (reader, writer) = @process.read_from_process()
-      let output_chunks : Array[String] = []
-      let reader_task = group.spawn(() => {
-        defer reader.close()
-        let stream_log = @async_fs.open(
-          stream_log_path,
-          mode=WriteOnly,
-          create=0o644,
-          truncate=true,
-        )
-        defer stream_log.close()
-        while reader.read_until("\n") is Some(raw_line) {
-          let output_line = "\{raw_line}\n"
-          output_chunks.push(output_line)
-          stream_log.write(@utf8.encode(output_line))
-          let line = raw_line.trim(chars="\r").to_owned()
-          if line != "" {
-            append_runtime_display_event(
-              store, project_id, run_id, worker_id, attempt, line,
-            )
-          }
-        }
-      })
-      let process = @process.spawn(
-        group,
-        command,
-        args,
-        stdout=writer,
-        stderr=writer,
-        cwd=root,
-        no_wait=true,
-      )
-      store.append_worker_run_event(
-        project_id,
-        run_id,
-        worker_id,
-        attempt,
-        "status",
-        @sdk.run_event_code_runtime_container_running(),
-        "Runtime container is running.",
-      )
-      let code = process.wait()
-      reader_task.wait()
-      (code, output_chunks.join(""))
-    })
-  catch {
-    err => Err("The AI builder command could not be started: \{err}")
-  } noraise {
-    value => Ok(value)
-  }
-}
-
-///|
-async fn stream_docker_output(
-  store : Store,
-  root : String,
-  project_id : String,
-  run_id : String,
-  worker_id : String,
-  attempt : Int,
-  config : AgentRuntimeConfig,
-  workspace_path : String,
-  agent_home_path : String,
-  artifacts : RunArtifacts,
-  container_command : Array[String],
-) -> Result[(Int, String), String] noraise {
-  store.append_worker_run_event(
-    project_id,
-    run_id,
-    worker_id,
-    attempt,
-    "status",
-    @sdk.run_event_code_builder_environment_preparing(),
-    "Preparing the builder environment.",
-  )
-  let env_file_path = write_docker_env_file(config, artifacts)
-  store.append_worker_run_event(
-    project_id,
-    run_id,
-    worker_id,
-    attempt,
-    "status",
-    @sdk.run_event_code_builder_mounts_preparing(),
-    "Preparing builder workspace mounts.",
-  )
-  prepare_agent_mounts(workspace_path, Some(agent_home_path), artifacts)
-  store.append_worker_run_event(
-    project_id,
-    run_id,
-    worker_id,
-    attempt,
-    "status",
-    @sdk.run_event_code_builder_auth_preparing(),
-    "Preparing builder authentication.",
-  )
-  if materialize_runtime_file_secrets(config, agent_home_path) is Err(message) {
-    remove_docker_env_file(env_file_path)
-    return Err(message)
-  }
-  // Auth materialization can create fresh subdirectories after the initial mount chmod.
-  prepare_agent_mount_path(agent_home_path)
-  let docker_args = docker_command_args(
-    config, env_file_path, workspace_path, agent_home_path, artifacts, container_command,
-  )
-  store.append_worker_run_event(
-    project_id,
-    run_id,
-    worker_id,
-    attempt,
-    "status",
-    @sdk.run_event_code_runtime_container_launching(),
-    "Launching the Runtime container.",
-  )
-  let result = match
-    run_streaming_command(
-      store,
-      root,
-      project_id,
-      run_id,
-      worker_id,
-      attempt,
-      "\{artifacts.agent_log_path}.stream",
-      "sh",
-      [
-        "-c",
-        docker_run_timeout_script(
-          docker_args,
-          agent_runtime_container_name(project_id, run_id),
-          agent_runtime_timeout_seconds(),
-        ),
-      ],
-    ) {
-    Ok(result) => result
-    Err(message) => {
-      remove_docker_env_file(env_file_path)
-      return Err(message)
-    }
-  }
-  remove_docker_env_file(env_file_path)
-  Ok(result)
-}
-
-///|
 async fn collect_agent_command_output(
   store : Store,
   run_id : String,
   worker_id : String,
   attempt : Int,
   root : String,
-  config : AgentRuntimeConfig?,
   project : @sdk.ProjectDetail,
   workspace_path : String,
-  artifacts : RunArtifacts,
   command : Array[String],
 ) -> Result[(Int, String, String?), String] noraise {
-  if smoke_runtime_enabled() {
-    let result = match
-      collect_fake_runtime_output(root, project, workspace_path, command) {
-      Ok(result) => result
-      Err(message) => return Err(message)
-    }
-    store.append_worker_run_event(
-      project.id,
-      run_id,
-      worker_id,
-      attempt,
-      "status",
-      @sdk.run_event_code_local_builder_running(),
-      "Running local builder.",
-    )
-    for raw_line in result.1.replace_all(old="\r\n", new="\n").split("\n") {
-      let line = raw_line.to_owned()
-      if line != "" {
-        append_runtime_display_event(
-          store,
-          project.id,
-          run_id,
-          worker_id,
-          attempt,
-          line,
-        )
-      }
-    }
-    Ok(result)
-  } else {
-    match config {
-      Some(config) => {
-        let agent_home_path = project_runtime_agent_home(
-          root,
-          project.id,
-          config.agent_session_id,
-        )
-        let result = match
-          stream_docker_output(
-            store,
-            root,
-            project.id,
-            run_id,
-            worker_id,
-            attempt,
-            config,
-            workspace_path,
-            agent_home_path,
-            artifacts,
-            command,
-          ) {
-          Ok(result) => result
-          Err(message) => return Err(message)
-        }
-        Ok((result.0, result.1, None))
-      }
-      None => Err("MoonCraft's app builder is temporarily unavailable.")
+  let result = match
+    collect_fake_runtime_output(root, project, workspace_path, command) {
+    Ok(result) => result
+    Err(message) => return Err(message)
+  }
+  store.append_worker_run_event(
+    project.id,
+    run_id,
+    worker_id,
+    attempt,
+    "status",
+    @sdk.run_event_code_local_builder_running(),
+    "Running local builder.",
+  )
+  for raw_line in result.1.replace_all(old="\r\n", new="\n").split("\n") {
+    let line = raw_line.to_owned()
+    if line != "" {
+      append_runtime_display_event(
+        store,
+        project.id,
+        run_id,
+        worker_id,
+        attempt,
+        line,
+      )
     }
   }
+  Ok(result)
 }
 
 ///|
@@ -966,10 +490,238 @@ fn runtime_failure_with_debug(
 }
 
 ///|
+async fn run_runtime_service_turn(
+  store : Store,
+  endpoint : RuntimeServiceEndpoint,
+  project : @sdk.ProjectDetail,
+  run_id : String,
+  worker_id : String,
+  attempt : Int,
+  prompt : String,
+  artifacts : RunArtifacts,
+) -> Result[AgentExecutionResult, AgentTurnFailure] noraise {
+  ignore(
+    store.set_runtime_service_state(
+      project.id,
+      runtime_service_state_running(),
+      None,
+    ),
+  )
+  store.append_worker_run_event(
+    project.id,
+    run_id,
+    worker_id,
+    attempt,
+    "status",
+    @sdk.run_event_code_builder_started(),
+    "Started the Runtime Service run.",
+  )
+  let accepted = match runtime_service_post_exec(endpoint, run_id, prompt) {
+    Ok(run) => run
+    Err(message) => {
+      ignore(
+        store.set_runtime_service_state(
+          project.id,
+          runtime_service_state_ready(),
+          Some(runtime_service_idle_expires_at()),
+        ),
+      )
+      return Err(
+        runtime_failure_with_debug(
+          "The app builder runtime could not start this run.",
+          message,
+          project.runtime_session_id,
+          Some(
+            failure_debug("Runtime Service /exec", None, None, Some(artifacts)),
+          ),
+        ),
+      )
+    }
+  }
+  let after : Ref[Int] = @ref.new(0)
+  let mut current = accepted
+  while true {
+    match runtime_service_get_events(endpoint, run_id, after.val) {
+      Ok(response) =>
+        append_runtime_service_events(
+          store,
+          project.id,
+          run_id,
+          worker_id,
+          attempt,
+          response.events,
+          after,
+        )
+      Err(message) => {
+        ignore(
+          store.set_runtime_service_state(
+            project.id,
+            runtime_service_state_ready(),
+            Some(runtime_service_idle_expires_at()),
+          ),
+        )
+        return Err(
+          runtime_failure_with_debug(
+            "The app builder runtime stopped reporting progress.",
+            message,
+            project.runtime_session_id,
+            Some(
+              failure_debug(
+                "Runtime Service events",
+                None,
+                None,
+                Some(artifacts),
+              ),
+            ),
+          ),
+        )
+      }
+    }
+    match runtime_service_get_run(endpoint, run_id) {
+      Ok(run) => current = run
+      Err(message) => {
+        ignore(
+          store.set_runtime_service_state(
+            project.id,
+            runtime_service_state_ready(),
+            Some(runtime_service_idle_expires_at()),
+          ),
+        )
+        return Err(
+          runtime_failure_with_debug(
+            "The app builder runtime stopped reporting run status.",
+            message,
+            project.runtime_session_id,
+            Some(
+              failure_debug(
+                "Runtime Service run status",
+                None,
+                None,
+                Some(artifacts),
+              ),
+            ),
+          ),
+        )
+      }
+    }
+    match current.status {
+      "running" =>
+        @async.sleep(1000) catch {
+          _ =>
+            return Err(
+              runtime_failure_with_debug(
+                "The app builder runtime was interrupted.",
+                "Runtime Service polling was cancelled.",
+                project.runtime_session_id,
+                Some(
+                  failure_debug(
+                    "Runtime Service polling",
+                    None,
+                    None,
+                    Some(artifacts),
+                  ),
+                ),
+              ),
+            )
+        }
+      "succeeded" => {
+        store.append_worker_run_event(
+          project.id,
+          run_id,
+          worker_id,
+          attempt,
+          "status",
+          @sdk.run_event_code_builder_ended(),
+          runtime_service_status_message(current),
+        )
+        ignore(
+          store.set_runtime_service_state(
+            project.id,
+            runtime_service_state_ready(),
+            Some(runtime_service_idle_expires_at()),
+          ),
+        )
+        return Ok({
+          summary: runtime_service_status_message(current),
+          thread_id: project.runtime_session_id,
+          artifacts,
+        })
+      }
+      "failed" => {
+        store.append_worker_run_event(
+          project.id,
+          run_id,
+          worker_id,
+          attempt,
+          "status",
+          @sdk.run_event_code_builder_failed(),
+          runtime_service_status_message(current),
+        )
+        ignore(
+          store.set_runtime_service_state(
+            project.id,
+            runtime_service_state_ready(),
+            Some(runtime_service_idle_expires_at()),
+          ),
+        )
+        return Err(
+          runtime_failure_with_debug(
+            runtime_service_status_message(current),
+            runtime_service_status_message(current),
+            project.runtime_session_id,
+            Some(
+              failure_debug(
+                "Runtime Service run failed",
+                None,
+                None,
+                Some(artifacts),
+              ),
+            ),
+          ),
+        )
+      }
+      other => {
+        ignore(
+          store.set_runtime_service_state(
+            project.id,
+            runtime_service_state_ready(),
+            Some(runtime_service_idle_expires_at()),
+          ),
+        )
+        return Err(
+          runtime_failure_with_debug(
+            "The app builder runtime returned an invalid run status.",
+            "Runtime Service returned unsupported run status: \{other}",
+            project.runtime_session_id,
+            Some(
+              failure_debug(
+                "Runtime Service run status",
+                None,
+                None,
+                Some(artifacts),
+              ),
+            ),
+          ),
+        )
+      }
+    }
+  }
+  Err(
+    runtime_failure_with_debug(
+      "The app builder runtime stopped unexpectedly.",
+      "Runtime Service polling exited without a terminal run status.",
+      project.runtime_session_id,
+      Some(
+        failure_debug("Runtime Service polling", None, None, Some(artifacts)),
+      ),
+    ),
+  )
+}
+
+///|
 async fn run_runtime_turn(
   store : Store,
   root : String,
-  config : AgentRuntimeConfig?,
   project : @sdk.ProjectDetail,
   initial_project_prompt : String,
   workspace_path : String,
@@ -981,10 +733,51 @@ async fn run_runtime_turn(
   raw_prompt? : Bool = false,
   resume_existing? : Bool = true,
 ) -> Result[AgentExecutionResult, AgentTurnFailure] noraise {
-  let artifacts = RunArtifacts::new(root, project.id, run_id)
-  safe_write_string(artifacts.last_message_path, "")
+  let artifacts = RunArtifacts::new(root, project.id, run_id) catch {
+    err =>
+      return Err(
+        runtime_failure(
+          "The AI builder could not prepare run artifacts.",
+          "Run artifact directory could not be created: \{err}",
+          project.runtime_session_id,
+        ),
+      )
+  }
+  @async_fs.write_file(
+    artifacts.last_message_path,
+    "",
+    create=0o644,
+    truncate=true,
+  ) catch {
+    err =>
+      return Err(
+        runtime_failure_with_debug(
+          "The AI builder could not prepare run logs.",
+          "Run summary file could not be written: \{err}",
+          project.runtime_session_id,
+          Some(failure_debug("AI builder startup", None, None, Some(artifacts))),
+        ),
+      )
+  }
   if reset_logs {
-    safe_write_string(artifacts.agent_log_path, "")
+    @async_fs.write_file(
+      artifacts.agent_log_path,
+      "",
+      create=0o644,
+      truncate=true,
+    ) catch {
+      err =>
+        return Err(
+          runtime_failure_with_debug(
+            "The AI builder could not prepare run logs.",
+            "Run log file could not be written: \{err}",
+            project.runtime_session_id,
+            Some(
+              failure_debug("AI builder startup", None, None, Some(artifacts)),
+            ),
+          ),
+        )
+    }
   }
   let thread_id_before = project.runtime_session_id
   let prompt = if raw_prompt {
@@ -994,36 +787,31 @@ async fn run_runtime_turn(
   } else {
     bootstrap_prompt(user_prompt)
   }
-  safe_write_string(artifacts.prompt_path, prompt)
-  let command = match config {
-    Some(_) =>
+  @async_fs.write_file(
+    artifacts.prompt_path,
+    prompt,
+    create=0o644,
+    truncate=true,
+  ) catch {
+    err =>
       return Err(
         runtime_failure_with_debug(
-          "MoonCraft Runtime Protocol v3 execution is not implemented yet.",
-          "Runtime Protocol v3 execution must be implemented through the Runtime Service HTTP API before real Runtime containers can run.",
-          thread_id_before,
-          Some(
-            failure_debug(
-              "Runtime Protocol v3 startup",
-              None,
-              None,
-              Some(artifacts),
-            ),
-          ),
+          "The AI builder could not prepare the prompt.",
+          "Prompt file could not be written: \{err}",
+          project.runtime_session_id,
+          Some(failure_debug("AI builder startup", None, None, Some(artifacts))),
         ),
       )
-    None =>
-      match thread_id_before {
-        Some(runtime_session_id) if resume_existing && !raw_prompt =>
-          fake_runtime_resume_command(runtime_session_id, prompt)
-        _ => fake_runtime_send_command(prompt)
-      }
+  }
+  let command = match thread_id_before {
+    Some(runtime_session_id) if resume_existing && !raw_prompt =>
+      fake_runtime_resume_command(runtime_session_id, prompt)
+    _ => fake_runtime_send_command(prompt)
   }
   let mut active_command = command
   let runtime_result = match
     collect_agent_command_output(
-      store, run_id, worker_id, attempt, root, config, project, workspace_path, artifacts,
-      command,
+      store, run_id, worker_id, attempt, root, project, workspace_path, command,
     ) {
     Ok(result) => result
     Err(message) =>
@@ -1047,13 +835,23 @@ async fn run_runtime_turn(
   let mut exit_code = initial_exit_code
   let mut output = initial_output
   let mut fake_summary = initial_fake_summary
-  append_command_log(
-    artifacts.agent_log_path,
-    "agent run",
-    active_command,
-    exit_code,
-    output,
-  )
+  if append_command_log(
+      artifacts.agent_log_path,
+      "agent run",
+      active_command,
+      exit_code,
+      output,
+    )
+    is Err(message) {
+    return Err(
+      runtime_failure_with_debug(
+        "The AI builder could not write run logs.",
+        message,
+        thread_id_before,
+        Some(failure_debug("AI builder logs", None, None, Some(artifacts))),
+      ),
+    )
+  }
   let mut thread_id = thread_id_before
   if extract_runtime_session_id(output) is Some(runtime_session_id) {
     thread_id = Some(runtime_session_id)
@@ -1090,29 +888,10 @@ async fn run_runtime_turn(
     let recovery_prompt_text = recovery_prompt(
       initial_project_prompt, user_prompt,
     )
-    let recovery_command = match config {
-      Some(_) =>
-        return Err(
-          runtime_failure_with_debug(
-            "The builder session could not be recovered for that update.",
-            "Runtime Protocol v3 recovery must be implemented through the Runtime Service HTTP API.",
-            thread_id_before,
-            Some(
-              failure_debug(
-                "Runtime Protocol v3 recovery startup",
-                None,
-                None,
-                Some(artifacts),
-              ),
-            ),
-          ),
-        )
-      None => fake_runtime_send_command(recovery_prompt_text)
-    }
+    let recovery_command = fake_runtime_send_command(recovery_prompt_text)
     let recovery_result = match
       collect_agent_command_output(
-        store, run_id, worker_id, attempt, root, config, project, workspace_path,
-        artifacts, recovery_command,
+        store, run_id, worker_id, attempt, root, project, workspace_path, recovery_command,
       ) {
       Ok(result) => result
       Err(message) =>
@@ -1134,13 +913,23 @@ async fn run_runtime_turn(
     }
     let (recovery_exit_code, recovery_output, recovery_fake_summary) = recovery_result
     active_command = recovery_command
-    append_command_log(
-      artifacts.agent_log_path,
-      "runtime session recovery",
-      active_command,
-      recovery_exit_code,
-      recovery_output,
-    )
+    if append_command_log(
+        artifacts.agent_log_path,
+        "runtime session recovery",
+        active_command,
+        recovery_exit_code,
+        recovery_output,
+      )
+      is Err(message) {
+      return Err(
+        runtime_failure_with_debug(
+          "The builder session recovered, but writing run logs failed.",
+          message,
+          thread_id_before,
+          Some(failure_debug("AI builder logs", None, None, Some(artifacts))),
+        ),
+      )
+    }
     let recovery_thread_id = match extract_runtime_session_id(recovery_output) {
       Some(runtime_session_id) => runtime_session_id
       None =>
@@ -1221,11 +1010,13 @@ async fn run_runtime_turn(
     Some(summary) => trim_or_default(summary, default_success_summary())
     None =>
       trim_or_default(
-        safe_read_string_or(artifacts.last_message_path, ""),
+        @async_fs.read_file(artifacts.last_message_path).text() catch {
+          _ => ""
+        },
         default_success_summary(),
       )
   }
-  Ok({ summary, thread_id, artifacts })
+  Ok({ summary, thread_id: Some(thread_id), artifacts })
 }
 
 ///|
@@ -1239,16 +1030,18 @@ fn preview_audit_log_path(
   project_id : String,
   run_id : String,
 ) -> String {
-  "\{RunArtifacts::new(root, project_id, run_id).dir}/preview-audit.log"
+  "\{run_artifacts_dir(root, project_id, run_id)}/preview-audit.log"
 }
 
 ///|
-fn preview_audit_auto_available(root : String) -> Bool {
-  @fs.path_exists(preview_audit_script_path(root))
+async fn preview_audit_auto_available(root : String) -> Bool noraise {
+  @async_fs.exists(preview_audit_script_path(root)) catch {
+    _ => false
+  }
 }
 
 ///|
-fn preview_audit_enabled(root : String) -> Bool {
+async fn preview_audit_enabled(root : String) -> Bool noraise {
   match @env.get_env_var("MOONCRAFT_PREVIEW_AUDIT") {
     Some(value) => {
       let normalized = value.trim().to_lower()
@@ -1309,13 +1102,16 @@ async fn run_preview_audit(
     Err(message) => (127, message)
   }
   let (exit_code, output) = result
-  append_command_log(
-    preview_audit_log_path(root, project_id, run_id),
-    "HTTP preview audit",
-    command,
-    exit_code,
-    output,
-  )
+  if append_command_log(
+      preview_audit_log_path(root, project_id, run_id),
+      "HTTP preview audit",
+      command,
+      exit_code,
+      output,
+    )
+    is Err(message) {
+    return { enabled: true, passed: false, message }
+  }
   if exit_code == 0 {
     {
       enabled: true,
@@ -1337,7 +1133,7 @@ async fn persist_builder_workspace_snapshot(
   root : String,
   project_id : String,
   workspace_path : String,
-  thread_id : String,
+  thread_id : String?,
   artifacts : RunArtifacts,
 ) -> Result[Unit, AgentTurnFailure] noraise {
   match snapshot_workspace(store, root, project_id, workspace_path) {
@@ -1347,7 +1143,7 @@ async fn persist_builder_workspace_snapshot(
         runtime_failure_with_debug(
           "The workspace was updated, but saving the latest project snapshot failed.",
           message,
-          Some(thread_id),
+          thread_id,
           Some(failure_debug("Workspace snapshot", None, None, Some(artifacts))),
         ),
       )
@@ -1368,61 +1164,54 @@ async fn RuntimeGateway::run_turn(
   raw_prompt? : Bool = false,
   resume_existing? : Bool = true,
 ) -> Result[AgentTurnSuccess, AgentTurnFailure] noraise {
-  let config = if smoke_runtime_enabled() {
-    None
+  let runtime_result = if smoke_runtime_enabled() {
+    match
+      run_runtime_turn(
+        store,
+        self.root,
+        project,
+        initial_project_prompt,
+        workspace_path,
+        run_id,
+        worker_id,
+        attempt,
+        user_prompt,
+        raw_prompt~,
+        resume_existing~,
+      ) {
+      Ok(result) => result
+      Err(failure) => return Err(failure)
+    }
   } else {
-    let settings = match
-      store.lease_ai_runtime_settings_for_project(project.id) {
-      Ok(settings) => settings
+    let endpoint = match
+      self.ensure_project_runtime_service(store, project.id) {
+      Ok(endpoint) => endpoint
       Err(message) =>
         return Err(
           runtime_failure(
-            "MoonCraft's app builder is temporarily unavailable. Please retry later.",
+            "The app builder runtime is not ready. Please retry after the server is updated.",
             message,
             project.runtime_session_id,
           ),
         )
     }
-    match AgentRuntimeConfig::load(self.root, settings) {
-      Ok(config) => Some(config)
-      Err(message) =>
+    let artifacts = RunArtifacts::new(self.root, project.id, run_id) catch {
+      err =>
         return Err(
           runtime_failure(
-            "The app builder could not be started for that update.",
-            message,
+            "The app builder runtime could not prepare run artifacts.",
+            "Run artifact directory could not be created: \{err}",
             project.runtime_session_id,
           ),
         )
     }
-  }
-  if config is Some(_) {
-    if self.ensure_project_runtime_service(store, project.id) is Err(message) {
-      return Err(
-        runtime_failure(
-          "The app builder runtime is not ready. Please retry after the server is updated.",
-          message,
-          project.runtime_session_id,
-        ),
-      )
+    match
+      run_runtime_service_turn(
+        store, endpoint, project, run_id, worker_id, attempt, user_prompt, artifacts,
+      ) {
+      Ok(result) => result
+      Err(failure) => return Err(failure)
     }
-  }
-  let runtime_result = match
-    run_runtime_turn(
-      store,
-      self.root,
-      config,
-      project,
-      initial_project_prompt,
-      workspace_path,
-      run_id,
-      worker_id,
-      attempt,
-      user_prompt,
-      raw_prompt~,
-      resume_existing~,
-    ) {
-    Ok(result) => result
-    Err(failure) => return Err(failure)
   }
   store.append_worker_run_event(
     project.id,
@@ -1445,10 +1234,7 @@ async fn RuntimeGateway::run_turn(
     Ok(_) => ignore(())
     Err(failure) => return Err(failure)
   }
-  Ok({
-    summary: runtime_result.summary,
-    thread_id: Some(runtime_result.thread_id),
-  })
+  Ok({ summary: runtime_result.summary, thread_id: runtime_result.thread_id })
 }
 
 ///|
@@ -1463,12 +1249,20 @@ async fn AppContext::spawn_project_turn_worker(
     self.root,
     self.build_profile,
   )
-  if !@fs.path_exists(executable_path) {
+  let executable_exists = @async_fs.exists(executable_path) catch {
+    err =>
+      return Err(
+        "The background run worker executable could not be checked at \{executable_path}: \{err}",
+      )
+  }
+  if !executable_exists {
     return Err(
       "The background run worker executable was not found at \{executable_path}. Build the control plane before sending a request.",
     )
   }
-  let artifacts = RunArtifacts::new(self.root, project_id, run_id)
+  let artifacts = RunArtifacts::new(self.root, project_id, run_id) catch {
+    err => return Err("Run artifact directory could not be created: \{err}")
+  }
   let worker_log_path = "\{artifacts.dir}/worker.log"
   spawn_worker_process(
     self.root,

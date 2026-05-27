@@ -9,12 +9,14 @@ fn web_public_path(root : String, relative : String) -> String {
 }
 
 ///|
-fn web_public_string(
+async fn web_public_string(
   root : String,
   relative : String,
   fallback : String,
-) -> String {
-  safe_read_string_or(web_public_path(root, relative), fallback)
+) -> String noraise {
+  @async_fs.read_file(web_public_path(root, relative)).text() catch {
+    _ => fallback
+  }
 }
 
 ///|
@@ -39,17 +41,21 @@ fn safe_web_public_relative_path(path : String) -> String? {
 }
 
 ///|
-fn web_public_response(root : String, path : String) -> @mocket.HttpResponse {
+async fn web_public_response(
+  root : String,
+  path : String,
+) -> @mocket.HttpResponse noraise {
   match safe_web_public_relative_path(path) {
     Some(relative) => {
       let asset_path = web_public_path(root, relative)
-      if !(@fs.is_file(asset_path) catch { _ => false }) {
+      let asset_exists = fs_is_file(asset_path) catch { _ => false }
+      if !asset_exists {
         return text_response(NotFound, "Not Found")
       }
-      asset_response_bytes(
-        static_preview_content_type(relative),
-        safe_read_bytes_or(asset_path, b""),
-      )
+      let content = @async_fs.read_file(asset_path).binary() catch {
+        _ => return text_response(NotFound, "Not Found")
+      }
+      asset_response_bytes(static_preview_content_type(relative), content)
     }
     None => text_response(NotFound, "Not Found")
   }

@@ -92,23 +92,41 @@ fn runtime_service_secret_dir(root : String, project_id : String) -> String {
 }
 
 ///|
-fn write_runtime_service_env_file(
+async fn write_runtime_service_env_file(
   root : String,
   spec : RuntimeServiceSpec,
-) -> String {
+) -> Result[String, String] noraise {
   let path = runtime_service_env_file_path(root, spec.project_id)
-  ensure_dir(parent_dir(path))
-  safe_write_string(path, runtime_service_env_file_content(spec))
-  path
+  ensure_dir(parent_dir(path)) catch {
+    err => return Err("Runtime env directory could not be created: \{err}")
+  }
+  @async_fs.write_file(
+    path,
+    runtime_service_env_file_content(spec),
+    create=0o644,
+    truncate=true,
+  ) catch {
+    err => return Err("Runtime env file could not be written: \{err}")
+  }
+  Ok(path)
 }
 
 ///|
-fn materialize_runtime_service_file_secrets(
+async fn remove_runtime_service_env_file(path : String) -> Unit noraise {
+  @async_fs.remove(path) catch {
+    _ => ()
+  }
+}
+
+///|
+async fn materialize_runtime_service_file_secrets(
   root : String,
   spec : RuntimeServiceSpec,
-) -> Result[String?, String] {
+) -> Result[String?, String] noraise {
   let secret_dir = runtime_service_secret_dir(root, spec.project_id)
-  safe_remove_tree(secret_dir)
+  fs_remove_tree(secret_dir) catch {
+    err => return Err("Runtime secret directory could not be reset: \{err}")
+  }
   let mut wrote_file = false
   for secret in spec.secrets {
     if secret.file is Some(file) {
@@ -117,8 +135,11 @@ fn materialize_runtime_service_file_secrets(
         Err(message) => return Err(message)
       }
       let target = "\{secret_dir}/\{relative_path}"
-      ensure_dir(parent_dir(target))
-      @fs.write_string_to_file(target, secret.value) catch {
+      ensure_dir(parent_dir(target)) catch {
+        err =>
+          return Err("Runtime secret directory could not be created: \{err}")
+      }
+      @async_fs.write_file(target, secret.value, create=0o600, truncate=true) catch {
         err => return Err("Runtime secret file could not be written: \{err}")
       }
       wrote_file = true
@@ -181,7 +202,8 @@ async fn ensure_runtime_service_network(
   }
   if @env.get_env_var("HOSTNAME") is Some(hostname) {
     let container_id = hostname.trim().to_owned()
-    if container_id != "" && @fs.path_exists("/.dockerenv") {
+    let in_docker = @async_fs.exists("/.dockerenv") catch { _ => false }
+    if container_id != "" && in_docker {
       ignore(
         run_process_quiet("docker", [
           "network", "connect", network_name, container_id,
@@ -260,11 +282,14 @@ async fn create_runtime_service_container(
   root : String,
   spec : RuntimeServiceSpec,
 ) -> Result[Unit, String] noraise {
-  let env_file_path = write_runtime_service_env_file(root, spec)
+  let env_file_path = match write_runtime_service_env_file(root, spec) {
+    Ok(path) => path
+    Err(message) => return Err(message)
+  }
   let secret_dir = match materialize_runtime_service_file_secrets(root, spec) {
     Ok(path) => path
     Err(message) => {
-      remove_docker_env_file(env_file_path)
+      remove_runtime_service_env_file(env_file_path)
       return Err(message)
     }
   }
@@ -276,15 +301,23 @@ async fn create_runtime_service_container(
     ) {
     Ok((0, _)) => ()
     Ok((_, output)) => {
-      remove_docker_env_file(env_file_path)
-      safe_remove_tree(runtime_service_secret_dir(root, spec.project_id))
+      remove_runtime_service_env_file(env_file_path)
+      ignore(
+        fs_remove_tree(runtime_service_secret_dir(root, spec.project_id)) catch {
+          _ => ()
+        },
+      )
       return Err(
         "Runtime container could not be created: \{tail_text(output, 800)}",
       )
     }
     Err(message) => {
-      remove_docker_env_file(env_file_path)
-      safe_remove_tree(runtime_service_secret_dir(root, spec.project_id))
+      remove_runtime_service_env_file(env_file_path)
+      ignore(
+        fs_remove_tree(runtime_service_secret_dir(root, spec.project_id)) catch {
+          _ => ()
+        },
+      )
       return Err(message)
     }
   }
@@ -297,35 +330,47 @@ async fn create_runtime_service_container(
       ]) {
       Ok((0, _)) => ()
       Ok((_, output)) => {
-        remove_docker_env_file(env_file_path)
-        safe_remove_tree(runtime_service_secret_dir(root, spec.project_id))
+        remove_runtime_service_env_file(env_file_path)
+        ignore(
+          fs_remove_tree(runtime_service_secret_dir(root, spec.project_id)) catch {
+            _ => ()
+          },
+        )
         return Err(
           "Runtime file secrets could not be copied into the home volume: \{tail_text(output, 800)}",
         )
       }
       Err(message) => {
-        remove_docker_env_file(env_file_path)
-        safe_remove_tree(runtime_service_secret_dir(root, spec.project_id))
+        remove_runtime_service_env_file(env_file_path)
+        ignore(
+          fs_remove_tree(runtime_service_secret_dir(root, spec.project_id)) catch {
+            _ => ()
+          },
+        )
         return Err(message)
       }
     }
   }
-  safe_remove_tree(runtime_service_secret_dir(root, spec.project_id))
+  ignore(
+    fs_remove_tree(runtime_service_secret_dir(root, spec.project_id)) catch {
+      _ => ()
+    },
+  )
   let started = match
     collect_process_text("docker", ["start", spec.container_name]) {
     Ok((0, _)) => true
     Ok((_, output)) => {
-      remove_docker_env_file(env_file_path)
+      remove_runtime_service_env_file(env_file_path)
       return Err(
         "Runtime container could not be started: \{tail_text(output, 800)}",
       )
     }
     Err(message) => {
-      remove_docker_env_file(env_file_path)
+      remove_runtime_service_env_file(env_file_path)
       return Err(message)
     }
   }
-  remove_docker_env_file(env_file_path)
+  remove_runtime_service_env_file(env_file_path)
   if started {
     Ok(())
   } else {

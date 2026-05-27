@@ -86,16 +86,22 @@ async fn snapshot_workspace(
   project_id : String,
   workspace_path : String,
 ) -> Result[Unit, String] noraise {
-  if !@fs.path_exists(workspace_path) {
+  let workspace_exists = @async_fs.exists(workspace_path) catch {
+    err => return Err("The workspace directory could not be checked: \{err}")
+  }
+  if !workspace_exists {
     return Err(
       "The workspace directory at \{workspace_path} was not found, so the latest project snapshot could not be saved.",
     )
   }
   let snapshot_dir = project_workspace_snapshot_dir(root, project_id)
-  ensure_dir(snapshot_dir)
+  ensure_dir(snapshot_dir) catch {
+    err =>
+      return Err("Workspace snapshot directory could not be created: \{err}")
+  }
   let temp_path = project_workspace_snapshot_temp_path(root, project_id)
   let archive_path = project_workspace_snapshot_archive_path(root, project_id)
-  @fs.remove_file(temp_path) catch {
+  @async_fs.remove(temp_path) catch {
     _ => ()
   }
   let archive_code = run_process_quiet(
@@ -107,7 +113,7 @@ async fn snapshot_workspace(
     cwd=root,
   )
   if archive_code != 0 {
-    @fs.remove_file(temp_path) catch {
+    @async_fs.remove(temp_path) catch {
       _ => ()
     }
     return Err(
@@ -117,7 +123,7 @@ async fn snapshot_workspace(
   let size_bytes = match file_size_bytes(temp_path) {
     Ok(size) => size
     Err(message) => {
-      @fs.remove_file(temp_path) catch {
+      @async_fs.remove(temp_path) catch {
         _ => ()
       }
       return Err(message)
@@ -125,7 +131,7 @@ async fn snapshot_workspace(
   }
   let snapshot_size = @string.parse_uint64(size_bytes) catch { _ => 0UL }
   if snapshot_size == 0UL {
-    @fs.remove_file(temp_path) catch {
+    @async_fs.remove(temp_path) catch {
       _ => ()
     }
     return Err(
@@ -135,7 +141,7 @@ async fn snapshot_workspace(
   let checksum = match file_sha256(temp_path) {
     Ok(checksum) => checksum
     Err(message) => {
-      @fs.remove_file(temp_path) catch {
+      @async_fs.remove(temp_path) catch {
         _ => ()
       }
       return Err(message)
@@ -147,7 +153,7 @@ async fn snapshot_workspace(
     cwd=root,
   )
   if move_code != 0 {
-    @fs.remove_file(temp_path) catch {
+    @async_fs.remove(temp_path) catch {
       _ => ()
     }
     return Err(
@@ -184,7 +190,13 @@ async fn restore_workspace_snapshot_to_path(
     Ok(snapshot) => snapshot
     Err(message) => return Err(message)
   }
-  if !@fs.path_exists(snapshot.path) {
+  let snapshot_exists = @async_fs.exists(snapshot.path) catch {
+    err =>
+      return Err(
+        "The persisted workspace snapshot could not be checked: \{err}",
+      )
+  }
+  if !snapshot_exists {
     return Err(
       "The persisted workspace snapshot archive for project \{project_id} is missing.",
     )
@@ -207,8 +219,12 @@ async fn restore_workspace_snapshot_to_path(
       "The persisted workspace snapshot checksum does not match for project \{project_id}.",
     )
   }
-  safe_remove_tree(target_path)
-  ensure_dir(target_path)
+  fs_remove_tree(target_path) catch {
+    err => return Err("Restored workspace path could not be reset: \{err}")
+  }
+  ensure_dir(target_path) catch {
+    err => return Err("Restored workspace path could not be created: \{err}")
+  }
   let restore_code = run_process_quiet(
     "tar",
     ["-xf", snapshot.path, "-C", target_path],

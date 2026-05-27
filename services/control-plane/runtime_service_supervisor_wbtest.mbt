@@ -47,13 +47,15 @@ test "runtime service env file combines plain env and env secrets" {
 }
 
 ///|
-test "runtime service file secrets materialize relative to runtime home" {
+async test "runtime service file secrets materialize relative to runtime home" {
   let root = "/tmp/mooncraft-runtime-service-secrets-\{random_hex(6)}"
-  defer safe_remove_tree(root)
   match
     materialize_runtime_service_file_secrets(root, test_runtime_service_spec()) {
     Ok(Some(path)) =>
-      inspect(safe_read_string_or("\{path}/.codex/auth.json", ""), content="{}")
+      inspect(
+        @async_fs.read_file("\{path}/.codex/auth.json").text(),
+        content="{}",
+      )
     Ok(None) => fail("expected file secret directory")
     Err(message) => fail(message)
   }
@@ -63,7 +65,6 @@ test "runtime service file secrets materialize relative to runtime home" {
 async test "runtime service records expose expired ready containers" {
   let root = "/tmp/mooncraft-runtime-service-store-\{random_hex(6)}"
   ensure_dir(root)
-  defer safe_remove_tree(root)
   let store = match try_new_async("\{root}/state.sqlite") {
     Ok(store) => store
     Err(message) => abort(message)

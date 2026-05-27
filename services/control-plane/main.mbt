@@ -372,7 +372,10 @@ fn limit_admin_log_content(content : String) -> (String, Bool) {
 }
 
 ///|
-fn read_admin_log_file(label : String, path : String?) -> @sdk.AdminRunLogFile {
+async fn read_admin_log_file(
+  label : String,
+  path : String?,
+) -> @sdk.AdminRunLogFile noraise {
   match path {
     None =>
       {
@@ -383,8 +386,19 @@ fn read_admin_log_file(label : String, path : String?) -> @sdk.AdminRunLogFile {
         content: None,
         error: Some("No log path was recorded for this run."),
       }
-    Some(path) =>
-      if !@fs.path_exists(path) {
+    Some(path) => {
+      let exists = @async_fs.exists(path) catch {
+        _ =>
+          return {
+            label,
+            path: Some(path),
+            exists: false,
+            truncated: false,
+            content: None,
+            error: Some("The log file could not be checked on this node."),
+          }
+      }
+      if !exists {
         {
           label,
           path: Some(path),
@@ -394,7 +408,7 @@ fn read_admin_log_file(label : String, path : String?) -> @sdk.AdminRunLogFile {
           error: Some("The log file does not exist on this node."),
         }
       } else {
-        let content = @fs.read_file_to_string(path) catch {
+        let content = @async_fs.read_file(path).text() catch {
           _ =>
             return {
               label,
@@ -415,6 +429,7 @@ fn read_admin_log_file(label : String, path : String?) -> @sdk.AdminRunLogFile {
           error: None,
         }
       }
+    }
   }
 }
 
@@ -712,14 +727,18 @@ async fn preview_origin_proxy_response(
 }
 
 ///|
-fn preview_asset_response(
+async fn preview_asset_response(
   path : String,
   content_type : String,
-) -> @mocket.HttpResponse {
-  if !@fs.path_exists(path) {
+) -> @mocket.HttpResponse noraise {
+  let exists = @async_fs.exists(path) catch { _ => false }
+  if !exists {
     return text_response(NotFound, "Not Found")
   }
-  asset_response_bytes(content_type, safe_read_bytes_or(path, b""))
+  let content = @async_fs.read_file(path).binary() catch {
+    _ => return text_response(NotFound, "Not Found")
+  }
+  asset_response_bytes(content_type, content)
 }
 
 ///|
@@ -779,10 +798,10 @@ fn static_preview_relative_path(target_path : String) -> String? {
 }
 
 ///|
-fn static_preview_response(
+async fn static_preview_response(
   static_dir : String,
   target_path : String,
-) -> @mocket.HttpResponse {
+) -> @mocket.HttpResponse noraise {
   if target_path == "/__health" || target_path == "/api/health" {
     return json_ok(@sdk.HealthResponse::{ ok: true })
   }
@@ -801,8 +820,8 @@ fn run_static_preview_mode(port : Int, static_dir : String) -> Unit {
   let app = @mocket.new()
   app.get("/__health", _ => json_ok(@sdk.HealthResponse::{ ok: true }))
   app.get("/api/health", _ => json_ok(@sdk.HealthResponse::{ ok: true }))
-  app.get("/", _ => static_preview_response(static_dir, "/"))
-  app.get("/**", event => {
+  app.get("/", async fn(_) noraise { static_preview_response(static_dir, "/") })
+  app.get("/**", async fn(event) noraise {
     let remainder = event.params
       .get("_")
       .map(fn(value) { value.to_owned() })
@@ -813,27 +832,29 @@ fn run_static_preview_mode(port : Int, static_dir : String) -> Unit {
 }
 
 ///|
-fn workspace_page_html(root : String) -> String {
+async fn workspace_page_html(root : String) -> String noraise {
   web_public_string(root, "control-plane-assets/platform/index.html", "")
 }
 
 ///|
-fn admin_page_html(root : String) -> String {
+async fn admin_page_html(root : String) -> String noraise {
   web_public_string(root, "control-plane-assets/admin/index.html", "")
 }
 
 ///|
-fn admin_login_page_html(root : String) -> String {
+async fn admin_login_page_html(root : String) -> String noraise {
   web_public_string(root, "control-plane-assets/admin-login/index.html", "")
 }
 
 ///|
-fn AppContext::serve_platform_bundle(self : AppContext) -> @mocket.HttpResponse {
+async fn AppContext::serve_platform_bundle(
+  self : AppContext,
+) -> @mocket.HttpResponse noraise {
   let bundle_path = platform_web_build_output_path(
     self.root,
     self.build_profile,
   )
-  let bundle = safe_read_bytes_or(bundle_path, b"")
+  let bundle = @async_fs.read_file(bundle_path).binary() catch { _ => b"" }
   if bundle.length() == 0 {
     return text_response(
       ServiceUnavailable,
@@ -844,9 +865,11 @@ fn AppContext::serve_platform_bundle(self : AppContext) -> @mocket.HttpResponse 
 }
 
 ///|
-fn AppContext::serve_admin_bundle(self : AppContext) -> @mocket.HttpResponse {
+async fn AppContext::serve_admin_bundle(
+  self : AppContext,
+) -> @mocket.HttpResponse noraise {
   let bundle_path = admin_web_build_output_path(self.root, self.build_profile)
-  let bundle = safe_read_bytes_or(bundle_path, b"")
+  let bundle = @async_fs.read_file(bundle_path).binary() catch { _ => b"" }
   if bundle.length() == 0 {
     return text_response(
       ServiceUnavailable,
@@ -857,30 +880,37 @@ fn AppContext::serve_admin_bundle(self : AppContext) -> @mocket.HttpResponse {
 }
 
 ///|
-fn AppContext::serve_platform_logo(self : AppContext) -> @mocket.HttpResponse {
+async fn AppContext::serve_platform_logo(
+  self : AppContext,
+) -> @mocket.HttpResponse noraise {
   asset_response_bytes(
     "image/svg+xml; charset=utf-8",
-    safe_read_bytes_or(web_public_path(self.root, "assets/logo.svg"), b""),
+    @async_fs.read_file(web_public_path(self.root, "assets/logo.svg")).binary() catch {
+      _ => b""
+    },
   )
 }
 
 ///|
-fn AppContext::serve_platform_asset(
+async fn AppContext::serve_platform_asset(
   self : AppContext,
   event : @mocket.MocketEvent,
-) -> @mocket.HttpResponse {
+) -> @mocket.HttpResponse noraise {
   match event.params.get("_") {
     Some(value) if value.to_owned() == "logo.svg" => self.serve_platform_logo()
     Some(value) =>
       match safe_web_public_relative_path(value.to_owned()) {
         Some(relative) => {
           let asset_path = web_public_path(self.root, "assets/\{relative}")
-          if !(@fs.is_file(asset_path) catch { _ => false }) {
+          let asset_exists = fs_is_file(asset_path) catch { _ => false }
+          if !asset_exists {
             return text_response(NotFound, "Not found")
           }
           asset_response_bytes(
             static_preview_content_type(relative),
-            safe_read_bytes_or(asset_path, b""),
+            @async_fs.read_file(asset_path).binary() catch {
+              _ => return text_response(NotFound, "Not found")
+            },
           )
         }
         None => text_response(NotFound, "Not found")
@@ -936,51 +966,55 @@ fn main {
       None => redirect_response(@sdk.login_path())
     }
   })
-  app.get(@sdk.login_path(), _ => html_response(workspace_page_html(ctx.root)))
-  app.get("/admin", event => {
+  app.get(@sdk.login_path(), async fn(_) noraise {
+    html_response(workspace_page_html(ctx.root))
+  })
+  app.get("/admin", async fn(event) noraise {
     if admin_page_authorized(event) {
       html_response(admin_page_html(ctx.root))
     } else {
       redirect_response("/admin/login")
     }
   })
-  app.get("/admin/", event => {
+  app.get("/admin/", async fn(event) noraise {
     if admin_page_authorized(event) {
       html_response(admin_page_html(ctx.root))
     } else {
       redirect_response("/admin/login")
     }
   })
-  app.get("/admin/login", event => {
+  app.get("/admin/login", async fn(event) noraise {
     if admin_page_authorized(event) {
       redirect_response("/admin")
     } else {
       html_response(admin_login_page_html(ctx.root))
     }
   })
-  app.get("/admin/login/", event => {
+  app.get("/admin/login/", async fn(event) noraise {
     if admin_page_authorized(event) {
       redirect_response("/admin")
     } else {
       html_response(admin_login_page_html(ctx.root))
     }
   })
-  app.get("/control-plane-assets/**", event => {
+  app.get("/control-plane-assets/**", async fn(event) noraise {
     let remainder = event.params
       .get("_")
       .map(fn(value) { value.to_owned() })
       .unwrap_or("")
     web_public_response(ctx.root, "control-plane-assets/\{remainder}")
   })
-  app.get("/app", _ => ctx.serve_platform_bundle())
-  app.get("/admin/app", event => {
+  app.get("/app", async fn(_) noraise { ctx.serve_platform_bundle() })
+  app.get("/admin/app", async fn(event) noraise {
     if admin_page_authorized(event) {
       ctx.serve_admin_bundle()
     } else {
       unauthorized_response()
     }
   })
-  app.get("/assets/**", event => ctx.serve_platform_asset(event))
+  app.get("/assets/**", async fn(event) noraise {
+    ctx.serve_platform_asset(event)
+  })
   app.get(@sdk.health_path(), async fn(_) noraise {
     if ctx.store.is_available() {
       json_ok(@sdk.HealthResponse::{ ok: true })
@@ -1429,7 +1463,7 @@ fn main {
     github_authorization_response(ctx)
   })
   app.get("/auth/github/start", _ => redirect_response(@sdk.github_login_path()))
-  app.get("/auth/github/callback", _ => {
+  app.get("/auth/github/callback", async fn(_) noraise {
     html_response(github_callback_page_html(ctx.root))
   })
   app.post("/api/auth/github/callback", async fn(event) noraise {
@@ -1507,7 +1541,9 @@ fn main {
     match ctx.materialize_project_workspace(project) {
       Ok(_) => json_created(@sdk.CreateProjectResponse::{ project, })
       Err(message) => {
-        safe_remove_tree(project_root(ctx.root, project_id))
+        fs_remove_tree(project_root(ctx.root, project_id)) catch {
+          _ => ()
+        }
         ignore(ctx.store.delete_project(project_id))
         api_error_response(ServiceUnavailable, ServiceUnavailable, message)
       }

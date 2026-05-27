@@ -1,7 +1,6 @@
 ///|
 struct AiRuntimeSettings {
   runtime_spec : @sdk.RuntimeSpec
-  agent_session_id : String
   env : Map[String, String]
   secrets : Array[ResolvedRuntimeSecret]
 }
@@ -173,8 +172,7 @@ async fn Store::lease_ai_runtime_settings_for_project(
         #|  owner_user_id,
         #|  runtime_id,
         #|  runtime_name,
-        #|  runtime_spec_json,
-        #|  agent_session_id
+        #|  runtime_spec_json
         #|FROM projects
         #|WHERE id = ?;
       ),
@@ -193,12 +191,7 @@ async fn Store::lease_ai_runtime_settings_for_project(
     Ok(secrets) => secrets
     Err(message) => return Err(message)
   }
-  Ok({
-    runtime_spec,
-    agent_session_id: row_text(project, "agent_session_id"),
-    env: runtime_spec.env,
-    secrets,
-  })
+  Ok({ runtime_spec, env: runtime_spec.env, secrets })
 }
 
 ///|

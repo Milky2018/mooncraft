@@ -184,67 +184,39 @@ async fn terminate_process_if_identity_matches(
 }
 
 ///|
-fn safe_create_dir(path : String) -> Unit {
-  @fs.create_dir(path) catch {
-    _ => ()
+async fn fs_is_dir(path : String) -> Bool {
+  if !@async_fs.exists(path) {
+    return false
+  }
+  let kind = @async_fs.kind(path, follow_symlink=false)
+  match kind {
+    Directory => true
+    _ => false
   }
 }
 
 ///|
-fn safe_write_string(path : String, content : String) -> Unit {
-  @fs.write_string_to_file(path, content) catch {
-    _ => ()
+async fn fs_is_file(path : String) -> Bool {
+  if !@async_fs.exists(path) {
+    return false
+  }
+  let kind = @async_fs.kind(path, follow_symlink=false)
+  match kind {
+    Regular => true
+    _ => false
   }
 }
 
 ///|
-fn safe_append_string(path : String, content : String) -> Unit {
-  safe_write_string(path, "\{safe_read_string_or(path, "")}\{content}")
-}
-
-///|
-fn path_join(base : String, name : String) -> String {
-  if base == "" || base == "/" {
-    "\{base}\{name}"
-  } else {
-    "\{base}/\{name}"
-  }
-}
-
-///|
-fn safe_remove_tree(path : String) -> Unit {
-  if !@fs.path_exists(path) {
+async fn fs_remove_tree(path : String) -> Unit {
+  if !@async_fs.exists(path) {
     return
   }
-  if !(@fs.is_dir(path) catch { _ => false }) {
-    @fs.remove_file(path) catch {
-      _ => ()
-    }
+  if fs_is_dir(path) {
+    @async_fs.rmdir(path, recursive=true)
     return
   }
-  let names = @fs.read_dir(path) catch { _ => [] }
-  for name in names {
-    if name != "." && name != ".." {
-      safe_remove_tree(path_join(path, name))
-    }
-  }
-  @fs.remove_dir(path) catch {
-    _ => ()
-  }
-}
-
-///|
-fn safe_read_string_or(path : String, fallback : String) -> String {
-  @fs.read_file_to_string(path) catch {
-    _ => fallback
-  }
-}
-
-///|
-fn safe_read_bytes_or(path : String, fallback : Bytes) -> Bytes {
-  @fs.read_file_to_bytes(path) catch {
-    _ => fallback
-  }
+  @async_fs.remove(path)
 }
 
 ///|
@@ -491,6 +463,11 @@ fn runtime_service_state_ready() -> String {
 }
 
 ///|
+fn runtime_service_state_running() -> String {
+  "running"
+}
+
+///|
 fn runtime_service_idle_ttl_millis() -> UInt64 {
   env_uint64_or("MOONCRAFT_RUNTIME_IDLE_TTL_SECONDS", 600UL) * 1000UL
 }
@@ -519,7 +496,7 @@ fn chat_role_from_db(value : String) -> @sdk.ChatRole {
 }
 
 ///|
-fn ensure_dir(path : String) -> Unit {
+async fn ensure_dir(path : String) -> Unit {
   let parts = path.split("/").to_array()
   let mut current = if path.has_prefix("/") { "/" } else { "" }
   for part in parts {
@@ -532,8 +509,8 @@ fn ensure_dir(path : String) -> Unit {
     } else {
       "\{current}/\{piece}"
     }
-    if !@fs.path_exists(current) {
-      safe_create_dir(current)
+    if !@async_fs.exists(current) {
+      @async_fs.mkdir(current, permission=0o755)
     }
   }
 }
@@ -564,8 +541,8 @@ fn legacy_project_workspaces_root(root : String) -> String {
 }
 
 ///|
-fn clean_legacy_project_workspaces(root : String) -> Unit {
-  safe_remove_tree(legacy_project_workspaces_root(root))
+async fn clean_legacy_project_workspaces(root : String) -> Unit {
+  fs_remove_tree(legacy_project_workspaces_root(root))
 }
 
 ///|
@@ -576,15 +553,6 @@ fn project_workspace(root : String, project_id : String) -> String {
 ///|
 fn project_agent_session_root(root : String, project_id : String) -> String {
   "\{root}/data/agent-sessions/\{project_id}"
-}
-
-///|
-fn project_runtime_agent_home(
-  root : String,
-  project_id : String,
-  agent_session_id : String,
-) -> String {
-  "\{project_agent_session_root(root, project_id)}/\{agent_session_id.trim().to_owned()}"
 }
 
 ///|
@@ -1337,7 +1305,10 @@ async fn try_new_async(db_path : String) -> Result[Store, String] noraise {
       { engine: PostgresEngine(config), backend: Postgres }
     }
     _ => {
-      if (@fs.is_dir(db_path) catch { _ => false }) {
+      let db_path_is_dir = fs_is_dir(db_path) catch {
+        err => return Err("SQLite database path could not be checked: \{err}")
+      }
+      if db_path_is_dir {
         return Err("SQLite database path points to a directory: \{db_path}")
       }
       let engine = match open(db_path) {
@@ -3924,7 +3895,13 @@ fn new_runtime_gateway(root : String) -> RuntimeGateway {
 
 ///|
 fn AppContext::try_new(root : String) -> Result[AppContext, String] {
-  AppContext::try_new_with_recovery(root)
+  let result : Ref[Result[AppContext, String]] = @ref.new(
+    Err("The application context was not initialized."),
+  )
+  @async.run_async_main(async fn() {
+    result.val = AppContext::try_new_with_recovery(root)
+  })
+  result.val
 }
 
 ///|
@@ -3933,9 +3910,16 @@ async fn AppContext::try_new_for_worker_async(
 ) -> Result[AppContext, String] noraise {
   let build_profile = build_profile_from_env()
   let data_dir = "\{root}/data/control-plane"
-  ensure_dir("\{root}/data")
-  ensure_dir(data_dir)
-  clean_legacy_project_workspaces(root)
+  ensure_dir("\{root}/data") catch {
+    err => return Err("Data directory could not be created: \{err}")
+  }
+  ensure_dir(data_dir) catch {
+    err =>
+      return Err("Control-plane data directory could not be created: \{err}")
+  }
+  clean_legacy_project_workspaces(root) catch {
+    err => return Err("Legacy project workspaces could not be removed: \{err}")
+  }
   let db_path = "\{data_dir}/state-v2.sqlite"
   let store = match try_new_async(db_path) {
     Ok(store) => store
@@ -3951,14 +3935,21 @@ async fn AppContext::try_new_for_worker_async(
 }
 
 ///|
-fn AppContext::try_new_with_recovery(
+async fn AppContext::try_new_with_recovery(
   root : String,
-) -> Result[AppContext, String] {
+) -> Result[AppContext, String] noraise {
   let build_profile = build_profile_from_env()
   let data_dir = "\{root}/data/control-plane"
-  ensure_dir("\{root}/data")
-  ensure_dir(data_dir)
-  clean_legacy_project_workspaces(root)
+  ensure_dir("\{root}/data") catch {
+    err => return Err("Data directory could not be created: \{err}")
+  }
+  ensure_dir(data_dir) catch {
+    err =>
+      return Err("Control-plane data directory could not be created: \{err}")
+  }
+  clean_legacy_project_workspaces(root) catch {
+    err => return Err("Legacy project workspaces could not be removed: \{err}")
+  }
   let db_path = "\{data_dir}/state-v2.sqlite"
   let store = match try_new(db_path) {
     Ok(store) => store
@@ -3989,7 +3980,11 @@ async fn AppContext::delete_project(
     )
   }
   self.previews.remove_project_runtime(project_id, project.preview)
-  safe_remove_tree(project_root(self.root, project_id))
-  safe_remove_tree(project_agent_session_root(self.root, project_id))
+  fs_remove_tree(project_root(self.root, project_id)) catch {
+    err => return Err("Project workspace could not be removed: \{err}")
+  }
+  fs_remove_tree(project_agent_session_root(self.root, project_id)) catch {
+    err => return Err("Project runtime home could not be removed: \{err}")
+  }
   self.store.delete_project(project_id)
 }

@@ -2,7 +2,6 @@
 async test "starting a run sets activity without replacing final project status" {
   let root = "/tmp/mooncraft-activity-status-test-\{random_hex(6)}"
   ensure_dir(root)
-  defer safe_remove_tree(root)
   let store = match try_new_async("\{root}/state.sqlite") {
     Ok(store) => store
     Err(message) => abort(message)
@@ -68,7 +67,6 @@ async test "starting a run sets activity without replacing final project status"
 async test "reading a new run does not recover it before worker registration" {
   let root = "/tmp/mooncraft-run-read-test-\{random_hex(6)}"
   ensure_dir(root)
-  defer safe_remove_tree(root)
   let store = match try_new_async("\{root}/state.sqlite") {
     Ok(store) => store
     Err(message) => abort(message)
@@ -106,7 +104,6 @@ async test "reading a new run does not recover it before worker registration" {
 async test "worker pid registration must target an active run" {
   let root = "/tmp/mooncraft-worker-pid-test-\{random_hex(6)}"
   ensure_dir(root)
-  defer safe_remove_tree(root)
   let store = match try_new_async("\{root}/state.sqlite") {
     Ok(store) => store
     Err(message) => abort(message)
@@ -181,7 +178,6 @@ async test "worker pid registration must target an active run" {
 async test "reading a registered run does not recover dead worker pids" {
   let root = "/tmp/mooncraft-read-pure-run-test-\{random_hex(6)}"
   ensure_dir(root)
-  defer safe_remove_tree(root)
   let store = match try_new_async("\{root}/state.sqlite") {
     Ok(store) => store
     Err(message) => abort(message)
@@ -233,7 +229,6 @@ async test "reconciler expires stale worker leases outside read paths" {
   defer @env.unset_env_var("MOONCRAFT_RUN_WORKER_HEARTBEAT_TTL_MS")
   let root = "/tmp/mooncraft-worker-reconcile-test-\{random_hex(6)}"
   ensure_dir(root)
-  defer safe_remove_tree(root)
   let store = match try_new_async("\{root}/state.sqlite") {
     Ok(store) => store
     Err(message) => abort(message)
@@ -290,7 +285,6 @@ async test "expired worker cannot overwrite recovered run success" {
   defer @env.unset_env_var("MOONCRAFT_RUN_WORKER_HEARTBEAT_TTL_MS")
   let root = "/tmp/mooncraft-worker-cas-test-\{random_hex(6)}"
   ensure_dir(root)
-  defer safe_remove_tree(root)
   let store = match try_new_async("\{root}/state.sqlite") {
     Ok(store) => store
     Err(message) => abort(message)
@@ -346,7 +340,6 @@ async test "expired worker cannot overwrite recovered run success" {
 async test "start run rolls back partial writes when project update fails" {
   let root = "/tmp/mooncraft-start-run-rollback-test-\{random_hex(6)}"
   ensure_dir(root)
-  defer safe_remove_tree(root)
   let store = match try_new_async("\{root}/state.sqlite") {
     Ok(store) => store
     Err(message) => abort(message)
