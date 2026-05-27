@@ -538,17 +538,14 @@ async fn AppContext::complete_github_sign_in(
     Err(message) => return Err(message)
   }
   let provider_user_id = profile.id
-  match
-    self.store.find_user_by_oauth_account(
+  if self.store.find_user_by_oauth_account(
       github_provider_name(),
       provider_user_id,
-    ) {
-    Some(user) => {
-      self.store.update_user_github_login(user.id, profile.login)
-      self.store.set_user_email_verified(user.id)
-      return Ok(self.store.get_user_by_id(user.id).unwrap_or(user))
-    }
-    None => ignore(())
+    )
+    is Some(user) {
+    self.store.update_user_github_login(user.id, profile.login)
+    self.store.set_user_email_verified(user.id)
+    return Ok(self.store.get_user_by_id(user.id).unwrap_or(user))
   }
   let user = match self.store.get_user_by_email(email) {
     Some(existing) => {

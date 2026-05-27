@@ -64,13 +64,11 @@ pub(all) struct RuntimeSecretTarget {
 ///|
 pub impl ToJson for RuntimeSecretTarget with fn to_json(self) {
   let fields = { "type": self.kind.to_json() }
-  match self.name {
-    Some(name) => fields["name"] = name.to_json()
-    None => ()
+  if self.name is Some(name) {
+    fields["name"] = name.to_json()
   }
-  match self.path {
-    Some(path) => fields["path"] = path.to_json()
-    None => ()
+  if self.path is Some(path) {
+    fields["path"] = path.to_json()
   }
   Json::object(fields)
 }

@@ -12,9 +12,9 @@ async test "workspace snapshot stores archive as file metadata" {
   ensure_dir("\{workspace}/.mooncakes/cache")
   safe_write_string("\{workspace}/main.mbt", "fn main { println(\"ok\") }\n")
   safe_write_string("\{workspace}/.mooncakes/cache/tool.cache", "cache")
-  match snapshot_workspace(store, root, "project-snapshot", workspace) {
-    Ok(_) => ignore(())
-    Err(message) => abort(message)
+  if snapshot_workspace(store, root, "project-snapshot", workspace)
+    is Err(message) {
+    abort(message)
   }
   let archive_column = match
     store.column_exists("project_workspace_snapshots", "archive") {
@@ -42,9 +42,9 @@ async test "workspace snapshot stores archive as file metadata" {
     fail("expected non-empty workspace snapshot archive")
   }
   safe_remove_tree(workspace)
-  match restore_workspace_snapshot(store, root, "project-snapshot", workspace) {
-    Ok(_) => ignore(())
-    Err(message) => abort(message)
+  if restore_workspace_snapshot(store, root, "project-snapshot", workspace)
+    is Err(message) {
+    abort(message)
   }
   if !@fs.path_exists("\{workspace}/main.mbt") {
     fail("expected restored source file")

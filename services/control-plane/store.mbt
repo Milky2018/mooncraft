@@ -1241,13 +1241,11 @@ async fn Store::drop_column_if_exists(
 async fn Store::migrate_runtime_protocol_columns(
   self : Store,
 ) -> Result[Unit, String] noraise {
-  match self.drop_column_if_exists("projects", "template_id") {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
+  if self.drop_column_if_exists("projects", "template_id") is Err(message) {
+    return Err(message)
   }
-  match self.drop_column_if_exists("projects", "template_version") {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
+  if self.drop_column_if_exists("projects", "template_version") is Err(message) {
+    return Err(message)
   }
   match self.column_exists("projects", "codex_thread_id") {
     Ok(true) => {
@@ -1265,9 +1263,9 @@ async fn Store::migrate_runtime_protocol_columns(
         Ok(_) => ignore(())
         Err(message) => return Err(message)
       }
-      match self.drop_column_if_exists("projects", "codex_thread_id") {
-        Ok(_) => ignore(())
-        Err(message) => return Err(message)
+      if self.drop_column_if_exists("projects", "codex_thread_id")
+        is Err(message) {
+        return Err(message)
       }
     }
     Ok(false) => ignore(())
@@ -1289,9 +1287,8 @@ async fn Store::migrate_runtime_protocol_columns(
         Ok(_) => ignore(())
         Err(message) => return Err(message)
       }
-      match self.drop_column_if_exists("runs", "codex_log_path") {
-        Ok(_) => ignore(())
-        Err(message) => return Err(message)
+      if self.drop_column_if_exists("runs", "codex_log_path") is Err(message) {
+        return Err(message)
       }
     }
     Ok(false) => ignore(())
@@ -1374,9 +1371,9 @@ async fn Store::is_available(self : Store) -> Bool noraise {
 ///|
 async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
   if self.backend is SQLite {
-    match self.exec_or_error("PRAGMA journal_mode=WAL;", "enable WAL mode") {
-      Ok(_) => ignore(())
-      Err(message) => return Err(message)
+    if self.exec_or_error("PRAGMA journal_mode=WAL;", "enable WAL mode")
+      is Err(message) {
+      return Err(message)
     }
     match
       self.exec_or_error(
@@ -1411,9 +1408,8 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
-  match self.ensure_column("users", "email_verified_at", "TEXT") {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
+  if self.ensure_column("users", "email_verified_at", "TEXT") is Err(message) {
+    return Err(message)
   }
   match
     self.exec_or_error(
@@ -1553,9 +1549,9 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
-  match self.drop_column_if_exists("project_workspace_snapshots", "archive") {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
+  if self.drop_column_if_exists("project_workspace_snapshots", "archive")
+    is Err(message) {
+    return Err(message)
   }
   match
     self.exec_or_error(
@@ -1593,13 +1589,13 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
-  match self.ensure_column("projects", "initial_project_prompt", "TEXT") {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
+  if self.ensure_column("projects", "initial_project_prompt", "TEXT")
+    is Err(message) {
+    return Err(message)
   }
-  match self.ensure_column("projects", "ai_model", "TEXT NOT NULL DEFAULT ''") {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
+  if self.ensure_column("projects", "ai_model", "TEXT NOT NULL DEFAULT ''")
+    is Err(message) {
+    return Err(message)
   }
   match
     self.ensure_column("projects", "agent_cli", "TEXT NOT NULL DEFAULT ''") {
@@ -1632,13 +1628,12 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
-  match self.ensure_column("projects", "runtime_session_id", "TEXT") {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
+  if self.ensure_column("projects", "runtime_session_id", "TEXT")
+    is Err(message) {
+    return Err(message)
   }
-  match self.backfill_initial_project_prompts() {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
+  if self.backfill_initial_project_prompts() is Err(message) {
+    return Err(message)
   }
   match
     self.exec_or_error(
@@ -1668,37 +1663,29 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
-  match self.ensure_column("runs", "failure_stage", "TEXT") {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
+  if self.ensure_column("runs", "failure_stage", "TEXT") is Err(message) {
+    return Err(message)
   }
-  match self.ensure_column("runs", "failure_command", "TEXT") {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
+  if self.ensure_column("runs", "failure_command", "TEXT") is Err(message) {
+    return Err(message)
   }
-  match self.ensure_column("runs", "failure_exit_code", "INTEGER") {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
+  if self.ensure_column("runs", "failure_exit_code", "INTEGER") is Err(message) {
+    return Err(message)
   }
-  match self.ensure_column("runs", "runtime_log_path", "TEXT") {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
+  if self.ensure_column("runs", "runtime_log_path", "TEXT") is Err(message) {
+    return Err(message)
   }
-  match self.migrate_runtime_protocol_columns() {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
+  if self.migrate_runtime_protocol_columns() is Err(message) {
+    return Err(message)
   }
-  match self.ensure_column("runs", "validation_log_path", "TEXT") {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
+  if self.ensure_column("runs", "validation_log_path", "TEXT") is Err(message) {
+    return Err(message)
   }
-  match self.ensure_column("runs", "final_summary_path", "TEXT") {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
+  if self.ensure_column("runs", "final_summary_path", "TEXT") is Err(message) {
+    return Err(message)
   }
-  match self.ensure_column("runs", "worker_pid", "INTEGER") {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
+  if self.ensure_column("runs", "worker_pid", "INTEGER") is Err(message) {
+    return Err(message)
   }
   match
     self.exec_or_error(
@@ -1762,9 +1749,9 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
-  match self.ensure_column("runs", "phase", "TEXT NOT NULL DEFAULT 'none'") {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
+  if self.ensure_column("runs", "phase", "TEXT NOT NULL DEFAULT 'none'")
+    is Err(message) {
+    return Err(message)
   }
   match
     self.exec_or_error(
@@ -1786,9 +1773,9 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
-  match self.ensure_column("run_events", "code", "TEXT NOT NULL DEFAULT ''") {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
+  if self.ensure_column("run_events", "code", "TEXT NOT NULL DEFAULT ''")
+    is Err(message) {
+    return Err(message)
   }
   match
     self.exec_or_error(
@@ -1896,9 +1883,8 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
-  match self.ensure_agent_runtime_tables() {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
+  if self.ensure_agent_runtime_tables() is Err(message) {
+    return Err(message)
   }
   Ok(())
 }
@@ -2822,9 +2808,8 @@ async fn Store::start_run(
   let run_id = next_id("run")
   let message_id = next_id("message")
   let now = now_string()
-  match self.begin_transaction("start run") {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
+  if self.begin_transaction("start run") is Err(message) {
+    return Err(message)
   }
   match
     self.exec_or_error(
@@ -2927,10 +2912,8 @@ async fn Store::start_run(
       ),
     )
   }
-  match self.commit_transaction("start run") {
-    Ok(_) => ignore(())
-    Err(message) =>
-      return Err(self.rollback_transaction_error("start run", message))
+  if self.commit_transaction("start run") is Err(message) {
+    return Err(self.rollback_transaction_error("start run", message))
   }
   Ok({
     run_id,
@@ -3430,12 +3413,10 @@ async fn Store::finish_run_success_for_worker(
     ) {
     return
   }
-  match thread_id {
-    Some(value) =>
-      self.save_project_runtime_session_id_for_worker(
-        project_id, run_id, worker_id, attempt, value,
-      )
-    None => ignore(())
+  if thread_id is Some(value) {
+    self.save_project_runtime_session_id_for_worker(
+      project_id, run_id, worker_id, attempt, value,
+    )
   }
   let assistant_message = if summary == "" {
     successful_preview_assistant_message()
@@ -3569,9 +3550,8 @@ async fn Store::finish_run_failure_with_debug(
     _ => return
   }
   let now = now_string()
-  match thread_id {
-    Some(value) => self.save_project_runtime_session_id(project_id, value)
-    None => ignore(())
+  if thread_id is Some(value) {
+    self.save_project_runtime_session_id(project_id, value)
   }
   let message_text = if assistant_message == "" {
     "The change could not be completed. The last working preview is still available."
@@ -3694,12 +3674,10 @@ async fn Store::finish_run_failure_for_worker(
     ) {
     return
   }
-  match thread_id {
-    Some(value) =>
-      self.save_project_runtime_session_id_for_worker(
-        project_id, run_id, worker_id, attempt, value,
-      )
-    None => ignore(())
+  if thread_id is Some(value) {
+    self.save_project_runtime_session_id_for_worker(
+      project_id, run_id, worker_id, attempt, value,
+    )
   }
   let message_text = if assistant_message == "" {
     "The change could not be completed. The last working preview is still available."

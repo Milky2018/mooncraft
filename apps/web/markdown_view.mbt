@@ -251,26 +251,23 @@ fn render_markdown_inline(
   while index < content.length() {
     let mut next_index = content.length()
     let mut marker = None
-    match markdown_find_from(content, "`", index) {
-      Some(found) if found < next_index => {
+    if markdown_find_from(content, "`", index) is Some(found) {
+      if found < next_index {
         next_index = found
         marker = Some("`")
       }
-      _ => ignore(())
     }
-    match markdown_find_from(content, "**", index) {
-      Some(found) if found < next_index => {
+    if markdown_find_from(content, "**", index) is Some(found) {
+      if found < next_index {
         next_index = found
         marker = Some("**")
       }
-      _ => ignore(())
     }
-    match markdown_find_from(content, "*", index) {
-      Some(found) if found < next_index => {
+    if markdown_find_from(content, "*", index) is Some(found) {
+      if found < next_index {
         next_index = found
         marker = Some("*")
       }
-      _ => ignore(())
     }
     match marker {
       None => {

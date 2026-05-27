@@ -79,9 +79,8 @@ async test "agent home is normalized after auth creates new directories" {
     ..test_runtime_config(),
     secrets: [{ env: None, file: Some(".codex/auth.json"), value: "{}" }],
   }
-  match materialize_runtime_file_secrets(config, agent_home_path) {
-    Ok(_) => ()
-    Err(message) => fail(message)
+  if materialize_runtime_file_secrets(config, agent_home_path) is Err(message) {
+    fail(message)
   }
   let codex_home = "\{agent_home_path}/.codex"
   // Simulate a host-created auth directory that is not writable by the

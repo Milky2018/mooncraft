@@ -79,9 +79,8 @@ fn openrouter_models_from_response(
         Some(Array(values)) => {
           let models : Array[@sdk.AdminAiModelSummary] = []
           for value in values {
-            match openrouter_model_from_json(value) {
-              Some(model) => models.push(model)
-              None => ignore(())
+            if openrouter_model_from_json(value) is Some(model) {
+              models.push(model)
             }
           }
           if models.length() == 0 {

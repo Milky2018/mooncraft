@@ -69,11 +69,8 @@ fn runtime_service_env_file_content(spec : RuntimeServiceSpec) -> String {
     content <+ "\{docker_env_value(key)}=\{docker_env_value(value)}\n"
   }
   for secret in spec.secrets {
-    match secret.env {
-      Some(env) =>
-        content <+
-          "\{docker_env_value(env)}=\{docker_env_value(secret.value)}\n"
-      None => ()
+    if secret.env is Some(env) {
+      content <+ "\{docker_env_value(env)}=\{docker_env_value(secret.value)}\n"
     }
   }
   content.to_string()
@@ -114,20 +111,17 @@ fn materialize_runtime_service_file_secrets(
   safe_remove_tree(secret_dir)
   let mut wrote_file = false
   for secret in spec.secrets {
-    match secret.file {
-      Some(file) => {
-        let relative_path = match @sdk.validate_runtime_secret_file_path(file) {
-          Ok(path) => path
-          Err(message) => return Err(message)
-        }
-        let target = "\{secret_dir}/\{relative_path}"
-        ensure_dir(parent_dir(target))
-        @fs.write_string_to_file(target, secret.value) catch {
-          err => return Err("Runtime secret file could not be written: \{err}")
-        }
-        wrote_file = true
+    if secret.file is Some(file) {
+      let relative_path = match @sdk.validate_runtime_secret_file_path(file) {
+        Ok(path) => path
+        Err(message) => return Err(message)
       }
-      None => ()
+      let target = "\{secret_dir}/\{relative_path}"
+      ensure_dir(parent_dir(target))
+      @fs.write_string_to_file(target, secret.value) catch {
+        err => return Err("Runtime secret file could not be written: \{err}")
+      }
+      wrote_file = true
     }
   }
   if wrote_file {
@@ -185,18 +179,15 @@ async fn ensure_runtime_service_network(
       return Err("Runtime Docker network could not be created: \{network_name}")
     }
   }
-  match @env.get_env_var("HOSTNAME") {
-    Some(hostname) => {
-      let container_id = hostname.trim().to_owned()
-      if container_id != "" && @fs.path_exists("/.dockerenv") {
-        ignore(
-          run_process_quiet("docker", [
-            "network", "connect", network_name, container_id,
-          ]),
-        )
-      }
+  if @env.get_env_var("HOSTNAME") is Some(hostname) {
+    let container_id = hostname.trim().to_owned()
+    if container_id != "" && @fs.path_exists("/.dockerenv") {
+      ignore(
+        run_process_quiet("docker", [
+          "network", "connect", network_name, container_id,
+        ]),
+      )
     }
-    None => ()
   }
   Ok(())
 }
@@ -297,29 +288,27 @@ async fn create_runtime_service_container(
       return Err(message)
     }
   }
-  match secret_dir {
-    Some(path) =>
-      match
-        collect_process_text("docker", [
-          "cp",
-          "\{path}/.",
-          "\{spec.container_name}:\{agent_container_home_dir()}/",
-        ]) {
-        Ok((0, _)) => ()
-        Ok((_, output)) => {
-          remove_docker_env_file(env_file_path)
-          safe_remove_tree(runtime_service_secret_dir(root, spec.project_id))
-          return Err(
-            "Runtime file secrets could not be copied into the home volume: \{tail_text(output, 800)}",
-          )
-        }
-        Err(message) => {
-          remove_docker_env_file(env_file_path)
-          safe_remove_tree(runtime_service_secret_dir(root, spec.project_id))
-          return Err(message)
-        }
+  if secret_dir is Some(path) {
+    match
+      collect_process_text("docker", [
+        "cp",
+        "\{path}/.",
+        "\{spec.container_name}:\{agent_container_home_dir()}/",
+      ]) {
+      Ok((0, _)) => ()
+      Ok((_, output)) => {
+        remove_docker_env_file(env_file_path)
+        safe_remove_tree(runtime_service_secret_dir(root, spec.project_id))
+        return Err(
+          "Runtime file secrets could not be copied into the home volume: \{tail_text(output, 800)}",
+        )
       }
-    None => ()
+      Err(message) => {
+        remove_docker_env_file(env_file_path)
+        safe_remove_tree(runtime_service_secret_dir(root, spec.project_id))
+        return Err(message)
+      }
+    }
   }
   safe_remove_tree(runtime_service_secret_dir(root, spec.project_id))
   let started = match
@@ -359,13 +348,11 @@ async fn RuntimeGateway::ensure_project_runtime_service(
     Ok(spec) => spec
     Err(message) => return Err(message)
   }
-  match ensure_runtime_service_network(spec.network_name) {
-    Ok(_) => ()
-    Err(message) => return Err(message)
+  if ensure_runtime_service_network(spec.network_name) is Err(message) {
+    return Err(message)
   }
-  match ensure_runtime_service_volumes(spec) {
-    Ok(_) => ()
-    Err(message) => return Err(message)
+  if ensure_runtime_service_volumes(spec) is Err(message) {
+    return Err(message)
   }
   match
     store.upsert_runtime_service_record(
@@ -391,23 +378,19 @@ async fn RuntimeGateway::ensure_project_runtime_service(
     )
     return Ok(runtime_service_endpoint(spec.container_name))
   }
-  match create_runtime_service_container(self.root, spec) {
-    Ok(_) => ()
-    Err(message) => return Err(message)
+  if create_runtime_service_container(self.root, spec) is Err(message) {
+    return Err(message)
   }
-  match wait_runtime_service_health(spec.container_name) {
-    Ok(_) => ()
-    Err(message) => {
-      ignore(run_process_quiet("docker", ["rm", "-f", spec.container_name]))
-      ignore(
-        store.set_runtime_service_state(
-          project_id,
-          runtime_service_state_stopped(),
-          None,
-        ),
-      )
-      return Err(message)
-    }
+  if wait_runtime_service_health(spec.container_name) is Err(message) {
+    ignore(run_process_quiet("docker", ["rm", "-f", spec.container_name]))
+    ignore(
+      store.set_runtime_service_state(
+        project_id,
+        runtime_service_state_stopped(),
+        None,
+      ),
+    )
+    return Err(message)
   }
   match
     store.set_runtime_service_state(

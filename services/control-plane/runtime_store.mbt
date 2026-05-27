@@ -52,18 +52,15 @@ async fn Store::delete_invalid_agent_runtime_rows(
   )
   for row in rows {
     let id = row_text(row, "id")
-    match @sdk.runtime_spec_from_json(row_text(row, "spec_json")) {
-      Ok(_) => ()
-      Err(_) =>
-        match
-          self.exec_or_error(
-            "DELETE FROM agent_runtimes WHERE id = ?;",
-            "delete invalid agent runtime",
-            params=[String(id)],
-          ) {
-          Ok(_) => ()
-          Err(message) => return Err(message)
-        }
+    if @sdk.runtime_spec_from_json(row_text(row, "spec_json")) is Err(_) {
+      if self.exec_or_error(
+          "DELETE FROM agent_runtimes WHERE id = ?;",
+          "delete invalid agent runtime",
+          params=[String(id)],
+        )
+        is Err(message) {
+        return Err(message)
+      }
     }
   }
   Ok(())
@@ -162,17 +159,14 @@ async fn Store::ensure_agent_runtime_tables(
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
-  match self.delete_retired_seed_runtime_rows() {
-    Ok(_) => ()
-    Err(message) => return Err(message)
+  if self.delete_retired_seed_runtime_rows() is Err(message) {
+    return Err(message)
   }
-  match self.delete_invalid_agent_runtime_rows() {
-    Ok(_) => ()
-    Err(message) => return Err(message)
+  if self.delete_invalid_agent_runtime_rows() is Err(message) {
+    return Err(message)
   }
-  match self.ensure_agent_runtime_default() {
-    Ok(_) => ()
-    Err(message) => return Err(message)
+  if self.ensure_agent_runtime_default() is Err(message) {
+    return Err(message)
   }
   Ok(())
 }

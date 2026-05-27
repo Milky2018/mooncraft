@@ -95,13 +95,11 @@ async fn PreviewManager::remove_project_runtime(
   project_id : String,
   preview : @sdk.PreviewTarget?,
 ) -> Unit noraise {
-  match self.runtimes.get(project_id) {
-    Some(runtime) => self.stop_port(runtime.port)
-    None => ignore(())
+  if self.runtimes.get(project_id) is Some(runtime) {
+    self.stop_port(runtime.port)
   }
-  match preview {
-    Some(target) => self.stop_port(target.port)
-    None => ignore(())
+  if preview is Some(target) {
+    self.stop_port(target.port)
   }
   ignore(self.runtimes.remove(project_id))
 }

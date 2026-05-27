@@ -30,9 +30,8 @@ async fn AppContext::materialize_project_workspace(
   project : @sdk.ProjectDetail,
 ) -> Result[Unit, String] noraise {
   let workspace_path = project_workspace(self.root, project.id)
-  match create_empty_project_workspace(workspace_path) {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
+  if create_empty_project_workspace(workspace_path) is Err(message) {
+    return Err(message)
   }
   match snapshot_workspace(self.store, self.root, project.id, workspace_path) {
     Ok(_) => Ok(())

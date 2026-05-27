@@ -151,15 +151,12 @@ async fn Store::update_admin_ai_config(
 async fn Store::get_openrouter_model_catalog_api_key(
   self : Store,
 ) -> Result[String, String] noraise {
-  match
-    self.get_admin_secret_record_by_name(default_openrouter_secret_source()) {
-    Some(record) => {
-      let value = record.value.trim().to_owned()
-      if value != "" {
-        return Ok(value)
-      }
+  if self.get_admin_secret_record_by_name(default_openrouter_secret_source())
+    is Some(record) {
+    let value = record.value.trim().to_owned()
+    if value != "" {
+      return Ok(value)
     }
-    None => ignore(())
   }
   Err("Create the mooncraft_ai_api_key Secret before loading provider models.")
 }

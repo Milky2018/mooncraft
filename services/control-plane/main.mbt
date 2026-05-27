@@ -546,21 +546,15 @@ fn proxy_method(http_method_name : String) -> @mocket.HttpMethod {
 ///|
 fn proxy_request_headers(event : @mocket.MocketEvent) -> Map[String, String] {
   let headers : Map[String, String] = {}
-  match event.req.headers.get("Content-Type") {
-    Some(value) => headers["Content-Type"] = value.to_owned()
-    None =>
-      match event.req.headers.get("content-type") {
-        Some(value) => headers["Content-Type"] = value.to_owned()
-        None => ignore(())
-      }
+  if event.req.headers.get("Content-Type") is Some(value) {
+    headers["Content-Type"] = value.to_owned()
+  } else if event.req.headers.get("content-type") is Some(value) {
+    headers["Content-Type"] = value.to_owned()
   }
-  match event.req.headers.get("Accept") {
-    Some(value) => headers["Accept"] = value.to_owned()
-    None =>
-      match event.req.headers.get("accept") {
-        Some(value) => headers["Accept"] = value.to_owned()
-        None => ignore(())
-      }
+  if event.req.headers.get("Accept") is Some(value) {
+    headers["Accept"] = value.to_owned()
+  } else if event.req.headers.get("accept") is Some(value) {
+    headers["Accept"] = value.to_owned()
   }
   headers
 }
@@ -570,21 +564,15 @@ fn proxy_response_headers(
   response : @mocket.HttpResponse,
 ) -> Map[StringView, StringView] {
   let headers : Map[StringView, StringView] = {}
-  match response.headers.get("Content-Type") {
-    Some(value) => headers["Content-Type"] = value
-    None =>
-      match response.headers.get("content-type") {
-        Some(value) => headers["Content-Type"] = value
-        None => ignore(())
-      }
+  if response.headers.get("Content-Type") is Some(value) {
+    headers["Content-Type"] = value
+  } else if response.headers.get("content-type") is Some(value) {
+    headers["Content-Type"] = value
   }
-  match response.headers.get("Location") {
-    Some(value) => headers["Location"] = value
-    None =>
-      match response.headers.get("location") {
-        Some(value) => headers["Location"] = value
-        None => ignore(())
-      }
+  if response.headers.get("Location") is Some(value) {
+    headers["Location"] = value
+  } else if response.headers.get("location") is Some(value) {
+    headers["Location"] = value
   }
   headers
 }
@@ -1037,9 +1025,8 @@ fn main {
     json_ok(session_status_response(ctx, event))
   })
   app.get(@sdk.admin_run_logs_route().path_pattern, async fn(event) noraise {
-    match require_admin_token(event) {
-      Ok(_) => ignore(())
-      Err(response) => return response
+    if require_admin_token(event) is Err(response) {
+      return response
     }
     let run_id = match path_param(event, "run_id") {
       Ok(value) => value
@@ -1051,18 +1038,16 @@ fn main {
     }
   })
   app.get(@sdk.admin_recent_runs_route().path_pattern, event => {
-    match require_admin_token(event) {
-      Ok(_) => ignore(())
-      Err(response) => return response
+    if require_admin_token(event) is Err(response) {
+      return response
     }
     json_ok(@sdk.AdminListRunsResponse::{
       items: ctx.store.list_recent_runs(admin_limit_param(event)),
     })
   })
   app.get(@sdk.admin_run_route().path_pattern, event => {
-    match require_admin_token(event) {
-      Ok(_) => ignore(())
-      Err(response) => return response
+    if require_admin_token(event) is Err(response) {
+      return response
     }
     let run_id = match path_param(event, "run_id") {
       Ok(value) => value
@@ -1074,9 +1059,8 @@ fn main {
     }
   })
   app.get(@sdk.admin_run_events_route().path_pattern, event => {
-    match require_admin_token(event) {
-      Ok(_) => ignore(())
-      Err(response) => return response
+    if require_admin_token(event) is Err(response) {
+      return response
     }
     let run_id = match path_param(event, "run_id") {
       Ok(value) => value
@@ -1095,9 +1079,8 @@ fn main {
     })
   })
   app.get(@sdk.admin_recent_projects_route().path_pattern, event => {
-    match require_admin_token(event) {
-      Ok(_) => ignore(())
-      Err(response) => return response
+    if require_admin_token(event) is Err(response) {
+      return response
     }
     json_ok(@sdk.AdminListProjectsResponse::{
       items: ctx.store.list_recent_admin_project_summaries(
@@ -1106,18 +1089,16 @@ fn main {
     })
   })
   app.get(@sdk.admin_users_route().path_pattern, event => {
-    match require_admin_token(event) {
-      Ok(_) => ignore(())
-      Err(response) => return response
+    if require_admin_token(event) is Err(response) {
+      return response
     }
     json_ok(@sdk.AdminListUsersResponse::{
       items: ctx.store.list_admin_users(admin_limit_param(event)),
     })
   })
   app.get(@sdk.admin_user_route().path_pattern, event => {
-    match require_admin_token(event) {
-      Ok(_) => ignore(())
-      Err(response) => return response
+    if require_admin_token(event) is Err(response) {
+      return response
     }
     let user_id = match path_param(event, "user_id") {
       Ok(value) => value
@@ -1135,9 +1116,8 @@ fn main {
     }
   })
   app.get(@sdk.admin_user_projects_route().path_pattern, event => {
-    match require_admin_token(event) {
-      Ok(_) => ignore(())
-      Err(response) => return response
+    if require_admin_token(event) is Err(response) {
+      return response
     }
     let user_id = match path_param(event, "user_id") {
       Ok(value) => value
@@ -1153,9 +1133,8 @@ fn main {
     }
   })
   app.get(@sdk.admin_project_route().path_pattern, async fn(event) noraise {
-    match require_admin_token(event) {
-      Ok(_) => ignore(())
-      Err(response) => return response
+    if require_admin_token(event) is Err(response) {
+      return response
     }
     let project_id = match path_param(event, "project_id") {
       Ok(value) => value
@@ -1169,9 +1148,8 @@ fn main {
   app.get(@sdk.admin_project_messages_route().path_pattern, async fn(
     event,
   ) noraise {
-    match require_admin_token(event) {
-      Ok(_) => ignore(())
-      Err(response) => return response
+    if require_admin_token(event) is Err(response) {
+      return response
     }
     let project_id = match path_param(event, "project_id") {
       Ok(value) => value
@@ -1189,9 +1167,8 @@ fn main {
   app.delete(@sdk.delete_admin_project_route().path_pattern, async fn(
     event,
   ) noraise {
-    match require_admin_token(event) {
-      Ok(_) => ignore(())
-      Err(response) => return response
+    if require_admin_token(event) is Err(response) {
+      return response
     }
     let project_id = match path_param(event, "project_id") {
       Ok(value) => value
@@ -1208,10 +1185,10 @@ fn main {
     }
   })
   app.post(@sdk.logout_path(), async fn(event) noraise {
-    match event.req.get_cookie(session_cookie_name) {
-      Some(cookie) if cookie.value != "" =>
+    if event.req.get_cookie(session_cookie_name) is Some(cookie) {
+      if cookie.value != "" {
         ctx.store.delete_session(session_token_hash(cookie.value))
-      _ => ignore(())
+      }
     }
     clear_session_cookie(event.res)
     json_no_content()
@@ -1238,9 +1215,8 @@ fn main {
     }
   })
   app.post(@sdk.admin_secrets_path(), async fn(event) noraise {
-    match require_admin_token(event) {
-      Ok(_) => ignore(())
-      Err(response) => return response
+    if require_admin_token(event) is Err(response) {
+      return response
     }
     let request : @sdk.CreateAdminSecretRequest = match
       decode_json_body(event) {
@@ -1254,9 +1230,8 @@ fn main {
     }
   })
   app.patch(@sdk.admin_secret_route().path_pattern, async fn(event) noraise {
-    match require_admin_token(event) {
-      Ok(_) => ignore(())
-      Err(response) => return response
+    if require_admin_token(event) is Err(response) {
+      return response
     }
     let id = match path_param(event, "id") {
       Ok(id) => id
@@ -1274,9 +1249,8 @@ fn main {
     }
   })
   app.delete(@sdk.admin_secret_route().path_pattern, async fn(event) noraise {
-    match require_admin_token(event) {
-      Ok(_) => ignore(())
-      Err(response) => return response
+    if require_admin_token(event) is Err(response) {
+      return response
     }
     let id = match path_param(event, "id") {
       Ok(id) => id
@@ -1295,9 +1269,8 @@ fn main {
     }
   })
   app.get(@sdk.admin_ai_models_path(), async fn(event) noraise {
-    match require_admin_token(event) {
-      Ok(_) => ignore(())
-      Err(response) => return response
+    if require_admin_token(event) is Err(response) {
+      return response
     }
     match ctx.fetch_openrouter_models() {
       Ok(response) => json_ok(response)
@@ -1306,9 +1279,8 @@ fn main {
     }
   })
   app.get(@sdk.ai_models_path(), async fn(event) noraise {
-    match require_session_user(ctx, event) {
-      Ok(_) => ignore(())
-      Err(response) => return response
+    if require_session_user(ctx, event) is Err(response) {
+      return response
     }
     let config = ctx.store.get_admin_ai_config()
     match ctx.fetch_openrouter_models() {
@@ -1326,9 +1298,8 @@ fn main {
     }
   })
   app.get(@sdk.runtimes_path(), async fn(event) noraise {
-    match require_session_user(ctx, event) {
-      Ok(_) => ignore(())
-      Err(response) => return response
+    if require_session_user(ctx, event) is Err(response) {
+      return response
     }
     let default_runtime_id = match ctx.store.get_default_runtime_id() {
       Ok(id) => id
@@ -1346,9 +1317,8 @@ fn main {
     json_ok(@sdk.ListRuntimesResponse::{ default_runtime_id, items })
   })
   app.get(@sdk.admin_runtimes_path(), async fn(event) noraise {
-    match require_admin_token(event) {
-      Ok(_) => ignore(())
-      Err(response) => return response
+    if require_admin_token(event) is Err(response) {
+      return response
     }
     let default_runtime_id = match ctx.store.get_default_runtime_id() {
       Ok(id) => id
@@ -1366,9 +1336,8 @@ fn main {
     json_ok(@sdk.AdminListRuntimesResponse::{ default_runtime_id, items })
   })
   app.post(@sdk.admin_runtimes_path(), async fn(event) noraise {
-    match require_admin_token(event) {
-      Ok(_) => ignore(())
-      Err(response) => return response
+    if require_admin_token(event) is Err(response) {
+      return response
     }
     let request : @sdk.CreateAdminRuntimeRequest = match
       decode_json_body(event) {
@@ -1390,9 +1359,8 @@ fn main {
     }
   })
   app.put(@sdk.admin_runtime_route().path_pattern, async fn(event) noraise {
-    match require_admin_token(event) {
-      Ok(_) => ignore(())
-      Err(response) => return response
+    if require_admin_token(event) is Err(response) {
+      return response
     }
     let runtime_id = match path_param(event, "id") {
       Ok(value) => value
@@ -1417,9 +1385,8 @@ fn main {
     }
   })
   app.put(@sdk.admin_ai_config_path(), async fn(event) noraise {
-    match require_admin_token(event) {
-      Ok(_) => ignore(())
-      Err(response) => return response
+    if require_admin_token(event) is Err(response) {
+      return response
     }
     let request : @sdk.UpdateAdminAiConfigRequest = match
       decode_json_body(event) {

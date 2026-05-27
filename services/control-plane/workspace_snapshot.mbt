@@ -56,14 +56,11 @@ async fn file_size_bytes(path : String) -> Result[String, String] noraise {
 
 ///|
 async fn file_sha256(path : String) -> Result[String, String] noraise {
-  match collect_process_text("sha256sum", [path]) {
-    Ok((0, output)) => {
-      let checksum = first_shell_field(output)
-      if checksum != "" {
-        return Ok(checksum)
-      }
+  if collect_process_text("sha256sum", [path]) is Ok((0, output)) {
+    let checksum = first_shell_field(output)
+    if checksum != "" {
+      return Ok(checksum)
     }
-    _ => ignore(())
   }
   match collect_process_text("shasum", ["-a", "256", path]) {
     Ok((0, output)) => {

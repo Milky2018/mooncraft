@@ -378,9 +378,8 @@ async test "start run rolls back partial writes when project update fails" {
     Ok(_) => ignore(())
     Err(message) => abort(message)
   }
-  match store.start_run("project-start-rollback", "Build something") {
-    Ok(_) => fail("Expected start_run to fail when project update fails.")
-    Err(_) => ignore(())
+  if store.start_run("project-start-rollback", "Build something") is Ok(_) {
+    fail("Expected start_run to fail when project update fails.")
   }
   inspect(store.list_messages("project-start-rollback").length(), content="0")
   inspect(

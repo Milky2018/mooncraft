@@ -181,19 +181,16 @@ fn normalize_runtime_secrets(
       Ok(target) => target
       Err(message) => return Err(message)
     }
-    match target.name {
-      Some(name) => {
-        if env.contains(name) {
-          return Err(
-            "Runtime env '\{name}' must not duplicate a secret env target.",
-          )
-        }
-        if secret_env_targets.contains(name) {
-          return Err("Runtime secret env target is duplicated: \{name}")
-        }
-        secret_env_targets[name] = true
+    if target.name is Some(name) {
+      if env.contains(name) {
+        return Err(
+          "Runtime env '\{name}' must not duplicate a secret env target.",
+        )
       }
-      None => ()
+      if secret_env_targets.contains(name) {
+        return Err("Runtime secret env target is duplicated: \{name}")
+      }
+      secret_env_targets[name] = true
     }
     normalized.push({ source, target })
   }
@@ -252,9 +249,8 @@ pub fn runtime_spec_from_json(text : String) -> Result[RuntimeSpec, String] {
           }
         Err(message) => return Err(message)
       }
-      match runtime_spec_allowed_fields(fields) {
-        Ok(_) => ()
-        Err(message) => return Err(message)
+      if runtime_spec_allowed_fields(fields) is Err(message) {
+        return Err(message)
       }
       let spec : RuntimeSpec = @json.from_json(parsed) catch {
         err => return Err("Runtime spec does not match Protocol v3: \{err}")

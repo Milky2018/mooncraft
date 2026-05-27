@@ -26,9 +26,8 @@ async test "runtime seeding allows an empty built-in catalog" {
       "agent-runtime-custom-test", "Custom", spec_json, true, false,
     ),
   )
-  match store.ensure_agent_runtime_tables() {
-    Ok(_) => ()
-    Err(message) => abort(message)
+  if store.ensure_agent_runtime_tables() is Err(message) {
+    abort(message)
   }
   let custom = store.get_runtime_detail("agent-runtime-custom-test").unwrap()
   inspect(custom is Some(_), content="true")

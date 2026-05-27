@@ -18,13 +18,10 @@ fn pick_selected_project_id(
 
 ///|
 fn active_run(model : Model) -> @sdk.RunStatusResponse? {
-  match model.run_status {
-    Some(run) =>
-      if run.state is Running &&
-        model.selected_project_id == Some(run.project_id) {
-        return Some(run)
-      }
-    _ => ignore(())
+  if model.run_status is Some(run) {
+    if run.state is Running && model.selected_project_id == Some(run.project_id) {
+      return Some(run)
+    }
   }
   match model.project_detail {
     Some(project) =>

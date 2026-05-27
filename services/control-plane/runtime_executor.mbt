@@ -160,11 +160,8 @@ fn docker_env_file_content(config : AgentRuntimeConfig) -> String {
     content <+ "\{docker_env_value(key)}=\{docker_env_value(value)}\n"
   }
   for secret in config.secrets {
-    match secret.env {
-      Some(env) =>
-        content <+
-          "\{docker_env_value(env)}=\{docker_env_value(secret.value)}\n"
-      None => ()
+    if secret.env is Some(env) {
+      content <+ "\{docker_env_value(env)}=\{docker_env_value(secret.value)}\n"
     }
   }
   content.to_string()
@@ -193,22 +190,19 @@ async fn materialize_runtime_file_secrets(
   agent_home_path : String,
 ) -> Result[Unit, String] noraise {
   for secret in config.secrets {
-    match secret.file {
-      Some(file) => {
-        let relative_path = match @sdk.validate_runtime_secret_file_path(file) {
-          Ok(path) => path
-          Err(message) => return Err(message)
-        }
-        let target = "\{agent_home_path}/\{relative_path}"
-        ensure_dir(parent_dir(target))
-        @fs.write_string_to_file(target, secret.value) catch {
-          err => return Err("Runtime secret file could not be written: \{err}")
-        }
-        if run_process_quiet("chmod", ["a+rw", target]) != 0 {
-          return Err("Runtime secret file permissions could not be updated.")
-        }
+    if secret.file is Some(file) {
+      let relative_path = match @sdk.validate_runtime_secret_file_path(file) {
+        Ok(path) => path
+        Err(message) => return Err(message)
       }
-      None => ()
+      let target = "\{agent_home_path}/\{relative_path}"
+      ensure_dir(parent_dir(target))
+      @fs.write_string_to_file(target, secret.value) catch {
+        err => return Err("Runtime secret file could not be written: \{err}")
+      }
+      if run_process_quiet("chmod", ["a+rw", target]) != 0 {
+        return Err("Runtime secret file permissions could not be updated.")
+      }
     }
   }
   Ok(())
@@ -295,9 +289,8 @@ async fn prepare_agent_mounts(
   agent_home_path : String?,
   artifacts : RunArtifacts,
 ) -> Unit noraise {
-  match agent_home_path {
-    Some(path) => prepare_agent_mount_path(path)
-    None => ()
+  if agent_home_path is Some(path) {
+    prepare_agent_mount_path(path)
   }
   prepare_agent_mount_path(workspace_path)
   prepare_agent_mount_path(artifacts.dir)
@@ -489,18 +482,16 @@ async fn append_runtime_display_event(
   attempt : Int,
   line : String,
 ) -> Unit noraise {
-  match runtime_display_event(line) {
-    Some(event) =>
-      store.append_worker_run_event(
-        project_id,
-        run_id,
-        worker_id,
-        attempt,
-        event.kind,
-        event.code,
-        event.content,
-      )
-    None => ignore(())
+  if runtime_display_event(line) is Some(event) {
+    store.append_worker_run_event(
+      project_id,
+      run_id,
+      worker_id,
+      attempt,
+      event.kind,
+      event.code,
+      event.content,
+    )
   }
 }
 
@@ -812,12 +803,9 @@ async fn stream_docker_output(
     @sdk.run_event_code_builder_auth_preparing(),
     "Preparing builder authentication.",
   )
-  match materialize_runtime_file_secrets(config, agent_home_path) {
-    Ok(_) => ignore(())
-    Err(message) => {
-      remove_docker_env_file(env_file_path)
-      return Err(message)
-    }
+  if materialize_runtime_file_secrets(config, agent_home_path) is Err(message) {
+    remove_docker_env_file(env_file_path)
+    return Err(message)
   }
   // Auth materialization can create fresh subdirectories after the initial mount chmod.
   prepare_agent_mount_path(agent_home_path)
@@ -1067,9 +1055,8 @@ async fn run_runtime_turn(
     output,
   )
   let mut thread_id = thread_id_before
-  match extract_runtime_session_id(output) {
-    Some(runtime_session_id) => thread_id = Some(runtime_session_id)
-    None => ()
+  if extract_runtime_session_id(output) is Some(runtime_session_id) {
+    thread_id = Some(runtime_session_id)
   }
   if thread_id_before is None && thread_id is None {
     return Err(
@@ -1408,20 +1395,16 @@ async fn RuntimeGateway::run_turn(
         )
     }
   }
-  match config {
-    Some(_) =>
-      match self.ensure_project_runtime_service(store, project.id) {
-        Ok(_) => ()
-        Err(message) =>
-          return Err(
-            runtime_failure(
-              "The app builder runtime is not ready. Please retry after the server is updated.",
-              message,
-              project.runtime_session_id,
-            ),
-          )
-      }
-    None => ()
+  if config is Some(_) {
+    if self.ensure_project_runtime_service(store, project.id) is Err(message) {
+      return Err(
+        runtime_failure(
+          "The app builder runtime is not ready. Please retry after the server is updated.",
+          message,
+          project.runtime_session_id,
+        ),
+      )
+    }
   }
   let runtime_result = match
     run_runtime_turn(

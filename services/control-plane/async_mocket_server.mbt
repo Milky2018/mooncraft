@@ -81,21 +81,15 @@ fn mocket_find_route(
   http_method : String,
   path : String,
 ) -> (@mocket.HttpHandler, Map[String, StringView])? {
-  match app.static_routes.get(http_method) {
-    Some(routes) =>
-      match routes.get(path) {
-        Some(handler) => return Some((handler, {}))
-        None => ignore(())
-      }
-    None => ignore(())
+  if app.static_routes.get(http_method) is Some(routes) {
+    if routes.get(path) is Some(handler) {
+      return Some((handler, {}))
+    }
   }
-  match app.static_routes.get("*") {
-    Some(routes) =>
-      match routes.get(path) {
-        Some(handler) => return Some((handler, {}))
-        None => ignore(())
-      }
-    None => ignore(())
+  if app.static_routes.get("*") is Some(routes) {
+    if routes.get(path) is Some(handler) {
+      return Some((handler, {}))
+    }
   }
   if app.dynamic_routes.get(http_method) is Some(routes) {
     for route in routes {

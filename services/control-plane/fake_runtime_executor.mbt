@@ -227,9 +227,8 @@ fn collect_fake_runtime_output(
   let is_resume = fake_runtime_command_is_resume(command)
   let prompt = command[command.length() - 1]
   ensure_dir(fake_runtime_state_dir(root, project.id))
-  match fake_runtime_forced_failure(prompt) {
-    Some(message) => return Ok((1, message, None))
-    None => ignore(())
+  if fake_runtime_forced_failure(prompt) is Some(message) {
+    return Ok((1, message, None))
   }
   if is_resume {
     let runtime_session_id = command[command.length() - 2]
