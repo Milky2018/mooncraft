@@ -67,6 +67,7 @@ struct RuntimeGateway {
 struct RuntimeServiceRecord {
   project_id : String
   container_name : String
+  idle_expires_at : String?
 }
 
 ///|
@@ -74,7 +75,6 @@ struct AppContext {
   root : String
   build_profile : BuildProfile
   store : Store
-  previews : PreviewManager
   runtime_gateway : RuntimeGateway
 }
 
@@ -1325,15 +1325,6 @@ async fn try_new_async(db_path : String) -> Result[Store, String] noraise {
 }
 
 ///|
-fn try_new(db_path : String) -> Result[Store, String] {
-  let result : Ref[Result[Store, String]] = @ref.new(
-    Err("The database was not initialized."),
-  )
-  @async.run_async_main(async fn() { result.val = try_new_async(db_path) })
-  result.val
-}
-
-///|
 async fn Store::is_available(self : Store) -> Bool noraise {
   let result = self.exec_raw("SELECT 1 AS ok;", [])
   result.ok
@@ -1912,6 +1903,7 @@ fn runtime_service_record_from_row(
   {
     project_id: row_text(row, "project_id"),
     container_name: row_text(row, "container_name"),
+    idle_expires_at: empty_to_none(row_text(row, "idle_expires_at")),
   }
 }
 
@@ -1987,6 +1979,28 @@ async fn Store::set_runtime_service_state(
 }
 
 ///|
+async fn Store::get_runtime_service_record(
+  self : Store,
+  project_id : String,
+) -> RuntimeServiceRecord? noraise {
+  match
+    self.query_one(
+      (
+        #|SELECT
+        #|  project_id,
+        #|  container_name,
+        #|  idle_expires_at
+        #|FROM project_runtime_services
+        #|WHERE project_id = ?;
+      ),
+      params=[String(project_id)],
+    ) {
+    Some(row) => Some(runtime_service_record_from_row(row))
+    None => None
+  }
+}
+
+///|
 async fn Store::list_expired_ready_runtime_services(
   self : Store,
 ) -> Array[RuntimeServiceRecord] noraise {
@@ -1994,7 +2008,8 @@ async fn Store::list_expired_ready_runtime_services(
     (
       #|SELECT
       #|  project_id,
-      #|  container_name
+      #|  container_name,
+      #|  idle_expires_at
       #|FROM project_runtime_services
       #|WHERE state = ?
       #|  AND idle_expires_at IS NOT NULL
@@ -3144,12 +3159,9 @@ async fn Store::mark_project_preview_unreachable(
 }
 
 ///|
-async fn Store::set_project_preview_for_worker(
+async fn Store::set_project_preview(
   self : Store,
   project_id : String,
-  run_id : String,
-  worker_id : String,
-  attempt : Int,
   preview : @sdk.PreviewTarget,
 ) -> @sdk.ProjectDetail? noraise {
   let now = now_string()
@@ -3166,21 +3178,9 @@ async fn Store::set_project_preview_for_worker(
         #|  last_preview_healthy = ?,
         #|  last_error = NULL,
         #|  updated_at = ?
-        #|WHERE id = ?
-        #|  AND current_run_id = ?
-        #|  AND EXISTS (
-        #|    SELECT 1
-        #|    FROM run_workers w
-        #|    JOIN runs r ON r.id = w.run_id AND r.project_id = w.project_id
-        #|    WHERE w.project_id = ?
-        #|      AND w.run_id = ?
-        #|      AND w.worker_id = ?
-        #|      AND w.attempt = ?
-        #|      AND w.status = ?
-        #|      AND r.state = ?
-        #|  );
+        #|WHERE id = ?;
       ),
-      "set project preview for worker",
+      "set project preview",
       params=[
         String(preview.url),
         Int(preview.port),
@@ -3190,13 +3190,6 @@ async fn Store::set_project_preview_for_worker(
         Int(bool_to_int(preview.healthy)),
         String(now),
         String(project_id),
-        String(run_id),
-        String(project_id),
-        String(run_id),
-        String(worker_id),
-        Int(attempt),
-        String(run_worker_status_running()),
-        String(run_state_to_db(Running)),
       ],
     ),
   )
@@ -3925,13 +3918,7 @@ async fn AppContext::try_new_for_worker_async(
     Ok(store) => store
     Err(message) => return Err(message)
   }
-  Ok({
-    root,
-    build_profile,
-    store,
-    previews: PreviewManager::new(root),
-    runtime_gateway: new_runtime_gateway(root),
-  })
+  Ok({ root, build_profile, store, runtime_gateway: new_runtime_gateway(root) })
 }
 
 ///|
@@ -3951,7 +3938,7 @@ async fn AppContext::try_new_with_recovery(
     err => return Err("Legacy project workspaces could not be removed: \{err}")
   }
   let db_path = "\{data_dir}/state-v2.sqlite"
-  let store = match try_new(db_path) {
+  let store = match try_new_async(db_path) {
     Ok(store) => store
     Err(message) => return Err(message)
   }
@@ -3959,7 +3946,6 @@ async fn AppContext::try_new_with_recovery(
     root,
     build_profile,
     store,
-    previews: PreviewManager::new(root),
     runtime_gateway: new_runtime_gateway(root),
   }
   Ok(ctx)
@@ -3979,7 +3965,6 @@ async fn AppContext::delete_project(
       "This project is currently updating. Wait for the current run to finish before deleting it.",
     )
   }
-  self.previews.remove_project_runtime(project_id, project.preview)
   fs_remove_tree(project_root(self.root, project_id)) catch {
     err => return Err("Project workspace could not be removed: \{err}")
   }

@@ -205,6 +205,28 @@ async fn runtime_service_get_events(
 }
 
 ///|
+async fn runtime_service_get_preview(
+  endpoint : RuntimeServiceEndpoint,
+) -> Result[Unit, String] noraise {
+  let response = try
+    @mocket.fetch(runtime_service_api_url(endpoint, "/preview"), GET)
+  catch {
+    _ => return Err("Runtime Service preview readiness is not reachable.")
+  } noraise {
+    response => response
+  }
+  if http_status_success(response.status_code) {
+    Ok(())
+  } else {
+    Err(
+      runtime_service_error_message(
+        response, "Runtime Service preview is not ready.",
+      ),
+    )
+  }
+}
+
+///|
 fn runtime_service_event_code(event : RuntimeServiceEvent) -> String {
   match event.level {
     "error" => @sdk.run_event_code_activity_tool_error()

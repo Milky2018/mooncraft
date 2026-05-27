@@ -35,8 +35,6 @@ type GitHubUserEmail derive(@debug.Debug, @json.FromJson)
 
 type GitHubUserProfile derive(@debug.Debug)
 
-type PreviewAuditResult
-
 type ResolvedRuntimeSecret
 
 type RunArtifacts

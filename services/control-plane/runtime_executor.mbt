@@ -22,13 +22,6 @@ struct RunArtifacts {
 }
 
 ///|
-struct PreviewAuditResult {
-  enabled : Bool
-  passed : Bool
-  message : String
-}
-
-///|
 struct AgentExecutionResult {
   summary : String
   thread_id : String?
@@ -133,51 +126,6 @@ fn recovery_prompt(
 }
 
 ///|
-fn preview_setup_repair_prompt() -> String {
-  (
-    #|MoonCraft preview startup failed. Repair the existing app so it satisfies the MoonCraft generated-app runtime contract.
-    #|
-    #|Use the runtime instructions for the exact contract. Preserve the user's app behavior except for changes required to make `mooncraft-preview.sh` start and pass HTTP health checks.
-  )
-}
-
-///|
-fn preview_audit_repair_prompt(
-  audit_error : String,
-  initial_project_prompt : String,
-  user_prompt : String,
-) -> String {
-  (
-    #|MoonCraft preview audit failed after the preview passed HTTP health checks.
-    #|
-    #|This is a mandatory repair task.
-    #|
-    #|Preview audit failure:
-    #|
-  ) +
-  audit_error +
-  (
-    #|
-    #|
-    #|Original project requirement:
-    #|
-  ) +
-  initial_project_prompt +
-  (
-    #|
-    #|
-    #|Latest user request:
-    #|
-  ) +
-  user_prompt +
-  (
-    #|
-    #|
-    #|Repair the existing workspace so the user-facing preview at `/` returns a successful non-empty HTTP response through the MoonCraft preview proxy. Preserve the requested app behavior and keep the MoonCraft runtime contract intact.
-  )
-}
-
-///|
 fn default_success_summary() -> String {
   successful_preview_assistant_message()
 }
@@ -190,16 +138,6 @@ fn successful_preview_assistant_message() -> String {
 ///|
 fn preview_refresh_failed_assistant_message() -> String {
   "The app was updated, but the live preview could not be refreshed. Send another message to retry the preview."
-}
-
-///|
-fn preview_setup_repair_failed_assistant_message() -> String {
-  "The app was generated, but the live preview could not be started. MoonCraft tried to repair the preview setup but could not finish it. Send another message to retry the preview."
-}
-
-///|
-fn preview_audit_repair_failed_assistant_message() -> String {
-  "The app was generated, but the preview audit still fails after repair. Send another message to retry the preview."
 }
 
 ///|
@@ -333,15 +271,6 @@ async fn append_command_log(
 }
 
 ///|
-fn command_args(command : Array[String]) -> Array[String] {
-  let args : Array[String] = []
-  for i in 1..<command.length() {
-    args.push(command[i])
-  }
-  args
-}
-
-///|
 fn command_display(command : Array[String]) -> String {
   let text = StringBuilder()
   for index in 0..<command.length() {
@@ -351,24 +280,6 @@ fn command_display(command : Array[String]) -> String {
     text <+ "\{shell_quote(command[index])}"
   }
   text.to_string()
-}
-
-///|
-async fn collect_local_output(
-  executable : String,
-  args : Array[String],
-  cwd : String,
-) -> Result[(Int, String), String] noraise {
-  let result = try
-    @process.collect_output_merged(executable, args, cwd~)
-  catch {
-    err => return Err("The local command could not be started: \{err}")
-  } noraise {
-    value => value
-  }
-  let (exit_code, output) = result
-  let text = output.text() catch { _ => "" }
-  Ok((exit_code, text))
 }
 
 ///|
@@ -1017,114 +928,6 @@ async fn run_runtime_turn(
       )
   }
   Ok({ summary, thread_id: Some(thread_id), artifacts })
-}
-
-///|
-fn preview_audit_script_path(root : String) -> String {
-  "\{root}/scripts/preview_audit.sh"
-}
-
-///|
-fn preview_audit_log_path(
-  root : String,
-  project_id : String,
-  run_id : String,
-) -> String {
-  "\{run_artifacts_dir(root, project_id, run_id)}/preview-audit.log"
-}
-
-///|
-async fn preview_audit_auto_available(root : String) -> Bool noraise {
-  @async_fs.exists(preview_audit_script_path(root)) catch {
-    _ => false
-  }
-}
-
-///|
-async fn preview_audit_enabled(root : String) -> Bool noraise {
-  match @env.get_env_var("MOONCRAFT_PREVIEW_AUDIT") {
-    Some(value) => {
-      let normalized = value.trim().to_lower()
-      normalized != "" &&
-      normalized != "0" &&
-      normalized != "false" &&
-      normalized != "off" &&
-      normalized != "disabled"
-    }
-    None => preview_audit_auto_available(root)
-  }
-}
-
-///|
-fn preview_audit_repair_attempts() -> Int {
-  match @env.get_env_var("MOONCRAFT_PREVIEW_AUDIT_REPAIR_ATTEMPTS") {
-    Some(value) => {
-      let attempts = @string.parse_int(value.trim().to_owned()) catch { _ => 2 }
-      if attempts < 0 {
-        0
-      } else if attempts > 5 {
-        5
-      } else {
-        attempts
-      }
-    }
-    None => 2
-  }
-}
-
-///|
-fn preview_audit_target_url(preview : @sdk.PreviewTarget) -> String {
-  "http://127.0.0.1:\{preview.port}/"
-}
-
-///|
-fn preview_audit_command(
-  root : String,
-  preview : @sdk.PreviewTarget,
-) -> Array[String] {
-  ["sh", preview_audit_script_path(root), preview_audit_target_url(preview)]
-}
-
-///|
-async fn run_preview_audit(
-  root : String,
-  project_id : String,
-  run_id : String,
-  preview : @sdk.PreviewTarget,
-) -> PreviewAuditResult noraise {
-  if !preview_audit_enabled(root) {
-    return { enabled: false, passed: true, message: "Preview audit skipped." }
-  }
-  let command = preview_audit_command(root, preview)
-  let result = match
-    collect_local_output(command[0], command_args(command), root) {
-    Ok(result) => result
-    Err(message) => (127, message)
-  }
-  let (exit_code, output) = result
-  if append_command_log(
-      preview_audit_log_path(root, project_id, run_id),
-      "HTTP preview audit",
-      command,
-      exit_code,
-      output,
-    )
-    is Err(message) {
-    return { enabled: true, passed: false, message }
-  }
-  if exit_code == 0 {
-    {
-      enabled: true,
-      passed: true,
-      message: trim_or_default(output, "Preview audit passed."),
-    }
-  } else {
-    {
-      enabled: true,
-      passed: false,
-      message: trim_or_default(output, "The HTTP preview audit failed."),
-    }
-  }
 }
 
 ///|

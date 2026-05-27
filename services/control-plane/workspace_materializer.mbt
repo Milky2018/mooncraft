@@ -1,9 +1,4 @@
 ///|
-fn preview_health_path() -> String {
-  "/api/health"
-}
-
-///|
 async fn write_workspace_file(
   path : String,
   content : String,

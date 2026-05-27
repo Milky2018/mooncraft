@@ -616,11 +616,11 @@ fn preview_target_path(remainder : String) -> String {
 ///|
 async fn proxy_preview_response(
   event : @mocket.MocketEvent,
-  preview : @sdk.PreviewTarget,
+  upstream_url : String,
   remainder : String,
 ) -> Result[@mocket.HttpResponse, String] noraise {
   let target_path = preview_target_path(remainder)
-  let target_url = "http://127.0.0.1:\{preview.port}\{target_path}"
+  let target_url = "\{upstream_url}\{target_path}"
   let headers = proxy_request_headers(event)
   let upstream = try {
     if event.req.raw_body.length() == 0 {
@@ -683,23 +683,32 @@ async fn project_preview_proxy_response(
     Some(project) => project
     None => return text_response(NotFound, "Project not found.")
   }
-  match project.preview {
-    Some(preview) =>
-      match proxy_preview_response(event, preview, remainder) {
-        Ok(response) => response
-        Err(_) => {
-          let _ = ctx.store.mark_project_preview_unreachable(
-            project.id,
-            "Preview is not reachable.",
-          )
-          text_response(
-            BadGateway,
-            "The preview is not reachable right now. Rerun the project to start a fresh preview.",
-          )
-        }
-      }
-    None =>
-      text_response(NotFound, "No preview is available for this project yet.")
+  let runtime_preview = match
+    ctx.runtime_gateway.project_runtime_preview(ctx.store, project) {
+    Ok(preview) => preview
+    Err(message) => {
+      let _ = ctx.store.mark_project_preview_unreachable(project.id, message)
+      return text_response(BadGateway, message)
+    }
+  }
+  if smoke_runtime_enabled() {
+    return static_preview_response(
+      web_public_path(ctx.root, "control-plane-assets/smoke-preview"),
+      preview_target_path(remainder),
+    )
+  }
+  match proxy_preview_response(event, runtime_preview.upstream_url, remainder) {
+    Ok(response) => response
+    Err(_) => {
+      let _ = ctx.store.mark_project_preview_unreachable(
+        project.id,
+        "Preview is not reachable.",
+      )
+      text_response(
+        BadGateway,
+        "The preview is not reachable right now. Retry after the Runtime Service is ready.",
+      )
+    }
   }
 }
 

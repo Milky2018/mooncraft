@@ -16,7 +16,7 @@ Responsibilities:
 
 The platform no longer owns generated-app setup. Project rows do not carry template ids, and there is no template picker. Project creation saves an empty workspace as the first snapshot. The selected Runtime decides how to turn that workspace into an app; Runtime Protocol v3 exposes that through a project-scoped Runtime Service.
 
-The current `RuntimeGateway` ensures a project-scoped Runtime Service before real Runtime work begins. The supervisor starts the Runtime image through its default entrypoint, mounts Docker named volumes at `/workspace` and `/home/mooncraft`, attaches the container to the MoonCraft Runtime Docker network, checks `GET /health`, and records `stopped` or `ready` state with an idle TTL. `/exec` and Runtime-owned preview proxying are implemented by the next Runtime Protocol v3 slices.
+The current `RuntimeGateway` ensures a project-scoped Runtime Service before real Runtime work begins. The supervisor starts the Runtime image through its default entrypoint, mounts Docker named volumes at `/workspace` and `/home/mooncraft`, attaches the container to the MoonCraft Runtime Docker network, checks `GET /health`, and records `stopped`, `ready`, or `running` state with an idle TTL. Runs go through Runtime Protocol v3 `POST /exec`, and previews go through Runtime-owned `GET /preview` plus the fixed container preview port `4792`.
 
 Workspace directories are no longer durable state. The control plane saves the latest source archive in SQLite after initial workspace generation and after agent edits. Each run hydrates that database snapshot into an isolated runtime workspace before starting the selected agent, then restores the local preview cache from the saved snapshot.
 
@@ -30,7 +30,7 @@ SQLite is a required dependency for the control plane. If the database cannot be
 
 For real Docker-backed runs, the MoonCraft agent runtime image installs the supported agent CLIs and any knowledge or templates that Runtime wants to expose to the agent. Normal user prompts are not wrapped with the generated-app contract; that project-aware contract lives in the runtime system layer.
 
-MoonCraft no longer runs generic app-framework validation gates after the builder returns. The generated app's runtime contract is `mooncraft-preview.sh <port>`: if that script can start a reachable preview and return a non-empty page from its private port, the workspace is accepted. Lightweight preview audit may still request repairs when the private preview returns an error or an empty response.
+MoonCraft no longer runs generic app-framework validation gates after the builder returns, and it does not know any generated-app preview script contract. Runtime Protocol v3 makes preview startup the Runtime Service's responsibility. MoonCraft only checks `GET /preview` and proxies successful preview traffic to the Runtime container's fixed port `4792`.
 
 ## Web Assets
 
@@ -56,13 +56,11 @@ Automated local tests can set `MOONCRAFT_ENABLE_DEV_AUTH=1` to enable `POST /api
 
 ## Preview Flow
 
-Generated previews are script-backed. The control plane starts the root `mooncraft-preview.sh` script with `<port>` as its first argument on a private local port and exposes the result through the deployment-owned preview origin policy. Set `MOONCRAFT_PREVIEW_ORIGIN_TEMPLATE` to an origin template such as `https://{preview_public_id}.preview.example.com`; if it is not set, local development falls back to `/p/<preview_public_id>/`.
+Generated previews are Runtime-backed. The control plane never starts `mooncraft-preview.sh` as a child process in the Runtime Protocol v3 path. Set `MOONCRAFT_PREVIEW_ORIGIN_TEMPLATE` to an origin template such as `https://{preview_public_id}.preview.example.com`; if it is not set, local development falls back to `/p/<preview_public_id>/`.
 
-The generated app must serve the user-facing app at `/`. `/api/health` is the preferred readiness endpoint, and `/` is accepted as a fallback for static or browser-only previews. If the preview script is missing, exits too early, or does not become reachable, MoonCraft asks the agent to repair the preview setup.
+The Runtime Service owns preview readiness. On run completion and on every public preview request, MoonCraft ensures the project Runtime Service is healthy, calls `GET /preview`, and only then proxies to `http://<runtime-container>:4792/`. Successful preview requests refresh the Runtime idle TTL. Failed preview readiness returns the Runtime Error message to the user and does not refresh the TTL.
 
-Preview process state is not durable. Opening an existing project is a read-only operation and must not restore snapshots, restart `mooncraft-preview.sh`, or wait for preview health. If a stored preview URL is requested after its process has gone away, MoonCraft marks that preview unhealthy and returns a fast error; the user can rerun the project to start a fresh preview.
-
-After HTTP readiness succeeds, MoonCraft optionally runs `scripts/preview_audit.sh` directly against the private preview port. The audit is intentionally dependency-light and fails on non-success HTTP status, empty response bodies, or known platform preview error pages. It must not call the public preview proxy because that proxy is a user-facing read path with stale-preview error handling. When it fails, MoonCraft sends the audit output back to the selected agent for a bounded repair loop before marking the run successful. Set `MOONCRAFT_PREVIEW_AUDIT=0` to disable it, `MOONCRAFT_PREVIEW_AUDIT_TIMEOUT_SECONDS` to tune the curl timeout, or `MOONCRAFT_PREVIEW_AUDIT_REPAIR_ATTEMPTS` to tune the repair bound.
+Preview process state belongs to the Runtime container, not the control plane. Opening an existing project is a read-only operation; preview requests are the explicit trigger that may restart a stopped Runtime Service. MoonCraft does not run preview audit repair prompts or bounded repair loops in the Runtime Protocol v3 flow.
 
 ## Validation
 

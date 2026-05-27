@@ -14,6 +14,13 @@ struct RuntimeServiceSpec {
 ///|
 struct RuntimeServiceEndpoint {
   url : String
+  preview_url : String
+}
+
+///|
+priv struct RuntimeServicePreview {
+  preview : @sdk.PreviewTarget
+  upstream_url : String
 }
 
 ///|
@@ -183,7 +190,21 @@ fn runtime_service_create_args(
 
 ///|
 fn runtime_service_endpoint(container_name : String) -> RuntimeServiceEndpoint {
-  { url: "http://\{container_name}:8080" }
+  {
+    url: "http://\{container_name}:8080",
+    preview_url: "http://\{container_name}:4792",
+  }
+}
+
+///|
+fn runtime_service_preview_target(
+  project : @sdk.ProjectDetail,
+) -> @sdk.PreviewTarget {
+  {
+    url: public_preview_url(project.preview_public_id),
+    port: 4792,
+    healthy: true,
+  }
 }
 
 ///|
@@ -379,11 +400,21 @@ async fn create_runtime_service_container(
 }
 
 ///|
-async fn RuntimeGateway::ensure_project_runtime_service(
+async fn RuntimeGateway::ensure_project_runtime_service_with_idle_refresh(
   self : RuntimeGateway,
   store : Store,
   project_id : String,
+  refresh_idle : Bool,
 ) -> Result[RuntimeServiceEndpoint, String] noraise {
+  let existing = store.get_runtime_service_record(project_id)
+  let ready_idle_expires_at = if refresh_idle {
+    Some(runtime_service_idle_expires_at())
+  } else {
+    match existing {
+      Some(record) => record.idle_expires_at
+      None => None
+    }
+  }
   let settings = match store.lease_ai_runtime_settings_for_project(project_id) {
     Ok(settings) => settings
     Err(message) => return Err(message)
@@ -418,7 +449,7 @@ async fn RuntimeGateway::ensure_project_runtime_service(
       store.set_runtime_service_state(
         project_id,
         runtime_service_state_ready(),
-        Some(runtime_service_idle_expires_at()),
+        ready_idle_expires_at,
       ),
     )
     return Ok(runtime_service_endpoint(spec.container_name))
@@ -441,10 +472,78 @@ async fn RuntimeGateway::ensure_project_runtime_service(
     store.set_runtime_service_state(
       project_id,
       runtime_service_state_ready(),
-      Some(runtime_service_idle_expires_at()),
+      ready_idle_expires_at,
     ) {
     Ok(_) => Ok(runtime_service_endpoint(spec.container_name))
     Err(message) => Err(message)
+  }
+}
+
+///|
+async fn RuntimeGateway::ensure_project_runtime_service(
+  self : RuntimeGateway,
+  store : Store,
+  project_id : String,
+) -> Result[RuntimeServiceEndpoint, String] noraise {
+  self.ensure_project_runtime_service_with_idle_refresh(store, project_id, true)
+}
+
+///|
+async fn RuntimeGateway::project_runtime_preview(
+  self : RuntimeGateway,
+  store : Store,
+  project : @sdk.ProjectDetail,
+) -> Result[RuntimeServicePreview, String] noraise {
+  if smoke_runtime_enabled() {
+    let preview = runtime_service_preview_target(project)
+    ignore(store.set_project_preview(project.id, preview))
+    return Ok({ preview, upstream_url: "" })
+  }
+  let previous = store.get_runtime_service_record(project.id)
+  let endpoint = match
+    self.ensure_project_runtime_service_with_idle_refresh(
+      store,
+      project.id,
+      false,
+    ) {
+    Ok(endpoint) => endpoint
+    Err(message) => return Err(message)
+  }
+  match runtime_service_get_preview(endpoint) {
+    Ok(_) => {
+      let preview = runtime_service_preview_target(project)
+      ignore(
+        store.set_runtime_service_state(
+          project.id,
+          runtime_service_state_ready(),
+          Some(runtime_service_idle_expires_at()),
+        ),
+      )
+      ignore(store.set_project_preview(project.id, preview))
+      Ok({ preview, upstream_url: endpoint.preview_url })
+    }
+    Err(message) => {
+      match previous {
+        Some(record) if record.idle_expires_at is Some(_) => ignore(())
+        _ => {
+          ignore(
+            run_process_quiet("docker", [
+              "rm",
+              "-f",
+              runtime_service_container_name(project.id),
+            ]),
+          )
+          ignore(
+            store.set_runtime_service_state(
+              project.id,
+              runtime_service_state_stopped(),
+              None,
+            ),
+          )
+        }
+      }
+      Err(message)
+    }
   }
 }
 
