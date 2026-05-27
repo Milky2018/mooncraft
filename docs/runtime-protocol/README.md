@@ -9,11 +9,10 @@ Runtime Protocol v3 replaces the v2 control-plane Agent Adapter model. The contr
 - `README.md`: human-readable protocol specification.
 - `openapi.v3.yaml`: Runtime Service HTTP API.
 - `runtime-manifest.v3.schema.json`: Runtime Manifest schema.
-- `builtin-runtime.v3.schema.json`: built-in Runtime wrapper schema.
 
 ## Runtime Manifest
 
-Admin-created Runtime JSON and built-in Runtime `spec` objects use this shape:
+Admin-created Runtime JSON uses this shape:
 
 ```json
 {

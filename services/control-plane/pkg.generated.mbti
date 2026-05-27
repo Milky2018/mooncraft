@@ -29,8 +29,6 @@ type AppContext
 
 type BuildProfile
 
-type BuiltinRuntimeDefinition derive(@json.FromJson)
-
 type DevAuthRequest derive(@debug.Debug, @json.FromJson)
 
 type GitHubCallbackPayload derive(@debug.Debug, @json.FromJson)

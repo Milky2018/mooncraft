@@ -12,116 +12,15 @@ test "preview audit targets private preview port" {
 }
 
 ///|
-test "claude stream json emits lifecycle events" {
-  match
-    runtime_display_event(
-      (
-        #|{"type":"system","subtype":"init","session_id":"session-test"}
-      ),
-    ) {
-    Some(event) => {
-      inspect(event.kind, content="status")
-      inspect(event.code, content="builder_started")
-      inspect(event.content, content="Started the builder session.")
-    }
-    None => fail("expected claude init event")
-  }
-  match
-    runtime_display_event(
-      (
-        #|{"type":"result","subtype":"success","is_error":false}
-      ),
-    ) {
-    Some(event) => {
-      inspect(event.kind, content="status")
-      inspect(event.code, content="builder_ended")
-      inspect(event.content, content="Builder session ended.")
-    }
-    None => fail("expected claude result event")
-  }
-}
-
-///|
-test "claude stream json emits assistant progress and tool status" {
-  match
-    runtime_display_event(
-      (
-        #|{"type":"assistant","message":{"content":[{"type":"text","text":"Now I have a clear picture of the template."}]}}
-      ),
-    ) {
-    Some(event) => {
-      inspect(event.kind, content="activity")
-      inspect(event.code, content="activity_message")
-      inspect(
-        event.content,
-        content="Now I have a clear picture of the template.",
-      )
-    }
-    None => fail("expected claude assistant progress")
-  }
-  match
-    runtime_display_event(
-      (
-        #|{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"description":"Check available MoonCraft templates","command":"cat /opt/mooncraft/templates/catalog.json"}}]}}
-      ),
-    ) {
-    Some(event) => {
-      inspect(event.kind, content="activity")
-      inspect(event.code, content="activity_tool_running")
-      inspect(event.content, content="Check available MoonCraft templates")
-    }
-    None => fail("expected claude tool status")
-  }
-}
-
-///|
-test "codex stream json parses structured assistant progress" {
-  match
-    runtime_display_event(
-      (
-        #|{"type":"agent_message","text":"Escaped \"quote\" progress"}
-      ),
-    ) {
-    Some(event) => {
-      inspect(event.kind, content="activity")
-      inspect(event.code, content="activity_message")
-      inspect(event.content, content="Escaped \"quote\" progress")
-    }
-    None => fail("expected codex assistant progress")
-  }
-}
-
-///|
-test "claude stream json emits failed tool repair status" {
-  match
-    runtime_display_event(
-      (
-        #|{"type":"user","message":{"content":[{"type":"tool_result","is_error":true,"content":"moon check failed"}]}}
-      ),
-    ) {
-    Some(event) => {
-      inspect(event.kind, content="activity")
-      inspect(event.code, content="activity_tool_error")
-      inspect(
-        event.content,
-        content="A workspace check failed; the builder is fixing it.",
-      )
-    }
-    None => fail("expected claude failed tool event")
-  }
-}
-
-///|
 fn test_runtime_config() -> AgentRuntimeConfig {
   {
     agent_session_id: "agent-session-test",
-    runtime_session_id: None,
     image: "runtime:test",
     platform: "linux/arm64",
-    agent_cli: "claude",
-    auth_kind: "openrouter_api_key",
-    model: "anthropic/claude-sonnet-4.5",
-    secret: { env: Some("MOONCRAFT_AI_API_KEY"), file: None, value: "test-key" },
+    env: {},
+    secrets: [
+      { env: Some("OPENROUTER_API_KEY"), file: None, value: "test-key" },
+    ],
     container_data_dir: "/app/data",
     host_data_dir: None,
   }
@@ -178,8 +77,7 @@ async test "agent home is normalized after auth creates new directories" {
   prepare_agent_mount_path(agent_home_path)
   let config = {
     ..test_runtime_config(),
-    auth_kind: "codex_auth_json",
-    secret: { env: None, file: Some(".codex/auth.json"), value: "{}" },
+    secrets: [{ env: None, file: Some(".codex/auth.json"), value: "{}" }],
   }
   match materialize_runtime_file_secrets(config, agent_home_path) {
     Ok(_) => ()

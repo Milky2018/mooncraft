@@ -808,8 +808,7 @@ fn runtime_row(
       @html.td(style=td_style(), @html.code(runtime.id)),
       @html.td(style=td_style(), runtime_status_label(runtime)),
       @html.td(style=td_style(), [
-        @html.div(style=normal_style(), runtime.spec.agent),
-        @html.code(runtime.spec.model),
+        @html.code(runtime.spec.image),
       ]),
       @html.td(style=actions_td_style(), [
         action_menu_button(dispatch, model, menu_key, "Runtime actions"),
@@ -861,7 +860,7 @@ fn runtimes_view(
             @html.th(style=th_style(), "Name"),
             @html.th(style=th_style(), "ID"),
             @html.th(style=th_style(), "Status"),
-            @html.th(style=th_style(), "Agent / model"),
+            @html.th(style=th_style(), "Image"),
             @html.th(style=th_style(), "Actions"),
           ]),
         ]),

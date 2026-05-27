@@ -1,5 +1,5 @@
 ///|
-async test "runtime seeding removes retired built-in ids only" {
+async test "runtime seeding allows an empty built-in catalog" {
   let root = "/tmp/mooncraft-runtime-store-test-" + random_hex(6)
   ensure_dir(root)
   defer safe_remove_tree(root)
@@ -9,26 +9,18 @@ async test "runtime seeding removes retired built-in ids only" {
   }
   let spec_json =
     #|{
-    #|  "protocol_version": 2,
+    #|  "protocol_version": 3,
     #|  "image": "runtime:test",
-    #|  "agent": "codex",
-    #|  "model": "openai/test",
-    #|  "auth": {
-    #|    "kind": "openrouter_api_key",
-    #|    "secret": {
+    #|  "secrets": [
+    #|    {
     #|      "source": "mooncraft_ai_api_key",
     #|      "target": {
     #|        "type": "env",
-    #|        "name": "MOONCRAFT_AI_API_KEY"
+    #|        "name": "OPENROUTER_API_KEY"
     #|      }
     #|    }
-    #|  }
+    #|  ]
     #|}
-  ignore(
-    store.save_admin_runtime(
-      "agent-runtime-999", "Retired", spec_json, true, false,
-    ),
-  )
   ignore(
     store.save_admin_runtime(
       "agent-runtime-custom-test", "Custom", spec_json, true, false,
@@ -38,8 +30,8 @@ async test "runtime seeding removes retired built-in ids only" {
     Ok(_) => ()
     Err(message) => abort(message)
   }
-  let retired = store.get_runtime_detail("agent-runtime-999").unwrap()
   let custom = store.get_runtime_detail("agent-runtime-custom-test").unwrap()
-  inspect(retired is None, content="true")
   inspect(custom is Some(_), content="true")
+  let default_id = store.get_default_runtime_id()
+  inspect(default_id is Ok(_), content="true")
 }

@@ -2,8 +2,8 @@
 struct AiRuntimeSettings {
   runtime_spec : @sdk.RuntimeSpec
   agent_session_id : String
-  runtime_session_id : String?
-  secret : ResolvedRuntimeSecret
+  env : Map[String, String]
+  secrets : Array[ResolvedRuntimeSecret]
 }
 
 ///|
@@ -177,10 +177,7 @@ async fn Store::lease_ai_runtime_settings_for_project(
         #|  runtime_id,
         #|  runtime_name,
         #|  runtime_spec_json,
-        #|  agent_session_id,
-        #|  COALESCE(runtime_session_id, '') AS runtime_session_id,
-        #|  agent_cli,
-        #|  ai_model
+        #|  agent_session_id
         #|FROM projects
         #|WHERE id = ?;
       ),
@@ -195,53 +192,56 @@ async fn Store::lease_ai_runtime_settings_for_project(
     Err(message) =>
       return Err("Project Runtime snapshot is invalid: \{message}")
   }
-  let secret = match self.resolve_runtime_secret(runtime_spec) {
+  let secrets = match self.resolve_runtime_secrets(runtime_spec) {
     Ok(secrets) => secrets
     Err(message) => return Err(message)
   }
   Ok({
     runtime_spec,
     agent_session_id: row_text(project, "agent_session_id"),
-    runtime_session_id: empty_to_none(row_text(project, "runtime_session_id")),
-    secret,
+    env: runtime_spec.env,
+    secrets,
   })
 }
 
 ///|
-async fn Store::resolve_runtime_secret(
+async fn Store::resolve_runtime_secrets(
   self : Store,
   runtime_spec : @sdk.RuntimeSpec,
-) -> Result[ResolvedRuntimeSecret, String] noraise {
-  let binding = runtime_spec.auth.secret
-  let source = binding.source.trim().to_owned()
-  if source == "" {
-    return Err("Runtime auth secret source is required.")
+) -> Result[Array[ResolvedRuntimeSecret], String] noraise {
+  let resolved : Array[ResolvedRuntimeSecret] = []
+  for binding in runtime_spec.secrets {
+    let source = binding.source.trim().to_owned()
+    if source == "" {
+      return Err("Runtime secret source is required.")
+    }
+    let record = match self.get_admin_secret_record_by_name(source) {
+      Some(record) => record
+      None => return Err("Runtime secret source is not configured: \{source}")
+    }
+    match binding.target.kind {
+      "env" =>
+        match binding.target.name {
+          Some(name) if name.trim() != "" =>
+            resolved.push({
+              env: Some(name.trim().to_owned()),
+              file: None,
+              value: record.value,
+            })
+          _ => return Err("Runtime secret env target name is required.")
+        }
+      "file" =>
+        match binding.target.path {
+          Some(path) if path.trim() != "" =>
+            resolved.push({
+              env: None,
+              file: Some(path.trim().to_owned()),
+              value: record.value,
+            })
+          _ => return Err("Runtime secret file target path is required.")
+        }
+      _ => return Err("Runtime secret target type must be env or file.")
+    }
   }
-  let record = match self.get_admin_secret_record_by_name(source) {
-    Some(record) => record
-    None => return Err("Runtime secret source is not configured: \{source}")
-  }
-  match binding.target.kind {
-    "env" =>
-      match binding.target.name {
-        Some(name) if name.trim() != "" =>
-          Ok({
-            env: Some(name.trim().to_owned()),
-            file: None,
-            value: record.value,
-          })
-        _ => Err("Runtime auth env target name is required.")
-      }
-    "file" =>
-      match binding.target.path {
-        Some(path) if path.trim() != "" =>
-          Ok({
-            env: None,
-            file: Some(path.trim().to_owned()),
-            value: record.value,
-          })
-        _ => Err("Runtime auth file target path is required.")
-      }
-    _ => Err("Runtime auth target type must be env or file.")
-  }
+  Ok(resolved)
 }

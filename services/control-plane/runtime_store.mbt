@@ -1,97 +1,4 @@
 ///|
-struct BuiltinRuntimeDefinition {
-  name : String
-  spec : @sdk.RuntimeSpec
-  enabled : Bool
-  is_default : Bool
-} derive(FromJson)
-
-///|
-fn builtin_runtime_dir() -> String {
-  "runtime/builtin"
-}
-
-///|
-fn builtin_runtime_suffix(index : Int) -> String {
-  let value = index + 1
-  if value < 10 {
-    "00" + value.to_string()
-  } else if value < 100 {
-    "0" + value.to_string()
-  } else {
-    value.to_string()
-  }
-}
-
-///|
-fn builtin_runtime_id(index : Int) -> String {
-  "agent-runtime-" + builtin_runtime_suffix(index)
-}
-
-///|
-fn builtin_runtime_definitions() -> Result[
-  Array[BuiltinRuntimeDefinition],
-  String,
-] {
-  let dir = builtin_runtime_dir()
-  let names = @fs.read_dir(dir) catch {
-    _ => return Err("Built-in Runtime directory is missing: \{dir}")
-  }
-  names.sort()
-  let builtins : Array[BuiltinRuntimeDefinition] = []
-  for name in names {
-    if name.has_suffix(".json") {
-      let path = dir + "/" + name
-      let text = @fs.read_file_to_string(path) catch {
-        _ => return Err("Built-in Runtime file could not be read: \{path}")
-      }
-      let parsed = @json.parse(text) catch {
-        _ => return Err("Built-in Runtime file must be valid JSON: \{path}")
-      }
-      let definition : BuiltinRuntimeDefinition = @json.from_json(parsed) catch {
-        _ =>
-          return Err(
-            "Built-in Runtime file must contain name, spec, enabled, and is_default: \{path}",
-          )
-      }
-      let name_from_file = name
-        .strip_suffix(".json")
-        .unwrap_or(name[:])
-        .to_owned()
-      if definition.name.trim() == "" {
-        return Err("Built-in Runtime name is required: \{path}")
-      }
-      if definition.name != name_from_file {
-        return Err(
-          "Built-in Runtime file name must match its name field: \{path}",
-        )
-      }
-      let spec = match @sdk.normalize_runtime_spec(definition.spec) {
-        Ok(spec) => spec
-        Err(message) => return Err("\{path}: \{message}")
-      }
-      builtins.push({ ..definition, spec, })
-    }
-  }
-  if builtins.length() == 0 {
-    Err("At least one built-in Runtime JSON file is required.")
-  } else {
-    let ordered : Array[BuiltinRuntimeDefinition] = []
-    for item in builtins {
-      if item.is_default {
-        ordered.push(item)
-      }
-    }
-    for item in builtins {
-      if !item.is_default {
-        ordered.push(item)
-      }
-    }
-    Ok(ordered)
-  }
-}
-
-///|
 fn runtime_detail_from_row(
   row : Map[String, @db.Param],
 ) -> Result[@sdk.RuntimeDetail, String] {
@@ -120,8 +27,7 @@ fn runtime_summary_from_detail(
   {
     id: runtime.id,
     name: runtime.name,
-    agent: runtime.spec.agent,
-    model: runtime.spec.model,
+    image: runtime.spec.image,
     enabled: runtime.enabled,
     is_default: runtime.is_default,
     created_at: runtime.created_at,
@@ -164,6 +70,32 @@ async fn Store::delete_invalid_agent_runtime_rows(
 }
 
 ///|
+async fn Store::delete_retired_seed_runtime_rows(
+  self : Store,
+) -> Result[Unit, String] noraise {
+  let rows = self.query_rows(
+    (
+      #|SELECT id
+      #|FROM agent_runtimes
+      #|WHERE id LIKE 'agent-runtime-___';
+    ),
+  )
+  for row in rows {
+    let id = row_text(row, "id")
+    match
+      self.exec_or_error(
+        "DELETE FROM agent_runtimes WHERE id = ?;",
+        "remove retired seed agent runtime",
+        params=[String(id)],
+      ) {
+      Ok(_) => ignore(())
+      Err(message) => return Err(message)
+    }
+  }
+  Ok(())
+}
+
+///|
 async fn Store::ensure_agent_runtime_default(
   self : Store,
 ) -> Result[Unit, String] noraise {
@@ -189,7 +121,7 @@ async fn Store::ensure_agent_runtime_default(
           ),
         ) {
         Some(row) => row
-        None => return Err("At least one enabled Runtime is required.")
+        None => return Ok(())
       }
       let id = row_text(row, "id")
       match
@@ -219,8 +151,6 @@ async fn Store::ensure_agent_runtime_tables(
         #|  id TEXT PRIMARY KEY,
         #|  name TEXT NOT NULL,
         #|  spec_json TEXT NOT NULL,
-        #|  agent TEXT NOT NULL,
-        #|  model TEXT NOT NULL,
         #|  enabled INTEGER NOT NULL DEFAULT 1,
         #|  is_default INTEGER NOT NULL DEFAULT 0,
         #|  created_at TEXT NOT NULL,
@@ -232,73 +162,9 @@ async fn Store::ensure_agent_runtime_tables(
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
-  let builtins = match builtin_runtime_definitions() {
-    Ok(builtins) => builtins
+  match self.delete_retired_seed_runtime_rows() {
+    Ok(_) => ()
     Err(message) => return Err(message)
-  }
-  let now = now_string()
-  let builtin_ids : Array[String] = []
-  for index, item in builtins {
-    let id = builtin_runtime_id(index)
-    builtin_ids.push(id)
-    match
-      self.exec_or_error(
-        (
-          #|INSERT INTO agent_runtimes (
-          #|  id,
-          #|  name,
-          #|  spec_json,
-          #|  agent,
-          #|  model,
-          #|  enabled,
-          #|  is_default,
-          #|  created_at,
-          #|  updated_at
-          #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          #|ON CONFLICT(id) DO UPDATE SET
-          #|  name = excluded.name,
-          #|  spec_json = excluded.spec_json,
-          #|  agent = excluded.agent,
-          #|  model = excluded.model,
-          #|  updated_at = excluded.updated_at;
-        ),
-        "seed agent runtime",
-        params=[
-          String(id),
-          String(item.name),
-          String(@sdk.runtime_spec_to_json(item.spec)),
-          String(item.spec.agent),
-          String(item.spec.model),
-          Int(if item.enabled { 1 } else { 0 }),
-          Int(if item.is_default { 1 } else { 0 }),
-          String(now),
-          String(now),
-        ],
-      ) {
-      Ok(_) => ignore(())
-      Err(message) => return Err(message)
-    }
-  }
-  let seeded_id_rows = self.query_rows(
-    (
-      #|SELECT id
-      #|FROM agent_runtimes
-      #|WHERE id LIKE 'agent-runtime-___';
-    ),
-  )
-  for row in seeded_id_rows {
-    let id = row_text(row, "id")
-    if !builtin_ids.any(fn(current) { current == id }) {
-      match
-        self.exec_or_error(
-          "DELETE FROM agent_runtimes WHERE id = ?;",
-          "remove retired built-in agent runtime",
-          params=[String(id)],
-        ) {
-        Ok(_) => ignore(())
-        Err(message) => return Err(message)
-      }
-    }
   }
   match self.delete_invalid_agent_runtime_rows() {
     Ok(_) => ()
@@ -321,8 +187,6 @@ async fn Store::list_admin_runtimes(
       #|  id,
       #|  name,
       #|  spec_json,
-      #|  agent,
-      #|  model,
       #|  enabled,
       #|  is_default,
       #|  created_at,
@@ -351,8 +215,6 @@ async fn Store::list_enabled_runtimes(
       #|  id,
       #|  name,
       #|  spec_json,
-      #|  agent,
-      #|  model,
       #|  enabled,
       #|  is_default,
       #|  created_at,
@@ -385,8 +247,6 @@ async fn Store::get_runtime_detail(
         #|  id,
         #|  name,
         #|  spec_json,
-        #|  agent,
-        #|  model,
         #|  enabled,
         #|  is_default,
         #|  created_at,
@@ -460,18 +320,14 @@ async fn Store::save_admin_runtime(
         #|  id,
         #|  name,
         #|  spec_json,
-        #|  agent,
-        #|  model,
         #|  enabled,
         #|  is_default,
         #|  created_at,
         #|  updated_at
-        #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        #|) VALUES (?, ?, ?, ?, ?, ?, ?)
         #|ON CONFLICT(id) DO UPDATE SET
         #|  name = excluded.name,
         #|  spec_json = excluded.spec_json,
-        #|  agent = excluded.agent,
-        #|  model = excluded.model,
         #|  enabled = excluded.enabled,
         #|  is_default = excluded.is_default,
         #|  updated_at = excluded.updated_at;
@@ -481,8 +337,6 @@ async fn Store::save_admin_runtime(
         String(id),
         String(name),
         String(normalized_spec_json),
-        String(spec.agent),
-        String(spec.model),
         Int(if enabled { 1 } else { 0 }),
         Int(if is_default { 1 } else { 0 }),
         String(now),

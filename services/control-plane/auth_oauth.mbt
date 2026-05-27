@@ -5,7 +5,7 @@ fn oauth_hex_digit(value : Int) -> Char {
 
 ///|
 fn oauth_url_encode(text : String) -> String {
-  let out = StringBuilder::new()
+  let out = StringBuilder()
   let bytes = @utf8.encode(text)
   for byte in bytes {
     let code = byte.to_int()

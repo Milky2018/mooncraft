@@ -196,7 +196,7 @@ async fn serve_mocket_request(
   }
   let responder = @mocket.execute_middlewares(app.middlewares, event, handler)
   responder.options(event.res)
-  let buffer = @buffer.new()
+  let buffer = Buffer()
   responder.output(buffer)
   event.res.raw_body = buffer.to_bytes()
   try {

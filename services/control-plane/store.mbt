@@ -895,12 +895,11 @@ fn Store::sql(self : Store, sql : String) -> String {
   match self.backend {
     SQLite => sql
     Postgres => {
-      let out = @buffer.new()
+      let out = StringBuilder()
       let mut index = 1
       for c in sql {
         if c == '?' {
-          out.write_string("$")
-          out.write_string(index.to_string())
+          out <+ "$\{index}"
           index = index + 1
         } else {
           out.write_char(c)

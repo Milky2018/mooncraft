@@ -15,19 +15,13 @@ struct AgentTurnFailure {
 ///|
 struct AgentRuntimeConfig {
   agent_session_id : String
-  runtime_session_id : String?
   image : String
   platform : String
-  agent_cli : String
-  auth_kind : String
-  model : String
-  secret : ResolvedRuntimeSecret
+  env : Map[String, String]
+  secrets : Array[ResolvedRuntimeSecret]
   container_data_dir : String
   host_data_dir : String?
 }
-
-///|
-let default_runtime_model = "gpt-5.5"
 
 ///|
 struct RunArtifacts {
@@ -161,22 +155,25 @@ fn docker_env_file_path(artifacts : RunArtifacts) -> String {
 
 ///|
 fn docker_env_file_content(config : AgentRuntimeConfig) -> String {
-  let mut content = "MOONCRAFT_AGENT_CLI=" +
-    docker_env_value(config.agent_cli) +
-    "\n" +
-    "MOONCRAFT_AI_MODEL=" +
-    docker_env_value(config.model) +
-    "\n"
-  match config.secret.env {
-    Some(env) =>
-      content = content +
-        docker_env_value(env) +
-        "=" +
-        docker_env_value(config.secret.value) +
-        "\n"
-    None => ()
+  let mut content = ""
+  for key, value in config.env {
+    content = content +
+      docker_env_value(key) +
+      "=" +
+      docker_env_value(value) +
+      "\n"
   }
-  content = content + agent_openrouter_env_file_content(config)
+  for secret in config.secrets {
+    match secret.env {
+      Some(env) =>
+        content = content +
+          docker_env_value(env) +
+          "=" +
+          docker_env_value(secret.value) +
+          "\n"
+      None => ()
+    }
+  }
   content
 }
 
@@ -202,22 +199,24 @@ async fn materialize_runtime_file_secrets(
   config : AgentRuntimeConfig,
   agent_home_path : String,
 ) -> Result[Unit, String] noraise {
-  match config.secret.file {
-    Some(file) => {
-      let relative_path = match @sdk.validate_runtime_secret_file_path(file) {
-        Ok(path) => path
-        Err(message) => return Err(message)
+  for secret in config.secrets {
+    match secret.file {
+      Some(file) => {
+        let relative_path = match @sdk.validate_runtime_secret_file_path(file) {
+          Ok(path) => path
+          Err(message) => return Err(message)
+        }
+        let target = agent_home_path + "/" + relative_path
+        ensure_dir(parent_dir(target))
+        @fs.write_string_to_file(target, secret.value) catch {
+          err => return Err("Runtime secret file could not be written: \{err}")
+        }
+        if run_process_quiet("chmod", ["a+rw", target]) != 0 {
+          return Err("Runtime secret file permissions could not be updated.")
+        }
       }
-      let target = agent_home_path + "/" + relative_path
-      ensure_dir(parent_dir(target))
-      @fs.write_string_to_file(target, config.secret.value) catch {
-        err => return Err("Runtime secret file could not be written: \{err}")
-      }
-      if run_process_quiet("chmod", ["a+rw", target]) != 0 {
-        return Err("Runtime secret file permissions could not be updated.")
-      }
+      None => ()
     }
-    None => ()
   }
   Ok(())
 }
@@ -282,13 +281,10 @@ async fn AgentRuntimeConfig::load(
   }
   Ok({
     agent_session_id,
-    runtime_session_id: settings.runtime_session_id,
     image: settings.runtime_spec.image,
     platform,
-    agent_cli: settings.runtime_spec.agent,
-    auth_kind: settings.runtime_spec.auth.kind,
-    model: settings.runtime_spec.model,
-    secret: settings.secret,
+    env: settings.env,
+    secrets: settings.secrets,
     container_data_dir: trim_mount_path(root) + "/data",
     host_data_dir,
   })
@@ -322,11 +318,6 @@ fn bootstrap_prompt(user_message : String) -> String {
 ///|
 fn followup_prompt(user_message : String) -> String {
   user_message
-}
-
-///|
-fn agent_container_last_message_path() -> String {
-  agent_container_artifacts_dir() + "/last_message.txt"
 }
 
 ///|
@@ -450,11 +441,9 @@ fn mooncraft_capacity_assistant_message() -> String {
 
 ///|
 fn ai_builder_failure_assistant_message(
-  model : String,
   output : String,
   fallback : String,
 ) -> String {
-  ignore(model)
   if agent_runtime_timeout_output(output) {
     agent_runtime_timeout_assistant_message()
   } else if ai_provider_temporarily_overloaded(output) ||
@@ -547,6 +536,18 @@ fn command_args(command : Array[String]) -> Array[String] {
     args.push(command[i])
   }
   args
+}
+
+///|
+fn command_display(command : Array[String]) -> String {
+  let mut text = ""
+  for index in 0..<command.length() {
+    if index > 0 {
+      text = text + " "
+    }
+    text = text + shell_quote(command[index])
+  }
+  text
 }
 
 ///|
@@ -830,7 +831,7 @@ async fn stream_docker_output(
     @sdk.run_event_code_builder_auth_preparing(),
     "Preparing builder authentication.",
   )
-  match prepare_agent_auth(config, agent_home_path) {
+  match materialize_runtime_file_secrets(config, agent_home_path) {
     Ok(_) => ignore(())
     Err(message) => {
       remove_docker_env_file(env_file_path)
@@ -1017,10 +1018,6 @@ async fn run_runtime_turn(
     safe_write_string(artifacts.agent_log_path, "")
   }
   let thread_id_before = project.runtime_session_id
-  let model = match config {
-    Some(config) => config.model
-    None => default_runtime_model
-  }
   let prompt = if raw_prompt {
     user_prompt
   } else if thread_id_before is Some(_) && resume_existing {
@@ -1030,22 +1027,22 @@ async fn run_runtime_turn(
   }
   safe_write_string(artifacts.prompt_path, prompt)
   let command = match config {
-    Some(config) =>
-      match
-        agent_command(root, config, prompt, resume_existing && !raw_prompt) {
-        Ok(command) => command
-        Err(message) =>
-          return Err(
-            runtime_failure_with_debug(
-              "The AI builder could not be started for that update.",
-              message,
-              thread_id_before,
-              Some(
-                failure_debug("AI builder startup", None, None, Some(artifacts)),
-              ),
+    Some(_) =>
+      return Err(
+        runtime_failure_with_debug(
+          "MoonCraft Runtime Protocol v3 execution is not implemented yet.",
+          "Runtime Protocol v3 execution must be implemented through the Runtime Service HTTP API before real Runtime containers can run.",
+          thread_id_before,
+          Some(
+            failure_debug(
+              "Runtime Protocol v3 startup",
+              None,
+              None,
+              Some(artifacts),
             ),
-          )
-      }
+          ),
+        ),
+      )
     None =>
       match thread_id_before {
         Some(runtime_session_id) if resume_existing && !raw_prompt =>
@@ -1089,11 +1086,7 @@ async fn run_runtime_turn(
     output,
   )
   let mut thread_id = thread_id_before
-  let agent_name = match config {
-    Some(config) => config.agent_cli
-    None => "fake-runtime"
-  }
-  match extract_agent_session_id(output, agent_name) {
+  match extract_runtime_session_id(output) {
     Some(runtime_session_id) => thread_id = Some(runtime_session_id)
     None => ()
   }
@@ -1101,7 +1094,6 @@ async fn run_runtime_turn(
     return Err(
       runtime_failure_with_debug(
         ai_builder_failure_assistant_message(
-          model,
           output,
           default_failure_assistant_message(),
         ),
@@ -1131,26 +1123,22 @@ async fn run_runtime_turn(
       initial_project_prompt, user_prompt,
     )
     let recovery_command = match config {
-      Some(config) =>
-        match agent_command(root, config, recovery_prompt_text, false) {
-          Ok(command) => command
-          Err(message) =>
-            return Err(
-              runtime_failure_with_debug(
-                "The builder session could not be recovered for that update.",
-                message,
-                thread_id_before,
-                Some(
-                  failure_debug(
-                    "AI builder session recovery startup",
-                    None,
-                    None,
-                    Some(artifacts),
-                  ),
-                ),
+      Some(_) =>
+        return Err(
+          runtime_failure_with_debug(
+            "The builder session could not be recovered for that update.",
+            "Runtime Protocol v3 recovery must be implemented through the Runtime Service HTTP API.",
+            thread_id_before,
+            Some(
+              failure_debug(
+                "Runtime Protocol v3 recovery startup",
+                None,
+                None,
+                Some(artifacts),
               ),
-            )
-        }
+            ),
+          ),
+        )
       None => fake_runtime_send_command(recovery_prompt_text)
     }
     let recovery_result = match
@@ -1185,14 +1173,12 @@ async fn run_runtime_turn(
       recovery_exit_code,
       recovery_output,
     )
-    let recovery_thread_id = match
-      extract_agent_session_id(recovery_output, agent_name) {
+    let recovery_thread_id = match extract_runtime_session_id(recovery_output) {
       Some(runtime_session_id) => runtime_session_id
       None =>
         return Err(
           runtime_failure_with_debug(
             ai_builder_failure_assistant_message(
-              model,
               recovery_output,
               default_failure_assistant_message(),
             ),
@@ -1223,7 +1209,6 @@ async fn run_runtime_turn(
     return Err(
       runtime_failure_with_debug(
         ai_builder_failure_assistant_message(
-          model,
           output,
           default_failure_assistant_message(),
         ),

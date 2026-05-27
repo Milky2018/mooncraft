@@ -58,7 +58,7 @@ Any other Docker host architecture fails before the builder starts. The agent ru
 
 `just build-agent-runtime-image` defaults to the current Docker host platform, which is the right choice for local smoke tests. `just build-agent-runtime-images` builds both local platform-specific tags, such as `:0.3.2-amd64` and `:0.3.2-arm64`. Production and shared test deployments should use `just docker-agent-runtime-publish`, which builds and pushes one multi-architecture tag that Docker can resolve by host platform.
 
-If you are publishing your own agent runtime image, push it first and register that image in a Runtime manifest. Official built-ins are packaged under `runtime/builtin/`; admin-created Runtimes are configured from the admin page.
+If you are publishing your own Runtime image, push it first and register that image from the admin page. MoonCraft no longer ships built-in Runtime records.
 
 ## Environment Files
 
@@ -208,7 +208,7 @@ just build-mooncraft-image mooncraft:local linux/amd64
 just deploy-prod
 ```
 
-If an official built-in Runtime image changes, update the matching manifest under `runtime/builtin/`, rebuild the MoonCraft image, and run the matching deploy command. If an admin-created Runtime image changes, update that Runtime from the admin page.
+If a Runtime image changes, update that Runtime from the admin page. MoonCraft does not seed Runtime manifests from the repository.
 
 If a host previously cached the wrong-architecture runtime image, remove and repull it after upgrading:
 

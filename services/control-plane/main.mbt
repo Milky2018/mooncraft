@@ -1332,12 +1332,7 @@ fn main {
     }
     let default_runtime_id = match ctx.store.get_default_runtime_id() {
       Ok(id) => id
-      Err(message) =>
-        return api_error_response(
-          UnprocessableEntity,
-          ValidationFailed,
-          message,
-        )
+      Err(_) => ""
     }
     let items = match ctx.store.list_enabled_runtimes() {
       Ok(items) => items
@@ -1357,12 +1352,7 @@ fn main {
     }
     let default_runtime_id = match ctx.store.get_default_runtime_id() {
       Ok(id) => id
-      Err(message) =>
-        return api_error_response(
-          UnprocessableEntity,
-          ValidationFailed,
-          message,
-        )
+      Err(_) => ""
     }
     let items = match ctx.store.list_admin_runtimes() {
       Ok(items) => items
@@ -1530,8 +1520,8 @@ fn main {
           message,
         )
     }
-    let agent_cli = runtime.spec.agent
-    let selected_model = runtime.spec.model
+    let agent_cli = ""
+    let selected_model = ""
     let project_id = next_id("project")
     let agent_session_id = next_id("agent-session")
     let workspace_path = project_workspace(ctx.root, project_id)

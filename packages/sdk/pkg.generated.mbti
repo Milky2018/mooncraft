@@ -117,9 +117,7 @@ pub fn logout_route() -> RouteSpec
 
 pub fn messages_path(String) -> String
 
-pub fn normalize_runtime_auth(String, RuntimeAuth) -> Result[RuntimeAuth, String]
-
-pub fn normalize_runtime_auth_target(RuntimeAuthTarget) -> Result[RuntimeAuthTarget, String]
+pub fn normalize_runtime_secret_target(RuntimeSecretTarget) -> Result[RuntimeSecretTarget, String]
 
 pub fn normalize_runtime_spec(RuntimeSpec) -> Result[RuntimeSpec, String]
 
@@ -203,13 +201,7 @@ pub fn run_path(String, String) -> String
 
 pub fn runtime_manifest_allowed_fields() -> Array[String]
 
-pub fn runtime_manifest_forbidden_v1_fields() -> Array[String]
-
 pub fn runtime_manifest_protocol_version() -> Int
-
-pub fn runtime_manifest_supported_agents() -> Array[String]
-
-pub fn runtime_manifest_supported_auth_kinds() -> Array[String]
 
 pub fn runtime_spec_from_json(String) -> Result[RuntimeSpec, String]
 
@@ -224,6 +216,8 @@ pub fn session_path() -> String
 pub fn session_route() -> RouteSpec
 
 pub fn update_project_route() -> RouteSpec
+
+pub fn validate_runtime_env_name(String) -> Result[String, String]
 
 pub fn validate_runtime_secret_file_path(String) -> Result[String, String]
 
@@ -566,24 +560,6 @@ pub(all) struct RunStatusResponse {
   finished_at : String?
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
-pub(all) struct RuntimeAuth {
-  kind : String
-  secret : RuntimeAuthSecret
-} derive(ToJson, @debug.Debug, @json.FromJson)
-
-pub(all) struct RuntimeAuthSecret {
-  source : String
-  target : RuntimeAuthTarget
-} derive(ToJson, @debug.Debug, @json.FromJson)
-
-pub(all) struct RuntimeAuthTarget {
-  kind : String
-  name : String?
-  path : String?
-} derive(@debug.Debug)
-pub impl ToJson for RuntimeAuthTarget
-pub impl @json.FromJson for RuntimeAuthTarget
-
 pub(all) struct RuntimeDetail {
   id : String
   name : String
@@ -595,19 +571,32 @@ pub(all) struct RuntimeDetail {
   updated_at : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
+pub(all) struct RuntimeSecret {
+  source : String
+  target : RuntimeSecretTarget
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RuntimeSecretTarget {
+  kind : String
+  name : String?
+  path : String?
+} derive(@debug.Debug)
+pub impl ToJson for RuntimeSecretTarget
+pub impl @json.FromJson for RuntimeSecretTarget
+
 pub(all) struct RuntimeSpec {
   protocol_version : Int
   image : String
-  agent : String
-  model : String
-  auth : RuntimeAuth
-} derive(ToJson, @debug.Debug, @json.FromJson)
+  env : Map[String, String]
+  secrets : Array[RuntimeSecret]
+} derive(@debug.Debug)
+pub impl ToJson for RuntimeSpec
+pub impl @json.FromJson for RuntimeSpec
 
 pub(all) struct RuntimeSummary {
   id : String
   name : String
-  agent : String
-  model : String
+  image : String
   enabled : Bool
   is_default : Bool
   created_at : String

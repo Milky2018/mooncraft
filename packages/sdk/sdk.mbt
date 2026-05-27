@@ -55,14 +55,14 @@ pub(all) struct ProjectActivity {
 } derive(Debug, ToJson, FromJson)
 
 ///|
-pub(all) struct RuntimeAuthTarget {
+pub(all) struct RuntimeSecretTarget {
   kind : String
   name : String?
   path : String?
 } derive(Debug)
 
 ///|
-pub impl ToJson for RuntimeAuthTarget with to_json(self) {
+pub impl ToJson for RuntimeSecretTarget with fn to_json(self) {
   let fields = { "type": self.kind.to_json() }
   match self.name {
     Some(name) => fields["name"] = name.to_json()
@@ -76,14 +76,14 @@ pub impl ToJson for RuntimeAuthTarget with to_json(self) {
 }
 
 ///|
-pub impl @json.FromJson for RuntimeAuthTarget with from_json(json, path) {
+pub impl @json.FromJson for RuntimeSecretTarget with fn from_json(json, path) {
   match json {
     Object(fields) => {
       let kind = match fields.get("type") {
         Some(String(value)) => value
         _ =>
           raise JsonDecodeError(
-            (path.add_key("type"), "Runtime auth target type is required"),
+            (path.add_key("type"), "Runtime secret target type is required"),
           )
       }
       let name = match fields.get("name") {
@@ -91,7 +91,10 @@ pub impl @json.FromJson for RuntimeAuthTarget with from_json(json, path) {
         Some(Null) | None => None
         _ =>
           raise JsonDecodeError(
-            (path.add_key("name"), "Runtime auth target name must be a string"),
+            (
+              path.add_key("name"),
+              "Runtime secret target name must be a string",
+            ),
           )
       }
       let file_path = match fields.get("path") {
@@ -99,43 +102,139 @@ pub impl @json.FromJson for RuntimeAuthTarget with from_json(json, path) {
         Some(Null) | None => None
         _ =>
           raise JsonDecodeError(
-            (path.add_key("path"), "Runtime auth target path must be a string"),
+            (
+              path.add_key("path"),
+              "Runtime secret target path must be a string",
+            ),
           )
       }
       { kind, name, path: file_path }
     }
     _ =>
-      raise JsonDecodeError((path, "Runtime auth target must be a JSON object"))
+      raise JsonDecodeError(
+        (path, "Runtime secret target must be a JSON object"),
+      )
   }
 }
 
 ///|
-pub(all) struct RuntimeAuthSecret {
+pub(all) struct RuntimeSecret {
   source : String
-  target : RuntimeAuthTarget
-} derive(Debug, ToJson, FromJson)
-
-///|
-pub(all) struct RuntimeAuth {
-  kind : String
-  secret : RuntimeAuthSecret
+  target : RuntimeSecretTarget
 } derive(Debug, ToJson, FromJson)
 
 ///|
 pub(all) struct RuntimeSpec {
   protocol_version : Int
   image : String
-  agent : String
-  model : String
-  auth : RuntimeAuth
-} derive(Debug, ToJson, FromJson)
+  env : Map[String, String]
+  secrets : Array[RuntimeSecret]
+} derive(Debug)
+
+///|
+pub impl ToJson for RuntimeSpec with fn to_json(self) {
+  let env_fields : Map[String, Json] = {}
+  for key, value in self.env {
+    env_fields[key] = value.to_json()
+  }
+  Json::object({
+    "protocol_version": self.protocol_version.to_json(),
+    "image": self.image.to_json(),
+    "env": Json::object(env_fields),
+    "secrets": self.secrets.to_json(),
+  })
+}
+
+///|
+pub impl @json.FromJson for RuntimeSpec with fn from_json(json, path) {
+  match json {
+    Object(fields) => {
+      let protocol_version = match fields.get("protocol_version") {
+        Some(Number(_, ..) as value) =>
+          @string.parse_int(value.stringify()) catch {
+            _ =>
+              raise JsonDecodeError(
+                (
+                  path.add_key("protocol_version"),
+                  "Runtime protocol_version must be an integer",
+                ),
+              )
+          }
+        Some(String(value)) =>
+          @string.parse_int(value) catch {
+            _ =>
+              raise JsonDecodeError(
+                (
+                  path.add_key("protocol_version"),
+                  "Runtime protocol_version must be an integer",
+                ),
+              )
+          }
+        _ =>
+          raise JsonDecodeError(
+            (
+              path.add_key("protocol_version"),
+              "Runtime protocol_version is required",
+            ),
+          )
+      }
+      let image = match fields.get("image") {
+        Some(String(value)) => value
+        _ =>
+          raise JsonDecodeError(
+            (path.add_key("image"), "Runtime image is required"),
+          )
+      }
+      let env : Map[String, String] = {}
+      match fields.get("env") {
+        Some(Object(env_fields)) =>
+          for key, value in env_fields {
+            match value {
+              String(text) => env[key] = text
+              _ =>
+                raise JsonDecodeError(
+                  (
+                    path.add_key("env").add_key(key),
+                    "Runtime env value must be a string",
+                  ),
+                )
+            }
+          }
+        Some(Null) | None => ()
+        _ =>
+          raise JsonDecodeError(
+            (path.add_key("env"), "Runtime env must be an object"),
+          )
+      }
+      let secrets : Array[RuntimeSecret] = []
+      match fields.get("secrets") {
+        Some(Array(items)) =>
+          for item in items {
+            let secret : RuntimeSecret = @json.from_json(item) catch {
+              err =>
+                raise JsonDecodeError(
+                  (path.add_key("secrets"), "Runtime secret is invalid: \{err}"),
+                )
+            }
+            secrets.push(secret)
+          }
+        Some(Null) | None => ()
+        _ =>
+          raise JsonDecodeError(
+            (path.add_key("secrets"), "Runtime secrets must be an array"),
+          )
+      }
+      { protocol_version, image, env, secrets }
+    }
+    _ => raise JsonDecodeError((path, "Runtime spec must be a JSON object"))
+  }
+}
 
 ///|
 pub(all) struct RuntimeSummary {
   id : String
   name : String
-  agent : String
-  model : String
+  image : String
   enabled : Bool
   is_default : Bool
   created_at : String

@@ -1,0 +1,20 @@
+name = "mooncraft/web"
+
+version = "0.1.0"
+
+preferred_target = "js"
+
+import {
+  "mooncraft/sdk@0.1.0",
+  "moonbit-community/rabbita@0.12.1",
+}
+
+readme = "README.md"
+
+repository = ""
+
+license = "Apache-2.0"
+
+keywords = [ "moonbit", "cloud", "frontend" ]
+
+description = "MoonCraft Rabbita frontend."
