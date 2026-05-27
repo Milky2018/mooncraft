@@ -1,0 +1,188 @@
+openapi: 3.1.0
+info:
+  title: MoonCraft Runtime Service API
+  version: 3.0.0
+  description: Runtime Protocol v3 HTTP API exposed by each project-scoped Runtime Service.
+servers:
+  - url: http://runtime:8080
+paths:
+  /health:
+    get:
+      summary: Check Runtime Service readiness.
+      responses:
+        "200":
+          description: Runtime Service is ready.
+        default:
+          $ref: "#/components/responses/RuntimeError"
+  /exec:
+    post:
+      summary: Start or idempotently return an asynchronous Run.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExecRequest"
+      responses:
+        "202":
+          description: Run accepted and running.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Run"
+        "200":
+          description: Existing idempotent Run returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Run"
+        "400":
+          $ref: "#/components/responses/RuntimeError"
+        "409":
+          $ref: "#/components/responses/RuntimeError"
+        "500":
+          $ref: "#/components/responses/RuntimeError"
+        "503":
+          $ref: "#/components/responses/RuntimeError"
+  /runs/{run_id}:
+    get:
+      summary: Read the authoritative Run status and message.
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      responses:
+        "200":
+          description: Run found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Run"
+        "404":
+          $ref: "#/components/responses/RuntimeError"
+        default:
+          $ref: "#/components/responses/RuntimeError"
+  /runs/{run_id}/events:
+    get:
+      summary: Poll structured Run Events after a cursor.
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+        - name: after
+          in: query
+          required: false
+          description: Return events with id greater than this value.
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "200":
+          description: Event page returned. An empty event list is valid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunEventsResponse"
+        "404":
+          $ref: "#/components/responses/RuntimeError"
+        default:
+          $ref: "#/components/responses/RuntimeError"
+  /preview:
+    get:
+      summary: Check whether the fixed preview service on port 4792 is ready.
+      responses:
+        "200":
+          description: Preview is ready on container port 4792.
+        "503":
+          $ref: "#/components/responses/RuntimeError"
+        default:
+          $ref: "#/components/responses/RuntimeError"
+components:
+  parameters:
+    RunId:
+      name: run_id
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+  responses:
+    RuntimeError:
+      description: Runtime error response.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/RuntimeError"
+  schemas:
+    ExecRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - run_id
+        - prompt
+      properties:
+        run_id:
+          type: string
+          minLength: 1
+        prompt:
+          type: string
+          minLength: 1
+    Run:
+      type: object
+      additionalProperties: false
+      required:
+        - run_id
+        - status
+        - message
+      properties:
+        run_id:
+          type: string
+          minLength: 1
+        status:
+          $ref: "#/components/schemas/RunStatus"
+        message:
+          type: string
+    RunStatus:
+      type: string
+      enum:
+        - running
+        - succeeded
+        - failed
+    RunEvent:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - time
+        - level
+        - message
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        time:
+          type: string
+          format: date-time
+        level:
+          type: string
+          enum:
+            - info
+            - warning
+            - error
+        message:
+          type: string
+    RunEventsResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - events
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/RunEvent"
+    RuntimeError:
+      type: object
+      additionalProperties: false
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          minLength: 1

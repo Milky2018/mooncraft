@@ -1,47 +1,27 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://mooncraft.dev/schemas/runtime-manifest.v2.schema.json",
-  "title": "MoonCraft Runtime Manifest v2",
+  "$id": "https://mooncraft.dev/runtime-protocol/runtime-manifest.v3.schema.json",
+  "title": "MoonCraft Runtime Manifest v3",
   "type": "object",
   "additionalProperties": false,
-  "required": ["protocol_version", "image", "agent", "model", "auth"],
+  "required": ["protocol_version", "image"],
   "properties": {
     "protocol_version": {
-      "const": 2
+      "const": 3
     },
     "image": {
       "type": "string",
       "minLength": 1
     },
-    "agent": {
-      "enum": ["codex", "claude"]
-    },
-    "model": {
-      "type": "string",
-      "minLength": 1
-    },
-    "auth": {
-      "$ref": "#/$defs/auth"
+    "secrets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/secret"
+      },
+      "default": []
     }
   },
   "$defs": {
-    "auth": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["kind", "secret"],
-      "properties": {
-        "kind": {
-          "enum": [
-            "openrouter_api_key",
-            "codex_auth_json",
-            "claude_auth_json"
-          ]
-        },
-        "secret": {
-          "$ref": "#/$defs/secret"
-        }
-      }
-    },
     "secret": {
       "type": "object",
       "additionalProperties": false,
@@ -70,7 +50,8 @@
         },
         "path": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*(?:^|/)\\.(?:/|$))(?!.*//).+$"
         }
       },
       "allOf": [

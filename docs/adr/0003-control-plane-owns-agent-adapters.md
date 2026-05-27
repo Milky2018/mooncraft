@@ -1,5 +1,7 @@
 # Control Plane Owns Agent Adapters
 
+Status: superseded by ADR-0005.
+
 MoonCraft Runtime Protocol v2 will not let Runtime manifests provide arbitrary send commands. A Runtime selects a supported **Builder Agent** such as Codex or Claude, declares structured **Runtime Auth** through an `auth` object, and the control plane owns the corresponding **Agent Adapter**, including CLI invocation, authentication setup, dynamic log streaming, and agent-native output interpretation. The v2 Runtime Manifest removes `send`; concrete CLI commands are generated only by MoonCraft, and each Runtime Auth strategy binds exactly one admin-managed secret to one explicit **Secret Target** instead of using a separate top-level `secrets` list. The first v2 Auth Kinds are `openrouter_api_key`, `codex_auth_json`, and `claude_auth_json`; `openrouter_api_key` is shared across Builder Agents, while agent-specific environment setup belongs to the selected Agent Adapter. Account-file auth is materialized to the manifest's file target under `/home/mooncraft`. This keeps Runtime manifests simple for admins while allowing MoonCraft to provide detailed progress without making progress events part of the Runtime Protocol.
 
 The v2 Runtime Manifest field set is deliberately small: `protocol_version`, `image`, `agent`, `model`, and `auth`. It removes v1 `provider`, `send`, `secrets`, `container_home`, and `container_user`.

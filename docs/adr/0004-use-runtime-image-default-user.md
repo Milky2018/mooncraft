@@ -1,3 +1,5 @@
 # Use the Runtime Image Default User
 
+Status: superseded by ADR-0005.
+
 MoonCraft will not pass `docker run --user` for Runtime containers. The Runtime image must define its default non-root user and fixed `/home/mooncraft` home directory through its Dockerfile as part of the **Runtime Image Contract**, and MoonCraft will verify that contract instead of overriding it from the Runtime Manifest. The Runtime Image Contract also fixes `/workspace`, `/home/mooncraft`, and `/artifacts` as the container paths MoonCraft mounts for project source, durable agent session state, and Agent Adapter artifacts. This keeps user and filesystem ownership inside the image provider's responsibility and removes `container_user` and `container_home` from Runtime Protocol v2.

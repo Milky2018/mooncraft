@@ -71,7 +71,7 @@ Use these repository-level checks:
 - `just check-agent-runtime-image` verifies required tools and knowledge assets inside the agent runtime image.
 - `just smoke` covers the default project creation, fake builder update, preview rebuild, deletion, and persistence flow.
 
-Runtime configuration is stored in Runtime manifests, not process-wide service environment variables. Official built-ins live under `runtime/builtin/`, and admin-created Runtime rows use the same Runtime Protocol v2 shape documented in `docs/runtime-protocol.md`. The selected Runtime snapshot supplies `image`, `agent`, `model`, and one structured `auth` binding for each project. The control plane owns the Codex/Claude command, fixed mounts, dynamic log streaming, and agent session id extraction.
+Runtime configuration is stored in Runtime manifests, not process-wide service environment variables. Official built-ins live under `runtime/builtin/`, and admin-created Runtime rows should follow the Runtime Protocol documented in `docs/runtime-protocol/`. Runtime Protocol v3 narrows the manifest to `protocol_version`, `image`, and semantics-free `secrets`; the Runtime image owns its service implementation behind the Runtime Service HTTP API.
 
 The runtime intentionally does not mount a host AI tool home and users do not configure provider keys. Admins log in at `/admin/login` with `MOONCRAFT_ADMIN_TOKEN` and use `/admin` to inspect users, manage projects, inspect recent runs, configure named secrets, and configure Runtime manifests. Secret APIs store secret values, return only hints, and the worker injects only the sources declared by the project's fixed Runtime snapshot.
 
