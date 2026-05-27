@@ -43,22 +43,11 @@ fn runtime_service_json_headers() -> Map[String, String] {
 }
 
 ///|
-fn runtime_service_response_text(response : @mocket.HttpResponse) -> String {
-  if response.raw_body.length() > 0 {
-    bytes_to_string(response.raw_body)
-  } else {
-    response.read_body() catch {
-      _ => ""
-    }
-  }
-}
-
-///|
 fn runtime_service_error_message(
-  response : @mocket.HttpResponse,
+  response : UpstreamHttpResponse,
   fallback : String,
 ) -> String {
-  let body = runtime_service_response_text(response)
+  let body = http_response_text(response)
   let parsed = @json.parse(body) catch { _ => return fallback }
   let error : RuntimeServiceError = @json.from_json(parsed) catch {
     _ => return fallback
@@ -106,19 +95,12 @@ async fn runtime_service_post_exec(
 ) -> Result[RuntimeServiceRun, String] noraise {
   let body = RuntimeServiceExecRequest::{ run_id, prompt }.to_json().stringify()
   let headers = runtime_service_json_headers()
-  let response = try
-    @mocket.fetch(
-      runtime_service_api_url(endpoint, "/exec"),
-      POST,
-      body~,
-      headers~,
-    )
-  catch {
-    _ => return Err("Runtime Service /exec is not reachable.")
-  } noraise {
-    response => response
+  let response = match
+    http_post(runtime_service_api_url(endpoint, "/exec"), body, headers~) {
+    Ok(response) => response
+    Err(_) => return Err("Runtime Service /exec is not reachable.")
   }
-  let code = response.status_code.to_int()
+  let code = response.code
   if code != 200 && code != 202 {
     let fallback = if code == 409 {
       "Runtime Service rejected the run because another run is active or this run id was already used differently."
@@ -129,7 +111,7 @@ async fn runtime_service_post_exec(
   }
   let run : RuntimeServiceRun = match
     decode_runtime_service_json(
-      runtime_service_response_text(response),
+      http_response_text(response),
       "Runtime Service /exec",
     ) {
     Ok(run) => run
@@ -144,18 +126,12 @@ async fn runtime_service_get_run(
   run_id : String,
 ) -> Result[RuntimeServiceRun, String] noraise {
   let headers = runtime_service_json_headers()
-  let response = try
-    @mocket.fetch(
-      runtime_service_api_url(endpoint, "/runs/\{run_id}"),
-      GET,
-      headers~,
-    )
-  catch {
-    _ => return Err("Runtime Service run status is not reachable.")
-  } noraise {
-    response => response
+  let response = match
+    http_get(runtime_service_api_url(endpoint, "/runs/\{run_id}"), headers~) {
+    Ok(response) => response
+    Err(_) => return Err("Runtime Service run status is not reachable.")
   }
-  if !http_status_success(response.status_code) {
+  if !http_status_success(response.code) {
     return Err(
       runtime_service_error_message(
         response, "Runtime Service could not return the run status.",
@@ -164,7 +140,7 @@ async fn runtime_service_get_run(
   }
   let run : RuntimeServiceRun = match
     decode_runtime_service_json(
-      runtime_service_response_text(response),
+      http_response_text(response),
       "Runtime Service run status",
     ) {
     Ok(run) => run
@@ -180,18 +156,15 @@ async fn runtime_service_get_events(
   after : Int,
 ) -> Result[RuntimeServiceEventsResponse, String] noraise {
   let headers = runtime_service_json_headers()
-  let response = try
-    @mocket.fetch(
+  let response = match
+    http_get(
       runtime_service_api_url(endpoint, "/runs/\{run_id}/events?after=\{after}"),
-      GET,
       headers~,
-    )
-  catch {
-    _ => return Err("Runtime Service run events are not reachable.")
-  } noraise {
-    response => response
+    ) {
+    Ok(response) => response
+    Err(_) => return Err("Runtime Service run events are not reachable.")
   }
-  if !http_status_success(response.status_code) {
+  if !http_status_success(response.code) {
     return Err(
       runtime_service_error_message(
         response, "Runtime Service could not return run events.",
@@ -199,7 +172,7 @@ async fn runtime_service_get_events(
     )
   }
   decode_runtime_service_json(
-    runtime_service_response_text(response),
+    http_response_text(response),
     "Runtime Service run events",
   )
 }
@@ -208,14 +181,11 @@ async fn runtime_service_get_events(
 async fn runtime_service_get_preview(
   endpoint : RuntimeServiceEndpoint,
 ) -> Result[Unit, String] noraise {
-  let response = try
-    @mocket.fetch(runtime_service_api_url(endpoint, "/preview"), GET)
-  catch {
-    _ => return Err("Runtime Service preview readiness is not reachable.")
-  } noraise {
-    response => response
+  let response = match http_get(runtime_service_api_url(endpoint, "/preview")) {
+    Ok(response) => response
+    Err(_) => return Err("Runtime Service preview readiness is not reachable.")
   }
-  if http_status_success(response.status_code) {
+  if http_status_success(response.code) {
     Ok(())
   } else {
     Err(

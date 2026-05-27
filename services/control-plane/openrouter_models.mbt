@@ -107,15 +107,14 @@ async fn AppContext::fetch_openrouter_models(
     "Accept": "application/json",
     "Authorization": "Bearer \{api_key}",
   }
-  let response = try @mocket.fetch(openrouter_models_url, GET, headers~) catch {
-    _ => return Err("OpenRouter model list could not be loaded.")
-  } noraise {
-    value => value
+  let response = match http_get(openrouter_models_url, headers~) {
+    Ok(value) => value
+    Err(_) => return Err("OpenRouter model list could not be loaded.")
   }
-  if !http_status_success(response.status_code) {
+  if !http_status_success(response.code) {
     return Err("OpenRouter model list request failed.")
   }
-  match openrouter_models_from_response(bytes_to_string(response.raw_body)) {
+  match openrouter_models_from_response(http_response_text(response)) {
     Ok(items) => Ok({ items, fetched_at: now_string() })
     Err(message) => Err(message)
   }

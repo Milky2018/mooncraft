@@ -544,17 +544,17 @@ async fn admin_project_diagnostics_response(
 }
 
 ///|
-fn proxy_method(http_method_name : String) -> @mocket.HttpMethod {
+fn proxy_method(http_method_name : String) -> @http.RequestMethod {
   match http_method_name {
-    "POST" => POST
-    "PUT" => PUT
-    "PATCH" => PATCH
-    "DELETE" => DELETE
-    "HEAD" => HEAD
-    "OPTIONS" => OPTIONS
-    "TRACE" => TRACE
-    "CONNECT" => CONNECT
-    _ => GET
+    "POST" => Post
+    "PUT" => Put
+    "PATCH" => Patch
+    "DELETE" => Delete
+    "HEAD" => Head
+    "OPTIONS" => Options
+    "TRACE" => Trace
+    "CONNECT" => Connect
+    _ => Get
   }
 }
 
@@ -576,7 +576,7 @@ fn proxy_request_headers(event : @mocket.MocketEvent) -> Map[String, String] {
 
 ///|
 fn proxy_response_headers(
-  response : @mocket.HttpResponse,
+  response : UpstreamHttpResponse,
 ) -> Map[StringView, StringView] {
   let headers : Map[StringView, StringView] = {}
   if response.headers.get("Content-Type") is Some(value) {
@@ -590,16 +590,6 @@ fn proxy_response_headers(
     headers["Location"] = value
   }
   headers
-}
-
-///|
-fn proxy_response_body(response : @mocket.HttpResponse) -> Bytes {
-  if response.raw_body.length() > 0 {
-    response.raw_body
-  } else {
-    let body : String = response.read_body() catch { _ => "" }
-    @utf8.encode(body)
-  }
 }
 
 ///|
@@ -622,28 +612,21 @@ async fn proxy_preview_response(
   let target_path = preview_target_path(remainder)
   let target_url = "\{upstream_url}\{target_path}"
   let headers = proxy_request_headers(event)
-  let upstream = try {
-    if event.req.raw_body.length() == 0 {
-      @mocket.fetch(target_url, proxy_method(event.req.http_method), headers~)
-    } else {
-      let body = bytes_to_string(event.req.raw_body)
-      @mocket.fetch(
-        target_url,
-        proxy_method(event.req.http_method),
-        body~,
-        headers~,
-      )
-    }
-  } catch {
-    _ => return Err("The preview process is not reachable.")
-  } noraise {
-    response => response
+  let upstream = match
+    http_request_bytes(
+      proxy_method(event.req.http_method),
+      target_url,
+      headers,
+      event.req.raw_body,
+    ) {
+    Ok(response) => response
+    Err(_) => return Err("The preview process is not reachable.")
   }
   Ok(
     @mocket.HttpResponse::new(
-      upstream.status_code,
+      @mocket.StatusCode::from_int(upstream.code),
       headers=proxy_response_headers(upstream),
-      raw_body=proxy_response_body(upstream),
+      raw_body=upstream.body,
     ),
   )
 }

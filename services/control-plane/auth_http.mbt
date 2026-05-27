@@ -92,12 +92,6 @@ fn github_callback_url() -> String {
 }
 
 ///|
-fn http_status_success(status : @mocket.StatusCode) -> Bool {
-  let code = status.to_int()
-  code >= 200 && code < 300
-}
-
-///|
 fn github_client_id_hint(client_id : String) -> String {
   if client_id.length() <= 8 {
     client_id
@@ -411,17 +405,14 @@ async fn github_fetch_profile(
   access_token : String,
 ) -> Result[GitHubUserProfile, String] noraise {
   let headers = github_api_headers(access_token)
-  let response = try
-    @mocket.fetch("https://api.github.com/user", GET, headers~)
-  catch {
-    _ => return Err("GitHub user details could not be loaded.")
-  } noraise {
-    value => value
+  let response = match http_get("https://api.github.com/user", headers~) {
+    Ok(value) => value
+    Err(_) => return Err("GitHub user details could not be loaded.")
   }
-  if !http_status_success(response.status_code) {
+  if !http_status_success(response.code) {
     return Err("GitHub user details could not be loaded.")
   }
-  github_user_profile_from_response(bytes_to_string(response.raw_body))
+  github_user_profile_from_response(http_response_text(response))
 }
 
 ///|
@@ -429,18 +420,16 @@ async fn github_fetch_email(
   access_token : String,
 ) -> Result[String, String] noraise {
   let headers = github_api_headers(access_token)
-  let response = try
-    @mocket.fetch("https://api.github.com/user/emails", GET, headers~)
-  catch {
-    _ => return Err("GitHub email addresses could not be loaded.")
-  } noraise {
-    value => value
+  let response = match
+    http_get("https://api.github.com/user/emails", headers~) {
+    Ok(value) => value
+    Err(_) => return Err("GitHub email addresses could not be loaded.")
   }
-  if !http_status_success(response.status_code) {
+  if !http_status_success(response.code) {
     return Err("GitHub email addresses could not be loaded.")
   }
   let emails : Array[GitHubUserEmail] = match
-    decode_json_text(bytes_to_string(response.raw_body)) {
+    decode_json_text(http_response_text(response)) {
     Ok(items) => items
     Err(message) => return Err(message)
   }
@@ -489,11 +478,10 @@ async fn AppContext::complete_github_sign_in(
     "Accept": "application/json",
     "Content-Type": "application/x-www-form-urlencoded",
   }
-  let token_response = try
-    @mocket.fetch(
+  let token_response = match
+    http_post(
       "https://github.com/login/oauth/access_token",
-      POST,
-      body=github_token_request_body(
+      github_token_request_body(
         client_id,
         client_secret,
         payload.code,
@@ -501,28 +489,26 @@ async fn AppContext::complete_github_sign_in(
         pkce_verifier,
       ),
       headers~,
-    )
-  catch {
-    _ => {
+    ) {
+    Ok(response) => response
+    Err(_) => {
       log_github_token_exchange_failure("request", client_id, None, None)
       return Err(
         "GitHub sign-in failed while exchanging the authorization code.",
       )
     }
-  } noraise {
-    response => response
   }
-  if !http_status_success(token_response.status_code) {
+  if !http_status_success(token_response.code) {
     log_github_token_exchange_failure(
       "response",
       client_id,
-      Some(token_response.status_code),
-      Some(bytes_to_string(token_response.raw_body)),
+      Some(@mocket.StatusCode::from_int(token_response.code)),
+      Some(http_response_text(token_response)),
     )
     return Err("GitHub sign-in failed while exchanging the authorization code.")
   }
   let access_token = match
-    github_access_token_from_response(bytes_to_string(token_response.raw_body)) {
+    github_access_token_from_response(http_response_text(token_response)) {
     Ok(token) => token
     Err(message) =>
       return Err(
