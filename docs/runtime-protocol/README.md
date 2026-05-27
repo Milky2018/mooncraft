@@ -1,6 +1,6 @@
 # MoonCraft Runtime Protocol v3
 
-Runtime Protocol v3 defines the boundary between MoonCraft and a project-scoped Runtime Service. A Runtime is a Docker image plus optional semantics-free secret bindings. MoonCraft does not know whether the Runtime uses Codex, Claude, another agent, a remote queue, or a human workflow.
+Runtime Protocol v3 defines the boundary between MoonCraft and a project-scoped Runtime Service. A Runtime is a Docker image plus optional semantics-free environment variable and secret bindings. MoonCraft does not know whether the Runtime uses Codex, Claude, another agent, a remote queue, or a human workflow.
 
 Runtime Protocol v3 replaces the v2 control-plane Agent Adapter model. The control plane no longer constructs agent CLI commands, passes model names, manages agent sessions, starts project preview scripts, or repairs previews through agent-specific prompts.
 
@@ -19,6 +19,9 @@ Admin-created Runtime JSON and built-in Runtime `spec` objects use this shape:
 {
   "protocol_version": 3,
   "image": "docker.io/org/runtime:1.0.0",
+  "env": {
+    "RUNTIME_MODE": "production"
+  },
   "secrets": [
     {
       "source": "codex_account",
@@ -42,9 +45,29 @@ Fields:
 
 - `protocol_version`: must be `3`.
 - `image`: Docker image tag. Production Runtime images should publish both `linux/amd64` and `linux/arm64`.
+- `env`: optional object of semantics-free environment variable bindings. Missing `env` is equivalent to an empty object.
 - `secrets`: optional array of semantics-free secret injection bindings. Missing `secrets` is equivalent to an empty array.
 
 No other fields are allowed. In particular, Runtime Protocol v3 does not define `agent`, `model`, `auth`, `provider`, `send`, `container_home`, `container_user`, or arbitrary command fields.
+
+## Environment Variables
+
+Runtime `env` values are plain non-secret strings injected into the Runtime Service container. They do not describe what the Runtime means by those variables, and MoonCraft must not interpret them.
+
+```json
+{
+  "env": {
+    "RUNTIME_MODE": "production",
+    "FEATURE_X": "1"
+  }
+}
+```
+
+Do not put credentials or sensitive values in `env`; use `secrets` instead.
+
+Environment variable names must use normal shell-style names and must not start with `MOONCRAFT_`. The `MOONCRAFT_` prefix is reserved for platform-owned variables.
+
+An `env` key must not duplicate a secret environment target name. Manifests with such collisions are invalid instead of relying on precedence rules.
 
 ## Secrets
 
@@ -61,6 +84,8 @@ Environment target:
   }
 }
 ```
+
+Secret environment target names must use normal shell-style names, must not start with `MOONCRAFT_`, and must not duplicate a key in `env`.
 
 File target:
 

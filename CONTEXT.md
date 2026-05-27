@@ -32,6 +32,10 @@ _Avoid_: Secret type, provider key type
 A semantics-free secret binding injected into a Runtime Service.
 _Avoid_: Runtime Auth, provider credential
 
+**Runtime Env**:
+A semantics-free environment variable binding injected into a Runtime Service.
+_Avoid_: Model setting, provider setting, secret
+
 **Runtime Entrypoint**:
 The image-defined default process that starts a Runtime Service.
 _Avoid_: Manifest command, send command
@@ -132,8 +136,10 @@ _Avoid_: Runtime origin template, admin preview URL
 
 - A **Runtime Manifest** describes exactly one **Runtime**.
 - A **Runtime Manifest** names an image that must satisfy the **Runtime Image Contract**.
+- A **Runtime Manifest** may declare zero or more **Runtime Env** bindings.
 - A **Runtime Manifest** may declare zero or more **Runtime Secrets**.
 - A **Runtime Manifest** has no Runtime-specific extension fields.
+- A **Runtime Env** binding is not a **Runtime Secret**.
 - A **Runtime Secret** binds one admin-managed secret to one **Secret Target**.
 - A **Runtime Image Contract** requires one **Runtime Entrypoint**.
 - A **Runtime Service** creates one **Run** for each accepted execution request.
@@ -176,6 +182,7 @@ _Avoid_: Runtime origin template, admin preview URL
 
 - "agent" was used to mean **Runtime**, an internal CLI, and model/provider metadata; resolved: Runtime Protocol v3 does not expose agent concepts to MoonCraft.
 - "provider" was used to mean model vendor, API endpoint, and account authentication; resolved: Runtime Protocol v3 uses semantics-free **Runtime Secrets**.
+- "env var" was considered as a way to configure model/provider behavior; resolved: Runtime Protocol v3 allows semantics-free **Runtime Env** bindings but MoonCraft does not interpret them.
 - "send command" was considered a Runtime-owned arbitrary command; resolved: Runtime Protocol v3 uses the image-defined **Runtime Entrypoint** and HTTP `/exec`.
 - "`runtime_context.json`" was considered a Runtime Protocol file; resolved: Runtime Protocol v3 does not define context files.
 - "`result.json`" was considered Runtime-written protocol output; resolved: Runtime Protocol v3 exposes the authoritative **Run Result** over HTTP.

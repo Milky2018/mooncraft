@@ -13,6 +13,16 @@
       "type": "string",
       "minLength": 1
     },
+    "env": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "propertyNames": {
+        "$ref": "#/$defs/env_name"
+      },
+      "default": {}
+    },
     "secrets": {
       "type": "array",
       "items": {
@@ -36,6 +46,10 @@
         }
       }
     },
+    "env_name": {
+      "type": "string",
+      "pattern": "^(?!MOONCRAFT_)[A-Za-z_][A-Za-z0-9_]*$"
+    },
     "secret_target": {
       "type": "object",
       "additionalProperties": false,
@@ -46,7 +60,8 @@
         },
         "name": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "pattern": "^(?!MOONCRAFT_)[A-Za-z_][A-Za-z0-9_]*$"
         },
         "path": {
           "type": "string",
