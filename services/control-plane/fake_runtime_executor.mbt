@@ -98,31 +98,20 @@ async fn fake_runtime_update_workspace(
   let mocket_version = "0.7.1"
   let moon_mod = StringBuilder()
   moon_mod <+
-    #|{
-  moon_mod <+
-    #|  "name": "mooncraft/smoke-app",
-  moon_mod <+
-    #|  "version": "0.1.0",
-  moon_mod <+
-    #|  "preferred-target": "native",
-  moon_mod <+
-    #|  "deps": {
-  moon_mod <+ "    \"moonbitlang/async\": \"\{async_version}\",\n"
-  moon_mod <+ "    \"oboard/mocket\": \"\{mocket_version}\"\n"
-  moon_mod <+
-    #|  },
-  moon_mod <+
-    #|  "readme": "README.md",
-  moon_mod <+
-    #|  "repository": "",
-  moon_mod <+
-    #|  "license": "Apache-2.0",
-  moon_mod <+
-    #|  "keywords": [],
-  moon_mod <+
-    #|  "description": "MoonCraft smoke app"
-  moon_mod <+
-    #|}
+    $|{
+    $|  "name": "mooncraft/smoke-app",
+    $|  "version": "0.1.0",
+    $|  "preferred-target": "native",
+    $|  "deps": {
+    $|    "moonbitlang/async": "\{async_version}",
+    $|    "oboard/mocket": "\{mocket_version}"
+    $|  },
+    $|  "readme": "README.md",
+    $|  "repository": "",
+    $|  "license": "Apache-2.0",
+    $|  "keywords": [],
+    $|  "description": "MoonCraft smoke app"
+    $|}
   let files : Array[(String, String)] = [
     ("/moon.mod.json", moon_mod.to_string()),
     (
