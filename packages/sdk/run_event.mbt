@@ -104,11 +104,6 @@ pub fn run_event_code_preview_repairing() -> String {
 }
 
 ///|
-pub fn run_event_code_provider_retrying() -> String {
-  "provider_retrying"
-}
-
-///|
 pub fn run_event_code_runtime_container_launching() -> String {
   "runtime_container_launching"
 }
@@ -186,7 +181,6 @@ pub fn run_event_display_text(code : String, content : String) -> String {
     "preview_preparing" => "Preparing preview"
     "preview_repairing" => "Repairing preview"
     "preview_starting" => "Starting preview"
-    "provider_retrying" => "Waiting for provider"
     "runtime_container_launching" => "Launching runtime"
     "runtime_container_running" => "Runtime running"
     "runtime_image_pulling" => "Pulling runtime image"

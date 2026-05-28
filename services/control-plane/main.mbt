@@ -43,78 +43,6 @@ fn validated_project_display_name(value : String) -> Result[String, String] {
 }
 
 ///|
-fn ai_model_summary_from_admin(
-  model : @sdk.AdminAiModelSummary,
-) -> @sdk.AiModelSummary {
-  {
-    id: model.id,
-    name: model.name,
-    context_length: model.context_length,
-    prompt_price: model.prompt_price,
-    completion_price: model.completion_price,
-  }
-}
-
-///|
-fn model_allowed(model : String, allowed_models : Array[String]) -> Bool {
-  let normalized = normalize_openrouter_model(model)
-  for allowed in allowed_models {
-    if normalize_openrouter_model(allowed) == normalized {
-      return true
-    }
-  }
-  false
-}
-
-///|
-fn public_ai_model_list(
-  response : @sdk.AdminListAiModelsResponse,
-  config : @sdk.AdminAiConfigResponse,
-) -> Array[@sdk.AiModelSummary] {
-  let items : Array[@sdk.AiModelSummary] = []
-  for model in response.items {
-    if model_allowed(model.id, config.allowed_models) {
-      items.push(ai_model_summary_from_admin(model))
-    }
-  }
-  items
-}
-
-///|
-fn openrouter_catalog_contains(
-  items : Array[@sdk.AdminAiModelSummary],
-  model : String,
-) -> Bool {
-  let normalized = normalize_openrouter_model(model)
-  for item in items {
-    if normalize_openrouter_model(item.id) == normalized {
-      return true
-    }
-  }
-  false
-}
-
-///|
-fn normalized_config_models(
-  default_model : String,
-  allowed_models : Array[String],
-) -> Array[String] {
-  let normalized_default = normalize_openrouter_model(default_model)
-  let normalized_allowed = normalize_allowed_models(allowed_models)
-  if normalized_allowed.length() == 0 {
-    [normalized_default]
-  } else if normalized_allowed.contains(normalized_default) {
-    normalized_allowed
-  } else {
-    let next = [normalized_default]
-    for model in normalized_allowed {
-      next.push(model)
-    }
-    next
-  }
-}
-
-///|
 async fn selected_project_runtime(
   store : Store,
   runtime_id : String?,
@@ -1288,41 +1216,6 @@ fn main {
         api_error_response(UnprocessableEntity, ValidationFailed, message)
     }
   })
-  app.get(@sdk.admin_ai_config_path(), event => {
-    match require_admin_token(event) {
-      Ok(_) => json_ok(ctx.store.get_admin_ai_config())
-      Err(response) => response
-    }
-  })
-  app.get(@sdk.admin_ai_models_path(), async fn(event) noraise {
-    if require_admin_token(event) is Err(response) {
-      return response
-    }
-    match ctx.fetch_openrouter_models() {
-      Ok(response) => json_ok(response)
-      Err(message) =>
-        api_error_response(UnprocessableEntity, ValidationFailed, message)
-    }
-  })
-  app.get(@sdk.ai_models_path(), async fn(event) noraise {
-    if require_session_user(ctx, event) is Err(response) {
-      return response
-    }
-    let config = ctx.store.get_admin_ai_config()
-    match ctx.fetch_openrouter_models() {
-      Ok(response) => {
-        let items = public_ai_model_list(response, config)
-        json_ok(@sdk.ListAiModelsResponse::{
-          default_agent_cli: "",
-          default_model: config.default_model,
-          items,
-          fetched_at: response.fetched_at,
-        })
-      }
-      Err(message) =>
-        api_error_response(UnprocessableEntity, ValidationFailed, message)
-    }
-  })
   app.get(@sdk.runtimes_path(), async fn(event) noraise {
     if require_session_user(ctx, event) is Err(response) {
       return response
@@ -1410,47 +1303,6 @@ fn main {
         api_error_response(UnprocessableEntity, ValidationFailed, message)
     }
   })
-  app.put(@sdk.admin_ai_config_path(), async fn(event) noraise {
-    if require_admin_token(event) is Err(response) {
-      return response
-    }
-    let request : @sdk.UpdateAdminAiConfigRequest = match
-      decode_json_body(event) {
-      Ok(request) => request
-      Err(response) => return response
-    }
-    let catalog = match ctx.fetch_openrouter_models() {
-      Ok(response) => response.items
-      Err(message) =>
-        return api_error_response(
-          UnprocessableEntity,
-          ValidationFailed,
-          message,
-        )
-    }
-    for
-      model in normalized_config_models(
-        request.default_model,
-        request.allowed_models,
-      ) {
-      if !openrouter_catalog_contains(catalog, model) {
-        return api_error_response(
-          UnprocessableEntity,
-          ValidationFailed,
-          "Model must be available from OpenRouter.",
-        )
-      }
-    }
-    match
-      ctx.store.update_admin_ai_config(
-        request.default_model,
-        request.allowed_models,
-      ) {
-      Ok(config) => json_ok(config)
-      Err(message) =>
-        api_error_response(UnprocessableEntity, ValidationFailed, message)
-    }
-  })
   app.get(@sdk.github_login_path(), async fn(_) noraise {
     github_authorization_response(ctx)
   })
@@ -1513,10 +1365,7 @@ fn main {
           message,
         )
     }
-    let agent_cli = ""
-    let selected_model = ""
     let project_id = next_id("project")
-    let agent_session_id = next_id("agent-session")
     let workspace_path = project_workspace(ctx.root, project_id)
     let project = ctx.store.create_project_for_user(
       user.id,
@@ -1525,9 +1374,9 @@ fn main {
       runtime.id,
       runtime.name,
       runtime_snapshot_json(runtime),
-      agent_session_id,
-      agent_cli,
-      selected_model,
+      "",
+      "",
+      "",
       workspace_path,
     )
     match ctx.materialize_project_workspace(project) {
@@ -1573,16 +1422,7 @@ fn main {
         }
       None => None
     }
-    let selected_model = match request.model {
-      Some(_) =>
-        return api_error_response(
-          UnprocessableEntity,
-          ValidationFailed,
-          "Project Runtime cannot be changed after creation.",
-        )
-      None => None
-    }
-    if display_name is None && selected_model is None {
+    if display_name is None {
       return api_error_response(
         UnprocessableEntity,
         ValidationFailed,
@@ -1594,7 +1434,7 @@ fn main {
         user.id,
         project_id,
         display_name,
-        selected_model,
+        None,
       ) {
       Some(project) => json_ok(@sdk.UpdateProjectResponse::{ project, })
       None => api_error_response(NotFound, NotFound, "Project not found.")

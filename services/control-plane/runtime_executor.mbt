@@ -1100,7 +1100,7 @@ async fn AppContext::run_project_turn(
           run_id,
           worker_id,
           attempt,
-          AgentRunning,
+          RuntimeRunning,
         )
         @async.sleep(5000) catch {
           _ => return

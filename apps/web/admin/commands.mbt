@@ -23,23 +23,9 @@ fn load_user_projects_cmd(
 }
 
 ///|
-fn load_config_cmd(dispatch : @rabbita.Dispatch[AdminMsg]) -> @rabbita.Cmd {
-  @shared.get_json(@sdk.admin_ai_config_path(), fn(result) {
-    dispatch(ConfigLoaded(result))
-  })
-}
-
-///|
 fn load_runtimes_cmd(dispatch : @rabbita.Dispatch[AdminMsg]) -> @rabbita.Cmd {
   @shared.get_json(@sdk.admin_runtimes_path(), fn(result) {
     dispatch(RuntimesLoaded(result))
-  })
-}
-
-///|
-fn load_catalog_cmd(dispatch : @rabbita.Dispatch[AdminMsg]) -> @rabbita.Cmd {
-  @shared.get_json(@sdk.admin_ai_models_path(), fn(result) {
-    dispatch(CatalogLoaded(result))
   })
 }
 
@@ -49,8 +35,6 @@ fn refresh_cmd(dispatch : @rabbita.Dispatch[AdminMsg]) -> @rabbita.Cmd {
     load_users_cmd(dispatch),
     load_secrets_cmd(dispatch),
     load_runtimes_cmd(dispatch),
-    load_config_cmd(dispatch),
-    load_catalog_cmd(dispatch),
   ])
 }
 
@@ -125,21 +109,6 @@ fn create_runtime_cmd(
   }
   @shared.post_json(@sdk.admin_runtimes_path(), payload, fn(result) {
     dispatch(RuntimeSaved(result))
-  })
-}
-
-///|
-fn save_models_cmd(
-  dispatch : @rabbita.Dispatch[AdminMsg],
-  default_model : String,
-  allowed_models : Array[String],
-) -> @rabbita.Cmd {
-  let payload : @sdk.UpdateAdminAiConfigRequest = {
-    default_model,
-    allowed_models,
-  }
-  @shared.put_json(@sdk.admin_ai_config_path(), payload, fn(result) {
-    dispatch(ModelsUpdated(result))
   })
 }
 

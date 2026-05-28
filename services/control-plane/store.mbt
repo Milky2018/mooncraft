@@ -389,7 +389,7 @@ fn run_state_from_db(value : String) -> @sdk.RunState {
 fn run_phase_to_db(phase : @sdk.RunPhase) -> String {
   match phase {
     NoPhase => "none"
-    AgentRunning => "agent_running"
+    RuntimeRunning => "runtime_running"
     Checking => "checking"
   }
 }
@@ -397,7 +397,7 @@ fn run_phase_to_db(phase : @sdk.RunPhase) -> String {
 ///|
 fn run_phase_from_db(value : String) -> @sdk.RunPhase {
   match value {
-    "agent_running" => AgentRunning
+    "runtime_running" => RuntimeRunning
     "checking" => Checking
     _ => NoPhase
   }
@@ -1812,37 +1812,7 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
   }
   match
     self.exec_or_error(
-      (
-        #|CREATE TABLE IF NOT EXISTS ai_runtime_config (
-        #|  id TEXT PRIMARY KEY,
-        #|  default_model TEXT NOT NULL,
-        #|  allowed_models TEXT NOT NULL,
-        #|  updated_at TEXT NOT NULL
-        #|);
-      ),
-      "create ai_runtime_config table",
-    ) {
-    Ok(_) => ignore(())
-    Err(message) => return Err(message)
-  }
-  match
-    self.exec_or_error(
-      (
-        #|INSERT INTO ai_runtime_config (
-        #|  id,
-        #|  default_model,
-        #|  allowed_models,
-        #|  updated_at
-        #|) VALUES (?, ?, ?, ?)
-        #|ON CONFLICT(id) DO NOTHING;
-      ),
-      "seed default AI runtime config",
-      params=[
-        String("default"),
-        String(default_openrouter_model()),
-        String(default_openrouter_model()),
-        String(now_string()),
-      ],
+      "DROP TABLE IF EXISTS ai_runtime_config;", "drop retired AI runtime config",
     ) {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
@@ -2408,7 +2378,7 @@ async fn Store::append_worker_run_event(
   if content == "" {
     return
   }
-  self.touch_run_worker(project_id, run_id, worker_id, attempt, AgentRunning)
+  self.touch_run_worker(project_id, run_id, worker_id, attempt, RuntimeRunning)
   let seq = match
     self.query_one(
       (
@@ -2854,7 +2824,7 @@ async fn Store::start_run(
         String(run_id),
         String(project_id),
         String(run_state_to_db(Running)),
-        String(run_phase_to_db(AgentRunning)),
+        String(run_phase_to_db(RuntimeRunning)),
         String(now),
       ],
     ) {
@@ -2920,7 +2890,7 @@ async fn Store::start_run(
     run_id,
     project_id,
     state: Running,
-    phase: AgentRunning,
+    phase: RuntimeRunning,
     summary: None,
     error_message: None,
     failure_debug: None,
@@ -3008,7 +2978,7 @@ async fn Store::register_run_worker(
         String(now),
         String(pid_identity),
         String(run_worker_status_running()),
-        String(run_phase_to_db(AgentRunning)),
+        String(run_phase_to_db(RuntimeRunning)),
         String(now),
         String(now),
         String(run_id),

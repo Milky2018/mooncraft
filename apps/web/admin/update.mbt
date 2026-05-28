@@ -4,39 +4,6 @@ fn api_notice(prefix : String, error : @sdk.ApiError) -> String {
 }
 
 ///|
-fn model_contains(items : Array[String], id : String) -> Bool {
-  for item in items {
-    if item == id {
-      return true
-    }
-  }
-  false
-}
-
-///|
-fn append_model(items : Array[String], id : String) -> Array[String] {
-  let next = []
-  for item in items {
-    next.push(item)
-  }
-  if !model_contains(next, id) {
-    next.push(id)
-  }
-  next
-}
-
-///|
-fn remove_model(items : Array[String], id : String) -> Array[String] {
-  let next = []
-  for item in items {
-    if item != id {
-      next.push(item)
-    }
-  }
-  next
-}
-
-///|
 fn replace_secret(
   secrets : Array[@sdk.AdminSecretSummary],
   replacement : @sdk.AdminSecretSummary,
@@ -145,7 +112,6 @@ fn update(
           boot_requested: true,
           loading: true,
           notice: None,
-          models_error: None,
           active_action_menu: None,
         },
       )
@@ -226,31 +192,6 @@ fn update(
           notice: Some(api_notice("Failed to load Runtimes.", error)),
         },
       )
-    ConfigLoaded(Ok(response)) =>
-      (@rabbita.none, { ..model, ai_config: response, loading: false })
-    ConfigLoaded(Err(error)) =>
-      (
-        @rabbita.none,
-        {
-          ..model,
-          loading: false,
-          notice: Some(api_notice("Failed to load model config.", error)),
-        },
-      )
-    CatalogLoaded(Ok(response)) =>
-      (
-        @rabbita.none,
-        { ..model, catalog: response.items, loading: false, models_error: None },
-      )
-    CatalogLoaded(Err(error)) =>
-      (
-        @rabbita.none,
-        {
-          ..model,
-          loading: false,
-          models_error: Some(api_notice("Failed to load model catalog.", error)),
-        },
-      )
     ShowView(view) =>
       (
         @rabbita.none,
@@ -258,11 +199,9 @@ fn update(
           ..model,
           view,
           creating_secret: false,
-          creating_model: false,
           editing_secret_id: None,
           editing_runtime_id: None,
           confirming_secret_delete_id: None,
-          confirming_model_remove_id: None,
           active_action_menu: None,
           notice: None,
         },
@@ -532,93 +471,6 @@ fn update(
       (
         @rabbita.none,
         { ..model, notice: Some(api_notice("Failed to save Runtime.", error)) },
-      )
-    OpenCreateModel =>
-      (
-        @rabbita.none,
-        {
-          ..model,
-          view: Models,
-          creating_model: true,
-          model_search: "",
-          model_catalog_mode: Recommended,
-          confirming_model_remove_id: None,
-          active_action_menu: None,
-          notice: None,
-        },
-      )
-    CancelCreateModel =>
-      (
-        @rabbita.none,
-        {
-          ..model,
-          creating_model: false,
-          model_search: "",
-          active_action_menu: None,
-        },
-      )
-    ModelSearchChanged(value) =>
-      (@rabbita.none, { ..model, model_search: value })
-    SetModelCatalogMode(mode) =>
-      (@rabbita.none, { ..model, model_catalog_mode: mode })
-    AddModel(id) => {
-      let allowed = append_model(model.ai_config.allowed_models, id)
-      let default_model = if model.ai_config.default_model == "" {
-        id
-      } else {
-        model.ai_config.default_model
-      }
-      (
-        save_models_cmd(dispatch, default_model, allowed),
-        { ..model, notice: None, active_action_menu: None },
-      )
-    }
-    SetDefaultModel(id) =>
-      (
-        save_models_cmd(dispatch, id, model.ai_config.allowed_models),
-        { ..model, notice: None, active_action_menu: None },
-      )
-    RequestRemoveModel(id) =>
-      if model.confirming_model_remove_id == Some(id) {
-        let allowed = remove_model(model.ai_config.allowed_models, id)
-        let default_model = if model.ai_config.default_model == id {
-          match allowed.get(0) {
-            Some(next) => next
-            None => ""
-          }
-        } else {
-          model.ai_config.default_model
-        }
-        (
-          save_models_cmd(dispatch, default_model, allowed),
-          { ..model, notice: None, active_action_menu: None },
-        )
-      } else {
-        (
-          @rabbita.none,
-          {
-            ..model,
-            confirming_model_remove_id: Some(id),
-            active_action_menu: Some(action_menu_key("model", id)),
-          },
-        )
-      }
-    ModelsUpdated(Ok(config)) =>
-      (
-        @rabbita.none,
-        {
-          ..model,
-          ai_config: config,
-          creating_model: false,
-          confirming_model_remove_id: None,
-          active_action_menu: None,
-          notice: Some("Models updated."),
-        },
-      )
-    ModelsUpdated(Err(error)) =>
-      (
-        @rabbita.none,
-        { ..model, notice: Some(api_notice("Failed to update models.", error)) },
       )
   }
 }

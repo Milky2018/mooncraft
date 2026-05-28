@@ -466,10 +466,12 @@ fn render_project_info_dialog(
             render_project_info_row("Project ID", project.id),
             render_project_info_row("Runtime", project.runtime_name),
             render_project_info_row("Runtime ID", project.runtime_id),
-            render_project_info_row("Agent session", project.agent_session_id),
             render_project_info_row(
-              "Runtime session",
-              project.runtime_session_id.unwrap_or("-"),
+              "Image",
+              match project.runtime_spec {
+                Some(spec) => spec.image
+                None => "-"
+              },
             ),
           ],
         ]

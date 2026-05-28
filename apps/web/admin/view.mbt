@@ -70,13 +70,6 @@ fn sidebar(
       nav_button(dispatch, model, Users, "Users", model.users.length()),
       nav_button(dispatch, model, Secrets, "Secrets", model.secrets.length()),
       nav_button(dispatch, model, Runtimes, "Runtimes", model.runtimes.length()),
-      nav_button(
-        dispatch,
-        model,
-        Models,
-        "Models",
-        model.ai_config.allowed_models.length(),
-      ),
     ]),
     @html.div(
       style=[
@@ -247,9 +240,9 @@ fn project_status_text(project : @sdk.AdminProjectSummary) -> String {
 ///|
 fn expanded_user_projects_row(model : AdminModel) -> @rabbita.Html {
   let rows = if model.user_projects_loading {
-    [empty_row(6, "Loading projects...")]
+    [empty_row(5, "Loading projects...")]
   } else if model.expanded_user_projects.length() == 0 {
-    [empty_row(6, "No projects.")]
+    [empty_row(5, "No projects.")]
   } else {
     model.expanded_user_projects.map(fn(project) {
       @html.tr([
@@ -257,8 +250,10 @@ fn expanded_user_projects_row(model : AdminModel) -> @rabbita.Html {
           @html.div(style=value_style(), project.project.display_name),
           @html.div(style=normal_style(), project.project.id),
         ]),
-        @html.td(style=td_style(), project.project.agent_cli),
-        @html.td(style=td_style(), project.project.model),
+        @html.td(style=td_style(), [
+          @html.div(style=value_style(), project.project.runtime_name),
+          @html.div(style=normal_style(), project.project.runtime_id),
+        ]),
         @html.td(style=td_style(), project_status_text(project)),
         @html.td(style=numeric_td_style(), project.run_count.to_string()),
         @html.td(style=td_style(), [
@@ -284,8 +279,7 @@ fn expanded_user_projects_row(model : AdminModel) -> @rabbita.Html {
               @html.thead([
                 @html.tr([
                   @html.th(style=th_style(), "Project"),
-                  @html.th(style=th_style(), "Agent"),
-                  @html.th(style=th_style(), "Model"),
+                  @html.th(style=th_style(), "Runtime"),
                   @html.th(style=th_style(), "Status"),
                   @html.th(style=th_style() + ["text-align: right"], "Runs"),
                   @html.th(style=th_style(), "Actions"),
@@ -782,7 +776,7 @@ fn runtime_row(
           ],
         ),
       ]),
-      @html.td(style=td_style(), [
+      @html.td(colspan=3, style=td_style(), [
         @html.textarea(
           rows=8,
           value=model.editing_runtime_spec_json,
@@ -814,6 +808,11 @@ fn runtime_row(
       @html.td(style=td_style(), @html.code(runtime.id)),
       @html.td(style=td_style(), runtime_status_label(runtime)),
       @html.td(style=td_style(), [@html.code(runtime.spec.image)]),
+      @html.td(style=numeric_td_style(), runtime.spec.env.length().to_string()),
+      @html.td(
+        style=numeric_td_style(),
+        runtime.spec.secrets.length().to_string(),
+      ),
       @html.td(style=actions_td_style(), [
         action_menu_button(dispatch, model, menu_key, "Runtime actions"),
         action_menu(model, menu_key, [
@@ -840,7 +839,7 @@ fn runtimes_view(
     runtime_row(dispatch, model, runtime)
   })
   let rows = if model.runtimes.length() == 0 {
-    [empty_row(5, "No Runtimes.")]
+    [empty_row(7, "No Runtimes.")]
   } else {
     runtime_rows
   }
@@ -865,6 +864,8 @@ fn runtimes_view(
             @html.th(style=th_style(), "ID"),
             @html.th(style=th_style(), "Status"),
             @html.th(style=th_style(), "Image"),
+            @html.th(style=th_style() + ["text-align: right"], "Env"),
+            @html.th(style=th_style() + ["text-align: right"], "Secrets"),
             @html.th(style=th_style(), "Actions"),
           ]),
         ]),
@@ -880,313 +881,6 @@ fn runtimes_view(
 }
 
 ///|
-fn format_context(value : Int) -> String {
-  if value >= 1000000 {
-    "\{value / 1000000}M"
-  } else if value >= 1000 {
-    "\{value / 1000}K"
-  } else if value > 0 {
-    value.to_string()
-  } else {
-    "-"
-  }
-}
-
-///|
-fn token_price(value : String) -> String {
-  js_format_token_price(value)
-}
-
-///|
-extern "js" fn js_format_token_price(value : String) -> String =
-  #| (value) => {
-  #|   const number = Number(value || 0);
-  #|   if (!Number.isFinite(number) || number <= 0) return "-";
-  #|   const perMillion = number * 1000000;
-  #|   const amount = perMillion >= 1 ? perMillion.toFixed(2) : perMillion.toFixed(4);
-  #|   return `$${amount.replace(/\\.00$/, "")} / 1M`;
-  #| }
-
-///|
-fn allowed_model_row(
-  dispatch : @rabbita.Dispatch[AdminMsg],
-  model : AdminModel,
-  id : String,
-) -> @rabbita.Html {
-  let item = model_by_id(model.catalog, id)
-  let is_default = id == model.ai_config.default_model
-  let confirming = model.confirming_model_remove_id == Some(id)
-  @html.tr([
-    @html.td(style=td_style(), @html.strong(model_label(model.catalog, id))),
-    @html.td(style=td_style(), @html.code(id)),
-    @html.td(
-      style=td_style(),
-      if is_default {
-        @html.span(style=badge_style("success"), "default")
-      } else {
-        @html.span(style=normal_style(), "-")
-      },
-    ),
-    @html.td(
-      style=numeric_td_style(),
-      match item {
-        Some(value) => format_context(value.context_length)
-        None => "-"
-      },
-    ),
-    @html.td(
-      style=numeric_td_style(),
-      match item {
-        Some(value) => token_price(value.prompt_price)
-        None => "-"
-      },
-    ),
-    @html.td(
-      style=numeric_td_style(),
-      match item {
-        Some(value) => token_price(value.completion_price)
-        None => "-"
-      },
-    ),
-    @html.td(style=actions_td_style(), [
-      action_menu_button(
-        dispatch,
-        model,
-        action_menu_key("model", id),
-        "Model actions",
-      ),
-      action_menu(model, action_menu_key("model", id), [
-        if is_default {
-          @html.nothing
-        } else {
-          action_menu_item(
-            dispatch,
-            SetDefaultModel(id),
-            "Set default model",
-            "Set default",
-            false,
-            false,
-          )
-        },
-        action_menu_item(
-          dispatch,
-          RequestRemoveModel(id),
-          if confirming {
-            "Confirm remove model"
-          } else {
-            "Remove model"
-          },
-          if confirming {
-            "Confirm remove"
-          } else {
-            "Remove"
-          },
-          true,
-          confirming,
-        ),
-      ]),
-    ]),
-  ])
-}
-
-///|
-fn catalog_picker_rows(
-  dispatch : @rabbita.Dispatch[AdminMsg],
-  model : AdminModel,
-) -> Array[@rabbita.Html] {
-  let rows = []
-  let items = filtered_catalog(model)
-  let mut current_provider = None
-  for item in items {
-    let provider = model_provider(item.id)
-    if current_provider != Some(provider) {
-      current_provider = Some(provider)
-      rows.push(
-        @html.tr([
-          @html.td(
-            colspan=7,
-            style=td_style() +
-              ["background: var(--foreground-5)", "color: var(--text-2)"],
-            provider_label(provider),
-          ),
-        ]),
-      )
-    }
-    rows.push(
-      @html.tr([
-        @html.td(style=td_style(), [
-          @html.div(
-            style=["display: flex", "gap: 6px", "align-items: center"],
-            [
-              @html.strong(item.name),
-              if recommended_model(item) {
-                @html.span(style=badge_style("success"), "recommended")
-              } else {
-                @html.nothing
-              },
-            ],
-          ),
-          @html.code(style=normal_style(), item.id),
-        ]),
-        @html.td(style=td_style(), provider_label(provider)),
-        @html.td(style=td_style(), "-"),
-        @html.td(style=numeric_td_style(), format_context(item.context_length)),
-        @html.td(style=numeric_td_style(), token_price(item.prompt_price)),
-        @html.td(style=numeric_td_style(), token_price(item.completion_price)),
-        @html.td(
-          style=td_style(),
-          @html.button(
-            type_="button",
-            on_click=dispatch(AddModel(item.id)),
-            style=icon_button_style(true),
-            [plus_icon()],
-          ),
-        ),
-      ]),
-    )
-  }
-  if rows.length() == 0 {
-    rows.push(empty_row(7, "No matching models."))
-  }
-  rows
-}
-
-///|
-fn model_create_row(
-  dispatch : @rabbita.Dispatch[AdminMsg],
-  model : AdminModel,
-) -> @rabbita.Html {
-  let visible = filtered_catalog(model).length()
-  let total = available_model_count(model)
-  @html.tr([
-    @html.td(
-      colspan=7,
-      style=["padding: 0", "border-bottom: 1px solid var(--border)"],
-      [
-        @html.div(
-          style=[
-            "display: flex", "gap: 8px", "align-items: center", "justify-content: space-between",
-            "padding: 10px", "background: var(--foreground-3)", "border-bottom: 1px solid var(--border)",
-          ],
-          [
-            @html.input(
-              input_type=Text,
-              value=model.model_search,
-              placeholder="Search models",
-              on_input=fn(value) { dispatch(ModelSearchChanged(value)) },
-              style=input_style() + ["max-width: 420px"],
-              "",
-            ),
-            @html.div(
-              style=["display: flex", "gap: 8px", "align-items: center"],
-              [
-                @html.button(
-                  type_="button",
-                  on_click=dispatch(SetModelCatalogMode(Recommended)),
-                  style=button_style(true) +
-                    [
-                      if model.model_catalog_mode is Recommended {
-                        "background: var(--foreground-10)"
-                      } else {
-                        "background: var(--background)"
-                      },
-                    ],
-                  "Recommended",
-                ),
-                @html.button(
-                  type_="button",
-                  on_click=dispatch(SetModelCatalogMode(All)),
-                  style=button_style(true) +
-                    [
-                      if model.model_catalog_mode is All {
-                        "background: var(--foreground-10)"
-                      } else {
-                        "background: var(--background)"
-                      },
-                    ],
-                  "All",
-                ),
-                @html.span(style=badge_style(""), "\{visible} / \{total}"),
-                @html.button(
-                  type_="button",
-                  on_click=dispatch(CancelCreateModel),
-                  style=icon_button_style(true),
-                  [x_icon()],
-                ),
-              ],
-            ),
-          ],
-        ),
-        table_wrap(
-          @html.table(
-            style=table_style(),
-            @html.tbody(catalog_picker_rows(dispatch, model)),
-          ),
-        ),
-      ],
-    ),
-  ])
-}
-
-///|
-fn models_view(
-  dispatch : @rabbita.Dispatch[AdminMsg],
-  model : AdminModel,
-) -> @rabbita.Html {
-  let rows = model.ai_config.allowed_models.map(fn(id) {
-    allowed_model_row(dispatch, model, id)
-  })
-  let body_rows = if model.creating_model {
-    [model_create_row(dispatch, model)] + rows
-  } else if rows.length() == 0 {
-    [empty_row(7, "No models.")]
-  } else {
-    rows
-  }
-  @html.section(style=card_style(), [
-    section_head(
-      "Models",
-      "\{model.ai_config.allowed_models.length()} models",
-      @html.button(
-        type_="button",
-        title="Add model",
-        on_click=dispatch(OpenCreateModel),
-        style=icon_button_style(true),
-        [plus_icon()],
-      ),
-    ),
-    match model.models_error {
-      Some(error) =>
-        @html.div(
-          style=normal_style() +
-            [
-              "margin: 0 12px 10px", "padding: 10px", "border-radius: var(--radius-control)",
-              "background: oklch(from var(--destructive) l c h / 0.10)", "color: var(--destructive)",
-            ],
-          error,
-        )
-      None => @html.nothing
-    },
-    table_wrap(
-      @html.table(style=table_style(), [
-        @html.thead([
-          @html.tr([
-            @html.th(style=th_style(), "Model"),
-            @html.th(style=th_style(), "ID"),
-            @html.th(style=th_style(), "Default"),
-            @html.th(style=th_style() + ["text-align: right"], "Context"),
-            @html.th(style=th_style() + ["text-align: right"], "Input"),
-            @html.th(style=th_style() + ["text-align: right"], "Output"),
-            @html.th(style=th_style(), "Actions"),
-          ]),
-        ]),
-        @html.tbody(body_rows),
-      ]),
-    ),
-  ])
-}
-
-///|
 fn active_view(
   dispatch : @rabbita.Dispatch[AdminMsg],
   model : AdminModel,
@@ -1195,7 +889,6 @@ fn active_view(
     Users => users_view(dispatch, model)
     Secrets => secrets_view(dispatch, model)
     Runtimes => runtimes_view(dispatch, model)
-    Models => models_view(dispatch, model)
   }
 }
 

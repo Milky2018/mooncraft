@@ -7,14 +7,6 @@ import {
 }
 
 // Values
-pub fn admin_ai_config_path() -> String
-
-pub fn admin_ai_config_route() -> RouteSpec
-
-pub fn admin_ai_models_path() -> String
-
-pub fn admin_ai_models_route() -> RouteSpec
-
 pub fn admin_project_messages_path(String) -> String
 
 pub fn admin_project_messages_route() -> RouteSpec
@@ -70,10 +62,6 @@ pub fn admin_user_route() -> RouteSpec
 pub fn admin_users_path(Int) -> String
 
 pub fn admin_users_route() -> RouteSpec
-
-pub fn ai_models_path() -> String
-
-pub fn ai_models_route() -> RouteSpec
 
 pub fn cancel_run_path(String, String) -> String
 
@@ -173,8 +161,6 @@ pub fn run_event_code_preview_repairing() -> String
 
 pub fn run_event_code_preview_starting() -> String
 
-pub fn run_event_code_provider_retrying() -> String
-
 pub fn run_event_code_runtime_container_launching() -> String
 
 pub fn run_event_code_runtime_container_running() -> String
@@ -224,25 +210,6 @@ pub fn validate_runtime_secret_file_path(String) -> Result[String, String]
 // Errors
 
 // Types and methods
-pub(all) struct AdminAiConfigResponse {
-  default_model : String
-  allowed_models : Array[String]
-  updated_at : String
-} derive(ToJson, @debug.Debug, @json.FromJson)
-
-pub(all) struct AdminAiModelSummary {
-  id : String
-  name : String
-  context_length : Int
-  prompt_price : String
-  completion_price : String
-} derive(ToJson, @debug.Debug, @json.FromJson)
-
-pub(all) struct AdminListAiModelsResponse {
-  items : Array[AdminAiModelSummary]
-  fetched_at : String
-} derive(ToJson, @debug.Debug, @json.FromJson)
-
 pub(all) struct AdminListProjectsResponse {
   items : Array[AdminProjectSummary]
 } derive(ToJson, @debug.Debug, @json.FromJson)
@@ -333,14 +300,6 @@ pub(all) struct AdminUserSummary {
   latest_run_started_at : String?
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
-pub(all) struct AiModelSummary {
-  id : String
-  name : String
-  context_length : Int
-  prompt_price : String
-  completion_price : String
-} derive(ToJson, @debug.Debug, @json.FromJson)
-
 pub(all) struct ApiError {
   code : ApiErrorCode
   message : String
@@ -402,8 +361,6 @@ pub(all) struct CreateAdminSecretRequest {
 pub(all) struct CreateProjectRequest {
   display_name : String
   runtime_id : String?
-  agent_cli : String?
-  model : String?
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct CreateProjectResponse {
@@ -430,13 +387,6 @@ pub(all) enum HttpMethod {
   PATCH
   DELETE
 } derive(Eq, @debug.Debug)
-
-pub(all) struct ListAiModelsResponse {
-  default_agent_cli : String
-  default_model : String
-  items : Array[AiModelSummary]
-  fetched_at : String
-} derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct ListMessagesResponse {
   items : Array[ChatMessage]
@@ -533,7 +483,7 @@ pub(all) struct RunFailureDebug {
 
 pub(all) enum RunPhase {
   NoPhase
-  AgentRunning
+  RuntimeRunning
   Checking
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 pub fn RunPhase::label(Self) -> String
@@ -618,11 +568,6 @@ pub(all) enum SuccessStatus {
 } derive(Eq, @debug.Debug)
 pub fn SuccessStatus::code(Self) -> Int
 
-pub(all) struct UpdateAdminAiConfigRequest {
-  default_model : String
-  allowed_models : Array[String]
-} derive(ToJson, @debug.Debug, @json.FromJson)
-
 pub(all) struct UpdateAdminRuntimeRequest {
   name : String
   spec_json : String
@@ -637,7 +582,6 @@ pub(all) struct UpdateAdminSecretRequest {
 
 pub(all) struct UpdateProjectRequest {
   display_name : String?
-  model : String?
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct UpdateProjectResponse {

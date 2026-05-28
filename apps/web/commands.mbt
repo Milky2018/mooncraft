@@ -83,12 +83,7 @@ fn create_project_cmd(
   display_name : String,
   runtime_id : String?,
 ) -> @rabbita.Cmd {
-  let payload : @sdk.CreateProjectRequest = {
-    display_name,
-    runtime_id,
-    agent_cli: None,
-    model: None,
-  }
+  let payload : @sdk.CreateProjectRequest = { display_name, runtime_id }
   @shared.post_json(@sdk.projects_path(), payload, fn(result) {
     dispatch(ProjectCreated(result))
   })
@@ -100,10 +95,7 @@ fn rename_project_cmd(
   project_id : String,
   display_name : String,
 ) -> @rabbita.Cmd {
-  let payload : @sdk.UpdateProjectRequest = {
-    display_name: Some(display_name),
-    model: None,
-  }
+  let payload : @sdk.UpdateProjectRequest = { display_name: Some(display_name) }
   @shared.put_json(@sdk.project_path(project_id), payload, fn(result) {
     dispatch(ProjectRenamed(result))
   })

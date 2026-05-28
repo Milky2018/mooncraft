@@ -17,6 +17,7 @@ Default UX rules:
 - one obvious composer input
 
 The frontend talks only to the local control-plane APIs and shared DTOs in `packages/sdk`.
+Runtime configuration UI follows Runtime Protocol v3; admin-facing Runtime JSON should match `docs/runtime-protocol/`.
 
 Static files served directly over HTTP live under `apps/web/public`. The
 directory mirrors public URL paths, so `/assets/**` comes from

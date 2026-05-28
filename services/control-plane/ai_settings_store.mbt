@@ -1,5 +1,5 @@
 ///|
-struct AiRuntimeSettings {
+struct RuntimeSettings {
   runtime_spec : @sdk.RuntimeSpec
   env : Map[String, String]
   secrets : Array[ResolvedRuntimeSecret]
@@ -13,158 +13,10 @@ struct ResolvedRuntimeSecret {
 }
 
 ///|
-fn default_openrouter_model() -> String {
-  "openai/gpt-5.4-mini"
-}
-
-///|
-fn default_openrouter_secret_source() -> String {
-  "mooncraft_ai_api_key"
-}
-
-///|
-fn normalize_openrouter_model(model : String) -> String {
-  let trimmed = model.trim().to_owned()
-  if trimmed == "" {
-    default_openrouter_model()
-  } else {
-    trimmed
-  }
-}
-
-///|
-fn normalize_allowed_models(models : Array[String]) -> Array[String] {
-  let result : Array[String] = []
-  for model in models {
-    let normalized = model.trim().to_owned()
-    if normalized != "" && !result.contains(normalized) {
-      result.push(normalized)
-    }
-  }
-  result
-}
-
-///|
-fn allowed_models_to_db(models : Array[String]) -> String {
-  normalize_allowed_models(models).join("\n")
-}
-
-///|
-fn allowed_models_from_db(value : String) -> Array[String] {
-  normalize_allowed_models(
-    value.split("\n").to_array().map(fn(line) { line.to_owned() }),
-  )
-}
-
-///|
-async fn Store::get_admin_ai_config(
-  self : Store,
-) -> @sdk.AdminAiConfigResponse noraise {
-  match
-    self.query_one(
-      (
-        #|SELECT
-        #|  COALESCE(default_model, '') AS default_model,
-        #|  COALESCE(allowed_models, '') AS allowed_models,
-        #|  updated_at
-        #|FROM ai_runtime_config
-        #|WHERE id = ?;
-      ),
-      params=[String("default")],
-    ) {
-    Some(row) => {
-      let default_model = normalize_openrouter_model(
-        row_text(row, "default_model"),
-      )
-      let allowed_models = allowed_models_from_db(
-        row_text(row, "allowed_models"),
-      )
-      {
-        default_model,
-        allowed_models: if allowed_models.length() == 0 {
-          [default_model]
-        } else {
-          allowed_models
-        },
-        updated_at: row_text(row, "updated_at"),
-      }
-    }
-    None =>
-      {
-        default_model: default_openrouter_model(),
-        allowed_models: [default_openrouter_model()],
-        updated_at: now_string(),
-      }
-  }
-}
-
-///|
-async fn Store::update_admin_ai_config(
-  self : Store,
-  default_model_input : String,
-  allowed_models_input : Array[String],
-) -> Result[@sdk.AdminAiConfigResponse, String] noraise {
-  let default_model = normalize_openrouter_model(default_model_input)
-  let allowed_models = normalize_allowed_models(allowed_models_input)
-  let persisted_allowed = if allowed_models.length() == 0 {
-    [default_model]
-  } else if allowed_models.contains(default_model) {
-    allowed_models
-  } else {
-    let next = [default_model]
-    for model in allowed_models {
-      next.push(model)
-    }
-    next
-  }
-  let now = now_string()
-  match
-    self.exec_or_error(
-      (
-        #|INSERT INTO ai_runtime_config (
-        #|  id,
-        #|  default_model,
-        #|  allowed_models,
-        #|  updated_at
-        #|) VALUES (?, ?, ?, ?)
-        #|ON CONFLICT(id) DO UPDATE SET
-        #|  default_model = excluded.default_model,
-        #|  allowed_models = excluded.allowed_models,
-        #|  updated_at = excluded.updated_at;
-      ),
-      "update AI runtime config",
-      params=[
-        String("default"),
-        String(default_model),
-        String(allowed_models_to_db(persisted_allowed)),
-        String(now),
-      ],
-    ) {
-    Ok(_) =>
-      Ok({ default_model, allowed_models: persisted_allowed, updated_at: now })
-    Err(message) => Err(message)
-  }
-}
-
-///|
-async fn Store::get_openrouter_model_catalog_api_key(
-  self : Store,
-) -> Result[String, String] noraise {
-  if self.get_admin_secret_record_by_name(default_openrouter_secret_source())
-    is Some(record) {
-    let value = record.value.trim().to_owned()
-    if value != "" {
-      return Ok(value)
-    }
-  }
-  Err("Create the mooncraft_ai_api_key Secret before loading provider models.")
-}
-
-///|
-async fn Store::lease_ai_runtime_settings_for_project(
+async fn Store::lease_runtime_settings_for_project(
   self : Store,
   project_id : String,
-) -> Result[AiRuntimeSettings, String] noraise {
+) -> Result[RuntimeSettings, String] noraise {
   let project = match
     self.query_one(
       (

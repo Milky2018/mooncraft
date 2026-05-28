@@ -50,7 +50,7 @@ fn runtime_service_home_volume(project_id : String) -> String {
 async fn RuntimeServiceSpec::from_settings(
   root : String,
   project_id : String,
-  settings : AiRuntimeSettings,
+  settings : RuntimeSettings,
 ) -> Result[RuntimeServiceSpec, String] noraise {
   let platform = match detect_docker_platform(root) {
     Ok(platform) => platform
@@ -503,7 +503,7 @@ async fn RuntimeGateway::ensure_project_runtime_service_with_idle_refresh(
       None => None
     }
   }
-  let settings = match store.lease_ai_runtime_settings_for_project(project_id) {
+  let settings = match store.lease_runtime_settings_for_project(project_id) {
     Ok(settings) => settings
     Err(message) => return Err(message)
   }
@@ -574,7 +574,7 @@ async fn RuntimeGateway::prepare_project_runtime_storage(
   store : Store,
   project_id : String,
 ) -> Result[Unit, String] noraise {
-  let settings = match store.lease_ai_runtime_settings_for_project(project_id) {
+  let settings = match store.lease_runtime_settings_for_project(project_id) {
     Ok(settings) => settings
     Err(message) => return Err(message)
   }

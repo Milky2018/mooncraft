@@ -37,7 +37,7 @@ fn activity_test_project(
 test "active project status remains final while activity is processing" {
   let activity = Some(@sdk.ProjectActivity::{
     run_id: "run-1",
-    phase: AgentRunning,
+    phase: RuntimeRunning,
     message_code: None,
     message: None,
   })

@@ -12,8 +12,6 @@ type AdminMsg
 
 type AdminView derive(Eq)
 
-type ModelCatalogMode derive(Eq)
-
 // Type aliases
 
 // Traits

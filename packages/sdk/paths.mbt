@@ -73,36 +73,6 @@ pub fn admin_secret_path(id : String) -> String {
 }
 
 ///|
-pub fn admin_ai_config_route() -> RouteSpec {
-  route(GET, "/api/admin/ai/config", Ok)
-}
-
-///|
-pub fn admin_ai_config_path() -> String {
-  admin_ai_config_route().path_pattern
-}
-
-///|
-pub fn admin_ai_models_route() -> RouteSpec {
-  route(GET, "/api/admin/ai/models", Ok)
-}
-
-///|
-pub fn admin_ai_models_path() -> String {
-  admin_ai_models_route().path_pattern
-}
-
-///|
-pub fn ai_models_route() -> RouteSpec {
-  route(GET, "/api/ai/models", Ok)
-}
-
-///|
-pub fn ai_models_path() -> String {
-  ai_models_route().path_pattern
-}
-
-///|
 pub fn admin_runtimes_route() -> RouteSpec {
   route(GET, "/api/admin/runtimes", Ok)
 }

@@ -136,7 +136,7 @@ fn project_phase_dot(project : @sdk.ProjectSummary) -> @rabbita.Html {
     match project.activity {
       Some(activity) =>
         match activity.phase {
-          AgentRunning => Some("#16a34a")
+          RuntimeRunning => Some("#16a34a")
           Checking => Some("#2563eb")
           NoPhase => Some("#16a34a")
         }

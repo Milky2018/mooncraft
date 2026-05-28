@@ -3,13 +3,6 @@ enum AdminView {
   Users
   Secrets
   Runtimes
-  Models
-} derive(Eq)
-
-///|
-enum ModelCatalogMode {
-  Recommended
-  All
 } derive(Eq)
 
 ///|
@@ -24,9 +17,6 @@ struct AdminModel {
   user_projects_loading : Bool
   secrets : Array[@sdk.AdminSecretSummary]
   runtimes : Array[@sdk.RuntimeDetail]
-  ai_config : @sdk.AdminAiConfigResponse
-  catalog : Array[@sdk.AdminAiModelSummary]
-  models_error : String?
   active_action_menu : String?
   creating_secret : Bool
   secret_name : String
@@ -41,10 +31,6 @@ struct AdminModel {
   editing_runtime_spec_json : String
   editing_runtime_enabled : String
   editing_runtime_default : String
-  creating_model : Bool
-  model_search : String
-  model_catalog_mode : ModelCatalogMode
-  confirming_model_remove_id : String?
 }
 
 ///|
@@ -59,8 +45,6 @@ enum AdminMsg {
   )
   SecretsLoaded(Result[@sdk.AdminListSecretsResponse, @sdk.ApiError])
   RuntimesLoaded(Result[@sdk.AdminListRuntimesResponse, @sdk.ApiError])
-  ConfigLoaded(Result[@sdk.AdminAiConfigResponse, @sdk.ApiError])
-  CatalogLoaded(Result[@sdk.AdminListAiModelsResponse, @sdk.ApiError])
   ShowView(AdminView)
   ToggleActionMenu(String)
   Logout
@@ -89,19 +73,6 @@ enum AdminMsg {
   SaveCreateRuntime
   SaveRuntime(String)
   RuntimeSaved(Result[@sdk.RuntimeDetail, @sdk.ApiError])
-  OpenCreateModel
-  CancelCreateModel
-  ModelSearchChanged(String)
-  SetModelCatalogMode(ModelCatalogMode)
-  AddModel(String)
-  SetDefaultModel(String)
-  RequestRemoveModel(String)
-  ModelsUpdated(Result[@sdk.AdminAiConfigResponse, @sdk.ApiError])
-}
-
-///|
-fn empty_ai_config() -> @sdk.AdminAiConfigResponse {
-  { default_model: "", allowed_models: [], updated_at: "" }
 }
 
 ///|
@@ -117,9 +88,6 @@ fn initial_admin_model() -> AdminModel {
     user_projects_loading: false,
     secrets: [],
     runtimes: [],
-    ai_config: empty_ai_config(),
-    catalog: [],
-    models_error: None,
     active_action_menu: None,
     creating_secret: false,
     secret_name: "",
@@ -134,9 +102,5 @@ fn initial_admin_model() -> AdminModel {
     editing_runtime_spec_json: "",
     editing_runtime_enabled: "true",
     editing_runtime_default: "false",
-    creating_model: false,
-    model_search: "",
-    model_catalog_mode: Recommended,
-    confirming_model_remove_id: None,
   }
 }

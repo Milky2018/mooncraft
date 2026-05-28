@@ -10,7 +10,7 @@ pub(all) enum RunState {
 ///|
 pub(all) enum RunPhase {
   NoPhase
-  AgentRunning
+  RuntimeRunning
   Checking
 } derive(Eq, Debug, ToJson, FromJson)
 
@@ -346,8 +346,6 @@ pub(all) struct RunEvent {
 pub(all) struct CreateProjectRequest {
   display_name : String
   runtime_id : String?
-  agent_cli : String?
-  model : String?
 } derive(Debug, ToJson, FromJson)
 
 ///|
@@ -358,7 +356,6 @@ pub(all) struct CreateProjectResponse {
 ///|
 pub(all) struct UpdateProjectRequest {
   display_name : String?
-  model : String?
 } derive(Debug, ToJson, FromJson)
 
 ///|
@@ -515,51 +512,6 @@ pub(all) struct UpdateAdminRuntimeRequest {
 } derive(Debug, ToJson, FromJson)
 
 ///|
-pub(all) struct AdminAiConfigResponse {
-  default_model : String
-  allowed_models : Array[String]
-  updated_at : String
-} derive(Debug, ToJson, FromJson)
-
-///|
-pub(all) struct AdminAiModelSummary {
-  id : String
-  name : String
-  context_length : Int
-  prompt_price : String
-  completion_price : String
-} derive(Debug, ToJson, FromJson)
-
-///|
-pub(all) struct AiModelSummary {
-  id : String
-  name : String
-  context_length : Int
-  prompt_price : String
-  completion_price : String
-} derive(Debug, ToJson, FromJson)
-
-///|
-pub(all) struct ListAiModelsResponse {
-  default_agent_cli : String
-  default_model : String
-  items : Array[AiModelSummary]
-  fetched_at : String
-} derive(Debug, ToJson, FromJson)
-
-///|
-pub(all) struct AdminListAiModelsResponse {
-  items : Array[AdminAiModelSummary]
-  fetched_at : String
-} derive(Debug, ToJson, FromJson)
-
-///|
-pub(all) struct UpdateAdminAiConfigRequest {
-  default_model : String
-  allowed_models : Array[String]
-} derive(Debug, ToJson, FromJson)
-
-///|
 pub(all) struct CreateRunRequest {
   content : String
 } derive(Debug, ToJson, FromJson)
@@ -600,7 +552,7 @@ pub fn RunState::label(self : RunState) -> String {
 pub fn RunPhase::label(self : RunPhase) -> String {
   match self {
     NoPhase => ""
-    AgentRunning => "Working"
+    RuntimeRunning => "Working"
     Checking => "Checking"
   }
 }

@@ -21,8 +21,6 @@ type AgentTurnFailure
 
 type AgentTurnSuccess
 
-type AiRuntimeSettings
-
 type AppContext
 
 type BuildProfile
@@ -60,6 +58,8 @@ type RuntimeServiceRecord
 type RuntimeServiceRun derive(@json.FromJson)
 
 type RuntimeServiceSpec
+
+type RuntimeSettings
 
 type Store
 
