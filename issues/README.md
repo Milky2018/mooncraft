@@ -8,9 +8,7 @@ No ready issues.
 
 ## Unresolved Issues
 
-| ID | Status | Priority | Type | Assignee | Blocked by | Blocks | Title |
-| --- | --- | ---: | --- | --- | --- | --- | --- |
-| [ISS-001](ISS-001.md) | in_progress | 1 | epic | unassigned | none | none | Implement Runtime Protocol v3 |
+No unresolved issues.
 
 ## Dependency Graph
 
