@@ -166,20 +166,7 @@ async fn ProjectRunWorkflow::run(
       return
     }
   }
-  let workspace_path = match
-    restore_project_workspace_for_run(self.store, self.root, project_id) {
-    Ok(path) => path
-    Err(message) => {
-      self.finish_run_failure(
-        project_id,
-        run_id,
-        default_failure_assistant_message(),
-        message,
-        project.runtime_session_id,
-      )
-      return
-    }
-  }
+  let workspace_path = project_workspace(self.root, project_id)
   let agent_result = self.runtime_gateway.run_turn(
     self.store,
     project,
@@ -192,29 +179,6 @@ async fn ProjectRunWorkflow::run(
   )
   match agent_result {
     Ok(result) => {
-      self.append_status_event(
-        project_id,
-        run_id,
-        @sdk.run_event_code_workspace_restoring(),
-        "Restoring the updated workspace.",
-      )
-      let restore_cache_result = restore_workspace_snapshot(
-        self.store,
-        self.root,
-        project_id,
-        workspace_path,
-      )
-      if restore_cache_result is Err(message) {
-        self.finish_run_failure(
-          project_id,
-          run_id,
-          result.summary +
-          "\n\nWorkspace status: the saved snapshot could not be restored into the local cache.",
-          message,
-          result.thread_id,
-        )
-        return
-      }
       let updated_project = match self.store.get_project_detail(project_id) {
         Some(project) => project
         None => {
@@ -260,29 +224,7 @@ async fn ProjectRunWorkflow::run(
           )
       }
     }
-    Err(failure) => {
-      self.append_status_event(
-        project_id,
-        run_id,
-        @sdk.run_event_code_workspace_restoring(),
-        "Restoring the previous workspace.",
-      )
-      let restore_cache_result = restore_workspace_snapshot(
-        self.store,
-        self.root,
-        project_id,
-        workspace_path,
-      )
-      if restore_cache_result is Err(message) {
-        return self.finish_run_failure_with_debug(
-          project_id,
-          run_id,
-          "\{failure.assistant_message}\n\nWorkspace status: the saved snapshot could not be restored into the local cache.",
-          "\{failure.error_message}\n\nWorkspace restore failed: \{message}",
-          failure.thread_id,
-          failure.failure_debug,
-        )
-      }
+    Err(failure) =>
       self.finish_run_failure_with_debug(
         project_id,
         run_id,
@@ -291,6 +233,5 @@ async fn ProjectRunWorkflow::run(
         failure.thread_id,
         failure.failure_debug,
       )
-    }
   }
 }

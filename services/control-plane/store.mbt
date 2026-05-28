@@ -67,6 +67,8 @@ struct RuntimeGateway {
 struct RuntimeServiceRecord {
   project_id : String
   container_name : String
+  workspace_volume : String
+  home_volume : String
   idle_expires_at : String?
 }
 
@@ -1903,6 +1905,8 @@ fn runtime_service_record_from_row(
   {
     project_id: row_text(row, "project_id"),
     container_name: row_text(row, "container_name"),
+    workspace_volume: row_text(row, "workspace_volume"),
+    home_volume: row_text(row, "home_volume"),
     idle_expires_at: empty_to_none(row_text(row, "idle_expires_at")),
   }
 }
@@ -1989,6 +1993,8 @@ async fn Store::get_runtime_service_record(
         #|SELECT
         #|  project_id,
         #|  container_name,
+        #|  workspace_volume,
+        #|  home_volume,
         #|  idle_expires_at
         #|FROM project_runtime_services
         #|WHERE project_id = ?;
@@ -2009,6 +2015,8 @@ async fn Store::list_expired_ready_runtime_services(
       #|SELECT
       #|  project_id,
       #|  container_name,
+      #|  workspace_volume,
+      #|  home_volume,
       #|  idle_expires_at
       #|FROM project_runtime_services
       #|WHERE state = ?
@@ -2761,6 +2769,13 @@ async fn Store::delete_project(
     self.exec_or_error(
       "DELETE FROM runs WHERE project_id = ?;",
       "delete project runs",
+      params=[String(project_id)],
+    ),
+  )
+  ignore(
+    self.exec_or_error(
+      "DELETE FROM project_runtime_services WHERE project_id = ?;",
+      "delete project runtime service",
       params=[String(project_id)],
     ),
   )
@@ -3964,6 +3979,11 @@ async fn AppContext::delete_project(
     return Err(
       "This project is currently updating. Wait for the current run to finish before deleting it.",
     )
+  }
+  match
+    self.runtime_gateway.delete_project_runtime_storage(self.store, project_id) {
+    Ok(_) => ()
+    Err(message) => return Err(message)
   }
   fs_remove_tree(project_root(self.root, project_id)) catch {
     err => return Err("Project workspace could not be removed: \{err}")

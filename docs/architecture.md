@@ -20,24 +20,24 @@ The repo is one MoonBit workspace with three modules:
 
 ## Generated Project Shape
 
-Each user project is created under:
+Each user project receives two Docker named volumes:
 
-`data/runtime/projects/<project-id>/workspace`
+- `mooncraft-workspace-<project-id>` mounted at `/workspace`
+- `mooncraft-home-<project-id>` mounted at `/home/mooncraft`
 
-That directory is runtime scratch, not durable storage. The control plane keeps the authoritative workspace source snapshot in SQLite and hydrates it into scratch paths for agent runs and preview rebuilds.
-The old `data/projects` location is not a fallback source; startup removes that legacy scratch root instead of migrating or restoring from it.
+The `/workspace` volume is the authoritative generated source store. The `/home/mooncraft` volume is Runtime-private durable state. The old `data/projects` location is not a fallback source; startup removes that legacy scratch root instead of migrating or restoring from it.
 
-Each generated project chooses its own structure. The control plane does not create or require `frontend/`, `backend/`, `shared/`, a MoonBit module, or any starter app files. The project-owned `mooncraft-preview.sh` script is the runtime contract: MoonCraft starts it with a private preview port and requires the resulting preview to become reachable.
+Each generated project chooses its own structure. The control plane does not create or require `frontend/`, `backend/`, `shared/`, a MoonBit module, or any starter app files. Runtime Protocol v3 is the runtime contract: MoonCraft calls the Runtime Service for `POST /exec` and `GET /preview`.
 
-New projects start from an empty workspace snapshot. The selected Runtime provider owns all app setup, dependencies, code generation, and preview script creation as part of satisfying the first user request.
+New projects start from an empty `/workspace` volume. The selected Runtime provider owns all app setup, dependencies, code generation, and preview serving as part of satisfying the first user request.
 
 ## Current Runtime Flow
 
-1. `POST /api/projects` creates project metadata and saves an empty workspace as the first workspace snapshot.
+1. `POST /api/projects` creates project metadata and project-scoped Runtime Docker volumes.
 2. `POST /api/projects/:id/runs` stores the user message, opens a run, and locks the project.
-3. `RuntimeExecutor` runs the project's selected Runtime in the project workspace. For the first app turn, the Runtime receives an empty workspace and creates the requested previewable app.
-4. `PreviewManager` runs the project-owned `mooncraft-preview.sh` on a stable local port and verifies the HTTP preview.
-5. The control plane marks the run as succeeded or failed and stores the latest preview target.
+3. `RuntimeExecutor` ensures the project's Runtime Service container is running with the project volumes mounted.
+4. The control plane calls Runtime Protocol v3 `POST /exec`; the Runtime updates `/workspace` and serves preview traffic from its fixed preview port.
+5. The control plane marks the run as succeeded or failed and stores the latest preview target after Runtime `GET /preview` succeeds.
 6. `apps/web` polls run status and refreshes project state.
 
 ## Persistence Model
@@ -50,9 +50,10 @@ SQLite stores:
 - `projects`
 - `messages`
 - `runs`
+- `project_runtime_services`
 - `project_workspace_snapshots`
 
-The database is the durable state layer. Generated project source code is stored as a workspace snapshot archive in SQLite; filesystem workspaces under `data/runtime/` are disposable caches and execution directories. If the control plane cannot open or initialize SQLite, startup fails. After startup, the health endpoint returns unavailable if a basic database probe fails.
+The database is the durable product metadata layer. Generated project source code is stored in the project `/workspace` Docker volume, not in SQLite. `project_workspace_snapshots` records legacy archive metadata and smoke-test snapshots; it is not the authoritative source store for Runtime Protocol v3 projects. If the control plane cannot open or initialize SQLite, startup fails. After startup, the health endpoint returns unavailable if a basic database probe fails.
 
 Important persisted fields include:
 
@@ -62,25 +63,24 @@ Important persisted fields include:
 - project owner id
 - preview public id
 - display name
-- workspace path for compatibility only; runtime code derives scratch paths from project id
+- workspace path for compatibility only
 - current status
 - current run id
 - preview URL and port
 - last error
 - selected Runtime snapshot
-- Runtime session id
+- Runtime Service container and volume metadata
 
 ## Generated Workspace Boundary
 
-The control plane owns only the Runtime boundary, not the app's source layout. Each project is bound to one Runtime snapshot at creation time. Runtime continuity is represented by the platform-owned `agent_session_id`, the Runtime-owned `runtime_session_id`, and the mounted agent session directory under `data/agent-sessions/<project-id>/<agent-session-id>`. The control plane does not special-case official Runtime names or infer CLI-specific filesystem layout.
+The control plane owns only the Runtime boundary, not the app's source layout. Each project is bound to one Runtime snapshot at creation time. Runtime continuity is represented by the project-scoped Runtime Service container plus its `/workspace` and `/home/mooncraft` volumes. The control plane does not special-case official Runtime names or infer CLI-specific filesystem layout.
 
-- new projects start from an empty workspace snapshot
+- new projects start from an empty `/workspace` volume
 - normal user prompts are passed as task intent; MoonCraft app contract knowledge lives in the Runtime system layer
-- the selected Runtime creates the requested real app and its preview startup script
-- `mooncraft-preview.sh <port>` must start the live preview
-- `mooncraft-preview.sh` receives the preview port as its first CLI argument, starts the app server, keeps the preview process in the foreground, and serves `/`
-- `/api/health` is preferred for readiness, while `/` is accepted as a fallback for browser-only/static previews
-- source snapshots are persisted after creation and after successful agent edits
+- the selected Runtime creates the requested real app and owns preview startup
+- Runtime Protocol v3 `GET /preview` reports whether preview is ready
+- source snapshots are not persisted after normal Runtime Protocol v3 runs
+- existing legacy snapshots are imported into the `/workspace` volume on first Runtime Service creation
 
 There are no official app templates, no template ids, and no template picker in this slice. Reusable examples should live in Runtime images, Runtime documentation, or external projects, not as platform-owned starter variants.
 
@@ -103,29 +103,13 @@ Default UX constraints:
 
 The agent layer is intentionally isolated behind the Runtime protocol and implemented by `RuntimeExecutor`.
 
-Current state:
-
-- the boundary is real
-- the implementation uses Docker-backed agent CLI workers
-- supported agent CLIs are Codex and Claude Code
-- all agent CLIs receive credentials from admin-managed Secrets named by the fixed Runtime snapshot
-
-Future state:
-
-- harden the Docker executor while keeping the same product boundary
+The boundary is a Docker-backed Runtime Protocol v3 HTTP service. Runtime manifests contain only the image plus semantics-free env and secret bindings. The control plane does not know whether a Runtime uses an agent CLI, a hosted service, or a human handoff behind that HTTP API.
 
 This separation matters because the frontend, persistence model, and preview lifecycle should not need to change when the real agent runtime lands.
 
 ## Preview Boundary
 
-`PreviewManager` owns:
-
-- stable port allocation
-- old preview shutdown
-- preview script startup
-- health checks
-
-Generated projects run their own `mooncraft-preview.sh` on a private local port. The control plane passes `<port>` as the first argument, proxies browser traffic through the project preview origin, and health-checks `/api/health` with `/` as a fallback.
+The Runtime Service owns preview process state. MoonCraft calls `GET /preview`; a successful response means preview is ready on the Runtime container's fixed preview port. The control plane proxies browser traffic through the project preview origin to that private Runtime port.
 
 Production deployments should configure project-scoped preview origins through the deployment preview origin policy. Local development can still use the `/p/<preview_public_id>/` fallback when no preview origin template is configured.
 

@@ -213,7 +213,7 @@ docker image rm docker.io/moonbitcloud/mooncraft-agent-runtime:0.4.0 || true
 just deploy-prod
 ```
 
-Plain `docker compose down` preserves named volumes and host bind-mounted data, but creates extra downtime. Use it only when intentionally stopping a stack. Never use `docker compose down -v` unless you intentionally want to delete PostgreSQL volumes. Remove `${MOONCRAFT_HOST_DATA_DIR}` only when you intentionally want to delete MoonCraft runtime caches and agent session homes.
+Plain `docker compose down` preserves named volumes and host bind-mounted data, but creates extra downtime. Use it only when intentionally stopping a stack. Never use `docker compose down -v` unless you intentionally want to delete PostgreSQL volumes. Remove `${MOONCRAFT_HOST_DATA_DIR}` only when you intentionally want to delete MoonCraft runtime caches and artifacts. Remove `mooncraft-workspace-*` or `mooncraft-home-*` Docker volumes only when you intentionally want to delete project source or Runtime-private state.
 
 ## Logs And Operations
 
@@ -280,7 +280,7 @@ Stop an environment:
 docker compose -f docker-compose.prod.yml down
 ```
 
-Do not use `down -v` unless you intentionally want to delete PostgreSQL volumes. Do not remove `${MOONCRAFT_HOST_DATA_DIR}` unless you intentionally want to delete MoonCraft runtime caches and agent session homes.
+Do not use `down -v` unless you intentionally want to delete PostgreSQL volumes. Do not remove `${MOONCRAFT_HOST_DATA_DIR}` unless you intentionally want to delete MoonCraft runtime caches and artifacts. Project source and Runtime-private state live in Docker volumes managed by the control plane.
 
 ## Data
 
@@ -290,9 +290,9 @@ Compose creates named volumes:
 
 Compose also bind-mounts `${MOONCRAFT_HOST_DATA_DIR}` to `/app/data`.
 
-For the current single-node deployment, preserve both the PostgreSQL volume and the host data directory. PostgreSQL stores users, projects, messages, runs, and workspace snapshots. The host data directory stores local runtime caches and Runtime homes, and it must be visible to sibling Runtime Service containers through host bind mounts.
+For the current single-node deployment, preserve the PostgreSQL volume, the host data directory, and the per-project Runtime volumes created by the control plane. PostgreSQL stores users, projects, messages, runs, Runtime manifests, and Runtime Service metadata. Project source and Runtime-private state live in Docker volumes named like `mooncraft-workspace-<project-id>` and `mooncraft-home-<project-id>`.
 
-Before treating this as hardened production, define backup and restore for PostgreSQL and the MoonCraft host data directory.
+Before treating this as hardened production, define backup and restore for PostgreSQL, the MoonCraft host data directory, and project Runtime Docker volumes.
 
 ## Validation
 
@@ -326,6 +326,6 @@ Known limits:
 
 - the app container has access to the host Docker socket
 - generated previews run on the same host
-- Runtime session homes are file-backed under the MoonCraft host data directory
-- host data directory backups are still operator-managed
+- project source and Runtime-private state live in Docker volumes on the same host
+- host data directory and project Runtime volume backups are still operator-managed
 - no hard per-user resource quotas are enforced yet

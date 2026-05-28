@@ -51,7 +51,9 @@ async test "workspace snapshot stores archive as file metadata" {
     fail("expected non-empty workspace snapshot archive")
   }
   fs_remove_tree(workspace)
-  if restore_workspace_snapshot(store, root, "project-snapshot", workspace)
+  if restore_workspace_snapshot_to_path(
+      store, root, "project-snapshot", workspace,
+    )
     is Err(message) {
     abort(message)
   }

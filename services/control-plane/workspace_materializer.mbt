@@ -30,6 +30,12 @@ async fn AppContext::materialize_project_workspace(
   self : AppContext,
   project : @sdk.ProjectDetail,
 ) -> Result[Unit, String] noraise {
+  if !smoke_runtime_enabled() {
+    return self.runtime_gateway.prepare_project_runtime_storage(
+      self.store,
+      project.id,
+    )
+  }
   let workspace_path = project_workspace(self.root, project.id)
   if create_empty_project_workspace(workspace_path) is Err(message) {
     return Err(message)

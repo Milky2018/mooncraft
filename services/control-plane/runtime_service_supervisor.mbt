@@ -213,6 +213,29 @@ async fn docker_command_ok(args : Array[String]) -> Bool noraise {
 }
 
 ///|
+async fn docker_volume_exists(volume : String) -> Bool noraise {
+  docker_command_ok(["volume", "inspect", volume])
+}
+
+///|
+async fn remove_docker_volume_if_exists(
+  volume : String,
+) -> Result[Unit, String] noraise {
+  if docker_volume_exists(volume) {
+    match collect_process_text("docker", ["volume", "rm", volume]) {
+      Ok((0, _)) => Ok(())
+      Ok((_, output)) =>
+        Err(
+          "Runtime volume could not be removed: \{volume}: \{tail_text(output, 800)}",
+        )
+      Err(message) => Err(message)
+    }
+  } else {
+    Ok(())
+  }
+}
+
+///|
 async fn ensure_runtime_service_network(
   network_name : String,
 ) -> Result[Unit, String] noraise {
@@ -248,6 +271,53 @@ async fn ensure_runtime_service_volumes(
     return Err("Runtime home volume could not be created: \{spec.home_volume}")
   }
   Ok(())
+}
+
+///|
+async fn import_legacy_workspace_snapshot_into_runtime_container(
+  store : Store,
+  root : String,
+  project_id : String,
+  container_name : String,
+) -> Result[Unit, String] noraise {
+  match load_workspace_snapshot_metadata(store, project_id) {
+    Ok(_) => ()
+    Err(_) => return Ok(())
+  }
+  let import_path = "\{project_root(root, project_id)}/legacy-workspace-import"
+  fs_remove_tree(import_path) catch {
+    err =>
+      return Err("Legacy workspace import directory could not be reset: \{err}")
+  }
+  match
+    restore_workspace_snapshot_to_path(store, root, project_id, import_path) {
+    Ok(_) => ()
+    Err(message) => {
+      ignore(fs_remove_tree(import_path) catch { _ => () })
+      return Err("Legacy workspace snapshot could not be imported: \{message}")
+    }
+  }
+  match
+    collect_process_text("docker", [
+      "cp",
+      "\{import_path}/.",
+      "\{container_name}:\{agent_container_workspace_dir()}/",
+    ]) {
+    Ok((0, _)) => {
+      ignore(fs_remove_tree(import_path) catch { _ => () })
+      Ok(())
+    }
+    Ok((_, output)) => {
+      ignore(fs_remove_tree(import_path) catch { _ => () })
+      Err(
+        "Legacy workspace snapshot could not be copied into the Runtime workspace volume: \{tail_text(output, 800)}",
+      )
+    }
+    Err(message) => {
+      ignore(fs_remove_tree(import_path) catch { _ => () })
+      Err(message)
+    }
+  }
 }
 
 ///|
@@ -301,7 +371,9 @@ async fn wait_runtime_service_health(
 ///|
 async fn create_runtime_service_container(
   root : String,
+  store : Store,
   spec : RuntimeServiceSpec,
+  import_legacy_workspace_snapshot : Bool,
 ) -> Result[Unit, String] noraise {
   let env_file_path = match write_runtime_service_env_file(root, spec) {
     Ok(path) => path
@@ -368,6 +440,22 @@ async fn create_runtime_service_container(
             _ => ()
           },
         )
+        return Err(message)
+      }
+    }
+  }
+  if import_legacy_workspace_snapshot {
+    match
+      import_legacy_workspace_snapshot_into_runtime_container(
+        store,
+        root,
+        spec.project_id,
+        spec.container_name,
+      ) {
+      Ok(_) => ()
+      Err(message) => {
+        remove_runtime_service_env_file(env_file_path)
+        ignore(run_process_quiet("docker", ["rm", "-f", spec.container_name]))
         return Err(message)
       }
     }
@@ -454,7 +542,8 @@ async fn RuntimeGateway::ensure_project_runtime_service_with_idle_refresh(
     )
     return Ok(runtime_service_endpoint(spec.container_name))
   }
-  if create_runtime_service_container(self.root, spec) is Err(message) {
+  if create_runtime_service_container(self.root, store, spec, existing is None)
+    is Err(message) {
     return Err(message)
   }
   if wait_runtime_service_health(spec.container_name) is Err(message) {
@@ -480,12 +569,77 @@ async fn RuntimeGateway::ensure_project_runtime_service_with_idle_refresh(
 }
 
 ///|
+async fn RuntimeGateway::prepare_project_runtime_storage(
+  self : RuntimeGateway,
+  store : Store,
+  project_id : String,
+) -> Result[Unit, String] noraise {
+  let settings = match store.lease_ai_runtime_settings_for_project(project_id) {
+    Ok(settings) => settings
+    Err(message) => return Err(message)
+  }
+  let spec = match
+    RuntimeServiceSpec::from_settings(self.root, project_id, settings) {
+    Ok(spec) => spec
+    Err(message) => return Err(message)
+  }
+  if ensure_runtime_service_network(spec.network_name) is Err(message) {
+    return Err(message)
+  }
+  if ensure_runtime_service_volumes(spec) is Err(message) {
+    return Err(message)
+  }
+  store.upsert_runtime_service_record(
+    project_id,
+    spec.container_name,
+    spec.workspace_volume,
+    spec.home_volume,
+    spec.network_name,
+    runtime_service_state_stopped(),
+    None,
+  )
+}
+
+///|
 async fn RuntimeGateway::ensure_project_runtime_service(
   self : RuntimeGateway,
   store : Store,
   project_id : String,
 ) -> Result[RuntimeServiceEndpoint, String] noraise {
   self.ensure_project_runtime_service_with_idle_refresh(store, project_id, true)
+}
+
+///|
+async fn RuntimeGateway::delete_project_runtime_storage(
+  self : RuntimeGateway,
+  store : Store,
+  project_id : String,
+) -> Result[Unit, String] noraise {
+  let record = store.get_runtime_service_record(project_id)
+  let container_name = match record {
+    Some(record) => record.container_name
+    None => runtime_service_container_name(project_id)
+  }
+  let workspace_volume = match record {
+    Some(record) => record.workspace_volume
+    None => runtime_service_workspace_volume(project_id)
+  }
+  let home_volume = match record {
+    Some(record) => record.home_volume
+    None => runtime_service_home_volume(project_id)
+  }
+  ignore(run_process_quiet("docker", ["rm", "-f", container_name]))
+  if remove_docker_volume_if_exists(workspace_volume) is Err(message) {
+    return Err(message)
+  }
+  if remove_docker_volume_if_exists(home_volume) is Err(message) {
+    return Err(message)
+  }
+  fs_remove_tree(runtime_service_state_dir(self.root, project_id)) catch {
+    err =>
+      return Err("Runtime Service state directory could not be removed: \{err}")
+  }
+  Ok(())
 }
 
 ///|

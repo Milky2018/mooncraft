@@ -1016,26 +1016,28 @@ async fn RuntimeGateway::run_turn(
       Err(failure) => return Err(failure)
     }
   }
-  store.append_worker_run_event(
-    project.id,
-    run_id,
-    worker_id,
-    attempt,
-    "status",
-    @sdk.run_event_code_workspace_saving(),
-    "Saving the updated workspace.",
-  )
-  match
-    persist_builder_workspace_snapshot(
-      store,
-      self.root,
+  if smoke_runtime_enabled() {
+    store.append_worker_run_event(
       project.id,
-      workspace_path,
-      runtime_result.thread_id,
-      runtime_result.artifacts,
-    ) {
-    Ok(_) => ignore(())
-    Err(failure) => return Err(failure)
+      run_id,
+      worker_id,
+      attempt,
+      "status",
+      @sdk.run_event_code_workspace_saving(),
+      "Saving the updated workspace.",
+    )
+    match
+      persist_builder_workspace_snapshot(
+        store,
+        self.root,
+        project.id,
+        workspace_path,
+        runtime_result.thread_id,
+        runtime_result.artifacts,
+      ) {
+      Ok(_) => ignore(())
+      Err(failure) => return Err(failure)
+    }
   }
   Ok({ summary: runtime_result.summary, thread_id: runtime_result.thread_id })
 }

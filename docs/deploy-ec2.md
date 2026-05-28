@@ -8,7 +8,7 @@ The local product loop is real, but several parts are still single-node and need
 
 - the agent layer uses a Docker-backed runtime, but resource and isolation boundaries still need production hardening
 - persistence now supports SQLite for dev/test and PostgreSQL for production, but the hosted topology is still single-instance
-- generated previews run as local child processes with light supervision
+- generated previews run inside project-scoped Runtime Service containers
 
 ## Current Deployment Blockers
 
@@ -28,33 +28,33 @@ Required fix:
 
 ### 2. Persistence is production-database backed, but not HA
 
-Local durable state defaults to SQLite. Production should set `MOONCRAFT_DATABASE_URL` and use PostgreSQL. Generated project directories under `data/runtime/` are scratch caches hydrated from database snapshots. Runtime session homes are file-backed under `data/agent-sessions/` and must be preserved through `MOONCRAFT_HOST_DATA_DIR` on the current single-node deployment.
+Local durable metadata defaults to SQLite. Production should set `MOONCRAFT_DATABASE_URL` and use PostgreSQL. Generated project source and Runtime-private state live in Docker named volumes created by the control plane for each project. Preserve those Docker volumes on the current single-node deployment.
 
 Why this matters:
 
 - one-node staging is fine
 - multi-instance or high-availability production is not yet designed
-- PostgreSQL keeps metadata and workspace snapshots off app-local disk, but workspace snapshots and Runtime session homes should move to shared durable storage before multi-instance production
+- PostgreSQL keeps product metadata off app-local disk, but project Runtime volumes still need a shared durable storage design before multi-instance production
 
 Short-term decision:
 
 - for local dev/test, SQLite is still the simplest path
 - for EC2 production, use PostgreSQL through `MOONCRAFT_DATABASE_URL`
-- for anything beyond one node, move workspace snapshots and Runtime session homes out of single-node app-local storage
+- for anything beyond one node, move project Runtime volumes out of single-node Docker-local storage
 
-### 3. Preview processes need stronger supervision
+### 3. Runtime Service containers need stronger supervision
 
-Generated apps currently run as local child processes on dynamic ports.
+Generated apps currently run inside project-scoped Runtime Service containers on the same Docker host.
 
 Why this matters:
 
-- crash recovery is weak
-- isolation is weak
+- crash recovery still needs hardening
+- isolation is still single-host Docker isolation
 - resource limits are not well-defined
 
 Required fix:
 
-- supervise preview processes explicitly
+- supervise Runtime Service containers explicitly
 - keep one runtime per project
 - define restart, cleanup, timeout, and health-check rules
 
@@ -112,7 +112,7 @@ Why this is the right first hosted shape:
 1. Run the selected explicit Compose file from the deployment directory.
 2. Keep the PostgreSQL Docker volume on durable storage or use RDS.
 3. Forward container logs to CloudWatch if you want centralized logs.
-4. Keep `data/` as runtime scratch; durable app state should be in PostgreSQL.
+4. Keep PostgreSQL data and project Runtime Docker volumes on durable storage.
 
 ### Phase 4: Put HTTPS in front
 
@@ -126,7 +126,7 @@ Why this is the right first hosted shape:
 
 1. Schedule EBS snapshots.
 2. Add health checks and alarms.
-3. Document backup and restore for PostgreSQL. Treat `data/runtime/` as rebuildable scratch.
+3. Document backup and restore for PostgreSQL and project Runtime Docker volumes.
 4. Decide how you will rotate secrets and environment variables.
 
 ## What Counts As Good Enough For The First Public Demo

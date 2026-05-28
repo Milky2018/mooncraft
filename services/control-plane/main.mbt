@@ -1533,6 +1533,12 @@ fn main {
     match ctx.materialize_project_workspace(project) {
       Ok(_) => json_created(@sdk.CreateProjectResponse::{ project, })
       Err(message) => {
+        ignore(
+          ctx.runtime_gateway.delete_project_runtime_storage(
+            ctx.store,
+            project_id,
+          ),
+        )
         fs_remove_tree(project_root(ctx.root, project_id)) catch {
           _ => ()
         }

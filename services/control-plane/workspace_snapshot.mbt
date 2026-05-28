@@ -237,27 +237,3 @@ async fn restore_workspace_snapshot_to_path(
   }
   Ok(())
 }
-
-///|
-async fn restore_workspace_snapshot(
-  store : Store,
-  root : String,
-  project_id : String,
-  workspace_path : String,
-) -> Result[Unit, String] noraise {
-  restore_workspace_snapshot_to_path(store, root, project_id, workspace_path)
-}
-
-///|
-async fn restore_project_workspace_for_run(
-  store : Store,
-  root : String,
-  project_id : String,
-) -> Result[String, String] noraise {
-  let workspace_path = project_workspace(root, project_id)
-  match
-    restore_workspace_snapshot_to_path(store, root, project_id, workspace_path) {
-    Ok(_) => Ok(workspace_path)
-    Err(message) => Err(message)
-  }
-}

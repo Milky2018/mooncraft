@@ -4,8 +4,8 @@ This module is the local backend for the current MoonCraft prototype.
 
 Responsibilities:
 
-- persist users, sessions, projects, messages, runs, workspace source snapshots, and Runtime Service state
-- initialize an empty workspace under `data/runtime/projects/<id>/workspace`
+- persist users, sessions, projects, messages, runs, legacy workspace snapshot metadata, and Runtime Service state
+- create per-project Docker named volumes for Runtime workspace and Runtime home storage
 - serve the app-develop HTTP API
 - serve the main workspace page, frontend bundles, and web-owned static shells
 - authenticate users through GitHub OAuth and cookie sessions
@@ -14,15 +14,15 @@ Responsibilities:
 - keep Runtime Service APIs private on a MoonCraft-managed Docker network
 - store preview URLs and last-known run state
 
-The platform no longer owns generated-app setup. Project rows do not carry template ids, and there is no template picker. Project creation saves an empty workspace as the first snapshot. The selected Runtime decides how to turn that workspace into an app; Runtime Protocol v3 exposes that through a project-scoped Runtime Service.
+The platform no longer owns generated-app setup. Project rows do not carry template ids, and there is no template picker. Project creation creates the project's Runtime storage, but does not write starter source files. The selected Runtime decides how to turn that workspace into an app; Runtime Protocol v3 exposes that through a project-scoped Runtime Service.
 
 The current `RuntimeGateway` ensures a project-scoped Runtime Service before real Runtime work begins. The supervisor starts the Runtime image through its default entrypoint, mounts Docker named volumes at `/workspace` and `/home/mooncraft`, attaches the container to the MoonCraft Runtime Docker network, checks `GET /health`, and records `stopped`, `ready`, or `running` state with an idle TTL. Runs go through Runtime Protocol v3 `POST /exec`, and previews go through Runtime-owned `GET /preview` plus the fixed container preview port `4792`.
 
-Workspace directories are no longer durable state. The control plane saves the latest source archive in SQLite after initial workspace generation and after agent edits. Each run hydrates that database snapshot into an isolated runtime workspace before starting the selected agent, then restores the local preview cache from the saved snapshot.
+Runtime Docker volumes are the durable generated-project storage. The control plane mounts one project-scoped volume at `/workspace` for generated source and one at `/home/mooncraft` for Runtime-private durable state. Workspace snapshots are legacy import artifacts and smoke-test fixtures only; normal Runtime Protocol v3 runs do not archive the workspace after completion.
 
-Agent session directories are durable app data, not host user state. MoonCraft does not mount a developer's local agent home, and Runtime secrets are resolved only from sources declared in the project Runtime snapshot. Deleting a project removes its workspace cache, artifacts, database rows, legacy session data, and `data/agent-sessions/<project-id>`.
+MoonCraft does not mount a developer's local agent home, and Runtime secrets are resolved only from sources declared in the project Runtime snapshot. Deleting a project removes its Runtime Service container, project Docker volumes, artifacts, database rows, legacy session data, and `data/agent-sessions/<project-id>`.
 
-The legacy `data/projects` workspace root is cleaned at startup. It is not used as a restore fallback, because generated files must come from the database snapshot or be treated as unavailable.
+The legacy `data/projects` workspace root is cleaned at startup. Existing projects with saved workspace snapshots are imported into the `/workspace` volume the first time their Runtime Service container is created.
 
 SQLite is a required dependency for the control plane. If the database cannot be opened or schema initialization fails, the service exits during startup. The health endpoint also checks database availability and returns unavailable when the probe fails.
 
@@ -44,7 +44,7 @@ Frontend-owned static files live under `apps/web/public`, which mirrors public U
 - `control-plane-assets/smoke-preview/index.html` for fake-runtime preview smoke runs
 - `assets/logo.svg`, `assets/logo.png`, and `assets/factory.webp` for public web app imagery
 
-These files are runtime assets owned by `apps/web`, not control-plane source. `moon build` builds both the Rabbita frontend bundle and the native control-plane executable through the workspace. The control plane does not run `moon` at startup; it serves the prebuilt frontend bundle from `_build/js/<profile>/build/mooncraft/web/web.js`. Project creation does not require generated-app language tooling; it creates an empty workspace snapshot. The supported local walkthrough runs from the repository root through `just serve`, which builds the workspace before starting the executable. The Docker app image installs build tooling for MoonCraft itself, but generated-app tooling belongs to the selected Runtime.
+These files are runtime assets owned by `apps/web`, not control-plane source. `moon build` builds both the Rabbita frontend bundle and the native control-plane executable through the workspace. The control plane does not run `moon` at startup; it serves the prebuilt frontend bundle from `_build/js/<profile>/build/mooncraft/web/web.js`. Project creation does not require generated-app language tooling; it creates Runtime storage only. The supported local walkthrough runs from the repository root through `just serve`, which builds the workspace before starting the executable. The Docker app image installs build tooling for MoonCraft itself, but generated-app tooling belongs to the selected Runtime.
 
 If you run a compiled `control-plane.exe` from another directory, keep `apps/web/public` available under that working directory or the file-backed HTML pages will not render.
 

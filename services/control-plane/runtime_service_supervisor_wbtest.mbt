@@ -89,4 +89,9 @@ async test "runtime service records expose expired ready containers" {
     records[0].container_name,
     content="mooncraft-runtime-project-runtime-test",
   )
+  inspect(
+    records[0].workspace_volume,
+    content="mooncraft-workspace-project-runtime-test",
+  )
+  inspect(records[0].home_volume, content="mooncraft-home-project-runtime-test")
 }
