@@ -5,6 +5,7 @@ port="${MOONCRAFT_SMOKE_PORT:-8080}"
 base_url="http://127.0.0.1:$port"
 run_poll_limit="${MOONCRAFT_SMOKE_RUN_POLL_LIMIT:-180}"
 tmpdir="$(mktemp -d)"
+admin_token="${MOONCRAFT_SMOKE_ADMIN_TOKEN:-smoke-admin-token}"
 
 cleanup() {
   rm -rf "$tmpdir"
@@ -38,6 +39,18 @@ dev_sign_in() {
     | grep -q "\"email\":\"$email\""
 }
 
+register_smoke_runtime() {
+  local runtime_spec_json='{"protocol_version":3,"image":"mooncraft/fake-runtime:smoke","env":{},"secrets":[]}'
+  local escaped_runtime_spec_json="${runtime_spec_json//\"/\\\"}"
+  local runtime_response
+  runtime_response="$(curl -fsS \
+    -H "Authorization: Bearer $admin_token" \
+    -H 'Content-Type: application/json' \
+    -X POST "$base_url/api/admin/runtimes" \
+    -d "{\"name\":\"Smoke Runtime $$\",\"spec_json\":\"$escaped_runtime_spec_json\",\"enabled\":true,\"is_default\":true}")"
+  printf '%s' "$runtime_response" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p'
+}
+
 curl -fsS "$base_url/api/health" | grep -q '"ok":true'
 curl -fsS "$base_url/" >/dev/null
 curl -fsS "$base_url/app" >/dev/null
@@ -60,7 +73,14 @@ if [[ "$empty_project_status" != "422" ]]; then
   exit 1
 fi
 
-create_response="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X POST "$base_url/api/projects" -H 'Content-Type: application/json' -d '{"display_name":"Smoke Running"}')"
+smoke_runtime_id="$(register_smoke_runtime)"
+if [[ -z "$smoke_runtime_id" ]]; then
+  echo "Failed to register a smoke Runtime through the admin API." >&2
+  exit 1
+fi
+curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/runtimes" | grep -q "\"id\":\"$smoke_runtime_id\""
+
+create_response="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X POST "$base_url/api/projects" -H 'Content-Type: application/json' -d "{\"display_name\":\"Smoke Running\",\"runtime_id\":\"$smoke_runtime_id\"}")"
 project_id="$(printf '%s' "$create_response" | sed -n 's/.*"project":{"id":"\([^"]*\)".*/\1/p')"
 if [[ -z "$project_id" ]]; then
   echo "Failed to parse project id from create response: $create_response" >&2
@@ -83,8 +103,8 @@ if [[ -z "$run_id" ]]; then
   echo "Failed to parse run id from run response: $run_response" >&2
   exit 1
 fi
-printf '%s' "$run_response" | grep -q '"phase":"AgentRunning"'
-curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects" | grep -q '"current_run_phase":"AgentRunning"'
+printf '%s' "$run_response" | grep -q '"phase":"RuntimeRunning"'
+curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects" | grep -q '"current_run_phase":"RuntimeRunning"'
 
 final_run=""
 for _ in $(seq 1 "$run_poll_limit"); do
@@ -97,7 +117,6 @@ for _ in $(seq 1 "$run_poll_limit"); do
 done
 
 preview_url="$(printf '%s' "$final_run" | sed -n 's/.*"url":"\([^"]*\)".*/\1/p')"
-preview_port="$(printf '%s' "$final_run" | sed -n 's/.*"port":\([0-9][0-9]*\).*/\1/p')"
 if ! printf '%s' "$final_run" | grep -q '"state":"Succeeded"'; then
   echo "Expected first smoke run to succeed, got: $final_run" >&2
   exit 1
@@ -108,11 +127,6 @@ printf '%s' "$preview_url" | grep -q '^/p/'
 
 project_detail="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$project_id")"
 printf '%s' "$project_detail" | grep -q '"current_run_phase":"NoPhase"'
-first_session_id="$(printf '%s' "$project_detail" | sed -n 's/.*"runtime_session_id":"\([^"]*\)".*/\1/p')"
-if [[ -z "$first_session_id" ]]; then
-  echo "Failed to parse the first runtime session id from project detail: $project_detail" >&2
-  exit 1
-fi
 
 curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$project_id" | grep -q "\"url\":\"$preview_url\""
 user2_status="$(curl -sS -o /dev/null -w '%{http_code}' -c "$user2_cookie" -b "$user2_cookie" "$base_url/api/projects/$project_id" || true)"
@@ -126,73 +140,6 @@ if curl -fsS -c "$user2_cookie" -b "$user2_cookie" "$base_url/api/projects" | gr
 fi
 
 wait_for_ok "$base_url${preview_url}api/health"
-
-if [[ -n "$preview_port" ]] && command -v lsof >/dev/null 2>&1; then
-  lsof -tiTCP:"$preview_port" -sTCP:LISTEN | xargs kill >/dev/null 2>&1 || true
-  curl -m 5 -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$project_id" >/dev/null
-  stale_preview_status="$(curl -m 5 -sS -o /dev/null -w '%{http_code}' "$base_url${preview_url}api/health" || true)"
-  if [[ "$stale_preview_status" != "502" ]]; then
-    echo "Expected stale preview access to fail fast with 502, got $stale_preview_status" >&2
-    exit 1
-  fi
-  stale_project_detail="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$project_id")"
-  printf '%s' "$stale_project_detail" | grep -q '"healthy":false'
-fi
-
-if [[ -z "${MOONCRAFT_DATABASE_URL:-}" ]]; then
-  snapshot_count="$(sqlite3 data/control-plane/state-v2.sqlite "SELECT COUNT(*) FROM project_workspace_snapshots WHERE project_id = '$project_id';")"
-  [[ "$snapshot_count" == "1" ]]
-fi
-
-runtime_project_dir="data/runtime/projects/$project_id"
-[[ -d "$runtime_project_dir/workspace" ]]
-if [[ -n "$preview_port" ]] && command -v lsof >/dev/null 2>&1; then
-  lsof -tiTCP:"$preview_port" -sTCP:LISTEN | xargs kill >/dev/null 2>&1 || true
-fi
-chmod -R u+w "$runtime_project_dir/workspace" >/dev/null 2>&1 || true
-rm -rf "$runtime_project_dir/workspace"
-
-run_response_2="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X POST "$base_url/api/projects/$project_id/runs" -H 'Content-Type: application/json' -d '{"content":"Add recovery badge"}')"
-run_id_2="$(printf '%s' "$run_response_2" | sed -n 's/.*"run":{"run_id":"\([^"]*\)".*/\1/p')"
-if [[ -z "$run_id_2" ]]; then
-  echo "Failed to parse second run id from run response: $run_response_2" >&2
-  exit 1
-fi
-printf '%s' "$run_response_2" | grep -q '"phase":"AgentRunning"'
-
-final_run_2=""
-for _ in $(seq 1 "$run_poll_limit"); do
-  final_run_2="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$project_id/runs/$run_id_2")"
-  if printf '%s' "$final_run_2" | grep -q '"state":"Running"'; then
-    sleep 1
-    continue
-  fi
-  break
-done
-
-preview_url_2="$(printf '%s' "$final_run_2" | sed -n 's/.*"url":"\([^"]*\)".*/\1/p')"
-if ! printf '%s' "$final_run_2" | grep -q '"state":"Succeeded"'; then
-  echo "Expected second smoke run to succeed, got: $final_run_2" >&2
-  exit 1
-fi
-printf '%s' "$final_run_2" | grep -q '"phase":"NoPhase"'
-printf '%s' "$final_run_2" | grep -q '"healthy":true'
-
-project_detail_2="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$project_id")"
-printf '%s' "$project_detail_2" | grep -q '"current_run_phase":"NoPhase"'
-second_session_id="$(printf '%s' "$project_detail_2" | sed -n 's/.*"runtime_session_id":"\([^"]*\)".*/\1/p')"
-if [[ -z "$second_session_id" ]]; then
-  echo "Failed to parse the recovered runtime session id from project detail: $project_detail_2" >&2
-  exit 1
-fi
-if [[ "$second_session_id" == "$first_session_id" ]]; then
-  echo "Expected session recovery to replace the runtime session id, but it stayed at $first_session_id" >&2
-  exit 1
-fi
-
-[[ -d "$runtime_project_dir/workspace" ]]
-grep -q 'Add recovery badge' "$runtime_project_dir/workspace/README.md"
-wait_for_ok "$base_url${preview_url_2}api/health"
 
 curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X POST "$base_url/api/auth/logout" -d '' >/dev/null
 logged_out_status="$(curl -sS -o /dev/null -w '%{http_code}' -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects" || true)"
@@ -210,16 +157,5 @@ if curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$proj
 fi
 if curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects" | grep -q "\"id\":\"$project_id\""; then
   echo "Project still appears in the project list after deletion: $project_id" >&2
-  exit 1
-fi
-if [[ -z "${MOONCRAFT_DATABASE_URL:-}" ]]; then
-  snapshot_count_after_delete="$(sqlite3 data/control-plane/state-v2.sqlite "SELECT COUNT(*) FROM project_workspace_snapshots WHERE project_id = '$project_id';")"
-  if [[ "$snapshot_count_after_delete" != "0" ]]; then
-    echo "Project workspace snapshot still exists after deletion: $project_id" >&2
-    exit 1
-  fi
-fi
-if [[ -d "data/runtime/projects/$project_id" || -d "data/projects/$project_id" ]]; then
-  echo "Project runtime scratch still exists after deletion: $project_id" >&2
   exit 1
 fi

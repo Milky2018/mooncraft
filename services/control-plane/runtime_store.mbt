@@ -159,6 +159,12 @@ async fn Store::ensure_agent_runtime_tables(
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
+  if self.drop_column_if_exists("agent_runtimes", "agent") is Err(message) {
+    return Err(message)
+  }
+  if self.drop_column_if_exists("agent_runtimes", "model") is Err(message) {
+    return Err(message)
+  }
   if self.delete_retired_seed_runtime_rows() is Err(message) {
     return Err(message)
   }
