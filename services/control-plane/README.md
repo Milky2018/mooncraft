@@ -28,7 +28,7 @@ SQLite is a required dependency for the control plane. If the database cannot be
 
 ## Runtime Boundary
 
-For real Docker-backed runs, the MoonCraft agent runtime image installs the supported agent CLIs and any knowledge or templates that Runtime wants to expose to the agent. Normal user prompts are not wrapped with the generated-app contract; that project-aware contract lives in the runtime system layer.
+For real Docker-backed runs, the selected Runtime image exposes a Runtime Protocol v3 HTTP service. It may install agent CLIs, knowledge, templates, queues, or any other implementation detail it needs. Normal user prompts are not wrapped with the generated-app contract by the control plane; that project-aware contract lives behind the Runtime Service boundary.
 
 MoonCraft no longer runs generic app-framework validation gates after the builder returns, and it does not know any generated-app preview script contract. Runtime Protocol v3 makes preview startup the Runtime Service's responsibility. MoonCraft only checks `GET /preview` and proxies successful preview traffic to the Runtime container's fixed port `4792`.
 
@@ -66,7 +66,7 @@ Preview process state belongs to the Runtime container, not the control plane. O
 
 Use these repository-level checks:
 
-- `just check-agent-runtime-image` verifies required tools and knowledge assets inside the agent runtime image.
+- `just check-agent-runtime-image` verifies required tools, knowledge assets, and the Runtime Protocol v3 HTTP service inside the runtime image.
 - `just smoke` covers the default project creation, fake builder update, preview rebuild, deletion, and persistence flow.
 
 Runtime configuration is stored in admin-managed Runtime manifests, not process-wide service environment variables or repository-seeded built-ins. Runtime rows should follow the Runtime Protocol documented in `docs/runtime-protocol/`. Runtime Protocol v3 narrows the manifest to `protocol_version`, `image`, semantics-free `env`, and semantics-free `secrets`; the Runtime image owns its service implementation behind the Runtime Service HTTP API.
@@ -75,4 +75,4 @@ The runtime intentionally does not mount a host AI tool home and users do not co
 
 Use `just agent-runtime-config` to inspect the effective runtime configuration. Build the runtime image for the Docker host architecture with `just build-agent-runtime-image <repository> <version>`; pass `linux/amd64` or `linux/arm64` only when you intentionally need a specific platform. Use `just build-agent-runtime-images <repository> <version>` to build both local architecture-suffixed tags. Publish the shared multi-architecture runtime image with `just docker-agent-runtime-publish <repository> <version> linux/amd64,linux/arm64` after `docker login`.
 
-Use `OPENROUTER_API_KEY=... just agent-smoke` from the repository root only when you intentionally want to spend real provider quota on an end-to-end Docker-backed build. The smoke script writes the key as an admin Secret after startup; it does not configure MoonCraft through service environment variables. Optional smoke overrides are `MOONCRAFT_AGENT_SMOKE_KEY_REF` and `MOONCRAFT_AGENT_SMOKE_MODEL`. The old `just codex-smoke` recipe remains as a compatibility alias.
+Use `OPENROUTER_API_KEY=... just agent-smoke` from the repository root only when you intentionally want to spend real provider quota on an end-to-end Docker-backed build. The smoke script writes the key as an admin Secret and registers a Runtime Protocol v3 manifest after startup; it does not configure MoonCraft through service environment variables. Optional smoke overrides are `MOONCRAFT_AGENT_SMOKE_KEY_REF` and `MOONCRAFT_AGENT_SMOKE_MODEL`. The old `just codex-smoke` recipe remains as a compatibility alias.

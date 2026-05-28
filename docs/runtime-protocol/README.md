@@ -33,7 +33,7 @@ Admin-created Runtime JSON uses this shape:
       "source": "ai_api_key",
       "target": {
         "type": "env",
-        "name": "OPENROUTER_API_KEY"
+        "name": "BUILDER_API_KEY"
       }
     }
   ]
@@ -79,7 +79,7 @@ Environment target:
   "source": "ai_api_key",
   "target": {
     "type": "env",
-    "name": "OPENROUTER_API_KEY"
+    "name": "BUILDER_API_KEY"
   }
 }
 ```
@@ -116,6 +116,25 @@ MoonCraft provides these fixed container paths as Docker named volumes:
 Runtime Protocol v3 does not specify the container user, UID, GID, or privilege model. The Runtime image provider owns its image user policy and must ensure the Runtime Service can read and write the mounted volumes it needs.
 
 `/artifacts` is not part of Runtime Protocol v3.
+
+## Official Runtime Image
+
+MoonCraft's reference image is `docker.io/moonbitcloud/mooncraft-agent-runtime:<version>`. It is itself only a Runtime Protocol v3 image: administrators still register it with a normal v3 Runtime Manifest, and MoonCraft does not inspect the builder, model, account, or provider it uses internally.
+
+The current reference image implements the Runtime Service as a native MoonBit binary, includes Codex CLI `0.128.0`, and does not include Node.js, npm, npx, or Claude in the final runtime layer. Its default model is `gpt-5.4-mini`; admins may override that image-internal value with a normal v3 `env` entry named `MODEL`.
+
+Build and check the image from the repository root:
+
+```bash
+just build-agent-runtime-image docker.io/moonbitcloud/mooncraft-agent-runtime 0.4.0
+just check-agent-runtime-image docker.io/moonbitcloud/mooncraft-agent-runtime:0.4.0
+```
+
+Publish a multi-architecture tag:
+
+```bash
+just docker-agent-runtime-publish docker.io/moonbitcloud/mooncraft-agent-runtime 0.4.0 linux/amd64,linux/arm64
+```
 
 ## Docker Network
 

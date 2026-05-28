@@ -1,0 +1,19 @@
+import {
+  "peter-jerry-ye/codex",
+  "moonbitlang/async",
+  "moonbitlang/async/cond_var",
+  "moonbitlang/async/fs",
+  "moonbitlang/async/http",
+  "moonbitlang/async/io",
+  "moonbitlang/async/process",
+  "moonbitlang/async/socket",
+  "moonbitlang/core/env",
+  "moonbitlang/core/json",
+  "moonbitlang/core/string",
+}
+
+supported_targets = "native"
+
+options(
+  "is-main": true,
+)

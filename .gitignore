@@ -5,6 +5,7 @@
 !.env.prod.example
 _build/
 .mooncakes/
+.repos/
 .playwright-cli/
 data/
 output/

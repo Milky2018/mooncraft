@@ -98,14 +98,15 @@
     <main>
       <h1>Runtime Setup Guide</h1>
       <p class="lead">
-        A Runtime is the app builder users choose when creating a project. As an admin, you need a name, a Docker image tag, one credential Secret, and a small Runtime JSON block.
+        A Runtime is the app builder users choose when creating a project. As an admin, you need a name, a Runtime Protocol v3 Docker image tag, and any Secrets or environment variables that image expects.
       </p>
 
       <h2>Before You Add a Runtime</h2>
       <ol>
         <li>Confirm the Runtime provider has published an image for your server CPU architecture.</li>
+        <li>Confirm the image exposes a Runtime Service on container port <code>8080</code> and a preview service on <code>4792</code>.</li>
         <li>Create the credential in Admin, then Secrets.</li>
-        <li>Ask the Runtime provider whether the agent is <code>codex</code> or <code>claude</code>, and which model name to use.</li>
+        <li>Ask the Runtime provider which Secret targets and environment variables the image expects.</li>
       </ol>
 
       <h2>Add the Runtime</h2>
@@ -117,60 +118,77 @@
         <li>Enable it when ready. Optionally make it the default for new projects.</li>
       </ol>
 
-      <h2>OpenRouter Example</h2>
+      <h2>Environment Secret Example</h2>
       <p>
-        Create a Secret named <code>mooncraft_ai_api_key</code> with the OpenRouter key, then use:
+        Create a Secret named <code>builder_api_key</code>, then bind it to the environment variable expected by the image:
       </p>
       <pre>{
-  "protocol_version": 2,
-  "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.3.2",
-  "agent": "codex",
-  "model": "openai/gpt-5.4-mini",
-  "auth": {
-    "kind": "openrouter_api_key",
-    "secret": {
-      "source": "mooncraft_ai_api_key",
+  "protocol_version": 3,
+  "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.4.0",
+  "env": {
+    "MODEL": "gpt-5.4-mini"
+  },
+  "secrets": [
+    {
+      "source": "builder_api_key",
       "target": {
         "type": "env",
-        "name": "MOONCRAFT_AI_API_KEY"
+        "name": "BUILDER_API_KEY"
       }
     }
-  }
+  ]
 }</pre>
 
-      <h2>Codex Account Example</h2>
+      <h2>File Secret Example</h2>
       <p>
-        To use a Codex account instead of an API key, create a Secret named <code>milky_codex_auth</code> whose value is the full contents of <code>$HOME/.codex/auth.json</code>, then use:
+        If the Runtime image expects a file credential, create a Secret whose value is the complete file contents, then bind it under <code>/home/mooncraft</code>:
       </p>
       <pre>{
-  "protocol_version": 2,
-  "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.3.2",
-  "agent": "codex",
-  "model": "gpt-5.4-mini",
-  "auth": {
-    "kind": "codex_auth_json",
-    "secret": {
-      "source": "milky_codex_auth",
+  "protocol_version": 3,
+  "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.4.0",
+  "env": {},
+  "secrets": [
+    {
+      "source": "builder_account_file",
       "target": {
         "type": "file",
         "path": ".codex/auth.json"
       }
     }
-  }
+  ]
+}</pre>
+
+      <h2>Env Example</h2>
+      <p>
+        Use <code>env</code> only for non-secret strings required by the Runtime image:
+      </p>
+      <pre>{
+  "protocol_version": 3,
+  "image": "docker.io/acme/custom-runtime:1.0.0",
+  "env": {
+    "RUNTIME_MODE": "production"
+  },
+  "secrets": [
+    {
+      "source": "mooncraft_ai_api_key",
+      "target": {
+        "type": "env",
+        "name": "BUILDER_API_KEY"
+      }
+    }
+  ]
 }</pre>
 
       <h2>Field Reference</h2>
       <ul>
         <li><code>image</code>: the Docker image MoonCraft runs.</li>
-        <li><code>agent</code>: <code>codex</code> or <code>claude</code>.</li>
-        <li><code>model</code>: model name passed to the selected agent.</li>
-        <li><code>auth.kind</code>: <code>openrouter_api_key</code>, <code>codex_auth_json</code>, or <code>claude_auth_json</code>.</li>
-        <li><code>auth.secret.source</code>: the Admin Secret name.</li>
-        <li><code>auth.secret.target</code>: where MoonCraft injects that Secret inside the Runtime container.</li>
+        <li><code>env</code>: optional non-secret environment variables injected into the Runtime Service container.</li>
+        <li><code>secrets.source</code>: the Admin Secret name.</li>
+        <li><code>secrets.target</code>: where MoonCraft injects that Secret inside the Runtime container.</li>
       </ul>
 
       <div class="note">
-        Runtime JSON does not include command lines, container users, provider fields, preview URLs, or deployment host names. MoonCraft owns those details.
+        Runtime JSON does not include agent names, model names, command lines, container users, provider fields, preview URLs, or deployment host names. Those details belong inside the Runtime image or MoonCraft platform code.
       </div>
     </main>
   </body>

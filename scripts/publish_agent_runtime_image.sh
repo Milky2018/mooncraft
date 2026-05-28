@@ -23,7 +23,7 @@ host_platform() {
     x86_64 | amd64) printf 'linux/amd64\n' ;;
     aarch64 | arm64) printf 'linux/arm64\n' ;;
     *)
-      echo "Unsupported Docker host architecture for MoonCraft agent runtime: $docker_arch" >&2
+      echo "Unsupported Docker host architecture for MoonCraft runtime: $docker_arch" >&2
       exit 65
       ;;
   esac
@@ -35,7 +35,7 @@ normalize_platform() {
     host | auto) host_platform ;;
     linux/amd64 | linux/arm64) printf '%s\n' "$platform" ;;
     *)
-      echo "Unsupported agent runtime platform: $platform" >&2
+      echo "Unsupported runtime platform: $platform" >&2
       echo "Use host, linux/amd64, or linux/arm64." >&2
       exit 64
       ;;
@@ -51,7 +51,7 @@ validate_platforms() {
     case "$platform" in
       linux/amd64 | linux/arm64) ;;
       *)
-        echo "Unsupported agent runtime platform: $platform" >&2
+        echo "Unsupported runtime platform: $platform" >&2
         echo "Use linux/amd64, linux/arm64, or both as a comma-separated list." >&2
         exit 64
         ;;
@@ -64,7 +64,7 @@ platform_suffix() {
     linux/amd64) printf 'amd64\n' ;;
     linux/arm64) printf 'arm64\n' ;;
     *)
-      echo "Unsupported agent runtime platform: $1" >&2
+      echo "Unsupported runtime platform: $1" >&2
       exit 64
       ;;
   esac
@@ -75,7 +75,7 @@ build_image() {
   local version="${2:-$default_version}"
   local platform="${3:-${MOONCRAFT_AGENT_RUNTIME_BUILD_PLATFORM:-host}}"
   platform="$(normalize_platform "$platform")"
-  echo "Building $repository:$version for $platform"
+  echo "Building Runtime Protocol v3 image $repository:$version for $platform"
   docker build \
     --platform "$platform" \
     -f "$repo_root/docker/agent-runtime/Dockerfile" \
@@ -95,7 +95,7 @@ build_all_images() {
   for raw in "${platform_list[@]}"; do
     platform="$(printf '%s' "$raw" | xargs)"
     suffix="$(platform_suffix "$platform")"
-    echo "Building $repository:$version-$suffix for $platform"
+    echo "Building Runtime Protocol v3 image $repository:$version-$suffix for $platform"
     docker build \
       --platform "$platform" \
       -f "$repo_root/docker/agent-runtime/Dockerfile" \
@@ -110,7 +110,7 @@ publish_image() {
   local repository="${1:-$default_repository}"
   local version="${2:-$default_version}"
   local platforms="${3:-linux/amd64,linux/arm64}"
-  local builder="${MOONCRAFT_AGENT_RUNTIME_BUILDX_BUILDER:-mooncraft-agent-runtime-builder}"
+  local builder="${MOONCRAFT_RUNTIME_BUILDX_BUILDER:-${MOONCRAFT_AGENT_RUNTIME_BUILDX_BUILDER:-mooncraft-runtime-builder}}"
   validate_platforms "$platforms"
   if ! docker buildx inspect "$builder" >/dev/null 2>&1; then
     docker buildx create --name "$builder" --driver docker-container --bootstrap >/dev/null

@@ -158,7 +158,7 @@ components:
           minimum: 1
         time:
           type: string
-          format: date-time
+          description: Milliseconds since the Unix epoch, encoded as a decimal string.
         level:
           type: string
           enum:

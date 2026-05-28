@@ -53,25 +53,25 @@ codex-smoke:
 build-mooncraft-image tag='mooncraft:local' platform='linux/amd64':
   ./scripts/docker_mooncraft_build.sh "{{tag}}" "{{platform}}"
 
-# Build the Docker image used by MoonCraft agent workers for the Docker host architecture
+# Build the official Runtime Protocol v3 image for the Docker host architecture
 build-agent-runtime-image repository=agent_runtime_repository version=agent_runtime_version platform='host':
   ./scripts/publish_agent_runtime_image.sh build "{{repository}}" "{{version}}" "{{platform}}"
 
-# Build local architecture-suffixed agent runtime images for both supported platforms
+# Build local architecture-suffixed Runtime Protocol v3 images for both supported platforms
 build-agent-runtime-images repository=agent_runtime_repository version=agent_runtime_version platforms='linux/amd64,linux/arm64':
   ./scripts/publish_agent_runtime_image.sh build-all "{{repository}}" "{{version}}" "{{platforms}}"
 
-# Build and publish the multi-architecture agent runtime image to Docker Hub
+# Build and publish the multi-architecture Runtime Protocol v3 image to Docker Hub
 docker-agent-runtime-publish repository=agent_runtime_repository version=agent_runtime_version platforms='linux/amd64,linux/arm64':
   ./scripts/publish_agent_runtime_image.sh publish "{{repository}}" "{{version}}" "{{platforms}}"
 
 # Show where Runtime configuration is defined
 agent-runtime-config:
-  @echo "Official Runtime manifests: runtime/builtin/*.json"
+  @echo "Runtime Protocol: docs/runtime-protocol/"
   @echo "Admin-created Runtime manifests: /admin Runtimes"
-  @echo "Runtime images, commands, container homes, provider metadata, and secret bindings are selected from each project Runtime snapshot."
+  @echo "Runtime manifests contain only image, env, and secret bindings."
 
-# Check required tools and knowledge assets inside the agent runtime image
+# Check required tools, knowledge assets, and the v3 service inside the runtime image
 check-agent-runtime-image image=agent_runtime_image:
   ./scripts/check_agent_runtime_image.sh "{{image}}"
 

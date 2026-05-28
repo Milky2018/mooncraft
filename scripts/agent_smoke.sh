@@ -5,7 +5,7 @@ repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 default_agent_runtime_image="${1:-$(cat "$repo_root/config/agent_runtime_image.txt")}"
 agent_runtime_image="${MOONCRAFT_AGENT_SMOKE_RUNTIME_IMAGE:-$default_agent_runtime_image}"
 
-model="${MOONCRAFT_AGENT_SMOKE_MODEL:-openai/gpt-5.4-mini}"
+model="${MOONCRAFT_AGENT_SMOKE_MODEL:-gpt-5.4-mini}"
 if [[ -n "${MOONCRAFT_AGENT_SMOKE_KEY_REF:-}" ]]; then
   key_ref="$MOONCRAFT_AGENT_SMOKE_KEY_REF"
 elif [[ -n "${MOONCRAFT_AGENT_SMOKE_API_KEY:-}" ]]; then
@@ -17,15 +17,15 @@ api_key="${!key_ref:-}"
 admin_token="${MOONCRAFT_AGENT_SMOKE_ADMIN_TOKEN:-agent-smoke-admin-token}"
 
 echo "Registering smoke Runtime image: $agent_runtime_image"
-echo "Using OpenRouter model: $model"
-echo "Loading OpenRouter key from local shell variable: $key_ref"
+echo "Using smoke model hint: $model"
+echo "Loading provider key from local shell variable: $key_ref"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "docker is required for the real agent smoke test." >&2
   exit 1
 fi
 if [[ -z "$api_key" ]]; then
-  echo "Set $key_ref or MOONCRAFT_AGENT_SMOKE_KEY_REF to an environment variable containing an OpenRouter API key." >&2
+  echo "Set $key_ref or MOONCRAFT_AGENT_SMOKE_KEY_REF to an environment variable containing the provider API key expected by the smoke Runtime image." >&2
   exit 1
 fi
 
@@ -81,13 +81,6 @@ done
 curl -fsS \
   -H "Authorization: Bearer $admin_token" \
   -H "Content-Type: application/json" \
-  -X PUT \
-  -d "{\"default_model\":\"$model\",\"allowed_models\":[\"$model\"]}" \
-  "$base_url/api/admin/ai/config" >/dev/null
-
-curl -fsS \
-  -H "Authorization: Bearer $admin_token" \
-  -H "Content-Type: application/json" \
   -X POST \
   -d "{\"name\":\"agent_smoke_ai_api_key_$$\",\"value\":\"$api_key\"}" \
   "$base_url/api/admin/secrets" >/dev/null
@@ -98,20 +91,21 @@ runtime_spec_json="$(
     --arg model "$model" \
     --arg secret_source "agent_smoke_ai_api_key_$$" \
     '{
-      protocol_version: 2,
+      protocol_version: 3,
       image: $image,
-      agent: "codex",
-      model: $model,
-      auth: {
-        kind: "openrouter_api_key",
-        secret: {
+      env: {
+        OPENAI_BASE_URL: "https://openrouter.ai/api/v1",
+        MODEL: $model
+      },
+      secrets: [
+        {
           source: $secret_source,
           target: {
             type: "env",
-            name: "MOONCRAFT_AI_API_KEY"
+            name: "OPENAI_API_KEY"
           }
         }
-      }
+      ]
     } | tostring'
 )"
 runtime_request="$(

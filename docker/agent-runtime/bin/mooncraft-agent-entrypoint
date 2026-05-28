@@ -33,8 +33,7 @@ if [[ -f "$system_prompt_path" ]]; then
 fi
 
 if [[ "$#" -eq 0 ]]; then
-  echo "Runtime command is required." >&2
-  exit 64
+  exec mooncraft-runtime-service
 fi
 
 exec "$@"

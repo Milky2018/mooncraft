@@ -3,5 +3,8 @@
 .gitignore
 _build
 .mooncakes
+.repos
+**/_build
+**/.mooncakes
 data
 *.log

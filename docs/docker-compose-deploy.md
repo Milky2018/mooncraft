@@ -5,14 +5,14 @@ This guide describes the current test and production deployment path for MoonCra
 The two environments intentionally use the same runtime shape:
 
 - the same locally built MoonCraft app image
-- the same real Docker-backed agent runtime mode
+- the same real Docker-backed Runtime Service mode
 - the same mounted Docker socket
 - the same host-mounted app data directory pattern and PostgreSQL volume pattern
 - different compose project names and host ports
 
 ## Runtime Model
 
-MoonCraft runs as one app container plus one PostgreSQL container. When a user sends a project message, the MoonCraft container starts a background worker process. That worker calls the Docker CLI inside the MoonCraft container, which talks to the host Docker daemon through `/var/run/docker.sock`, and starts a separate agent runtime container for the user run.
+MoonCraft runs as one app container plus one PostgreSQL container. When a user sends a project message or requests preview for a stopped project, the MoonCraft container talks to the host Docker daemon through `/var/run/docker.sock` and starts that project's Runtime Service container.
 
 This means the host must have Docker installed and the MoonCraft service container must mount:
 
@@ -22,7 +22,7 @@ This means the host must have Docker installed and the MoonCraft service contain
 
 The MoonCraft app image installs `docker-ce-cli` so it can start Runtime containers through the host Docker daemon. It does not run a Docker daemon inside the container. Generated-app language tooling, package managers, and project setup commands belong in the selected Runtime image, not in the MoonCraft app protocol.
 
-Because the Docker daemon is on the host, every source path in `docker run -v ...` is resolved on the host, not inside the MoonCraft container. MoonCraft therefore requires `MOONCRAFT_HOST_DATA_DIR`: an absolute host path mounted into the app container as `/app/data`. The app stores runtime workspaces under `/app/data/...` and translates those paths back to `${MOONCRAFT_HOST_DATA_DIR}/...` before starting agent runtime containers.
+Because the Docker daemon is on the host, every source path in `docker run -v ...` is resolved on the host, not inside the MoonCraft container. MoonCraft therefore requires `MOONCRAFT_HOST_DATA_DIR`: an absolute host path mounted into the app container as `/app/data`. The app stores runtime workspaces under `/app/data/...` and translates those paths back to `${MOONCRAFT_HOST_DATA_DIR}/...` before starting Runtime Service containers.
 
 ## Images
 
@@ -33,30 +33,30 @@ git pull
 just build-mooncraft-image mooncraft:local linux/amd64
 ```
 
-Make sure the agent runtime image is available. The `just deploy-*` commands below pull it automatically from the image configured in the matching env file.
+Make sure the Runtime Protocol v3 image is available. The `just deploy-*` commands below pull it automatically from the image configured in the matching env file.
 
 ```bash
-just build-agent-runtime-image docker.io/moonbitcloud/mooncraft-agent-runtime 0.3.2
+just build-agent-runtime-image docker.io/moonbitcloud/mooncraft-agent-runtime 0.4.0
 
 # Build local architecture-suffixed images for both supported platforms:
-just build-agent-runtime-images docker.io/moonbitcloud/mooncraft-agent-runtime 0.3.2
+just build-agent-runtime-images docker.io/moonbitcloud/mooncraft-agent-runtime 0.4.0
 
 # Publish the shared multi-architecture image:
-just docker-agent-runtime-publish docker.io/moonbitcloud/mooncraft-agent-runtime 0.3.2 linux/amd64,linux/arm64
+just docker-agent-runtime-publish docker.io/moonbitcloud/mooncraft-agent-runtime 0.4.0 linux/amd64,linux/arm64
 
 just deploy-test
 # or
 just deploy-prod
 ```
 
-MoonCraft detects the Docker daemon architecture before each real builder run and starts the agent runtime with an explicit container platform:
+MoonCraft detects the Docker daemon architecture before each Runtime Service start and starts the Runtime image with an explicit container platform:
 
 - `amd64` / `x86_64` -> `linux/amd64`
 - `arm64` / `aarch64` -> `linux/arm64`
 
-Any other Docker host architecture fails before the builder starts. The agent runtime image must therefore be available for both `linux/amd64` and `linux/arm64`.
+Any other Docker host architecture fails before the Runtime Service starts. The Runtime image must therefore be available for both `linux/amd64` and `linux/arm64`.
 
-`just build-agent-runtime-image` defaults to the current Docker host platform, which is the right choice for local smoke tests. `just build-agent-runtime-images` builds both local platform-specific tags, such as `:0.3.2-amd64` and `:0.3.2-arm64`. Production and shared test deployments should use `just docker-agent-runtime-publish`, which builds and pushes one multi-architecture tag that Docker can resolve by host platform.
+`just build-agent-runtime-image` defaults to the current Docker host platform, which is the right choice for local smoke tests. `just build-agent-runtime-images` builds both local platform-specific tags, such as `:0.4.0-amd64` and `:0.4.0-arm64`. Production and shared test deployments should use `just docker-agent-runtime-publish`, which builds and pushes one multi-architecture tag that Docker can resolve by host platform.
 
 If you are publishing your own Runtime image, push it first and register that image from the admin page. MoonCraft no longer ships built-in Runtime records.
 
@@ -145,9 +145,7 @@ curl -fsS http://127.0.0.1:8089/api/health
 
 Users do not configure LLM providers or API keys.
 
-Admins use the admin page at `/admin` to inspect users, manage projects, inspect recent runs, configure named secrets, and configure runtimes. Browser access to `/admin` redirects to `/admin/login` until the operator enters `MOONCRAFT_ADMIN_TOKEN`; the server stores an HTTP-only admin session cookie after a successful login. Runtime JSON declares which secret names it needs, and the worker injects only those declared secrets into the isolated agent runtime container for that run. Secret values are accepted on create/update and are never returned by the API; list responses show only a masked hint.
-
-The runtime model picker loads the live OpenRouter text model catalog from `GET https://openrouter.ai/api/v1/models` using the `mooncraft_ai_api_key` admin Secret, then saves the selected default model and allowed model list in SQLite.
+Admins use the admin page at `/admin` to inspect users, manage projects, inspect recent runs, configure named secrets, and configure runtimes. Browser access to `/admin` redirects to `/admin/login` until the operator enters `MOONCRAFT_ADMIN_TOKEN`; the server stores an HTTP-only admin session cookie after a successful login. Runtime JSON declares its Docker image plus optional `env` values and Secret bindings. MoonCraft injects only those declared values into the isolated Runtime Service container. Secret values are accepted on create/update and are never returned by the API; list responses show only a masked hint.
 
 Open the admin page in a browser:
 
@@ -158,15 +156,13 @@ https://craft.moonbitlang.com/admin
 
 Use `MOONCRAFT_ADMIN_TOKEN` from the environment file on the `/admin/login` page.
 
-The admin API can inspect configured secrets and models:
+The admin API can inspect configured secrets and runtimes:
 
 ```bash
 curl -fsS -H "Authorization: Bearer $MOONCRAFT_ADMIN_TOKEN" \
   "$MOONCRAFT_PUBLIC_BASE_URL/api/admin/secrets"
 curl -fsS -H "Authorization: Bearer $MOONCRAFT_ADMIN_TOKEN" \
-  "$MOONCRAFT_PUBLIC_BASE_URL/api/admin/ai/models"
-curl -fsS -H "Authorization: Bearer $MOONCRAFT_ADMIN_TOKEN" \
-  "$MOONCRAFT_PUBLIC_BASE_URL/api/admin/ai/usages/recent/20"
+  "$MOONCRAFT_PUBLIC_BASE_URL/api/admin/runtimes"
 ```
 
 ## Reverse Proxy
@@ -213,7 +209,7 @@ If a Runtime image changes, update that Runtime from the admin page. MoonCraft d
 If a host previously cached the wrong-architecture runtime image, remove and repull it after upgrading:
 
 ```bash
-docker image rm docker.io/moonbitcloud/mooncraft-agent-runtime:0.3.2 || true
+docker image rm docker.io/moonbitcloud/mooncraft-agent-runtime:0.4.0 || true
 just deploy-prod
 ```
 
@@ -294,7 +290,7 @@ Compose creates named volumes:
 
 Compose also bind-mounts `${MOONCRAFT_HOST_DATA_DIR}` to `/app/data`.
 
-For the current single-node deployment, preserve both the PostgreSQL volume and the host data directory. PostgreSQL stores users, projects, messages, runs, and workspace snapshots. The host data directory stores local runtime caches and Runtime session homes, and it must be visible to sibling agent runtime containers through host bind mounts.
+For the current single-node deployment, preserve both the PostgreSQL volume and the host data directory. PostgreSQL stores users, projects, messages, runs, and workspace snapshots. The host data directory stores local runtime caches and Runtime homes, and it must be visible to sibling Runtime Service containers through host bind mounts.
 
 Before treating this as hardened production, define backup and restore for PostgreSQL and the MoonCraft host data directory.
 
@@ -315,7 +311,7 @@ curl -fsS https://your-domain.com/api/health
 For an opt-in real agent smoke test from the repo root:
 
 ```bash
-export MOONCRAFT_AGENT_SMOKE_MODEL=openai/gpt-5.4-mini
+export MOONCRAFT_AGENT_SMOKE_MODEL=gpt-5.4-mini
 export OPENROUTER_API_KEY='your-test-key'
 just agent-smoke
 ```

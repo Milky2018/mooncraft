@@ -1,0 +1,28 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "mooncraft/runtime-service"
+
+import {
+  "moonbitlang/core/json",
+}
+
+// Values
+
+// Errors
+
+// Types and methods
+type ExecRequest derive(@json.FromJson)
+
+type RunEventsResponse derive(ToJson)
+
+type RunResponse derive(ToJson)
+
+type RuntimeErrorResponse derive(ToJson)
+
+type RuntimeRun
+
+type RuntimeRunEvent derive(ToJson)
+
+// Type aliases
+
+// Traits
+
