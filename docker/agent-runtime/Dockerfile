@@ -4,6 +4,8 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG MOONCRAFT_AGENT_RUNTIME_VERSION=0.4.0
 ARG MOONBIT_VERSION=latest
 ARG CODEX_CLI_VERSION=0.128.0
+ARG MOONCRAFT_TEMPLATES_REPO=https://github.com/moonbitlang/mooncraft-templates.git
+ARG MOONCRAFT_TEMPLATES_REF=main
 
 ENV MOON_HOME=/opt/moon
 ENV PATH=/opt/moon/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -33,7 +35,9 @@ RUN moon -C /opt/mooncraft/runtime-service build --target native --release \
 
 RUN /opt/mooncraft/install/install-moonbit-skills.sh
 
-RUN /opt/mooncraft/install/install-mooncraft-templates.sh
+RUN MOONCRAFT_TEMPLATES_REPO="${MOONCRAFT_TEMPLATES_REPO}" \
+  MOONCRAFT_TEMPLATES_REF="${MOONCRAFT_TEMPLATES_REF}" \
+  /opt/mooncraft/install/install-mooncraft-templates.sh
 
 RUN rm -rf /root/.cache /root/.npm /tmp/*
 

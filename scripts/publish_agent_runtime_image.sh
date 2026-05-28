@@ -70,16 +70,33 @@ platform_suffix() {
   esac
 }
 
+runtime_templates_repo() {
+  printf '%s\n' "${MOONCRAFT_TEMPLATES_REPO:-https://github.com/moonbitlang/mooncraft-templates.git}"
+}
+
+runtime_templates_ref() {
+  if [[ -n "${MOONCRAFT_TEMPLATES_REF:-}" ]]; then
+    printf '%s\n' "$MOONCRAFT_TEMPLATES_REF"
+    return
+  fi
+  git ls-remote "$(runtime_templates_repo)" HEAD | awk '{print $1}'
+}
+
 build_image() {
   local repository="${1:-$default_repository}"
   local version="${2:-$default_version}"
   local platform="${3:-${MOONCRAFT_AGENT_RUNTIME_BUILD_PLATFORM:-host}}"
+  local templates_repo templates_ref
   platform="$(normalize_platform "$platform")"
+  templates_repo="$(runtime_templates_repo)"
+  templates_ref="$(runtime_templates_ref)"
   echo "Building Runtime Protocol v3 image $repository:$version for $platform"
   docker build \
     --platform "$platform" \
     -f "$repo_root/docker/agent-runtime/Dockerfile" \
     --build-arg "MOONCRAFT_AGENT_RUNTIME_VERSION=$version" \
+    --build-arg "MOONCRAFT_TEMPLATES_REPO=$templates_repo" \
+    --build-arg "MOONCRAFT_TEMPLATES_REF=$templates_ref" \
     -t "$repository:$version" \
     -t "$repository:latest" \
     "$repo_root"
@@ -89,6 +106,9 @@ build_all_images() {
   local repository="${1:-$default_repository}"
   local version="${2:-$default_version}"
   local platforms="${3:-linux/amd64,linux/arm64}"
+  local templates_repo templates_ref
+  templates_repo="$(runtime_templates_repo)"
+  templates_ref="$(runtime_templates_ref)"
   validate_platforms "$platforms"
   local raw platform suffix
   IFS=',' read -r -a platform_list <<< "$platforms"
@@ -100,6 +120,8 @@ build_all_images() {
       --platform "$platform" \
       -f "$repo_root/docker/agent-runtime/Dockerfile" \
       --build-arg "MOONCRAFT_AGENT_RUNTIME_VERSION=$version" \
+      --build-arg "MOONCRAFT_TEMPLATES_REPO=$templates_repo" \
+      --build-arg "MOONCRAFT_TEMPLATES_REF=$templates_ref" \
       -t "$repository:$version-$suffix" \
       -t "$repository:latest-$suffix" \
       "$repo_root"
@@ -111,6 +133,9 @@ publish_image() {
   local version="${2:-$default_version}"
   local platforms="${3:-linux/amd64,linux/arm64}"
   local builder="${MOONCRAFT_RUNTIME_BUILDX_BUILDER:-${MOONCRAFT_AGENT_RUNTIME_BUILDX_BUILDER:-mooncraft-runtime-builder}}"
+  local templates_repo templates_ref
+  templates_repo="$(runtime_templates_repo)"
+  templates_ref="$(runtime_templates_ref)"
   validate_platforms "$platforms"
   if ! docker buildx inspect "$builder" >/dev/null 2>&1; then
     docker buildx create --name "$builder" --driver docker-container --bootstrap >/dev/null
@@ -122,6 +147,8 @@ publish_image() {
     --platform "$platforms" \
     -f "$repo_root/docker/agent-runtime/Dockerfile" \
     --build-arg "MOONCRAFT_AGENT_RUNTIME_VERSION=$version" \
+    --build-arg "MOONCRAFT_TEMPLATES_REPO=$templates_repo" \
+    --build-arg "MOONCRAFT_TEMPLATES_REF=$templates_ref" \
     -t "$repository:$version" \
     -t "$repository:latest" \
     --push \

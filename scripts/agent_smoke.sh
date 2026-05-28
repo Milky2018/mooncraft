@@ -106,7 +106,7 @@ runtime_spec_json="$(
           }
         }
       ]
-    } | tostring'
+    }'
 )"
 runtime_request="$(
   jq -cn \

@@ -18,6 +18,10 @@ MoonCraft contract:
   normal root-mounted web app.
 - Prefer a successful `/api/health`; MoonCraft falls back to `/` for previews.
 - Do not create hidden platform scaffolds.
+- For self-verification, never run `mooncraft-preview.sh` as a foreground
+  command that waits forever. If you need to test it, start it in the
+  background, probe the route, then stop that background process before
+  finishing.
 
 MoonCraft template workflow:
 

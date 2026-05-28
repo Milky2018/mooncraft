@@ -86,6 +86,109 @@ fn current_model() -> String {
 }
 
 ///|
+fn current_base_url() -> String? {
+  match @env.get_env_var("OPENAI_BASE_URL") {
+    Some(value) if value.trim() != "" => Some(value.trim().to_owned())
+    _ => None
+  }
+}
+
+///|
+fn current_api_key() -> String? {
+  match @env.get_env_var("CODEX_API_KEY") {
+    Some(value) if value.trim() != "" => Some(value.trim().to_owned())
+    _ =>
+      match @env.get_env_var("OPENROUTER_API_KEY") {
+        Some(value) if value.trim() != "" => Some(value.trim().to_owned())
+        _ =>
+          match @env.get_env_var("OPENAI_API_KEY") {
+            Some(value) if value.trim() != "" => Some(value.trim().to_owned())
+            _ => None
+          }
+      }
+  }
+}
+
+///|
+fn current_provider_env_key() -> String? {
+  match @env.get_env_var("OPENROUTER_API_KEY") {
+    Some(value) if value.trim() != "" => Some("OPENROUTER_API_KEY")
+    _ =>
+      match @env.get_env_var("CODEX_API_KEY") {
+        Some(value) if value.trim() != "" => Some("CODEX_API_KEY")
+        _ =>
+          match @env.get_env_var("OPENAI_API_KEY") {
+            Some(value) if value.trim() != "" => Some("OPENAI_API_KEY")
+            _ => None
+          }
+      }
+  }
+}
+
+///|
+fn codex_home() -> String {
+  match @env.get_env_var("CODEX_HOME") {
+    Some(value) if value.trim() != "" => value.trim().to_owned()
+    _ =>
+      match @env.get_env_var("HOME") {
+        Some(value) if value.trim() != "" => "\{value.trim()}/.codex"
+        _ => "/home/mooncraft/.codex"
+      }
+  }
+}
+
+///|
+fn toml_string(value : String) -> String {
+  let escaped = value
+    .replace_all(old="\\", new="\\\\")
+    .replace_all(old="\"", new="\\\"")
+  "\"\{escaped}\""
+}
+
+///|
+async fn configure_codex_provider() -> Unit {
+  if current_base_url() is Some(base_url) {
+    if current_provider_env_key() is Some(env_key) {
+      let home = codex_home()
+      @fs.mkdir(home, permission=0o700, recursive=true) catch { _ => () }
+      let config = StringBuilder()
+      config <+
+        $|model_provider = "mooncraft"
+        $|
+        $|[model_providers.mooncraft]
+        $|name = "MoonCraft Runtime Provider"
+        $|base_url = \{toml_string(base_url)}
+        $|env_key = \{toml_string(env_key)}
+        $|wire_api = "responses"
+        $|requires_openai_auth = false
+        $|supports_websockets = false
+        $|
+      @fs.write_file(
+        "\{home}/config.toml",
+        config.to_string(),
+        create=0o600,
+        truncate=true,
+      )
+    }
+  }
+}
+
+///|
+fn new_codex_client() -> @codex.Codex {
+  match (current_base_url(), current_api_key()) {
+    (Some(base_url), Some(api_key)) =>
+      @codex.Codex::new(
+        options=@codex.CodexOptions::new(base_url=base_url, api_key=api_key),
+      )
+    (Some(base_url), None) =>
+      @codex.Codex::new(options=@codex.CodexOptions::new(base_url=base_url))
+    (None, Some(api_key)) =>
+      @codex.Codex::new(options=@codex.CodexOptions::new(api_key=api_key))
+    (None, None) => @codex.Codex::new()
+  }
+}
+
+///|
 fn json_reply(code : Int, reason : String, value : &ToJson) -> HttpReply {
   {
     code,
@@ -256,8 +359,9 @@ fn codex_event_message(event : @codex.Event) -> (String, String)? {
 ///|
 async fn run_codex(run : RuntimeRun, prompt : String) -> Unit noraise {
   try {
+    configure_codex_provider()
     let full_prompt = build_prompt(prompt)
-    let codex = @codex.Codex::new()
+    let codex = new_codex_client()
     let thread = codex.start_thread(
       options=@codex.ThreadOptions::new(
         model=current_model(),

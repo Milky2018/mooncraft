@@ -13,6 +13,7 @@ fn test_runtime_service_spec() -> RuntimeServiceSpec {
     workspace_volume: "mooncraft-workspace-project-runtime-test",
     home_volume: "mooncraft-home-project-runtime-test",
     network_name: "mooncraft-runtime",
+    publish_ports: false,
   }
 }
 

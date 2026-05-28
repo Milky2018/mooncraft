@@ -9,6 +9,7 @@ struct RuntimeServiceSpec {
   workspace_volume : String
   home_volume : String
   network_name : String
+  publish_ports : Bool
 }
 
 ///|
@@ -47,6 +48,12 @@ fn runtime_service_home_volume(project_id : String) -> String {
 }
 
 ///|
+async fn runtime_service_should_publish_ports() -> Bool noraise {
+  let in_docker = @async_fs.exists("/.dockerenv") catch { _ => false }
+  !in_docker
+}
+
+///|
 async fn RuntimeServiceSpec::from_settings(
   root : String,
   project_id : String,
@@ -66,6 +73,7 @@ async fn RuntimeServiceSpec::from_settings(
     workspace_volume: runtime_service_workspace_volume(project_id),
     home_volume: runtime_service_home_volume(project_id),
     network_name: runtime_service_network_name(),
+    publish_ports: runtime_service_should_publish_ports(),
   })
 }
 
@@ -164,7 +172,7 @@ fn runtime_service_create_args(
   spec : RuntimeServiceSpec,
   env_file_path : String,
 ) -> Array[String] {
-  [
+  let args : Array[String] = [
     "create",
     "--name",
     spec.container_name,
@@ -172,20 +180,27 @@ fn runtime_service_create_args(
     spec.platform,
     "--network",
     spec.network_name,
-    "--env-file",
-    env_file_path,
-    "--label",
-    "mooncraft.project_id=\{spec.project_id}",
-    "--label",
-    "mooncraft.runtime_service=1",
-    "--restart",
-    "unless-stopped",
-    "-v",
-    "\{spec.workspace_volume}:\{agent_container_workspace_dir()}",
-    "-v",
-    "\{spec.home_volume}:\{agent_container_home_dir()}",
-    spec.image,
   ]
+  if spec.publish_ports {
+    args.push("-p")
+    args.push("127.0.0.1::8080")
+    args.push("-p")
+    args.push("127.0.0.1::4792")
+  }
+  args.push("--env-file")
+  args.push(env_file_path)
+  args.push("--label")
+  args.push("mooncraft.project_id=\{spec.project_id}")
+  args.push("--label")
+  args.push("mooncraft.runtime_service=1")
+  args.push("--restart")
+  args.push("unless-stopped")
+  args.push("-v")
+  args.push("\{spec.workspace_volume}:\{agent_container_workspace_dir()}")
+  args.push("-v")
+  args.push("\{spec.home_volume}:\{agent_container_home_dir()}")
+  args.push(spec.image)
+  args
 }
 
 ///|
@@ -194,6 +209,72 @@ fn runtime_service_endpoint(container_name : String) -> RuntimeServiceEndpoint {
     url: "http://\{container_name}:8080",
     preview_url: "http://\{container_name}:4792",
   }
+}
+
+///|
+fn docker_port_output_port(output : String) -> String? {
+  let lines = output.replace_all(old="\r\n", new="\n").split("\n").to_array()
+  if lines.length() == 0 {
+    return None
+  }
+  let line = lines[0].to_owned().trim().to_owned()
+  let parts = line.split(":").to_array()
+  if parts.length() < 2 {
+    None
+  } else {
+    let port = parts[parts.length() - 1].to_owned().trim().to_owned()
+    if port == "" {
+      None
+    } else {
+      Some(port)
+    }
+  }
+}
+
+///|
+async fn docker_container_host_port(
+  container_name : String,
+  container_port : Int,
+) -> Result[String, String] noraise {
+  match
+    collect_process_text("docker", [
+      "port",
+      container_name,
+      "\{container_port}/tcp",
+    ]) {
+    Ok((0, output)) =>
+      match docker_port_output_port(output) {
+        Some(port) => Ok(port)
+        None =>
+          Err("Runtime container did not publish port \{container_port}/tcp.")
+      }
+    Ok((_, output)) =>
+      Err(
+        "Runtime container port \{container_port}/tcp could not be inspected: \{tail_text(output, 800)}",
+      )
+    Err(message) => Err(message)
+  }
+}
+
+///|
+async fn resolved_runtime_service_endpoint(
+  container_name : String,
+) -> Result[RuntimeServiceEndpoint, String] noraise {
+  if !runtime_service_should_publish_ports() {
+    return Ok(runtime_service_endpoint(container_name))
+  }
+  let api_port = match docker_container_host_port(container_name, 8080) {
+    Ok(port) => port
+    Err(message) => return Err(message)
+  }
+  let preview_port = match docker_container_host_port(container_name, 4792) {
+    Ok(port) => port
+    Err(message) => return Err(message)
+  }
+  Ok({
+    url: "http://127.0.0.1:\{api_port}",
+    preview_url: "http://127.0.0.1:\{preview_port}",
+  })
 }
 
 ///|
@@ -274,6 +355,66 @@ async fn ensure_runtime_service_volumes(
 }
 
 ///|
+async fn runtime_service_image_user_id(
+  image : String,
+  flag : String,
+) -> Result[String, String] noraise {
+  match
+    collect_process_text("docker", [
+      "run", "--rm", "--entrypoint", "id", image, flag,
+    ]) {
+    Ok((0, output)) => {
+      let value = output.trim().to_owned()
+      if value == "" {
+        Err("Runtime image user id could not be detected.")
+      } else {
+        Ok(value)
+      }
+    }
+    Ok((_, output)) =>
+      Err("Runtime image user id could not be detected: \{tail_text(output, 800)}")
+    Err(message) => Err(message)
+  }
+}
+
+///|
+async fn chown_runtime_service_volumes(
+  spec : RuntimeServiceSpec,
+) -> Result[Unit, String] noraise {
+  let uid = match runtime_service_image_user_id(spec.image, "-u") {
+    Ok(uid) => uid
+    Err(message) => return Err(message)
+  }
+  let gid = match runtime_service_image_user_id(spec.image, "-g") {
+    Ok(gid) => gid
+    Err(message) => return Err(message)
+  }
+  match
+    collect_process_text("docker", [
+      "run",
+      "--rm",
+      "--user",
+      "0:0",
+      "--entrypoint",
+      "chown",
+      "-v",
+      "\{spec.workspace_volume}:\{agent_container_workspace_dir()}",
+      "-v",
+      "\{spec.home_volume}:\{agent_container_home_dir()}",
+      spec.image,
+      "-R",
+      "\{uid}:\{gid}",
+      agent_container_workspace_dir(),
+      agent_container_home_dir(),
+    ]) {
+    Ok((0, _)) => Ok(())
+    Ok((_, output)) =>
+      Err("Runtime volumes could not be assigned to the image user: \{tail_text(output, 800)}")
+    Err(message) => Err(message)
+  }
+}
+
+///|
 async fn import_legacy_workspace_snapshot_into_runtime_container(
   store : Store,
   root : String,
@@ -333,7 +474,10 @@ async fn docker_container_running(container_name : String) -> Bool noraise {
 
 ///|
 async fn runtime_service_health_ok(container_name : String) -> Bool noraise {
-  let endpoint = runtime_service_endpoint(container_name)
+  let endpoint = match resolved_runtime_service_endpoint(container_name) {
+    Ok(endpoint) => endpoint
+    Err(_) => return false
+  }
   let result = try @http.get("\{endpoint.url}/health") catch {
     _ => return false
   } noraise {
@@ -460,6 +604,11 @@ async fn create_runtime_service_container(
       }
     }
   }
+  if chown_runtime_service_volumes(spec) is Err(message) {
+    remove_runtime_service_env_file(env_file_path)
+    ignore(run_process_quiet("docker", ["rm", "-f", spec.container_name]))
+    return Err(message)
+  }
   ignore(
     fs_remove_tree(runtime_service_secret_dir(root, spec.project_id)) catch {
       _ => ()
@@ -540,7 +689,7 @@ async fn RuntimeGateway::ensure_project_runtime_service_with_idle_refresh(
         ready_idle_expires_at,
       ),
     )
-    return Ok(runtime_service_endpoint(spec.container_name))
+    return resolved_runtime_service_endpoint(spec.container_name)
   }
   if create_runtime_service_container(self.root, store, spec, existing is None)
     is Err(message) {
@@ -563,7 +712,7 @@ async fn RuntimeGateway::ensure_project_runtime_service_with_idle_refresh(
       runtime_service_state_ready(),
       ready_idle_expires_at,
     ) {
-    Ok(_) => Ok(runtime_service_endpoint(spec.container_name))
+    Ok(_) => resolved_runtime_service_endpoint(spec.container_name)
     Err(message) => Err(message)
   }
 }
