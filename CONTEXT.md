@@ -16,29 +16,25 @@ _Avoid_: Agent process, one-shot builder command
 The centralized contract between MoonCraft and a Runtime.
 _Avoid_: Runtime notes, agent instructions, Docker convention
 
-**Runtime Manifest**:
-The configured description of a Runtime available to MoonCraft.
-_Avoid_: Runtime JSON, agent config
+**Runtime Config**:
+The admin-managed configuration that tells MoonCraft how to launch or locate a Runtime Service.
+_Avoid_: Runtime Protocol schema, agent config, manifest
 
-**Runtime Image Contract**:
-The Docker image requirements a Runtime image must satisfy before MoonCraft can run it.
-_Avoid_: Container override, Docker run policy
+**Runtime Launcher**:
+MoonCraft's implementation-specific way to start or locate a Runtime Service.
+_Avoid_: Runtime Protocol, agent command
 
-**Secret Target**:
-The environment variable or container-home file where a Runtime Secret is materialized.
-_Avoid_: Secret type, provider key type
+**Docker Runtime Launcher**:
+The current Runtime Launcher that starts a Docker image to provide a Runtime Service.
+_Avoid_: Runtime Protocol, Docker ABI
 
 **Runtime Secret**:
-A semantics-free secret binding injected into a Runtime Service.
+A semantics-free secret payload synchronized to a Runtime Service through the Runtime Protocol.
 _Avoid_: Runtime Auth, provider credential
 
 **Runtime Env**:
 A semantics-free environment variable binding injected into a Runtime Service.
 _Avoid_: Model setting, provider setting, secret
-
-**Runtime Entrypoint**:
-The image-defined default process that starts a Runtime Service.
-_Avoid_: Manifest command, send command
 
 **Run**:
 One user-visible asynchronous execution accepted by a Runtime Service.
@@ -76,17 +72,33 @@ _Avoid_: Agent error code, provider error
 The protocol state of a Run.
 _Avoid_: Worker status, process status, activity label
 
+**Ready Source Commit**:
+The Project Source Repository commit that contains all source changes produced by a successful Run.
+_Avoid_: Local workspace state, agent completion
+
 **Project Workspace**:
-The durable project source tree that a Runtime creates or edits for a user.
-_Avoid_: Runtime workspace, agent workspace
+The Runtime Service-owned project source tree that a Runtime creates or edits for a user.
+_Avoid_: MoonCraft workspace volume, agent workspace
+
+**Project Source Repository**:
+The user-owned remote repository that is the authoritative persistent source store for a project.
+_Avoid_: MoonCraft source archive, Runtime volume
+
+**Project Source Host**:
+The external repository service that owns Project Source Repositories.
+_Avoid_: MoonCraft storage backend, Runtime storage
+
+**Project Source Credential**:
+A short-lived credential that lets a Runtime Service read and write one Project Source Repository.
+_Avoid_: Runtime auth, model provider key
+
+**MoonCraft Source Identity**:
+The bot or app identity used for commits created by MoonCraft-controlled Runtime Services.
+_Avoid_: User git identity, anonymous commit author
 
 **Runtime Home**:
-The project-scoped private durable state mounted as a Runtime Service's home directory.
+The Runtime Service-owned private state for one project.
 _Avoid_: Project source, exported workspace
-
-**Runtime Volume**:
-A MoonCraft-managed Docker volume mounted into a Runtime Service.
-_Avoid_: Host bind mount, workspace snapshot
 
 **Active Project**:
 The single project currently open to a user in the MoonCraft workspace.
@@ -96,21 +108,29 @@ _Avoid_: Selected row, current tab
 The part of the Runtime Protocol that defines how a Runtime Service exposes a project preview.
 _Avoid_: Preview script convention, preview hint
 
-**Preview Port**:
-The fixed container port where the current project preview is served.
-_Avoid_: Public preview URL, host port
+**Preview Endpoint**:
+The Runtime Service HTTP route that serves the current project preview.
+_Avoid_: Preview port, preview script
 
 **Preview Readiness**:
-The Runtime Service status that says whether the fixed Preview Port is ready.
+The Runtime Service status that says whether its Preview Endpoint is ready.
 _Avoid_: Preview endpoint discovery, dynamic port allocation
 
 **Runtime Service Readiness**:
 The Runtime Service status that says whether its protocol API is ready.
 _Avoid_: Preview health, container started
 
+**Runtime Initialization**:
+The first Runtime Protocol call that gives a Runtime Service its Project Source Repository, Project Source Credential, and Runtime Secrets.
+_Avoid_: Container startup, workspace archive import, secret injection
+
 **Runtime Service State**:
 The lifecycle state of a project-scoped Runtime Service.
 _Avoid_: Run Status, Docker status
+
+**Source Disconnected**:
+The project state where the Project Source Repository is unavailable or no longer authorized.
+_Avoid_: Runtime failure, preview failure
 
 **Runtime Idle TTL**:
 The configurable duration a Ready Runtime Service may stay alive after its last Run finishes.
@@ -134,42 +154,69 @@ _Avoid_: Runtime origin template, admin preview URL
 
 ## Relationships
 
-- A **Runtime Manifest** describes exactly one **Runtime**.
-- A **Runtime Manifest** names an image that must satisfy the **Runtime Image Contract**.
-- A **Runtime Manifest** may declare zero or more **Runtime Env** bindings.
-- A **Runtime Manifest** may declare zero or more **Runtime Secrets**.
-- A **Runtime Manifest** has no Runtime-specific extension fields.
+- A **Runtime Config** describes exactly one **Runtime**.
+- A **Runtime Config** names one **Runtime Launcher**.
+- A **Runtime Config** may declare zero or more **Runtime Env** bindings.
+- A **Runtime Config** may declare zero or more **Runtime Secrets**.
+- A **Runtime Config** is MoonCraft configuration, not the **Runtime Protocol**.
+- A **Runtime Launcher** starts or locates a **Runtime Service** for MoonCraft.
+- The **Docker Runtime Launcher** is MoonCraft's current Runtime Launcher implementation.
+- The first Runtime Config implementation supports only the **Docker Runtime Launcher**.
+- The **Runtime Protocol** defines a **Runtime Service** HTTP API, not a Docker image contract.
 - A **Runtime Env** binding is not a **Runtime Secret**.
-- A **Runtime Secret** binds one admin-managed secret to one **Secret Target**.
-- A **Runtime Image Contract** requires one **Runtime Entrypoint**.
+- A **Runtime Secret** is synchronized to a **Runtime Service** through the Runtime Protocol before execution.
+- A **Project Source Credential** is part of **Runtime Initialization**, not a **Runtime Secret**.
 - A **Runtime Service** creates one **Run** for each accepted execution request.
 - **Exec Idempotency** prevents duplicate **Runs** when MoonCraft retries an exec request.
 - **Prompt Transport** belongs to the Runtime Service HTTP API.
 - A **Runtime Service** has at most one active **Run**.
 - A **Run** has one **Run Status**.
 - A **Run** has one authoritative **Run Result** when it reaches a terminal **Run Status**.
+- A successful source-modifying **Run** must produce a **Ready Source Commit**.
 - A **Run** produces zero or more **Run Events**.
 - Each **Run Event** advances one **Run Event Cursor**.
 - MoonCraft uses **Run Event Polling** to read **Run Events** from a **Runtime Service**.
 - A project may have one **Runtime Service**.
 - A **Runtime Service** belongs to exactly one project.
+- A **Runtime Service** must complete **Runtime Initialization** before accepting execution, preview, status, or workspace requests.
+- **Runtime Initialization** provides the **Project Source Repository**, a **Project Source Credential**, and **Runtime Secrets**.
+- During **Runtime Initialization**, the Runtime Service clones or updates the **Project Workspace** from the **Project Source Repository**.
+- **Runtime Initialization** may be retried while no **Run** is active.
+- **Runtime Initialization** must not replace state while a **Run** is active.
 - A **Runtime Service** has one **Runtime Service State**.
 - A **Runtime Service** may stop after its **Runtime Idle TTL** expires.
 - A successful preview request refreshes the **Runtime Idle TTL**.
 - MoonCraft uses **Runtime Lazy Recovery** when a requested **Runtime Service** is unavailable.
 - A **Runtime Network Boundary** protects **Runtime Service** protocol APIs from public access.
-- The **Runtime Image Contract** fixes `/workspace` and `/home/mooncraft` as container paths.
-- MoonCraft provides **Runtime Volumes** for `/workspace` and `/home/mooncraft`.
-- A **Project Workspace** is the authoritative source storage for a project.
+- The **Runtime Protocol** does not define Project Workspace or Runtime Home container paths.
+- MoonCraft does not directly read or write a **Project Workspace** through Docker filesystem paths.
+- A **Project Workspace** is the Runtime Service-owned authoritative source storage for a project.
+- A **Project Source Repository** is the authoritative persistent source storage for a project.
+- A **Project Source Host** owns **Project Source Repositories** outside MoonCraft.
+- MoonCraft creates an empty **Project Source Repository** when a project is created.
+- Deleting a MoonCraft project does not delete its **Project Source Repository**.
+- A project becomes **Source Disconnected** when its **Project Source Repository** is unavailable or unauthorized.
+- A **Project Source Credential** is scoped to one **Project Source Repository** and one Runtime Service initialization.
+- The first source-generating **Run** creates the initial **Ready Source Commit**.
+- A Runtime Service must commit and push Project Workspace changes to the **Project Source Repository** before reporting a source-modifying **Run** as successful.
+- A **Ready Source Commit** is required before MoonCraft treats source-modifying work as Ready.
+- A **Run** may produce multiple source commits, but its **Run Result** names one final **Ready Source Commit**.
+- A Runtime Service pushes successful source changes to the Project Source Repository default branch.
+- A Runtime Service must not force push to a **Project Source Repository**.
+- A Runtime Service may automatically merge or rebase remote default-branch changes before pushing.
+- A source conflict prevents a **Run** from producing a **Ready Source Commit**.
+- Runtime-created commits use the **MoonCraft Source Identity**.
 - A **Runtime Home** is private Runtime state, not project source.
-- A **Runtime Home** belongs to exactly one project.
+- MoonCraft does not persist **Runtime Home**.
 - A **Project Workspace** must satisfy the **Project Preview Contract** before it is delivered to the user.
 - A project has exactly one current **Preview Origin**.
 - A **Preview Origin Policy** assigns each project its **Preview Origin**.
-- A **Runtime Service** exposes its protocol API on fixed container port `8080`.
+- A **Runtime Service** exposes its protocol API over HTTP.
 - MoonCraft reads **Runtime Service Readiness** before sending execution requests.
-- A **Preview Port** is fixed at `4792` and internal to the Runtime container.
-- MoonCraft reads **Preview Readiness** before proxying a **Preview Port**.
+- A **Runtime Service** exposes the current project preview through its **Preview Endpoint**.
+- The **Preview Endpoint** is the fixed `/preview/` subtree on the Runtime Service.
+- MoonCraft proxies a **Preview Origin** to the Runtime Service **Preview Endpoint**.
+- MoonCraft reads **Preview Readiness** before proxying a **Preview Endpoint**.
 - A **Runtime Error** has one message.
 - The **Project Preview Contract** is part of the **Runtime Protocol**.
 
@@ -183,19 +230,26 @@ _Avoid_: Runtime origin template, admin preview URL
 - "agent" was used to mean **Runtime**, an internal CLI, and model/provider metadata; resolved: Runtime Protocol v3 does not expose agent concepts to MoonCraft.
 - "provider" was used to mean model vendor, API endpoint, and account authentication; resolved: Runtime Protocol v3 uses semantics-free **Runtime Secrets**.
 - "env var" was considered as a way to configure model/provider behavior; resolved: Runtime Protocol v3 allows semantics-free **Runtime Env** bindings but MoonCraft does not interpret them.
-- "send command" was considered a Runtime-owned arbitrary command; resolved: Runtime Protocol v3 uses the image-defined **Runtime Entrypoint** and HTTP `/exec`.
+- "send command" was considered a Runtime-owned arbitrary command; resolved: Runtime Protocol v3 uses HTTP `/exec`.
 - "`runtime_context.json`" was considered a Runtime Protocol file; resolved: Runtime Protocol v3 does not define context files.
 - "`result.json`" was considered Runtime-written protocol output; resolved: Runtime Protocol v3 exposes the authoritative **Run Result** over HTTP.
 - "`prompt.txt`" was considered Runtime Protocol input; resolved: Runtime Protocol v3 uses HTTP **Prompt Transport** and does not define prompt files.
 - "prompt transport" was considered an Agent Adapter concern; resolved: Runtime Protocol v3 carries prompts in the Runtime Service HTTP API.
 - "`/artifacts`" was considered a Runtime protocol exchange directory; resolved: Runtime Protocol v3 does not define `/artifacts`.
 - "container user" was considered a Runtime Protocol setting; resolved: Runtime Protocol v3 does not define container user, and Runtime providers own their image user policy.
-- "host bind mount" was considered for project storage; resolved: Runtime Protocol v3 uses MoonCraft-managed **Runtime Volumes**.
-- "container home" was considered a Runtime Manifest setting; resolved: the **Runtime Image Contract** fixes Runtime home at `/home/mooncraft`, backed by a **Runtime Volume**.
+- "host bind mount" was considered for project storage; resolved: the **Project Workspace** is Runtime Service-owned and exposed through Runtime Protocol APIs.
+- "container home" was considered a Runtime Config setting; resolved: Runtime Protocol v3 does not define Runtime Home paths.
+- "Docker volume" and "workspace archive" were considered for project persistence; resolved: the **Project Source Repository** is the authoritative persistent source store.
+- "GitHub repo" was considered as the persistent source store; resolved: the domain concept is **Project Source Repository**, currently implemented by GitHub and intended to move to MoonHub later.
 - "thread id" was used for both platform and agent state; resolved: Runtime Protocol v3 does not expose session ids.
 - "preview path" was used as if path-prefix mounting were inherent; resolved: the domain concept is **Preview Origin**, and path-prefix routing is not the target model.
 - "preview history" was considered at the run level; resolved: MoonCraft exposes only the current project **Preview Origin**, not historical run previews.
-- "origin template" was considered for **Runtime Manifest**; resolved: preview hostnames are deployment-owned **Preview Origin Policy**, not Runtime or admin configuration.
+- "origin template" was considered for **Runtime Config**; resolved: preview hostnames are deployment-owned **Preview Origin Policy**, not Runtime or admin configuration.
 - "preview URL" was considered as Runtime input; resolved: a Runtime does not need to know the public **Preview Origin**.
-- "preview command" was considered for **Runtime Manifest**; resolved: Runtime Protocol v3 has a fixed **Preview Port**, not a manifest preview command.
+- "preview command" was considered for **Runtime Config**; resolved: Runtime Protocol v3 exposes preview through a Runtime Service **Preview Endpoint**, not a configured preview command.
+- "Runtime Manifest" was considered as the admin JSON name; resolved: the admin-managed object is **Runtime Config**, while **Runtime Protocol** is only the Runtime Service HTTP contract.
 - "project switch stops Runtime Service" was considered for Runtime lifecycle; resolved: each project owns its **Runtime Service State**, and stopping is driven by **Runtime Idle TTL**.
+- "Docker image" was considered part of **Runtime Protocol**; resolved: Runtime Protocol v3 only defines a Runtime Service HTTP API, while Docker images are handled by MoonCraft's current **Docker Runtime Launcher**.
+- "preview port" was considered part of **Runtime Protocol**; resolved: Runtime Protocol v3 uses a Runtime Service **Preview Endpoint** instead of a fixed preview port.
+- "secret target" was considered as an env or file materialization path; resolved: Runtime Protocol v3 synchronizes **Runtime Secrets** through the Runtime Service API, and the Runtime Service owns any internal materialization.
+- "`/workspace/archive` plus `/secrets`" was considered as separate setup calls; resolved: Runtime Protocol v3 uses **Runtime Initialization** to provide source repository access and secrets before any other business call.

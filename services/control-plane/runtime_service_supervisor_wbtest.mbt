@@ -7,7 +7,7 @@ fn test_runtime_service_spec() -> RuntimeServiceSpec {
     env: { "RUNTIME_MODE": "test" },
     secrets: [
       { env: Some("OPENROUTER_API_KEY"), file: None, value: "test-key" },
-      { env: None, file: Some(".codex/auth.json"), value: "{}" },
+      { env: None, file: Some("codex/auth.json"), value: "{}" },
     ],
     container_name: "mooncraft-runtime-project-runtime-test",
     workspace_volume: "mooncraft-workspace-project-runtime-test",
@@ -48,13 +48,13 @@ test "runtime service env file combines plain env and env secrets" {
 }
 
 ///|
-async test "runtime service file secrets materialize relative to runtime home" {
+async test "runtime service file secrets materialize relative to secret bundle" {
   let root = "/tmp/mooncraft-runtime-service-secrets-\{random_hex(6)}"
   match
     materialize_runtime_service_file_secrets(root, test_runtime_service_spec()) {
     Ok(Some(path)) =>
       inspect(
-        @async_fs.read_file("\{path}/.codex/auth.json").text(),
+        @async_fs.read_file("\{path}/codex/auth.json").text(),
         content="{}",
       )
     Ok(None) => fail("expected file secret directory")

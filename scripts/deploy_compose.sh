@@ -23,6 +23,6 @@ set -a
 . "$env_file"
 set +a
 
-echo "Runtime images are resolved from Runtime manifests at run time."
+echo "Runtime images are resolved from Runtime Configs at run time."
 
 docker compose --env-file "$env_file" -f "$compose_file" up -d --wait

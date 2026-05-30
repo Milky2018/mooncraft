@@ -98,15 +98,16 @@
     <main>
       <h1>Runtime Setup Guide</h1>
       <p class="lead">
-        A Runtime is the app builder users choose when creating a project. As an admin, you need a name, a Runtime Protocol v3 Docker image tag, and any Secrets or environment variables that image expects.
+        A Runtime is the app builder users choose when creating a project. As an admin, you need a name, a Runtime Config, and any Secrets or environment variables that Runtime expects.
       </p>
 
       <h2>Before You Add a Runtime</h2>
       <ol>
-        <li>Confirm the Runtime provider has published an image for your server CPU architecture.</li>
-        <li>Confirm the image exposes a Runtime Service on container port <code>8080</code> and a preview service on <code>4792</code>.</li>
-        <li>Create the credential in Admin, then Secrets.</li>
-        <li>Ask the Runtime provider which Secret targets and environment variables the image expects.</li>
+        <li>Confirm the Runtime provider has published a Docker image for your server CPU architecture.</li>
+        <li>Confirm the image starts a Runtime Service that implements Runtime Protocol v3.</li>
+        <li>Confirm the Runtime Service can clone, commit, and push to the project source repository during runs.</li>
+        <li>Create any required credentials in Admin, then Secrets.</li>
+        <li>Ask the Runtime provider which Runtime Secret names and environment variables it expects.</li>
       </ol>
 
       <h2>Add the Runtime</h2>
@@ -118,77 +119,81 @@
         <li>Enable it when ready. Optionally make it the default for new projects.</li>
       </ol>
 
-      <h2>Environment Secret Example</h2>
+      <h2>Secret Example</h2>
       <p>
-        Create a Secret named <code>builder_api_key</code>, then bind it to the environment variable expected by the image:
+        Create a Secret named <code>builder_api_key</code>, then bind it to the opaque Runtime Secret name expected by the image:
       </p>
       <pre>{
-  "protocol_version": 3,
-  "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.4.0",
+  "config_version": 3,
+  "launcher": {
+    "kind": "docker",
+    "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.4.0"
+  },
   "env": {
     "MODEL": "gpt-5.4-mini"
   },
   "secrets": [
     {
       "source": "builder_api_key",
-      "target": {
-        "type": "env",
-        "name": "BUILDER_API_KEY"
-      }
+      "name": "builder_api_key"
     }
   ]
 }</pre>
 
-      <h2>File Secret Example</h2>
+      <h2>Account File Secret Example</h2>
       <p>
-        If the Runtime image expects a file credential, create a Secret whose value is the complete file contents, then bind it under <code>/home/mooncraft</code>:
+        If the Runtime expects account-file content, create a Secret whose value is the complete file contents, then bind it to the opaque name documented by the Runtime provider:
       </p>
       <pre>{
-  "protocol_version": 3,
-  "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.4.0",
+  "config_version": 3,
+  "launcher": {
+    "kind": "docker",
+    "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.4.0"
+  },
   "env": {},
   "secrets": [
     {
       "source": "builder_account_file",
-      "target": {
-        "type": "file",
-        "path": ".codex/auth.json"
-      }
+      "name": "builder_account_file"
     }
   ]
 }</pre>
+      <p>
+        The Runtime Service decides how to use that value during initialization. MoonCraft does not know whether it is a file, API key, account token, or another credential.
+      </p>
 
       <h2>Env Example</h2>
       <p>
         Use <code>env</code> only for non-secret strings required by the Runtime image:
       </p>
       <pre>{
-  "protocol_version": 3,
-  "image": "docker.io/acme/custom-runtime:1.0.0",
+  "config_version": 3,
+  "launcher": {
+    "kind": "docker",
+    "image": "docker.io/acme/custom-runtime:1.0.0"
+  },
   "env": {
     "RUNTIME_MODE": "production"
   },
   "secrets": [
     {
       "source": "mooncraft_ai_api_key",
-      "target": {
-        "type": "env",
-        "name": "BUILDER_API_KEY"
-      }
+      "name": "builder_api_key"
     }
   ]
 }</pre>
 
       <h2>Field Reference</h2>
       <ul>
-        <li><code>image</code>: the Docker image MoonCraft runs.</li>
-        <li><code>env</code>: optional non-secret environment variables injected into the Runtime Service container.</li>
+        <li><code>launcher.kind</code>: currently only <code>docker</code> is supported.</li>
+        <li><code>launcher.image</code>: the Docker image MoonCraft runs.</li>
+        <li><code>env</code>: optional non-secret environment variables passed to the Runtime launcher.</li>
         <li><code>secrets.source</code>: the Admin Secret name.</li>
-        <li><code>secrets.target</code>: where MoonCraft injects that Secret inside the Runtime container.</li>
+        <li><code>secrets.name</code>: the opaque Runtime Secret name sent to the Runtime Service during initialization.</li>
       </ul>
 
       <div class="note">
-        Runtime JSON does not include agent names, model names, command lines, container users, provider fields, preview URLs, or deployment host names. Those details belong inside the Runtime image or MoonCraft platform code. The full protocol lives in <code>docs/runtime-protocol/</code>.
+        Runtime Config does not include first-class agent names, model fields, command lines, container users, provider fields, preview URLs, or deployment host names. Those details belong inside the Runtime implementation, semantics-free <code>env</code>, or MoonCraft platform code. The Runtime Service HTTP protocol lives in <code>docs/runtime-protocol/</code>.
       </div>
     </main>
   </body>

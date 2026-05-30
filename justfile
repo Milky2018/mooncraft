@@ -68,8 +68,8 @@ docker-agent-runtime-publish repository=agent_runtime_repository version=agent_r
 # Show where Runtime configuration is defined
 agent-runtime-config:
   @echo "Runtime Protocol: docs/runtime-protocol/"
-  @echo "Admin-created Runtime manifests: /admin Runtimes"
-  @echo "Runtime manifests contain only image, env, and secret bindings."
+  @echo "Admin-created Runtime Configs: /admin Runtimes"
+  @echo "Runtime Configs contain a launcher, env, and secret bindings."
 
 # Check required tools, knowledge assets, and the v3 service inside the runtime image
 check-agent-runtime-image image=agent_runtime_image:

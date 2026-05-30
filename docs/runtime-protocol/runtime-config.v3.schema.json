@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mooncraft.dev/runtime-config.v3.schema.json",
+  "title": "MoonCraft Runtime Config v3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["config_version", "launcher"],
+  "properties": {
+    "config_version": {
+      "const": 3
+    },
+    "launcher": {
+      "$ref": "#/$defs/launcher"
+    },
+    "env": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "propertyNames": {
+        "$ref": "#/$defs/env_name"
+      },
+      "default": {}
+    },
+    "secrets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/secret_binding"
+      },
+      "default": []
+    }
+  },
+  "$defs": {
+    "launcher": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "image"],
+      "properties": {
+        "kind": {
+          "const": "docker"
+        },
+        "image": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "secret_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "name"],
+      "properties": {
+        "source": {
+          "description": "Admin-managed secret identifier in MoonCraft.",
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "description": "Opaque Runtime Secret name sent to POST /init.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "env_name": {
+      "type": "string",
+      "pattern": "^(?!MOONCRAFT_)[A-Za-z_][A-Za-z0-9_]*$"
+    }
+  }
+}

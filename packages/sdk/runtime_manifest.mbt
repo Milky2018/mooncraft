@@ -108,7 +108,7 @@ pub fn validate_runtime_secret_file_path(
   }
   if trimmed.has_prefix("/") {
     return Err(
-      "Runtime secret target path must be relative to /home/mooncraft.",
+      "Runtime secret target path must be relative to /run/mooncraft/secrets.",
     )
   }
   if trimmed.contains("\\") {

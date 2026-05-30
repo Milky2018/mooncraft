@@ -4,15 +4,43 @@ info:
   version: 3.0.0
   description: Runtime Protocol v3 HTTP API exposed by each project-scoped Runtime Service.
 servers:
-  - url: http://runtime:8080
+  - url: http://runtime-service
 paths:
   /health:
     get:
       summary: Check Runtime Service readiness.
       responses:
         "200":
-          description: Runtime Service is ready.
+          description: Runtime Service is reachable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
         default:
+          $ref: "#/components/responses/RuntimeError"
+  /init:
+    post:
+      summary: Initialize or reinitialize a Runtime Service before business operations.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InitRequest"
+      responses:
+        "200":
+          description: Runtime Service initialized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InitResponse"
+        "400":
+          $ref: "#/components/responses/RuntimeError"
+        "409":
+          $ref: "#/components/responses/RuntimeError"
+        "500":
+          $ref: "#/components/responses/RuntimeError"
+        "503":
           $ref: "#/components/responses/RuntimeError"
   /exec:
     post:
@@ -83,16 +111,37 @@ paths:
           $ref: "#/components/responses/RuntimeError"
         default:
           $ref: "#/components/responses/RuntimeError"
-  /preview:
+  /preview/:
     get:
-      summary: Check whether the fixed preview service on port 4792 is ready.
+      summary: Serve the current project preview root.
       responses:
         "200":
-          description: Preview is ready on container port 4792.
+          description: Preview response. MoonCraft proxies the response body and headers to the user's Preview Origin.
+        "409":
+          $ref: "#/components/responses/RuntimeError"
         "503":
           $ref: "#/components/responses/RuntimeError"
         default:
+          description: Runtime preview response or Runtime error.
+  /preview/{path}:
+    get:
+      summary: Serve a path below the current project preview subtree.
+      parameters:
+        - name: path
+          in: path
+          required: true
+          description: Preview subtree path. MoonCraft proxies arbitrary subpaths under /preview/.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Preview response. MoonCraft proxies the response body and headers to the user's Preview Origin.
+        "409":
           $ref: "#/components/responses/RuntimeError"
+        "503":
+          $ref: "#/components/responses/RuntimeError"
+        default:
+          description: Runtime preview response or Runtime error.
 components:
   parameters:
     RunId:
@@ -110,6 +159,117 @@ components:
           schema:
             $ref: "#/components/schemas/RuntimeError"
   schemas:
+    Health:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          $ref: "#/components/schemas/RuntimeServiceStatus"
+        message:
+          type: string
+    RuntimeServiceStatus:
+      type: string
+      enum:
+        - not_initialized
+        - ready
+        - running
+    InitRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - project
+        - source_repository
+        - source_credential
+        - secrets
+      properties:
+        project:
+          $ref: "#/components/schemas/ProjectRef"
+        source_repository:
+          $ref: "#/components/schemas/ProjectSourceRepository"
+        source_credential:
+          $ref: "#/components/schemas/ProjectSourceCredential"
+        secrets:
+          type: array
+          items:
+            $ref: "#/components/schemas/RuntimeSecret"
+    InitResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - current_commit_sha
+      properties:
+        status:
+          type: string
+          enum:
+            - ready
+        current_commit_sha:
+          type:
+            - string
+            - "null"
+          description: Current checked-out source commit after initialization, or null for an empty repository.
+        message:
+          type: string
+    ProjectRef:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          minLength: 1
+    ProjectSourceRepository:
+      type: object
+      additionalProperties: false
+      required:
+        - url
+        - default_branch
+        - current_commit_sha
+      properties:
+        url:
+          type: string
+          minLength: 1
+        default_branch:
+          type: string
+          minLength: 1
+        current_commit_sha:
+          type:
+            - string
+            - "null"
+          description: Last Ready Source Commit known to MoonCraft, or null before the first source-generating Run.
+    ProjectSourceCredential:
+      type: object
+      additionalProperties: false
+      required:
+        - kind
+        - username
+        - password
+      properties:
+        kind:
+          type: string
+          enum:
+            - git_https_token
+        username:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+    RuntimeSecret:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - value
+      properties:
+        name:
+          type: string
+          minLength: 1
+        value:
+          type: string
     ExecRequest:
       type: object
       additionalProperties: false
@@ -138,6 +298,18 @@ components:
           $ref: "#/components/schemas/RunStatus"
         message:
           type: string
+        ready_commit_sha:
+          type: string
+          minLength: 1
+          description: Final pushed Ready Source Commit. Required when status is succeeded.
+      allOf:
+        - if:
+            properties:
+              status:
+                const: succeeded
+          then:
+            required:
+              - ready_commit_sha
     RunStatus:
       type: string
       enum:

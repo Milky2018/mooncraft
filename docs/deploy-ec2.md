@@ -28,19 +28,19 @@ Required fix:
 
 ### 2. Persistence is production-database backed, but not HA
 
-Local durable metadata defaults to SQLite. Production should set `MOONCRAFT_DATABASE_URL` and use PostgreSQL. Generated project source and Runtime-private state live in Docker named volumes created by the control plane for each project. Preserve those Docker volumes on the current single-node deployment.
+Local durable metadata defaults to SQLite. Production should set `MOONCRAFT_DATABASE_URL` and use PostgreSQL. Generated project source lives in user-owned Project Source Repositories. The current GitHub-backed implementation also depends on valid Source Host credentials for repository creation and Runtime initialization.
 
 Why this matters:
 
 - one-node staging is fine
 - multi-instance or high-availability production is not yet designed
-- PostgreSQL keeps product metadata off app-local disk, but project Runtime volumes still need a shared durable storage design before multi-instance production
+- PostgreSQL keeps product metadata off app-local disk, but Source Host integration still needs production-grade credential rotation, recovery, and disconnected-state handling
 
 Short-term decision:
 
 - for local dev/test, SQLite is still the simplest path
 - for EC2 production, use PostgreSQL through `MOONCRAFT_DATABASE_URL`
-- for anything beyond one node, move project Runtime volumes out of single-node Docker-local storage
+- for anything beyond one node, make Runtime launch and Source Host credentials multi-instance aware
 
 ### 3. Runtime Service containers need stronger supervision
 
@@ -62,7 +62,7 @@ Required fix:
 
 The repo now includes two deployment-oriented fixes:
 
-- preview URLs are assigned by the deployment preview origin policy, and the control plane reverse-proxies them to the private preview port
+- preview URLs are assigned by the deployment preview origin policy, and the control plane reverse-proxies them to Runtime Service `/preview/`
 - cookie-session auth is available for platform users through GitHub OAuth
 
 This is enough for a first staged multi-user demo, but not enough for hardened production auth.
@@ -112,7 +112,7 @@ Why this is the right first hosted shape:
 1. Run the selected explicit Compose file from the deployment directory.
 2. Keep the PostgreSQL Docker volume on durable storage or use RDS.
 3. Forward container logs to CloudWatch if you want centralized logs.
-4. Keep PostgreSQL data and project Runtime Docker volumes on durable storage.
+4. Keep PostgreSQL data and the MoonCraft host data directory on durable storage.
 
 ### Phase 4: Put HTTPS in front
 
@@ -126,7 +126,7 @@ Why this is the right first hosted shape:
 
 1. Schedule EBS snapshots.
 2. Add health checks and alarms.
-3. Document backup and restore for PostgreSQL and project Runtime Docker volumes.
+3. Document backup and restore for PostgreSQL, host data, and Source Host repository metadata.
 4. Decide how you will rotate secrets and environment variables.
 
 ## What Counts As Good Enough For The First Public Demo

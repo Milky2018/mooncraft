@@ -1,6 +1,6 @@
 # Define the Runtime Storage and Secret ABI
 
-Status: accepted.
+Status: accepted, superseded by ADR-0007.
 
 This ADR refines ADR-0005 and supersedes the parts of ADR-0005 that left Runtime storage ownership, container identity, and file secret placement to the Runtime image provider.
 

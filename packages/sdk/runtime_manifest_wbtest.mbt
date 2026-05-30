@@ -40,7 +40,7 @@ test "runtime manifest normalizes env and file secret target paths" {
     #|      "source": " codex_subscription ",
     #|      "target": {
     #|        "type": "file",
-    #|        "path": " .codex/auth.json "
+    #|        "path": " codex/auth.json "
     #|      }
     #|    }
     #|  ]
@@ -55,7 +55,7 @@ test "runtime manifest normalizes env and file secret target paths" {
       inspect(spec.secrets[0].source, content="codex_subscription")
       debug_inspect(
         spec.secrets[0].target.path,
-        content="Some(\".codex/auth.json\")",
+        content="Some(\"codex/auth.json\")",
       )
     }
     Err(message) => fail(message)

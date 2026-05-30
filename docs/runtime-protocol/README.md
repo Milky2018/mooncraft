@@ -1,176 +1,96 @@
 # MoonCraft Runtime Protocol v3
 
-Runtime Protocol v3 defines the boundary between MoonCraft and a project-scoped Runtime Service. A Runtime is a Docker image plus optional semantics-free environment variable and secret bindings. MoonCraft does not know whether the Runtime uses Codex, Claude, another agent, a remote queue, or a human workflow.
+Runtime Protocol v3 is the HTTP contract between MoonCraft and a project-scoped Runtime Service. It does not define Docker images, container users, mounted volumes, workspace paths, file secret paths, preview ports, agent CLIs, models, or provider accounts.
 
-Runtime Protocol v3 replaces the v2 control-plane Agent Adapter model. The control plane no longer constructs agent CLI commands, passes model names, manages agent sessions, starts project preview scripts, or repairs previews through agent-specific prompts.
+MoonCraft's current implementation starts Runtime Services with Docker, but Docker is a Runtime launcher detail. A future launcher may connect to any HTTP service that implements this protocol.
 
 ## Authoritative Files
 
 - `README.md`: human-readable protocol specification.
 - `openapi.v3.yaml`: Runtime Service HTTP API.
-- `runtime-manifest.v3.schema.json`: Runtime Manifest schema.
+- `runtime-config.v3.schema.json`: MoonCraft's first Runtime Config schema for the Docker Runtime Launcher.
 
-## Runtime Manifest
+Runtime Config is MoonCraft admin configuration, not Runtime Protocol. The current Runtime Config implementation may use Docker images, environment variables, and named Secrets to start or configure a Runtime Service, but those launcher details are outside this protocol.
 
-Admin-created Runtime JSON uses this shape:
+The first Runtime Config implementation only supports the Docker Runtime Launcher:
 
 ```json
 {
-  "protocol_version": 3,
-  "image": "docker.io/org/runtime:1.0.0",
+  "config_version": 3,
+  "launcher": {
+    "kind": "docker",
+    "image": "docker.io/org/runtime:1.0.0"
+  },
   "env": {
-    "RUNTIME_MODE": "production"
+    "MODEL": "gpt-5.4-mini"
   },
   "secrets": [
     {
       "source": "codex_account",
-      "target": {
-        "type": "file",
-        "path": ".codex/auth.json"
-      }
-    },
-    {
-      "source": "ai_api_key",
-      "target": {
-        "type": "env",
-        "name": "BUILDER_API_KEY"
-      }
+      "name": "codex_auth"
     }
   ]
 }
 ```
 
-Fields:
+## Runtime Service
 
-- `protocol_version`: must be `3`.
-- `image`: Docker image tag. Production Runtime images should publish both `linux/amd64` and `linux/arm64`.
-- `env`: optional object of semantics-free environment variable bindings. Missing `env` is equivalent to an empty object.
-- `secrets`: optional array of semantics-free secret injection bindings. Missing `secrets` is equivalent to an empty array.
+A Runtime Service is a project-scoped HTTP service. MoonCraft must be able to reach its HTTP base URL through the active Runtime launcher.
 
-No other fields are allowed. In particular, Runtime Protocol v3 does not define `agent`, `model`, `auth`, `provider`, `send`, `container_home`, `container_user`, or arbitrary command fields.
+Required endpoints:
 
-## Environment Variables
+- `GET /health`
+- `POST /init`
+- `POST /exec`
+- `GET /runs/{run_id}`
+- `GET /runs/{run_id}/events`
+- `GET /preview/`
 
-Runtime `env` values are plain non-secret strings injected into the Runtime Service container. They do not describe what the Runtime means by those variables, and MoonCraft must not interpret them.
+The Runtime Service does not expose HTTP authentication in v3. MoonCraft protects the service through the launcher/network boundary.
 
-```json
-{
-  "env": {
-    "RUNTIME_MODE": "production",
-    "FEATURE_X": "1"
-  }
-}
-```
+## Source Repository
 
-Do not put credentials or sensitive values in `env`; use `secrets` instead.
+Each MoonCraft project is bound to a user-owned Project Source Repository. The Project Source Repository is the authoritative persistent source store for the project.
 
-Environment variable names must use normal shell-style names and must not start with `MOONCRAFT_`. The `MOONCRAFT_` prefix is reserved for platform-owned variables.
+GitHub is the current Project Source Host implementation. The protocol uses source-host-neutral names so MoonHub can replace GitHub later.
 
-An `env` key must not duplicate a secret environment target name. Manifests with such collisions are invalid instead of relying on precedence rules.
+MoonCraft is responsible for:
 
-## Secrets
+- creating an empty Project Source Repository when a project is created;
+- storing the repository identity, default branch, and current Ready Source Commit;
+- issuing a short-lived repository-scoped Project Source Credential for Runtime initialization;
+- detecting unavailable or unauthorized repositories and surfacing Source Disconnected state;
+- not deleting the repository when a MoonCraft project is deleted.
 
-Runtime secrets only describe where MoonCraft injects admin-managed secret values. They do not describe what the secret means.
+The Runtime Service is responsible for:
 
-Environment target:
+- cloning or updating the Project Workspace from the Project Source Repository during initialization;
+- committing and pushing source changes to the repository default branch before reporting source-modifying work as successful;
+- never force-pushing;
+- returning the final pushed Ready Source Commit in the terminal Run Result.
 
-```json
-{
-  "source": "ai_api_key",
-  "target": {
-    "type": "env",
-    "name": "BUILDER_API_KEY"
-  }
-}
-```
+## Initialization
 
-Secret environment target names must use normal shell-style names, must not start with `MOONCRAFT_`, and must not duplicate a key in `env`.
+MoonCraft must call `POST /init` before any business operation. Until initialization succeeds, all business endpoints return a Runtime Error with HTTP `409 Conflict`.
 
-File target:
+`POST /init` provides:
 
-```json
-{
-  "source": "codex_account",
-  "target": {
-    "type": "file",
-    "path": ".codex/auth.json"
-  }
-}
-```
+- project identity;
+- Project Source Repository URL, default branch, and current commit known to MoonCraft;
+- Project Source Credential;
+- resolved Runtime Secrets.
 
-File targets are relative to `/home/mooncraft`. File target paths must not be absolute and must not contain empty, `.`, or `..` path segments.
+The Project Source Credential is a first-class protocol field, not a Runtime Secret. It is short-lived, scoped to one Project Source Repository, and intended only for the current Runtime Service initialization.
 
-## Runtime Image Contract
+Runtime Secrets are opaque name/value payloads. MoonCraft does not interpret their names or values. The Runtime Service decides whether a secret is used as an environment value, file content, agent account, API key, or something else.
 
-A Runtime image starts its Runtime Service through the image default `ENTRYPOINT` and `CMD`. MoonCraft does not pass a custom command.
-
-The Runtime Service must listen on `0.0.0.0:8080`.
-
-The current project preview must listen on `0.0.0.0:4792` when it is ready.
-
-MoonCraft provides these fixed container paths as Docker named volumes:
-
-- `/workspace`: durable Project Workspace and authoritative project source storage.
-- `/home/mooncraft`: durable Runtime Home for Runtime-private state and file secret targets.
-
-Runtime Protocol v3 does not specify the container user, UID, GID, or privilege model. The Runtime image provider owns its image user policy and must ensure the Runtime Service can read and write the mounted volumes it needs.
-
-`/artifacts` is not part of Runtime Protocol v3.
-
-## Official Runtime Image
-
-MoonCraft's reference image is `docker.io/moonbitcloud/mooncraft-agent-runtime:<version>`. It is itself only a Runtime Protocol v3 image: administrators still register it with a normal v3 Runtime Manifest, and MoonCraft does not inspect the builder, model, account, or provider it uses internally.
-
-The current reference image implements the Runtime Service as a native MoonBit binary, includes Codex CLI `0.128.0`, and does not include Node.js, npm, npx, or Claude in the final runtime layer. Its default model is `gpt-5.4-mini`; admins may override that image-internal value with a normal v3 `env` entry named `MODEL`.
-
-Build and check the image from the repository root:
-
-```bash
-just build-agent-runtime-image docker.io/moonbitcloud/mooncraft-agent-runtime 0.4.0
-just check-agent-runtime-image docker.io/moonbitcloud/mooncraft-agent-runtime:0.4.0
-```
-
-Publish a multi-architecture tag:
-
-```bash
-just docker-agent-runtime-publish docker.io/moonbitcloud/mooncraft-agent-runtime 0.4.0 linux/amd64,linux/arm64
-```
-
-## Docker Network
-
-MoonCraft starts Runtime containers on an internal Docker network and does not publish the Runtime Service port `8080` or preview port `4792` to the host.
-
-Runtime Service APIs do not use HTTP authentication in v3. The network boundary is MoonCraft-managed internal Docker networking.
-
-## Lifecycle
-
-Each project may have one Runtime Service. The Runtime Service state is one of:
-
-- `stopped`: no Runtime Service container is running for the project.
-- `ready`: the Runtime Service is running and has no active Run.
-- `running`: the Runtime Service is running and has one active Run.
-
-State transitions:
-
-```text
-create project -> ready
-stopped -- user prompt --> running
-ready -- user prompt --> running
-running -- run finished --> ready
-ready -- idle TTL --> stopped
-stopped -- preview request --> ready
-ready -- successful preview request --> ready, with refreshed idle TTL
-```
-
-The Runtime idle TTL is configured by the MoonCraft admin UI and defaults to 10 minutes. The TTL starts when a Run finishes. A successful preview request refreshes the TTL. Failed preview readiness does not refresh the TTL.
-
-MoonCraft uses lazy recovery. If a requested Runtime Service is missing or unhealthy, MoonCraft marks it stopped and restarts it only for requests that need it, such as a user prompt or preview request. MoonCraft does not use browser unload, project switching, or a global container scan as the Runtime lifecycle driver.
+`POST /init` is retryable while no Run is active. Reinitializing while a Run is active returns `409 Conflict`.
 
 ## Runs
 
 `POST /exec` creates an asynchronous Run. MoonCraft provides the `run_id`; the Runtime Service accepts that id and must use it for all subsequent status and event APIs.
 
-Only one active Run is allowed per Runtime Service. If another Run is active, a different `run_id` must be rejected with `409 Conflict`.
+Only one active Run is allowed per Runtime Service. If another Run is active, a different `run_id` returns `409 Conflict`.
 
 `POST /exec` is idempotent for the same `run_id`. Repeating the same request returns the existing Run instead of creating a duplicate. Repeating a `run_id` with a different prompt returns `409 Conflict`.
 
@@ -184,7 +104,13 @@ Run status values:
 
 Every Run response has a required human-readable `message`. The Runtime provides this string; Runtime Protocol v3 does not define localization or UI interpretation.
 
-The Run Result returned by `GET /runs/{run_id}` is the authoritative terminal outcome. Run Events are process output, not the authoritative result.
+The Run Result returned by `GET /runs/{run_id}` is the authoritative terminal outcome. Run Events are progress output, not the authoritative result.
+
+A source-modifying Run may report `succeeded` only after all source changes are committed and pushed to the Project Source Repository default branch. The succeeded Run Result must include the final pushed `ready_commit_sha`. A Run may create multiple commits, but only the final Ready Source Commit is recorded by MoonCraft.
+
+If the remote default branch changed, the Runtime Service may merge or rebase before pushing. If it cannot resolve a conflict automatically, the Run must fail. Runtime Services must not force push.
+
+Runtime-created commits use the MoonCraft Source Identity, not the user's personal Git identity.
 
 ## Events
 
@@ -194,7 +120,7 @@ MoonCraft reads Run Events with JSON polling:
 GET /runs/{run_id}/events?after=12
 ```
 
-The `after` cursor means "return events with `id > after`". If `after` is omitted, events are returned from the beginning of the Runtime Service's currently available event buffer. No new events is a successful empty response.
+The `after` cursor means "return events with id > after". If `after` is omitted, events are returned from the beginning of the Runtime Service's currently available event buffer. No new events is a successful empty response.
 
 MoonCraft currently polls every 1 second, but the polling interval is not part of the Runtime Protocol.
 
@@ -204,33 +130,38 @@ SSE streaming is intentionally out of scope for v3. TODO: consider an event stre
 
 ## Preview
 
-`GET /preview` is a readiness check for the fixed preview port `4792`.
+The Runtime Service exposes the current project preview under the fixed `/preview/` subtree on the same HTTP service as the protocol API.
 
-- `200 OK`: MoonCraft may proxy the project's Preview Origin to `http://<runtime-container>:4792/`.
-- Non-2xx: preview is not available; the response body is a Runtime Error.
+MoonCraft proxies the project's Preview Origin to the Runtime Service `/preview/` subtree. The browser never talks to the Runtime Service base URL directly.
 
-MoonCraft no longer starts `./mooncraft-preview.sh` itself in Runtime Protocol v3. The Runtime Service owns preview startup inside the Runtime container.
+Runtime Protocol v3 does not define a preview port, preview script, or preview repair flow. If the Runtime Service cannot serve preview content, it returns a Runtime Error and MoonCraft reports that error to the user.
 
-MoonCraft does not automatically repair preview failures. If `/preview` returns an error, MoonCraft reports that error to the user. The user can send another prompt to create a new Run.
+## Lifecycle
 
-## HTTP API
+Each project may have one Runtime Service. Runtime Service state is driven by MoonCraft lifecycle policy and observed Runtime Service health:
 
-The Runtime Service HTTP API is defined in `openapi.v3.yaml`.
+- `stopped`: no Runtime Service is available for the project.
+- `ready`: the Runtime Service is initialized and has no active Run.
+- `running`: the Runtime Service is initialized and has one active Run.
+- `source_disconnected`: the Project Source Repository is unavailable or unauthorized.
 
-Required endpoints:
+The Runtime idle TTL is configured by the MoonCraft admin UI and defaults to 10 minutes. The TTL starts when a Run finishes. A successful preview request refreshes the TTL.
 
-- `GET /health`
-- `POST /exec`
-- `GET /runs/{run_id}`
-- `GET /runs/{run_id}/events`
-- `GET /preview`
+MoonCraft uses lazy recovery. If a requested Runtime Service is missing or unhealthy, MoonCraft starts or reconnects it through the Runtime launcher, calls `POST /init`, and then performs the requested operation. MoonCraft does not use browser unload, project switching, or a global container scan as the Runtime lifecycle driver.
 
-Successful readiness endpoints do not require response bodies. Runtime errors use this shape:
+## Out of Scope
 
-```json
-{
-  "message": "Preview is not ready."
-}
-```
+Runtime Protocol v3 does not define:
 
-Runtime Protocol v3 does not define `/init`, prompt files, result files, resume, kill, or plan mode. TODO: consider resume, kill, and plan mode after the v3 execution and preview boundary is stable.
+- Docker image layout;
+- container user or UID/GID;
+- container paths such as `/workspace` or `/home/mooncraft`;
+- Docker volumes;
+- file secret targets;
+- workspace archive import/export;
+- preview ports;
+- prompt files;
+- result files;
+- resume, kill, or plan mode.
+
+TODO: consider resume, kill, plan mode, and event streaming after the source-host-backed execution boundary is stable in production.
