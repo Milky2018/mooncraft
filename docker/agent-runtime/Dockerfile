@@ -1,7 +1,7 @@
 FROM node:24-bookworm AS build
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG MOONCRAFT_AGENT_RUNTIME_VERSION=0.4.1
+ARG MOONCRAFT_AGENT_RUNTIME_VERSION=0.4.2
 ARG MOONBIT_VERSION=latest
 ARG CODEX_CLI_VERSION=0.128.0
 ARG MOONCRAFT_TEMPLATES_REPO=https://github.com/moonbitlang/mooncraft-templates.git
@@ -84,7 +84,7 @@ RUN set -eux; \
   mkdir -p /workspace /artifacts /home/mooncraft/.moon; \
   chown -R mooncraft:mooncraft /workspace /artifacts /home/mooncraft
 
-ARG MOONCRAFT_AGENT_RUNTIME_VERSION=0.4.1
+ARG MOONCRAFT_AGENT_RUNTIME_VERSION=0.4.2
 ARG MOONBIT_VERSION=latest
 ARG CODEX_CLI_VERSION=0.128.0
 

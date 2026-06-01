@@ -365,8 +365,8 @@ async fn run_git(
 
 ///|
 async fn clean_workspace_contents() -> Result[Unit, String] noraise {
-  @fs.mkdir(workspace, permission=0o755, recursive=true) catch {
-    err => return Err("workspace could not be created: \{err}")
+  if ensure_directory(workspace, "workspace") is Err(message) {
+    return Err(message)
   }
   let (status, output) = @process.collect_output_merged(
     "sh",
@@ -380,6 +380,29 @@ async fn clean_workspace_contents() -> Result[Unit, String] noraise {
   } else {
     Err("workspace cleanup failed: \{output.text() catch { _ => "" }}")
   }
+}
+
+///|
+async fn ensure_directory(
+  path : String,
+  label : String,
+) -> Result[Unit, String] noraise {
+  let exists = @fs.exists(path) catch {
+    err => return Err("\{label} could not be checked: \{err}")
+  }
+  if exists {
+    let kind = @fs.kind(path, follow_symlink=false) catch {
+      err => return Err("\{label} kind could not be checked: \{err}")
+    }
+    if kind is Directory {
+      return Ok(())
+    }
+    return Err("\{label} exists but is not a directory: \{path}")
+  }
+  @fs.mkdir(path, permission=0o755, recursive=true) catch {
+    err => return Err("\{label} could not be created: \{err}")
+  }
+  Ok(())
 }
 
 ///|
@@ -1120,8 +1143,9 @@ async fn handle_request(
 
 ///|
 async fn main {
-  @fs.mkdir(workspace, permission=0o755, recursive=true) catch {
-    _ => ()
+  if ensure_directory(workspace, "workspace") is Err(message) {
+    println("failed to prepare workspace: \{message}")
+    return
   }
   let server = @http.Server::new(
     @socket.Addr::parse(service_address),

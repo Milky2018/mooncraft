@@ -58,6 +58,14 @@ test "api key lookup trims secrets and shares provider priority" {
 }
 
 ///|
+async test "ensure directory accepts an existing directory" {
+  let path = "/tmp/mooncraft-runtime-service-dir-test-\{@env.now()}"
+  @fs.mkdir(path, permission=0o755)
+  debug_inspect(ensure_directory(path, "test directory"), content="Ok(())")
+  @fs.rmdir(path)
+}
+
+///|
 fn reset_runtime_service_for_test() -> Unit {
   runs.clear()
   active_run_id.val = None
