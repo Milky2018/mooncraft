@@ -4,6 +4,7 @@ test "runtime service validates authoritative run id" {
     run_id: "run-1",
     status: "running",
     message: "working",
+    ready_commit_sha: None,
   }
   inspect(
     validate_runtime_service_run_id(run, "run-1", "Runtime Service run")
@@ -14,6 +15,31 @@ test "runtime service validates authoritative run id" {
     validate_runtime_service_run_id(run, "run-2", "Runtime Service run")
     is Err(_),
     content="true",
+  )
+}
+
+///|
+test "runtime service succeeded run requires ready source commit" {
+  let succeeded : RuntimeServiceRun = match
+    decode_runtime_service_json(
+      "{\"run_id\":\"run-1\",\"status\":\"succeeded\",\"message\":\"done\",\"ready_commit_sha\":\"abc123\"}", "Runtime Service run",
+    ) {
+    Ok(run) => run
+    Err(message) => abort(message)
+  }
+  debug_inspect(runtime_service_ready_commit(succeeded), content="Ok(\"abc123\")")
+  let missing : RuntimeServiceRun = match
+    decode_runtime_service_json(
+      "{\"run_id\":\"run-1\",\"status\":\"succeeded\",\"message\":\"done\"}", "Runtime Service run",
+    ) {
+    Ok(run) => run
+    Err(message) => abort(message)
+  }
+  debug_inspect(
+    runtime_service_ready_commit(missing),
+    content=(
+      #|Err("Runtime Service reported success without a ready_commit_sha. The project source was not marked ready.")
+    ),
   )
 }
 
@@ -153,7 +179,7 @@ test "runtime service event levels map to activity codes" {
 test "runtime service JSON decoder rejects malformed responses" {
   let run : RuntimeServiceRun = match
     decode_runtime_service_json(
-      "{\"run_id\":\"run-1\",\"status\":\"succeeded\",\"message\":\"done\"}", "Runtime Service run",
+      "{\"run_id\":\"run-1\",\"status\":\"succeeded\",\"message\":\"done\",\"ready_commit_sha\":\"abc123\"}", "Runtime Service run",
     ) {
     Ok(run) => run
     Err(message) => abort(message)

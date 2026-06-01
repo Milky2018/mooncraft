@@ -49,6 +49,7 @@ async fn ProjectRunWorkflow::finish_run_success(
   summary : String,
   thread_id : String?,
   preview : @sdk.PreviewTarget,
+  ready_commit_sha : String?,
 ) -> Unit {
   self.store.finish_run_success_for_worker(
     project_id,
@@ -58,6 +59,7 @@ async fn ProjectRunWorkflow::finish_run_success(
     summary,
     thread_id,
     preview,
+    ready_commit_sha,
   )
 }
 
@@ -213,6 +215,7 @@ async fn ProjectRunWorkflow::run(
             result.summary,
             result.thread_id,
             runtime_preview.preview,
+            result.ready_commit_sha,
           )
         Err(message) =>
           self.finish_run_failure(

@@ -2,6 +2,7 @@
 struct AgentTurnSuccess {
   summary : String
   thread_id : String?
+  ready_commit_sha : String?
 }
 
 ///|
@@ -25,6 +26,7 @@ struct RunArtifacts {
 struct AgentExecutionResult {
   summary : String
   thread_id : String?
+  ready_commit_sha : String?
   artifacts : RunArtifacts
 }
 
@@ -534,8 +536,35 @@ async fn run_runtime_service_turn(
                 ),
               ),
             )
-        }
+      }
       "succeeded" => {
+        let ready_commit_sha = match runtime_service_ready_commit(current) {
+          Ok(commit) => commit
+          Err(message) => {
+            ignore(
+              store.set_runtime_service_state(
+                project.id,
+                runtime_service_state_ready(),
+                Some(runtime_service_idle_expires_at()),
+              ),
+            )
+            return Err(
+              runtime_failure_with_debug(
+                "The app builder runtime finished, but did not publish a ready source commit.",
+                message,
+                project.runtime_session_id,
+                Some(
+                  failure_debug(
+                    "Runtime Service ready source commit",
+                    None,
+                    None,
+                    Some(artifacts),
+                  ),
+                ),
+              ),
+            )
+          }
+        }
         store.append_worker_run_event(
           project.id,
           run_id,
@@ -555,6 +584,7 @@ async fn run_runtime_service_turn(
         return Ok({
           summary: runtime_service_status_message(current),
           thread_id: project.runtime_session_id,
+          ready_commit_sha: Some(ready_commit_sha),
           artifacts,
         })
       }
@@ -927,7 +957,7 @@ async fn run_runtime_turn(
         default_success_summary(),
       )
   }
-  Ok({ summary, thread_id: Some(thread_id), artifacts })
+  Ok({ summary, thread_id: Some(thread_id), ready_commit_sha: None, artifacts })
 }
 
 ///|
@@ -1039,7 +1069,11 @@ async fn RuntimeGateway::run_turn(
       Err(failure) => return Err(failure)
     }
   }
-  Ok({ summary: runtime_result.summary, thread_id: runtime_result.thread_id })
+  Ok({
+    summary: runtime_result.summary,
+    thread_id: runtime_result.thread_id,
+    ready_commit_sha: runtime_result.ready_commit_sha,
+  })
 }
 
 ///|

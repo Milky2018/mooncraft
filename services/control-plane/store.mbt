@@ -3474,6 +3474,7 @@ async fn Store::finish_run_success_for_worker(
   summary : String,
   thread_id : String?,
   preview : @sdk.PreviewTarget,
+  ready_commit_sha : String?,
 ) -> Unit noraise {
   let now = now_string()
   if !self.claim_run_worker_terminal(
@@ -3496,6 +3497,26 @@ async fn Store::finish_run_success_for_worker(
   } else {
     summary
   }
+  ignore(
+    self.exec_or_error(
+      (
+        #|UPDATE project_source_repositories
+        #|SET
+        #|  ready_commit_sha = ?,
+        #|  status = ?,
+        #|  last_error = NULL,
+        #|  updated_at = ?
+        #|WHERE project_id = ?;
+      ),
+      "store ready source commit",
+      params=[
+        nullable_text_param(ready_commit_sha),
+        String("connected"),
+        String(now),
+        String(project_id),
+      ],
+    ),
+  )
   ignore(
     self.exec_or_error(
       (

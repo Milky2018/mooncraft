@@ -78,6 +78,7 @@ struct RunResponse {
   run_id : String
   status : String
   message : String
+  ready_commit_sha : String?
 } derive(ToJson)
 
 ///|
@@ -96,6 +97,7 @@ struct RuntimeRun {
   prompt : String
   mut status : String
   mut message : String
+  mut ready_commit_sha : String?
   events : Array[RuntimeRunEvent]
   mut next_event_id : Int
 }
@@ -349,7 +351,12 @@ fn now_string() -> String {
 
 ///|
 fn run_response(run : RuntimeRun) -> RunResponse {
-  { run_id: run.run_id, status: run.status, message: run.message }
+  {
+    run_id: run.run_id,
+    status: run.status,
+    message: run.message,
+    ready_commit_sha: run.ready_commit_sha,
+  }
 }
 
 ///|
@@ -385,10 +392,12 @@ fn finish_run(
   status : String,
   message : String,
   level : String,
+  ready_commit_sha? : String? = None,
 ) -> Unit {
   if run.status == "running" {
     run.status = status
     run.message = message
+    run.ready_commit_sha = ready_commit_sha
     add_event(run, level, message)
     if active_run_id.val == Some(run.run_id) {
       active_run_id.val = None
@@ -520,10 +529,16 @@ async fn run_codex(run : RuntimeRun, prompt : String) -> Unit noraise {
     } else {
       final_response.trim().to_owned()
     }
-    finish_run(run, "succeeded", summary, "info")
+    finish_run(run, "succeeded", summary, "info", ready_commit_sha=None)
   } catch {
     error =>
-      finish_run(run, "failed", "Builder session failed: \{error}", "error")
+      finish_run(
+        run,
+        "failed",
+        "Builder session failed: \{error}",
+        "error",
+        ready_commit_sha=None,
+      )
   }
 }
 
@@ -635,6 +650,7 @@ fn handle_exec(body : String) -> HttpReply {
     prompt: request.prompt,
     status: "running",
     message: "Builder session is running.",
+    ready_commit_sha: None,
     events: [],
     next_event_id: 0,
   }

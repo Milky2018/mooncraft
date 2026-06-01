@@ -330,6 +330,7 @@ async test "expired worker cannot overwrite recovered run success" {
     "Late success",
     Some("late-session"),
     { url: "/p/late/", port: 4300, healthy: true },
+    Some("late-commit"),
   )
   let after = store.get_run("project-worker-cas", run.run_id).unwrap()
   debug_inspect(after.state, content="Failed")

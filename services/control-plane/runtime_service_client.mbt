@@ -49,6 +49,7 @@ struct RuntimeServiceRun {
   run_id : String
   status : String
   message : String
+  ready_commit_sha : String?
 } derive(@json.FromJson)
 
 ///|
@@ -160,6 +161,19 @@ fn validate_runtime_service_run_id(
     Ok(run)
   } else {
     Err("\{label} returned a different run id.")
+  }
+}
+
+///|
+fn runtime_service_ready_commit(
+  run : RuntimeServiceRun,
+) -> Result[String, String] {
+  match run.ready_commit_sha {
+    Some(commit) if commit.trim() != "" => Ok(commit.trim().to_owned())
+    _ =>
+      Err(
+        "Runtime Service reported success without a ready_commit_sha. The project source was not marked ready.",
+      )
   }
 }
 
