@@ -12,6 +12,8 @@ import {
 // Types and methods
 type ExecRequest derive(@json.FromJson)
 
+type HttpReply
+
 type RunEventsResponse derive(ToJson)
 
 type RunResponse derive(ToJson)

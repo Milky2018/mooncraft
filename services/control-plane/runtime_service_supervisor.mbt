@@ -4,7 +4,6 @@ struct RuntimeServiceSpec {
   image : String
   platform : String
   env : Map[String, String]
-  secrets : Array[ResolvedRuntimeSecret]
   container_name : String
   workspace_volume : String
   home_volume : String
@@ -68,7 +67,6 @@ async fn RuntimeServiceSpec::from_settings(
     image: settings.runtime_config.launcher.image,
     platform,
     env: settings.env,
-    secrets: settings.secrets,
     container_name: runtime_service_container_name(project_id),
     workspace_volume: runtime_service_workspace_volume(project_id),
     home_volume: runtime_service_home_volume(project_id),
@@ -82,10 +80,6 @@ fn runtime_service_env_file_content(spec : RuntimeServiceSpec) -> String {
   let content = StringBuilder()
   for key, value in spec.env {
     content <+ "\{docker_env_value(key)}=\{docker_env_value(value)}\n"
-  }
-  for secret in spec.secrets {
-    content <+
-      "\{docker_env_value(secret.name)}=\{docker_env_value(secret.value)}\n"
   }
   content.to_string()
 }
@@ -555,6 +549,10 @@ async fn RuntimeGateway::ensure_project_runtime_service_with_idle_refresh(
   project_id : String,
   refresh_idle : Bool,
 ) -> Result[RuntimeServiceEndpoint, String] noraise {
+  let project = match store.get_project_detail(project_id) {
+    Some(project) => project
+    None => return Err("Project not found.")
+  }
   let existing = store.get_runtime_service_record(project_id)
   let ready_idle_expires_at = if refresh_idle {
     Some(runtime_service_idle_expires_at())
@@ -566,6 +564,15 @@ async fn RuntimeGateway::ensure_project_runtime_service_with_idle_refresh(
   }
   let settings = match store.lease_runtime_settings_for_project(project_id) {
     Ok(settings) => settings
+    Err(message) => return Err(message)
+  }
+  let init_request = match
+    runtime_service_init_request(
+      project,
+      settings.source_credential,
+      settings.secrets,
+    ) {
+    Ok(request) => request
     Err(message) => return Err(message)
   }
   let spec = match
@@ -594,6 +601,13 @@ async fn RuntimeGateway::ensure_project_runtime_service_with_idle_refresh(
   }
   if docker_container_running(spec.container_name) &&
     runtime_service_health_ok(spec.container_name) {
+    let endpoint = match resolved_runtime_service_endpoint(spec.container_name) {
+      Ok(endpoint) => endpoint
+      Err(message) => return Err(message)
+    }
+    if runtime_service_post_init(endpoint, init_request) is Err(message) {
+      return Err(message)
+    }
     ignore(
       store.set_runtime_service_state(
         project_id,
@@ -601,7 +615,7 @@ async fn RuntimeGateway::ensure_project_runtime_service_with_idle_refresh(
         ready_idle_expires_at,
       ),
     )
-    return resolved_runtime_service_endpoint(spec.container_name)
+    return Ok(endpoint)
   }
   if create_runtime_service_container(self.root, store, spec, existing is None)
     is Err(message) {
@@ -618,13 +632,28 @@ async fn RuntimeGateway::ensure_project_runtime_service_with_idle_refresh(
     )
     return Err(message)
   }
+  let endpoint = match resolved_runtime_service_endpoint(spec.container_name) {
+    Ok(endpoint) => endpoint
+    Err(message) => return Err(message)
+  }
+  if runtime_service_post_init(endpoint, init_request) is Err(message) {
+    ignore(run_process_quiet("docker", ["rm", "-f", spec.container_name]))
+    ignore(
+      store.set_runtime_service_state(
+        project_id,
+        runtime_service_state_stopped(),
+        None,
+      ),
+    )
+    return Err(message)
+  }
   match
     store.set_runtime_service_state(
       project_id,
       runtime_service_state_ready(),
       ready_idle_expires_at,
     ) {
-    Ok(_) => resolved_runtime_service_endpoint(spec.container_name)
+    Ok(_) => Ok(endpoint)
     Err(message) => Err(message)
   }
 }

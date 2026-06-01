@@ -20,6 +20,52 @@ struct ExecRequest {
 } derive(FromJson)
 
 ///|
+struct InitProject {
+  id : String
+} derive(FromJson)
+
+///|
+struct InitSourceRepository {
+  url : String
+  default_branch : String
+  current_commit_sha : String?
+} derive(FromJson)
+
+///|
+struct InitSourceCredential {
+  kind : String
+  username : String
+  password : String
+} derive(FromJson)
+
+///|
+struct InitSecret {
+  name : String
+  value : String
+} derive(FromJson)
+
+///|
+struct InitRequest {
+  project : InitProject
+  source_repository : InitSourceRepository
+  source_credential : InitSourceCredential
+  secrets : Array[InitSecret]
+} derive(FromJson)
+
+///|
+struct HealthResponse {
+  status : String
+  message : String
+} derive(ToJson)
+
+///|
+struct InitResponse {
+  status : String
+  current_commit_sha : String?
+  message : String
+} derive(ToJson)
+
+///|
 struct RuntimeRunEvent {
   id : Int
   time : String
@@ -70,6 +116,12 @@ let run_available : @cond_var.Cond = @cond_var.Cond::new()
 let preview_pid : Ref[Int?] = Ref(None)
 
 ///|
+let initialized : Ref[Bool] = Ref(false)
+
+///|
+let runtime_secrets : Map[String, String] = {}
+
+///|
 struct HttpReply {
   code : Int
   reason : String
@@ -94,16 +146,38 @@ fn current_base_url() -> String? {
 }
 
 ///|
+fn runtime_secret_value(name : String) -> String? {
+  match runtime_secrets.get(name) {
+    Some(value) if value.trim() != "" => Some(value.trim().to_owned())
+    _ => None
+  }
+}
+
+///|
 fn current_api_key() -> String? {
-  match @env.get_env_var("CODEX_API_KEY") {
+  match runtime_secret_value("CODEX_API_KEY") {
     Some(value) if value.trim() != "" => Some(value.trim().to_owned())
     _ =>
-      match @env.get_env_var("OPENROUTER_API_KEY") {
+      match runtime_secret_value("OPENROUTER_API_KEY") {
         Some(value) if value.trim() != "" => Some(value.trim().to_owned())
         _ =>
-          match @env.get_env_var("OPENAI_API_KEY") {
+          match runtime_secret_value("OPENAI_API_KEY") {
             Some(value) if value.trim() != "" => Some(value.trim().to_owned())
-            _ => None
+            _ =>
+              match @env.get_env_var("CODEX_API_KEY") {
+                Some(value) if value.trim() != "" => Some(value.trim().to_owned())
+                _ =>
+                  match @env.get_env_var("OPENROUTER_API_KEY") {
+                    Some(value) if value.trim() != "" =>
+                      Some(value.trim().to_owned())
+                    _ =>
+                      match @env.get_env_var("OPENAI_API_KEY") {
+                        Some(value) if value.trim() != "" =>
+                          Some(value.trim().to_owned())
+                        _ => None
+                      }
+                  }
+              }
           }
       }
   }
@@ -111,15 +185,28 @@ fn current_api_key() -> String? {
 
 ///|
 fn current_provider_env_key() -> String? {
-  match @env.get_env_var("OPENROUTER_API_KEY") {
+  match runtime_secret_value("OPENROUTER_API_KEY") {
     Some(value) if value.trim() != "" => Some("OPENROUTER_API_KEY")
     _ =>
-      match @env.get_env_var("CODEX_API_KEY") {
+      match runtime_secret_value("CODEX_API_KEY") {
         Some(value) if value.trim() != "" => Some("CODEX_API_KEY")
         _ =>
-          match @env.get_env_var("OPENAI_API_KEY") {
+          match runtime_secret_value("OPENAI_API_KEY") {
             Some(value) if value.trim() != "" => Some("OPENAI_API_KEY")
-            _ => None
+            _ =>
+              match @env.get_env_var("OPENROUTER_API_KEY") {
+                Some(value) if value.trim() != "" => Some("OPENROUTER_API_KEY")
+                _ =>
+                  match @env.get_env_var("CODEX_API_KEY") {
+                    Some(value) if value.trim() != "" => Some("CODEX_API_KEY")
+                    _ =>
+                      match @env.get_env_var("OPENAI_API_KEY") {
+                        Some(value) if value.trim() != "" =>
+                          Some("OPENAI_API_KEY")
+                        _ => None
+                      }
+                  }
+              }
           }
       }
   }
@@ -209,6 +296,41 @@ fn runtime_error(code : Int, reason : String, message : String) -> HttpReply {
 }
 
 ///|
+fn health_reply() -> HttpReply {
+  if initialized.val {
+    json_reply(
+      200,
+      "OK",
+      HealthResponse::{ status: "ready", message: "Runtime initialized.", },
+    )
+  } else {
+    json_reply(
+      200,
+      "OK",
+      HealthResponse::{
+        status: "not_initialized",
+        message: "Runtime is waiting for /init.",
+      },
+    )
+  }
+}
+
+///|
+fn require_initialized() -> HttpReply? {
+  if initialized.val {
+    None
+  } else {
+    Some(
+      runtime_error(
+        409,
+        "Conflict",
+        "Runtime Service is not initialized. Call /init first.",
+      ),
+    )
+  }
+}
+
+///|
 async fn send_reply(conn : @http.ServerConnection, reply : HttpReply) -> Unit {
   conn.send_response(reply.code, reply.reason, extra_headers={
     "Content-Type": reply.content_type,
@@ -228,6 +350,15 @@ fn now_string() -> String {
 ///|
 fn run_response(run : RuntimeRun) -> RunResponse {
   { run_id: run.run_id, status: run.status, message: run.message }
+}
+
+///|
+fn init_response(current_commit_sha : String?) -> InitResponse {
+  {
+    status: "ready",
+    current_commit_sha,
+    message: "Runtime initialized.",
+  }
 }
 
 ///|
@@ -412,7 +543,70 @@ fn parse_exec_request(body : String) -> Result[ExecRequest, String] {
 }
 
 ///|
+fn parse_init_request(body : String) -> Result[InitRequest, String] {
+  let json = @json.parse(body) catch {
+    _ => return Err("Invalid JSON request body.")
+  }
+  let request : InitRequest = @json.from_json(json) catch {
+    _ => return Err("Invalid init request.")
+  }
+  if request.project.id.trim() == "" {
+    return Err("project.id is required.")
+  }
+  if request.source_repository.url.trim() == "" {
+    return Err("source_repository.url is required.")
+  }
+  if request.source_repository.default_branch.trim() == "" {
+    return Err("source_repository.default_branch is required.")
+  }
+  if request.source_credential.kind != "git_https_token" ||
+    request.source_credential.username.trim() == "" ||
+    request.source_credential.password.trim() == "" {
+    return Err("source_credential must be a git_https_token credential.")
+  }
+  for secret in request.secrets {
+    if secret.name.trim() == "" {
+      return Err("secret.name is required.")
+    }
+  }
+  Ok(request)
+}
+
+///|
+fn handle_init(body : String) -> HttpReply {
+  if active_run_id.val is Some(_) {
+    return runtime_error(
+      409,
+      "Conflict",
+      "Runtime Service cannot be initialized while a run is active.",
+    )
+  }
+  let request = match parse_init_request(body) {
+    Ok(request) => request
+    Err(message) => return runtime_error(400, "BadRequest", message)
+  }
+  ignore(request.source_repository.url)
+  ignore(request.source_repository.default_branch)
+  ignore(request.source_credential.kind)
+  ignore(request.source_credential.username)
+  ignore(request.source_credential.password)
+  runtime_secrets.clear()
+  for secret in request.secrets {
+    runtime_secrets[secret.name.trim().to_owned()] = secret.value
+  }
+  initialized.val = true
+  json_reply(
+    200,
+    "OK",
+    init_response(request.source_repository.current_commit_sha),
+  )
+}
+
+///|
 fn handle_exec(body : String) -> HttpReply {
+  if require_initialized() is Some(reply) {
+    return reply
+  }
   let request = match parse_exec_request(body) {
     Ok(request) => request
     Err(message) => return runtime_error(400, "BadRequest", message)
@@ -467,6 +661,9 @@ async fn run_worker() -> Unit {
 
 ///|
 fn handle_run(run_id : String) -> HttpReply {
+  if require_initialized() is Some(reply) {
+    return reply
+  }
   match runs.get(run_id) {
     Some(run) => json_reply(200, "OK", run_response(run))
     None => runtime_error(404, "NotFound", "Run not found.")
@@ -499,6 +696,9 @@ fn after_cursor(url : String) -> Result[Int, String] {
 
 ///|
 fn handle_run_events(run_id : String, path : String) -> HttpReply {
+  if require_initialized() is Some(reply) {
+    return reply
+  }
   let run = match runs.get(run_id) {
     Some(run) => run
     None => return runtime_error(404, "NotFound", "Run not found.")
@@ -584,6 +784,9 @@ async fn ensure_preview() -> Result[Unit, String] noraise {
 
 ///|
 async fn handle_preview() -> HttpReply noraise {
+  if require_initialized() is Some(reply) {
+    return reply
+  }
   match ensure_preview() {
     Ok(_) => empty_reply(200, "OK")
     Err(message) => runtime_error(503, "ServiceUnavailable", message)
@@ -630,7 +833,11 @@ async fn handle_request(
 ) -> Unit noraise {
   let path = route_path(request.path)
   let reply = match (request.meth, path) {
-    (Get, "/health") => empty_reply(200, "OK")
+    (Get, "/health") => health_reply()
+    (Post, "/init") => {
+      let raw_body = body.read_all().text() catch { _ => "" }
+      handle_init(raw_body)
+    }
     (Post, "/exec") => {
       let raw_body = body.read_all().text() catch { _ => "" }
       handle_exec(raw_body)

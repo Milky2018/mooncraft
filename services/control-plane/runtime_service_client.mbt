@@ -5,6 +5,46 @@ struct RuntimeServiceExecRequest {
 } derive(ToJson)
 
 ///|
+struct RuntimeServiceProjectRef {
+  id : String
+} derive(Debug, ToJson)
+
+///|
+struct RuntimeServiceSourceRepository {
+  url : String
+  default_branch : String
+  current_commit_sha : String?
+} derive(Debug, ToJson)
+
+///|
+struct RuntimeServiceSourceCredential {
+  kind : String
+  username : String
+  password : String
+} derive(Debug, ToJson)
+
+///|
+struct RuntimeServiceSecret {
+  name : String
+  value : String
+} derive(Debug, ToJson)
+
+///|
+struct RuntimeServiceInitRequest {
+  project : RuntimeServiceProjectRef
+  source_repository : RuntimeServiceSourceRepository
+  source_credential : RuntimeServiceSourceCredential
+  secrets : Array[RuntimeServiceSecret]
+} derive(Debug, ToJson)
+
+///|
+struct RuntimeServiceInitResponse {
+  status : String
+  current_commit_sha : String?
+  message : String?
+} derive(@json.FromJson)
+
+///|
 struct RuntimeServiceRun {
   run_id : String
   status : String
@@ -40,6 +80,42 @@ fn runtime_service_api_url(
 ///|
 fn runtime_service_json_headers() -> Map[String, String] {
   { "Accept": "application/json", "Content-Type": "application/json" }
+}
+
+///|
+fn runtime_service_secret_from_resolved(
+  secret : ResolvedRuntimeSecret,
+) -> RuntimeServiceSecret {
+  { name: secret.name, value: secret.value }
+}
+
+///|
+fn runtime_service_init_request(
+  project : @sdk.ProjectDetail,
+  source_credential : RuntimeServiceSourceCredential,
+  secrets : Array[ResolvedRuntimeSecret],
+) -> Result[RuntimeServiceInitRequest, String] {
+  let source = match project.source_repository {
+    Some(source) => source
+    None => return Err("Project Source Repository is not configured.")
+  }
+  if source.status == "source_disconnected" {
+    return Err("Project Source Repository is disconnected.")
+  }
+  let protocol_secrets : Array[RuntimeServiceSecret] = []
+  for secret in secrets {
+    protocol_secrets.push(runtime_service_secret_from_resolved(secret))
+  }
+  Ok({
+    project: { id: project.id },
+    source_repository: {
+      url: source.clone_url,
+      default_branch: source.default_branch,
+      current_commit_sha: source.ready_commit_sha,
+    },
+    source_credential,
+    secrets: protocol_secrets,
+  })
 }
 
 ///|
@@ -118,6 +194,43 @@ async fn runtime_service_post_exec(
     Err(message) => return Err(message)
   }
   validate_runtime_service_run_id(run, run_id, "Runtime Service /exec")
+}
+
+///|
+async fn runtime_service_post_init(
+  endpoint : RuntimeServiceEndpoint,
+  request : RuntimeServiceInitRequest,
+) -> Result[RuntimeServiceInitResponse, String] noraise {
+  let body = request.to_json().stringify()
+  let headers = runtime_service_json_headers()
+  let response = match
+    http_post(runtime_service_api_url(endpoint, "/init"), body, headers~) {
+    Ok(response) => response
+    Err(_) => return Err("Runtime Service /init is not reachable.")
+  }
+  if !http_status_success(response.code) {
+    let fallback = if response.code == 409 {
+      "Runtime Service cannot be initialized while a run is active."
+    } else {
+      "Runtime Service initialization failed."
+    }
+    return Err(runtime_service_error_message(response, fallback))
+  }
+  let init : RuntimeServiceInitResponse = match
+    decode_runtime_service_json(
+      http_response_text(response),
+      "Runtime Service /init",
+    ) {
+    Ok(value) => value
+    Err(message) => return Err(message)
+  }
+  if init.status == "ready" {
+    ignore(init.current_commit_sha)
+    ignore(init.message)
+    Ok(init)
+  } else {
+    Err("Runtime Service /init did not return ready status.")
+  }
 }
 
 ///|

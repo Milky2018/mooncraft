@@ -5,10 +5,6 @@ fn test_runtime_service_spec() -> RuntimeServiceSpec {
     image: "runtime:test",
     platform: "linux/arm64",
     env: { "RUNTIME_MODE": "test" },
-    secrets: [
-      { name: "OPENROUTER_API_KEY", value: "test-key" },
-      { name: "CODEX_AUTH_JSON", value: "{}" },
-    ],
     container_name: "mooncraft-runtime-project-runtime-test",
     workspace_volume: "mooncraft-workspace-project-runtime-test",
     home_volume: "mooncraft-home-project-runtime-test",
@@ -40,10 +36,10 @@ test "runtime service container uses network and named volumes without published
 }
 
 ///|
-test "runtime service env file combines plain env and env secrets" {
+test "runtime service env file includes only launcher env" {
   inspect(
     runtime_service_env_file_content(test_runtime_service_spec()),
-    content="RUNTIME_MODE=test\nOPENROUTER_API_KEY=test-key\nCODEX_AUTH_JSON={}\n",
+    content="RUNTIME_MODE=test\n",
   )
 }
 

@@ -18,6 +18,113 @@ test "runtime service validates authoritative run id" {
 }
 
 ///|
+fn runtime_service_client_test_project(
+  source_repository : @sdk.ProjectSourceRepository?,
+) -> @sdk.ProjectDetail {
+  {
+    id: "project-init",
+    preview_public_id: "preview-init",
+    display_name: "Init Project",
+    runtime_id: "agent-runtime-init",
+    runtime_name: "Runtime",
+    runtime_config: None,
+    agent_session_id: "",
+    runtime_session_id: None,
+    agent_cli: "",
+    model: "",
+    workspace_path: "/tmp/project-init",
+    status: Idle,
+    is_processing: false,
+    activity: None,
+    current_run_phase: NoPhase,
+    preview: None,
+    source_repository,
+    current_run_id: None,
+    last_error: None,
+    created_at: "1",
+    updated_at: "1",
+  }
+}
+
+///|
+fn runtime_service_client_test_source(
+  status : String,
+) -> @sdk.ProjectSourceRepository {
+  {
+    host: "github",
+    repository_id: "123",
+    owner: "milky",
+    name: "mooncraft-project-init",
+    clone_url: "https://github.com/milky/mooncraft-project-init.git",
+    default_branch: "main",
+    ready_commit_sha: Some("abc123"),
+    status,
+    last_error: None,
+  }
+}
+
+///|
+test "runtime service init request uses source credential and opaque secrets" {
+  let credential : RuntimeServiceSourceCredential = {
+    kind: "git_https_token",
+    username: "x-access-token",
+    password: "github-token",
+  }
+  let secrets : Array[ResolvedRuntimeSecret] = [
+    { name: "OPENROUTER_API_KEY", value: "runtime-key" },
+  ]
+  match
+    runtime_service_init_request(
+      runtime_service_client_test_project(
+        Some(runtime_service_client_test_source("connected")),
+      ),
+      credential,
+      secrets,
+    ) {
+    Ok(request) =>
+      debug_inspect(
+        request,
+        content=(
+          #|{
+          #|  project: { id: "project-init" },
+          #|  source_repository: {
+          #|    url: "https://github.com/milky/mooncraft-project-init.git",
+          #|    default_branch: "main",
+          #|    current_commit_sha: Some("abc123"),
+          #|  },
+          #|  source_credential: {
+          #|    kind: "git_https_token",
+          #|    username: "x-access-token",
+          #|    password: "github-token",
+          #|  },
+          #|  secrets: [{ name: "OPENROUTER_API_KEY", value: "runtime-key" }],
+          #|}
+        ),
+      )
+    Err(message) => abort(message)
+  }
+}
+
+///|
+test "runtime service init request rejects source disconnected projects" {
+  let credential : RuntimeServiceSourceCredential = {
+    kind: "git_https_token",
+    username: "x-access-token",
+    password: "github-token",
+  }
+  debug_inspect(
+    runtime_service_init_request(
+      runtime_service_client_test_project(
+        Some(runtime_service_client_test_source("source_disconnected")),
+      ),
+      credential,
+      [],
+    ),
+    content="Err(\"Project Source Repository is disconnected.\")",
+  )
+}
+
+///|
 test "runtime service event levels map to activity codes" {
   let info : RuntimeServiceEvent = {
     id: 1,
