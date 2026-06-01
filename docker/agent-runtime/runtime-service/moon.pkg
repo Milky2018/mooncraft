@@ -1,4 +1,5 @@
 import {
+  "mooncraft/runtime_protocol",
   "peter-jerry-ye/codex",
   "moonbitlang/async",
   "moonbitlang/async/cond_var",

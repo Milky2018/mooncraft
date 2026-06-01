@@ -1,4 +1,6 @@
 members = [
+  "docker/agent-runtime/runtime-service",
+  "packages/runtime_protocol",
   "packages/sdk",
   "services/control-plane",
   "apps/web",

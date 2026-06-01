@@ -3,6 +3,7 @@ name = "mooncraft/control-plane"
 version = "0.1.0"
 
 import {
+  "mooncraft/runtime_protocol@0.1.0",
   "mooncraft/sdk@0.1.0",
   "oboard/mocket@0.7.1",
   "moonbitlang/async@0.17.0",

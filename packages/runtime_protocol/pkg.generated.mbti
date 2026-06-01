@@ -1,0 +1,138 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "mooncraft/runtime_protocol"
+
+import {
+  "moonbitlang/core/debug",
+  "moonbitlang/core/json",
+}
+
+// Values
+pub fn runtime_service_error_message_from_body(String, String) -> String
+
+pub fn runtime_service_event_level_error() -> String
+
+pub fn runtime_service_event_level_info() -> String
+
+pub fn runtime_service_event_level_warning() -> String
+
+pub fn runtime_service_exec_path() -> String
+
+pub fn runtime_service_exec_request_from_json_text(String) -> Result[RuntimeServiceExecRequest, String]
+
+pub fn runtime_service_exec_request_validate(RuntimeServiceExecRequest) -> Result[RuntimeServiceExecRequest, String]
+
+pub fn runtime_service_health_path() -> String
+
+pub fn runtime_service_health_status_not_initialized() -> String
+
+pub fn runtime_service_health_status_ready() -> String
+
+pub fn runtime_service_health_status_running() -> String
+
+pub fn runtime_service_init_path() -> String
+
+pub fn runtime_service_init_request_from_json_text(String) -> Result[RuntimeServiceInitRequest, String]
+
+pub fn runtime_service_init_request_validate(RuntimeServiceInitRequest) -> Result[RuntimeServiceInitRequest, String]
+
+pub fn[T : @json.FromJson] runtime_service_json_decode(String, String) -> Result[T, String]
+
+pub fn runtime_service_not_initialized_message() -> String
+
+pub fn runtime_service_preview_path() -> String
+
+pub fn runtime_service_preview_path_matches(String) -> Bool
+
+pub fn runtime_service_preview_upstream_path(String) -> String
+
+pub fn runtime_service_ready_commit(RuntimeServiceRun) -> Result[String, String]
+
+pub fn runtime_service_run_events_path(String, Int) -> String
+
+pub fn runtime_service_run_events_route(String) -> String?
+
+pub fn runtime_service_run_path(String) -> String
+
+pub fn runtime_service_run_status_failed() -> String
+
+pub fn runtime_service_run_status_route(String) -> String?
+
+pub fn runtime_service_run_status_running() -> String
+
+pub fn runtime_service_run_status_succeeded() -> String
+
+pub fn runtime_service_validate_run_id(RuntimeServiceRun, String, String) -> Result[RuntimeServiceRun, String]
+
+// Errors
+
+// Types and methods
+pub(all) struct RuntimeServiceError {
+  message : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RuntimeServiceEvent {
+  id : Int
+  time : String
+  level : String
+  message : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RuntimeServiceEventsResponse {
+  events : Array[RuntimeServiceEvent]
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RuntimeServiceExecRequest {
+  run_id : String
+  prompt : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RuntimeServiceHealthResponse {
+  status : String
+  message : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RuntimeServiceInitRequest {
+  project : RuntimeServiceProjectRef
+  source_repository : RuntimeServiceSourceRepository
+  source_credential : RuntimeServiceSourceCredential
+  secrets : Array[RuntimeServiceSecret]
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RuntimeServiceInitResponse {
+  status : String
+  current_commit_sha : String?
+  message : String?
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RuntimeServiceProjectRef {
+  id : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RuntimeServiceRun {
+  run_id : String
+  status : String
+  message : String
+  ready_commit_sha : String?
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RuntimeServiceSecret {
+  name : String
+  value : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RuntimeServiceSourceCredential {
+  kind : String
+  username : String
+  password : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RuntimeServiceSourceRepository {
+  url : String
+  default_branch : String
+  current_commit_sha : String?
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+// Type aliases
+
+// Traits
+

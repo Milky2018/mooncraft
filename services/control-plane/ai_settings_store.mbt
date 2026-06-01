@@ -3,7 +3,7 @@ struct RuntimeSettings {
   runtime_config : @sdk.RuntimeConfig
   env : Map[String, String]
   secrets : Array[ResolvedRuntimeSecret]
-  source_credential : RuntimeServiceSourceCredential
+  source_credential : @runtime_protocol.RuntimeServiceSourceCredential
 } derive(Debug)
 
 ///|
@@ -54,7 +54,7 @@ async fn Store::lease_runtime_settings_for_project(
 async fn Store::source_credential_for_project(
   self : Store,
   project_id : String,
-) -> Result[RuntimeServiceSourceCredential, String] noraise {
+) -> Result[@runtime_protocol.RuntimeServiceSourceCredential, String] noraise {
   let row = match
     self.query_one(
       (

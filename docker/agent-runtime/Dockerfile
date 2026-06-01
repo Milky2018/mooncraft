@@ -26,7 +26,11 @@ RUN MOONBIT_VERSION="${MOONBIT_VERSION}" /opt/mooncraft/install/install-moonbit.
 
 RUN CODEX_CLI_VERSION="${CODEX_CLI_VERSION}" /opt/mooncraft/install/install-node-agents.sh
 
+COPY packages/runtime_protocol/ /opt/mooncraft/packages/runtime_protocol/
 COPY docker/agent-runtime/runtime-service/ /opt/mooncraft/runtime-service/
+
+RUN printf '%s\n' 'members = ["packages/runtime_protocol", "runtime-service"]' \
+  > /opt/mooncraft/moon.work
 
 RUN moon -C /opt/mooncraft/runtime-service build --target native --release \
   && mkdir -p /opt/mooncraft/bin \

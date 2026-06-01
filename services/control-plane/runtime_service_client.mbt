@@ -1,76 +1,4 @@
 ///|
-struct RuntimeServiceExecRequest {
-  run_id : String
-  prompt : String
-} derive(ToJson)
-
-///|
-struct RuntimeServiceProjectRef {
-  id : String
-} derive(Debug, ToJson)
-
-///|
-struct RuntimeServiceSourceRepository {
-  url : String
-  default_branch : String
-  current_commit_sha : String?
-} derive(Debug, ToJson)
-
-///|
-struct RuntimeServiceSourceCredential {
-  kind : String
-  username : String
-  password : String
-} derive(Debug, ToJson)
-
-///|
-struct RuntimeServiceSecret {
-  name : String
-  value : String
-} derive(Debug, ToJson)
-
-///|
-struct RuntimeServiceInitRequest {
-  project : RuntimeServiceProjectRef
-  source_repository : RuntimeServiceSourceRepository
-  source_credential : RuntimeServiceSourceCredential
-  secrets : Array[RuntimeServiceSecret]
-} derive(Debug, ToJson)
-
-///|
-struct RuntimeServiceInitResponse {
-  status : String
-  current_commit_sha : String?
-  message : String?
-} derive(@json.FromJson)
-
-///|
-struct RuntimeServiceRun {
-  run_id : String
-  status : String
-  message : String
-  ready_commit_sha : String?
-} derive(@json.FromJson)
-
-///|
-struct RuntimeServiceEvent {
-  id : Int
-  time : String
-  level : String
-  message : String
-} derive(@json.FromJson)
-
-///|
-struct RuntimeServiceEventsResponse {
-  events : Array[RuntimeServiceEvent]
-} derive(@json.FromJson)
-
-///|
-struct RuntimeServiceError {
-  message : String
-} derive(@json.FromJson)
-
-///|
 fn runtime_service_api_url(
   endpoint : RuntimeServiceEndpoint,
   path : String,
@@ -86,16 +14,16 @@ fn runtime_service_json_headers() -> Map[String, String] {
 ///|
 fn runtime_service_secret_from_resolved(
   secret : ResolvedRuntimeSecret,
-) -> RuntimeServiceSecret {
+) -> @runtime_protocol.RuntimeServiceSecret {
   { name: secret.name, value: secret.value }
 }
 
 ///|
 fn runtime_service_init_request(
   project : @sdk.ProjectDetail,
-  source_credential : RuntimeServiceSourceCredential,
+  source_credential : @runtime_protocol.RuntimeServiceSourceCredential,
   secrets : Array[ResolvedRuntimeSecret],
-) -> Result[RuntimeServiceInitRequest, String] {
+) -> Result[@runtime_protocol.RuntimeServiceInitRequest, String] {
   let source = match project.source_repository {
     Some(source) => source
     None => return Err("Project Source Repository is not configured.")
@@ -103,7 +31,7 @@ fn runtime_service_init_request(
   if source.status == "source_disconnected" {
     return Err("Project Source Repository is disconnected.")
   }
-  let protocol_secrets : Array[RuntimeServiceSecret] = []
+  let protocol_secrets : Array[@runtime_protocol.RuntimeServiceSecret] = []
   for secret in secrets {
     protocol_secrets.push(runtime_service_secret_from_resolved(secret))
   }
@@ -124,16 +52,10 @@ fn runtime_service_error_message(
   response : UpstreamHttpResponse,
   fallback : String,
 ) -> String {
-  let body = http_response_text(response)
-  let parsed = @json.parse(body) catch { _ => return fallback }
-  let error : RuntimeServiceError = @json.from_json(parsed) catch {
-    _ => return fallback
-  }
-  if error.message.trim() == "" {
-    fallback
-  } else {
-    error.message
-  }
+  @runtime_protocol.runtime_service_error_message_from_body(
+    http_response_text(response),
+    fallback,
+  )
 }
 
 ///|
@@ -141,40 +63,23 @@ fn[T : @json.FromJson] decode_runtime_service_json(
   body : String,
   label : String,
 ) -> Result[T, String] {
-  let parsed = @json.parse(body) catch {
-    _ => return Err("\{label} returned invalid JSON.")
-  }
-  Ok(
-    @json.from_json(parsed) catch {
-      _ => return Err("\{label} returned an unexpected response shape.")
-    },
-  )
+  @runtime_protocol.runtime_service_json_decode(body, label)
 }
 
 ///|
 fn validate_runtime_service_run_id(
-  run : RuntimeServiceRun,
+  run : @runtime_protocol.RuntimeServiceRun,
   expected_run_id : String,
   label : String,
-) -> Result[RuntimeServiceRun, String] {
-  if run.run_id == expected_run_id {
-    Ok(run)
-  } else {
-    Err("\{label} returned a different run id.")
-  }
+) -> Result[@runtime_protocol.RuntimeServiceRun, String] {
+  @runtime_protocol.runtime_service_validate_run_id(run, expected_run_id, label)
 }
 
 ///|
 fn runtime_service_ready_commit(
-  run : RuntimeServiceRun,
+  run : @runtime_protocol.RuntimeServiceRun,
 ) -> Result[String, String] {
-  match run.ready_commit_sha {
-    Some(commit) if commit.trim() != "" => Ok(commit.trim().to_owned())
-    _ =>
-      Err(
-        "Runtime Service reported success without a ready_commit_sha. The project source was not marked ready.",
-      )
-  }
+  @runtime_protocol.runtime_service_ready_commit(run)
 }
 
 ///|
@@ -182,11 +87,20 @@ async fn runtime_service_post_exec(
   endpoint : RuntimeServiceEndpoint,
   run_id : String,
   prompt : String,
-) -> Result[RuntimeServiceRun, String] noraise {
-  let body = RuntimeServiceExecRequest::{ run_id, prompt }.to_json().stringify()
+) -> Result[@runtime_protocol.RuntimeServiceRun, String] noraise {
+  let body = @runtime_protocol.RuntimeServiceExecRequest::{ run_id, prompt }
+    .to_json()
+    .stringify()
   let headers = runtime_service_json_headers()
   let response = match
-    http_post(runtime_service_api_url(endpoint, "/exec"), body, headers~) {
+    http_post(
+      runtime_service_api_url(
+        endpoint,
+        @runtime_protocol.runtime_service_exec_path(),
+      ),
+      body,
+      headers~,
+    ) {
     Ok(response) => response
     Err(_) => return Err("Runtime Service /exec is not reachable.")
   }
@@ -199,7 +113,7 @@ async fn runtime_service_post_exec(
     }
     return Err(runtime_service_error_message(response, fallback))
   }
-  let run : RuntimeServiceRun = match
+  let run : @runtime_protocol.RuntimeServiceRun = match
     decode_runtime_service_json(
       http_response_text(response),
       "Runtime Service /exec",
@@ -213,12 +127,19 @@ async fn runtime_service_post_exec(
 ///|
 async fn runtime_service_post_init(
   endpoint : RuntimeServiceEndpoint,
-  request : RuntimeServiceInitRequest,
-) -> Result[RuntimeServiceInitResponse, String] noraise {
+  request : @runtime_protocol.RuntimeServiceInitRequest,
+) -> Result[@runtime_protocol.RuntimeServiceInitResponse, String] noraise {
   let body = request.to_json().stringify()
   let headers = runtime_service_json_headers()
   let response = match
-    http_post(runtime_service_api_url(endpoint, "/init"), body, headers~) {
+    http_post(
+      runtime_service_api_url(
+        endpoint,
+        @runtime_protocol.runtime_service_init_path(),
+      ),
+      body,
+      headers~,
+    ) {
     Ok(response) => response
     Err(_) => return Err("Runtime Service /init is not reachable.")
   }
@@ -230,7 +151,7 @@ async fn runtime_service_post_init(
     }
     return Err(runtime_service_error_message(response, fallback))
   }
-  let init : RuntimeServiceInitResponse = match
+  let init : @runtime_protocol.RuntimeServiceInitResponse = match
     decode_runtime_service_json(
       http_response_text(response),
       "Runtime Service /init",
@@ -238,7 +159,7 @@ async fn runtime_service_post_init(
     Ok(value) => value
     Err(message) => return Err(message)
   }
-  if init.status == "ready" {
+  if init.status == @runtime_protocol.runtime_service_health_status_ready() {
     ignore(init.current_commit_sha)
     ignore(init.message)
     Ok(init)
@@ -251,10 +172,16 @@ async fn runtime_service_post_init(
 async fn runtime_service_get_run(
   endpoint : RuntimeServiceEndpoint,
   run_id : String,
-) -> Result[RuntimeServiceRun, String] noraise {
+) -> Result[@runtime_protocol.RuntimeServiceRun, String] noraise {
   let headers = runtime_service_json_headers()
   let response = match
-    http_get(runtime_service_api_url(endpoint, "/runs/\{run_id}"), headers~) {
+    http_get(
+      runtime_service_api_url(
+        endpoint,
+        @runtime_protocol.runtime_service_run_path(run_id),
+      ),
+      headers~,
+    ) {
     Ok(response) => response
     Err(_) => return Err("Runtime Service run status is not reachable.")
   }
@@ -265,7 +192,7 @@ async fn runtime_service_get_run(
       ),
     )
   }
-  let run : RuntimeServiceRun = match
+  let run : @runtime_protocol.RuntimeServiceRun = match
     decode_runtime_service_json(
       http_response_text(response),
       "Runtime Service run status",
@@ -281,11 +208,14 @@ async fn runtime_service_get_events(
   endpoint : RuntimeServiceEndpoint,
   run_id : String,
   after : Int,
-) -> Result[RuntimeServiceEventsResponse, String] noraise {
+) -> Result[@runtime_protocol.RuntimeServiceEventsResponse, String] noraise {
   let headers = runtime_service_json_headers()
   let response = match
     http_get(
-      runtime_service_api_url(endpoint, "/runs/\{run_id}/events?after=\{after}"),
+      runtime_service_api_url(
+        endpoint,
+        @runtime_protocol.runtime_service_run_events_path(run_id, after),
+      ),
       headers~,
     ) {
     Ok(response) => response
@@ -309,7 +239,12 @@ async fn runtime_service_get_preview(
   endpoint : RuntimeServiceEndpoint,
 ) -> Result[Unit, String] noraise {
   let response = match
-    http_get(runtime_service_api_url(endpoint, "/preview/")) {
+    http_get(
+      runtime_service_api_url(
+        endpoint,
+        @runtime_protocol.runtime_service_preview_path(),
+      ),
+    ) {
     Ok(response) => response
     Err(_) => return Err("Runtime Service preview readiness is not reachable.")
   }
@@ -325,10 +260,14 @@ async fn runtime_service_get_preview(
 }
 
 ///|
-fn runtime_service_event_code(event : RuntimeServiceEvent) -> String {
+fn runtime_service_event_code(
+  event : @runtime_protocol.RuntimeServiceEvent,
+) -> String {
   match event.level {
-    "error" => @sdk.run_event_code_activity_tool_error()
-    "warning" => @sdk.run_event_code_activity_message()
+    level if level == @runtime_protocol.runtime_service_event_level_error() =>
+      @sdk.run_event_code_activity_tool_error()
+    level if level == @runtime_protocol.runtime_service_event_level_warning() =>
+      @sdk.run_event_code_activity_message()
     _ => @sdk.run_event_code_activity_message()
   }
 }
@@ -340,7 +279,7 @@ async fn append_runtime_service_events(
   run_id : String,
   worker_id : String,
   attempt : Int,
-  events : Array[RuntimeServiceEvent],
+  events : Array[@runtime_protocol.RuntimeServiceEvent],
   after : Ref[Int],
 ) -> Unit noraise {
   for event in events {
@@ -361,6 +300,8 @@ async fn append_runtime_service_events(
 }
 
 ///|
-fn runtime_service_status_message(run : RuntimeServiceRun) -> String {
+fn runtime_service_status_message(
+  run : @runtime_protocol.RuntimeServiceRun,
+) -> String {
   trim_or_default(run.message, "Runtime Service is working.")
 }

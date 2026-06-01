@@ -1,6 +1,6 @@
 ///|
 test "runtime service validates authoritative run id" {
-  let run : RuntimeServiceRun = {
+  let run : @runtime_protocol.RuntimeServiceRun = {
     run_id: "run-1",
     status: "running",
     message: "working",
@@ -20,7 +20,7 @@ test "runtime service validates authoritative run id" {
 
 ///|
 test "runtime service succeeded run requires ready source commit" {
-  let succeeded : RuntimeServiceRun = match
+  let succeeded : @runtime_protocol.RuntimeServiceRun = match
     decode_runtime_service_json(
       "{\"run_id\":\"run-1\",\"status\":\"succeeded\",\"message\":\"done\",\"ready_commit_sha\":\"abc123\"}",
       "Runtime Service run",
@@ -32,7 +32,7 @@ test "runtime service succeeded run requires ready source commit" {
     runtime_service_ready_commit(succeeded),
     content="Ok(\"abc123\")",
   )
-  let missing : RuntimeServiceRun = match
+  let missing : @runtime_protocol.RuntimeServiceRun = match
     decode_runtime_service_json(
       "{\"run_id\":\"run-1\",\"status\":\"succeeded\",\"message\":\"done\"}", "Runtime Service run",
     ) {
@@ -95,7 +95,7 @@ fn runtime_service_client_test_source(
 
 ///|
 test "runtime service init request uses source credential and opaque secrets" {
-  let credential : RuntimeServiceSourceCredential = {
+  let credential : @runtime_protocol.RuntimeServiceSourceCredential = {
     kind: "git_https_token",
     username: "x-access-token",
     password: "github-token",
@@ -137,7 +137,7 @@ test "runtime service init request uses source credential and opaque secrets" {
 
 ///|
 test "runtime service init request rejects source disconnected projects" {
-  let credential : RuntimeServiceSourceCredential = {
+  let credential : @runtime_protocol.RuntimeServiceSourceCredential = {
     kind: "git_https_token",
     username: "x-access-token",
     password: "github-token",
@@ -156,19 +156,19 @@ test "runtime service init request rejects source disconnected projects" {
 
 ///|
 test "runtime service event levels map to activity codes" {
-  let info : RuntimeServiceEvent = {
+  let info : @runtime_protocol.RuntimeServiceEvent = {
     id: 1,
     time: "2026-05-27T00:00:00Z",
     level: "info",
     message: "Building",
   }
-  let warning : RuntimeServiceEvent = {
+  let warning : @runtime_protocol.RuntimeServiceEvent = {
     id: 2,
     time: "2026-05-27T00:00:01Z",
     level: "warning",
     message: "Slow",
   }
-  let error : RuntimeServiceEvent = {
+  let error : @runtime_protocol.RuntimeServiceEvent = {
     id: 3,
     time: "2026-05-27T00:00:02Z",
     level: "error",
@@ -181,7 +181,7 @@ test "runtime service event levels map to activity codes" {
 
 ///|
 test "runtime service JSON decoder rejects malformed responses" {
-  let run : RuntimeServiceRun = match
+  let run : @runtime_protocol.RuntimeServiceRun = match
     decode_runtime_service_json(
       "{\"run_id\":\"run-1\",\"status\":\"succeeded\",\"message\":\"done\",\"ready_commit_sha\":\"abc123\"}",
       "Runtime Service run",
@@ -190,7 +190,7 @@ test "runtime service JSON decoder rejects malformed responses" {
     Err(message) => abort(message)
   }
   inspect(run.status, content="succeeded")
-  let invalid : Result[RuntimeServiceRun, String] = decode_runtime_service_json(
+  let invalid : Result[@runtime_protocol.RuntimeServiceRun, String] = decode_runtime_service_json(
     "{\"run_id\":\"run-1\",\"status\":\"running\"}", "Runtime Service run",
   )
   inspect(invalid is Err(_), content="true")

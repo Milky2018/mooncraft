@@ -508,7 +508,7 @@ async fn run_runtime_service_turn(
       }
     }
     match current.status {
-      "running" =>
+      status if status == @runtime_protocol.runtime_service_run_status_running() =>
         @async.sleep(1000) catch {
           _ =>
             return Err(
@@ -527,7 +527,8 @@ async fn run_runtime_service_turn(
               ),
             )
         }
-      "succeeded" => {
+      status if status ==
+        @runtime_protocol.runtime_service_run_status_succeeded() => {
         let ready_commit_sha = match runtime_service_ready_commit(current) {
           Ok(commit) => commit
           Err(message) => {
@@ -578,7 +579,7 @@ async fn run_runtime_service_turn(
           artifacts,
         })
       }
-      "failed" => {
+      status if status == @runtime_protocol.runtime_service_run_status_failed() => {
         store.append_worker_run_event(
           project.id,
           run_id,

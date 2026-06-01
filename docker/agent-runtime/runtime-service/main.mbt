@@ -14,89 +14,11 @@ let system_prompt_path : String = "/opt/mooncraft/mooncraft-agent-system.md"
 let default_model : String = "gpt-5.4-mini"
 
 ///|
-struct ExecRequest {
-  run_id : String
-  prompt : String
-} derive(FromJson)
-
-///|
-struct InitProject {
-  id : String
-} derive(FromJson)
-
-///|
-struct InitSourceRepository {
-  url : String
-  default_branch : String
-  current_commit_sha : String?
-} derive(FromJson)
-
-///|
-struct InitSourceCredential {
-  kind : String
-  username : String
-  password : String
-} derive(FromJson)
-
-///|
-struct InitSecret {
-  name : String
-  value : String
-} derive(FromJson)
-
-///|
-struct InitRequest {
-  project : InitProject
-  source_repository : InitSourceRepository
-  source_credential : InitSourceCredential
-  secrets : Array[InitSecret]
-} derive(FromJson)
-
-///|
 struct RuntimeSourceState {
-  repository : InitSourceRepository
-  credential : InitSourceCredential
+  repository : @runtime_protocol.RuntimeServiceSourceRepository
+  credential : @runtime_protocol.RuntimeServiceSourceCredential
   authenticated_url : String
 }
-
-///|
-struct HealthResponse {
-  status : String
-  message : String
-} derive(ToJson)
-
-///|
-struct InitResponse {
-  status : String
-  current_commit_sha : String?
-  message : String
-} derive(ToJson)
-
-///|
-struct RuntimeRunEvent {
-  id : Int
-  time : String
-  level : String
-  message : String
-} derive(ToJson)
-
-///|
-struct RunResponse {
-  run_id : String
-  status : String
-  message : String
-  ready_commit_sha : String?
-} derive(ToJson)
-
-///|
-struct RunEventsResponse {
-  events : Array[RuntimeRunEvent]
-} derive(ToJson)
-
-///|
-struct RuntimeErrorResponse {
-  message : String
-} derive(ToJson)
 
 ///|
 struct RuntimeRun {
@@ -105,7 +27,7 @@ struct RuntimeRun {
   mut status : String
   mut message : String
   mut ready_commit_sha : String?
-  events : Array[RuntimeRunEvent]
+  events : Array[@runtime_protocol.RuntimeServiceEvent]
   mut next_event_id : Int
 }
 
@@ -177,7 +99,8 @@ fn current_api_key() -> String? {
             Some(value) if value.trim() != "" => Some(value.trim().to_owned())
             _ =>
               match @env.get_env_var("CODEX_API_KEY") {
-                Some(value) if value.trim() != "" => Some(value.trim().to_owned())
+                Some(value) if value.trim() != "" =>
+                  Some(value.trim().to_owned())
                 _ =>
                   match @env.get_env_var("OPENROUTER_API_KEY") {
                     Some(value) if value.trim() != "" =>
@@ -249,7 +172,9 @@ async fn configure_codex_provider() -> Unit {
   if current_base_url() is Some(base_url) {
     if current_provider_env_key() is Some(env_key) {
       let home = codex_home()
-      @fs.mkdir(home, permission=0o700, recursive=true) catch { _ => () }
+      @fs.mkdir(home, permission=0o700, recursive=true) catch {
+        _ => ()
+      }
       let config = StringBuilder()
       config <+
         $|model_provider = "mooncraft"
@@ -276,13 +201,11 @@ async fn configure_codex_provider() -> Unit {
 fn new_codex_client() -> @codex.Codex {
   match (current_base_url(), current_api_key()) {
     (Some(base_url), Some(api_key)) =>
-      @codex.Codex::new(
-        options=@codex.CodexOptions::new(base_url=base_url, api_key=api_key),
-      )
+      @codex.Codex::new(options=@codex.CodexOptions::new(base_url~, api_key~))
     (Some(base_url), None) =>
-      @codex.Codex::new(options=@codex.CodexOptions::new(base_url=base_url))
+      @codex.Codex::new(options=@codex.CodexOptions::new(base_url~))
     (None, Some(api_key)) =>
-      @codex.Codex::new(options=@codex.CodexOptions::new(api_key=api_key))
+      @codex.Codex::new(options=@codex.CodexOptions::new(api_key~))
     (None, None) => @codex.Codex::new()
   }
 }
@@ -299,7 +222,7 @@ fn json_reply(code : Int, reason : String, value : &ToJson) -> HttpReply {
 
 ///|
 fn runtime_error(code : Int, reason : String, message : String) -> HttpReply {
-  json_reply(code, reason, RuntimeErrorResponse::{ message, })
+  json_reply(code, reason, @runtime_protocol.RuntimeServiceError::{ message, })
 }
 
 ///|
@@ -335,7 +258,9 @@ fn url_component_encode(text : String) -> String {
 }
 
 ///|
-fn source_authenticated_url(request : InitRequest) -> Result[String, String] {
+fn source_authenticated_url(
+  request : @runtime_protocol.RuntimeServiceInitRequest,
+) -> Result[String, String] {
   let url = request.source_repository.url.trim().to_owned()
   if !url.has_prefix("https://") {
     return Err("source_repository.url must be an HTTPS git URL.")
@@ -358,26 +283,20 @@ fn redact_secret(text : String, secret : String) -> String {
 fn health_reply() -> HttpReply {
   if initialized.val {
     if active_run_id.val is Some(_) {
-      return json_reply(
-        200,
-        "OK",
-        HealthResponse::{ status: "running", message: "Runtime is running.", },
-      )
+      return json_reply(200, "OK", @runtime_protocol.RuntimeServiceHealthResponse::{
+        status: @runtime_protocol.runtime_service_health_status_running(),
+        message: "Runtime is running.",
+      })
     }
-    json_reply(
-      200,
-      "OK",
-      HealthResponse::{ status: "ready", message: "Runtime initialized.", },
-    )
+    json_reply(200, "OK", @runtime_protocol.RuntimeServiceHealthResponse::{
+      status: @runtime_protocol.runtime_service_health_status_ready(),
+      message: "Runtime initialized.",
+    })
   } else {
-    json_reply(
-      200,
-      "OK",
-      HealthResponse::{
-        status: "not_initialized",
-        message: "Runtime is waiting for /init.",
-      },
-    )
+    json_reply(200, "OK", @runtime_protocol.RuntimeServiceHealthResponse::{
+      status: @runtime_protocol.runtime_service_health_status_not_initialized(),
+      message: "Runtime is waiting for /init.",
+    })
   }
 }
 
@@ -390,7 +309,7 @@ fn require_initialized() -> HttpReply? {
       runtime_error(
         409,
         "Conflict",
-        "Runtime Service is not initialized. Call /init first.",
+        @runtime_protocol.runtime_service_not_initialized_message(),
       ),
     )
   }
@@ -414,7 +333,7 @@ fn now_string() -> String {
 }
 
 ///|
-fn run_response(run : RuntimeRun) -> RunResponse {
+fn run_response(run : RuntimeRun) -> @runtime_protocol.RuntimeServiceRun {
   {
     run_id: run.run_id,
     status: run.status,
@@ -424,11 +343,13 @@ fn run_response(run : RuntimeRun) -> RunResponse {
 }
 
 ///|
-fn init_response(current_commit_sha : String?) -> InitResponse {
+fn init_response(
+  current_commit_sha : String?,
+) -> @runtime_protocol.RuntimeServiceInitResponse {
   {
-    status: "ready",
+    status: @runtime_protocol.runtime_service_health_status_ready(),
     current_commit_sha,
-    message: "Runtime initialized.",
+    message: Some("Runtime initialized."),
   }
 }
 
@@ -496,7 +417,7 @@ async fn git_head_commit() -> String? noraise {
 
 ///|
 async fn checkout_source_branch(
-  repository : InitSourceRepository,
+  repository : @runtime_protocol.RuntimeServiceSourceRepository,
 ) -> Result[Unit, String] noraise {
   let branch = repository.default_branch.trim().to_owned()
   match repository.current_commit_sha {
@@ -510,7 +431,8 @@ async fn checkout_source_branch(
       if git_remote_branch_exists(branch) {
         match run_git(["fetch", "origin", branch]) {
           Ok(_) => ()
-          Err(message) => return Err("source branch could not be fetched: \{message}")
+          Err(message) =>
+            return Err("source branch could not be fetched: \{message}")
         }
         match run_git(["checkout", "-B", branch, "origin/\{branch}"]) {
           Ok(_) => Ok(())
@@ -538,13 +460,19 @@ async fn configure_source_repository(
   let redacted = state.credential.password
   let has_git = @fs.exists("\{workspace}/.git") catch { _ => false }
   if has_git {
-    match run_git(["remote", "set-url", "origin", state.authenticated_url], redacted~) {
+    match
+      run_git(
+        ["remote", "set-url", "origin", state.authenticated_url],
+        redacted~,
+      ) {
       Ok(_) => ()
-      Err(message) => return Err("source repository remote could not be set: \{message}")
+      Err(message) =>
+        return Err("source repository remote could not be set: \{message}")
     }
     match run_git(["fetch", "origin"], redacted~) {
       Ok(_) => ()
-      Err(message) => return Err("source repository could not be fetched: \{message}")
+      Err(message) =>
+        return Err("source repository could not be fetched: \{message}")
     }
   } else {
     match clean_workspace_contents() {
@@ -552,13 +480,10 @@ async fn configure_source_repository(
       Err(message) => return Err(message)
     }
     match
-      run_git(
-        ["clone", state.authenticated_url, workspace],
-        cwd="/",
-        redacted~,
-      ) {
+      run_git(["clone", state.authenticated_url, workspace], cwd="/", redacted~) {
       Ok(_) => ()
-      Err(message) => return Err("source repository could not be cloned: \{message}")
+      Err(message) =>
+        return Err("source repository could not be cloned: \{message}")
     }
   }
   match checkout_source_branch(state.repository) {
@@ -566,12 +491,16 @@ async fn configure_source_repository(
     Err(message) => return Err(message)
   }
   ignore(run_git(["config", "user.name", "MoonCraft"], redacted~))
-  ignore(run_git(["config", "user.email", "mooncraft@moonbitlang.com"], redacted~))
+  ignore(
+    run_git(["config", "user.email", "mooncraft@moonbitlang.com"], redacted~),
+  )
   Ok(git_head_commit())
 }
 
 ///|
-async fn commit_and_push_source(run_id : String) -> Result[String, String] noraise {
+async fn commit_and_push_source(
+  run_id : String,
+) -> Result[String, String] noraise {
   let state = match runtime_source.val {
     Some(state) => state
     None => return Err("Runtime source repository is not initialized.")
@@ -587,20 +516,19 @@ async fn commit_and_push_source(run_id : String) -> Result[String, String] norai
     Err(message) => return Err("source status could not be read: \{message}")
   }
   if changed {
-    match
-      run_git(
-        ["commit", "-m", "MoonCraft run \{run_id}"],
-        redacted~,
-      ) {
+    match run_git(["commit", "-m", "MoonCraft run \{run_id}"], redacted~) {
       Ok(_) => ()
-      Err(message) => return Err("source changes could not be committed: \{message}")
+      Err(message) =>
+        return Err("source changes could not be committed: \{message}")
     }
   }
   if git_remote_branch_exists(branch) {
     match run_git(["pull", "--rebase", "origin", branch], redacted~) {
       Ok(_) => ()
       Err(message) =>
-        return Err("source changes could not be rebased before push: \{message}")
+        return Err(
+          "source changes could not be rebased before push: \{message}",
+        )
     }
   }
   match run_git(["push", "origin", "HEAD:\{branch}"], redacted~) {
@@ -639,7 +567,7 @@ fn finish_run(
   level : String,
   ready_commit_sha? : String? = None,
 ) -> Unit {
-  if run.status == "running" {
+  if run.status == @runtime_protocol.runtime_service_run_status_running() {
     run.status = status
     run.message = message
     run.ready_commit_sha = ready_commit_sha
@@ -664,29 +592,66 @@ async fn build_prompt(user_prompt : String) -> String {
 ///|
 fn codex_event_message(event : @codex.Event) -> (String, String)? {
   match event {
-    ThreadStarted(..) => Some(("info", "Builder session started."))
-    TurnStarted => Some(("info", "Turn started."))
-    TurnCompleted(_) => Some(("info", "Turn completed."))
-    TurnFailed(error) => Some(("error", error.message))
-    ThreadErrorEvent(message) => Some(("error", message))
+    ThreadStarted(..) =>
+      Some(
+        (
+          @runtime_protocol.runtime_service_event_level_info(),
+          "Builder session started.",
+        ),
+      )
+    TurnStarted =>
+      Some(
+        (@runtime_protocol.runtime_service_event_level_info(), "Turn started."),
+      )
+    TurnCompleted(_) =>
+      Some(
+        (
+          @runtime_protocol.runtime_service_event_level_info(),
+          "Turn completed.",
+        ),
+      )
+    TurnFailed(error) =>
+      Some(
+        (@runtime_protocol.runtime_service_event_level_error(), error.message),
+      )
+    ThreadErrorEvent(message) =>
+      Some((@runtime_protocol.runtime_service_event_level_error(), message))
     ItemStarted(item) =>
       match item {
         CommandExecutionItem(command~, ..) =>
-          Some(("info", "Command started: \{command}"))
-        WebSearchItem(query~, ..) => Some(("info", "Web search: \{query}"))
+          Some(
+            (
+              @runtime_protocol.runtime_service_event_level_info(),
+              "Command started: \{command}",
+            ),
+          )
+        WebSearchItem(query~, ..) =>
+          Some(
+            (
+              @runtime_protocol.runtime_service_event_level_info(),
+              "Web search: \{query}",
+            ),
+          )
         _ => None
       }
     ItemUpdated(item) =>
       match item {
         CommandExecutionItem(command~, aggregated_output~, ..) if aggregated_output !=
           "" =>
-          Some(("info", "Command output: \{command}\n\{aggregated_output}"))
+          Some(
+            (
+              @runtime_protocol.runtime_service_event_level_info(),
+              "Command output: \{command}\n\{aggregated_output}",
+            ),
+          )
         _ => None
       }
     ItemCompleted(item) =>
       match item {
-        AgentMessageItem(text~, ..) => Some(("info", text))
-        ReasoningItem(text~, ..) if text != "" => Some(("info", text))
+        AgentMessageItem(text~, ..) =>
+          Some((@runtime_protocol.runtime_service_event_level_info(), text))
+        ReasoningItem(text~, ..) if text != "" =>
+          Some((@runtime_protocol.runtime_service_event_level_info(), text))
         CommandExecutionItem(
           command~,
           aggregated_output~,
@@ -706,7 +671,7 @@ fn codex_event_message(event : @codex.Event) -> (String, String)? {
           }
           Some(
             (
-              "info",
+              @runtime_protocol.runtime_service_event_level_info(),
               "Command \{status_text}:\{code_text} \{command}\{output_text}",
             ),
           )
@@ -720,7 +685,12 @@ fn codex_event_message(event : @codex.Event) -> (String, String)? {
             None
           } else {
             let changed = paths.join(", ")
-            Some(("info", "Files changed: \{changed}"))
+            Some(
+              (
+                @runtime_protocol.runtime_service_event_level_info(),
+                "Files changed: \{changed}",
+              ),
+            )
           }
         }
         TodoListItem(items~, ..) => {
@@ -732,10 +702,16 @@ fn codex_event_message(event : @codex.Event) -> (String, String)? {
           if lines.length() == 0 {
             None
           } else {
-            Some(("info", lines.join("\n")))
+            Some(
+              (
+                @runtime_protocol.runtime_service_event_level_info(),
+                lines.join("\n"),
+              ),
+            )
           }
         }
-        ErrorItem(message~, ..) => Some(("error", message))
+        ErrorItem(message~, ..) =>
+          Some((@runtime_protocol.runtime_service_event_level_error(), message))
         _ => None
       }
   }
@@ -774,15 +750,19 @@ async fn run_codex(run : RuntimeRun, prompt : String) -> Unit noraise {
     } else {
       final_response.trim().to_owned()
     }
-    add_event(run, "info", "Committing and pushing source changes.")
+    add_event(
+      run,
+      @runtime_protocol.runtime_service_event_level_info(),
+      "Committing and pushing source changes.",
+    )
     let ready_commit_sha = match commit_and_push_source(run.run_id) {
       Ok(commit) => commit
       Err(message) => {
         finish_run(
           run,
-          "failed",
+          @runtime_protocol.runtime_service_run_status_failed(),
           "Builder finished, but source changes could not be published: \{message}",
-          "error",
+          @runtime_protocol.runtime_service_event_level_error(),
           ready_commit_sha=None,
         )
         return
@@ -790,75 +770,42 @@ async fn run_codex(run : RuntimeRun, prompt : String) -> Unit noraise {
     }
     finish_run(
       run,
-      "succeeded",
+      @runtime_protocol.runtime_service_run_status_succeeded(),
       summary,
-      "info",
+      @runtime_protocol.runtime_service_event_level_info(),
       ready_commit_sha=Some(ready_commit_sha),
     )
   } catch {
     error =>
       finish_run(
         run,
-        "failed",
+        @runtime_protocol.runtime_service_run_status_failed(),
         "Builder session failed: \{error}",
-        "error",
+        @runtime_protocol.runtime_service_event_level_error(),
         ready_commit_sha=None,
       )
   }
 }
 
 ///|
-fn parse_exec_request(body : String) -> Result[ExecRequest, String] {
-  let json = @json.parse(body) catch {
-    _ => return Err("Invalid JSON request body.")
-  }
-  let request : ExecRequest = @json.from_json(json) catch {
-    _ => return Err("run_id and prompt are required.")
-  }
-  if request.run_id.trim() == "" || request.prompt.trim() == "" {
-    Err("run_id and prompt are required.")
-  } else {
-    Ok({ run_id: request.run_id.trim().to_owned(), prompt: request.prompt })
-  }
+fn parse_exec_request(
+  body : String,
+) -> Result[@runtime_protocol.RuntimeServiceExecRequest, String] {
+  @runtime_protocol.runtime_service_exec_request_from_json_text(body)
 }
 
 ///|
-fn parse_init_request(body : String) -> Result[InitRequest, String] {
-  let json = @json.parse(body) catch {
-    _ => return Err("Invalid JSON request body.")
-  }
-  let request : InitRequest = @json.from_json(json) catch {
-    _ => return Err("Invalid init request.")
-  }
-  if request.project.id.trim() == "" {
-    return Err("project.id is required.")
-  }
-  if request.source_repository.url.trim() == "" {
-    return Err("source_repository.url is required.")
-  }
-  if request.source_repository.default_branch.trim() == "" {
-    return Err("source_repository.default_branch is required.")
-  }
-  if request.source_credential.kind != "git_https_token" ||
-    request.source_credential.username.trim() == "" ||
-    request.source_credential.password.trim() == "" {
-    return Err("source_credential must be a git_https_token credential.")
-  }
-  for secret in request.secrets {
-    if secret.name.trim() == "" {
-      return Err("secret.name is required.")
-    }
-  }
-  Ok(request)
+fn parse_init_request(
+  body : String,
+) -> Result[@runtime_protocol.RuntimeServiceInitRequest, String] {
+  @runtime_protocol.runtime_service_init_request_from_json_text(body)
 }
 
 ///|
 async fn handle_init(body : String) -> HttpReply noraise {
   if active_run_id.val is Some(_) {
     return runtime_error(
-      409,
-      "Conflict",
-      "Runtime Service cannot be initialized while a run is active.",
+      409, "Conflict", "Runtime Service cannot be initialized while a run is active.",
     )
   }
   let request = match parse_init_request(body) {
@@ -884,11 +831,7 @@ async fn handle_init(body : String) -> HttpReply noraise {
   }
   runtime_source.val = Some(state)
   initialized.val = true
-  json_reply(
-    200,
-    "OK",
-    init_response(current_commit),
-  )
+  json_reply(200, "OK", init_response(current_commit))
 }
 
 ///|
@@ -907,7 +850,8 @@ fn handle_exec(body : String) -> HttpReply {
       )
     }
     return json_reply(
-      if existing.status == "running" {
+      if existing.status ==
+        @runtime_protocol.runtime_service_run_status_running() {
         202
       } else {
         200
@@ -922,7 +866,7 @@ fn handle_exec(body : String) -> HttpReply {
   let run = {
     run_id: request.run_id,
     prompt: request.prompt,
-    status: "running",
+    status: @runtime_protocol.runtime_service_run_status_running(),
     message: "Builder session is running.",
     ready_commit_sha: None,
     events: [],
@@ -930,7 +874,11 @@ fn handle_exec(body : String) -> HttpReply {
   }
   runs[run.run_id] = run
   active_run_id.val = Some(run.run_id)
-  add_event(run, "info", "Builder session accepted.")
+  add_event(
+    run,
+    @runtime_protocol.runtime_service_event_level_info(),
+    "Builder session accepted.",
+  )
   pending_run.val = Some(run)
   run_available.signal()
   json_reply(202, "Accepted", run_response(run))
@@ -997,13 +945,15 @@ fn handle_run_events(run_id : String, path : String) -> HttpReply {
     Ok(value) => value
     Err(message) => return runtime_error(400, "BadRequest", message)
   }
-  let events : Array[RuntimeRunEvent] = []
+  let events : Array[@runtime_protocol.RuntimeServiceEvent] = []
   for item in run.events {
     if item.id > after {
       events.push(item)
     }
   }
-  json_reply(200, "OK", RunEventsResponse::{ events, })
+  json_reply(200, "OK", @runtime_protocol.RuntimeServiceEventsResponse::{
+    events,
+  })
 }
 
 ///|
@@ -1073,15 +1023,10 @@ async fn ensure_preview() -> Result[Unit, String] noraise {
 }
 
 ///|
+
 ///|
 fn preview_upstream_path(path : String) -> String {
-  if path == "/preview" || path == "/preview/" {
-    "/"
-  } else if path.has_prefix("/preview/") {
-    path["/preview".length():].to_owned()
-  } else {
-    "/"
-  }
+  @runtime_protocol.runtime_service_preview_upstream_path(path)
 }
 
 ///|
@@ -1120,9 +1065,7 @@ async fn handle_preview(path : String) -> HttpReply noraise {
       catch {
         _ =>
           return runtime_error(
-            503,
-            "ServiceUnavailable",
-            "Runtime preview upstream is not reachable.",
+            503, "ServiceUnavailable", "Runtime preview upstream is not reachable.",
           )
       } noraise {
         result => result
@@ -1147,29 +1090,12 @@ fn route_path(path : String) -> String {
 
 ///|
 fn run_status_route(path : String) -> String? {
-  let segments = path.split("/").to_array()
-  if segments.length() == 3 &&
-    segments[0] == "" &&
-    segments[1] == "runs" &&
-    segments[2] != "" {
-    Some(segments[2].to_owned())
-  } else {
-    None
-  }
+  @runtime_protocol.runtime_service_run_status_route(path)
 }
 
 ///|
 fn run_events_route(path : String) -> String? {
-  let segments = path.split("/").to_array()
-  if segments.length() == 4 &&
-    segments[0] == "" &&
-    segments[1] == "runs" &&
-    segments[2] != "" &&
-    segments[3] == "events" {
-    Some(segments[2].to_owned())
-  } else {
-    None
-  }
+  @runtime_protocol.runtime_service_run_events_route(path)
 }
 
 ///|
@@ -1180,16 +1106,17 @@ async fn handle_request(
 ) -> Unit noraise {
   let path = route_path(request.path)
   let reply = match (request.meth, path) {
-    (Get, "/health") => health_reply()
-    (Post, "/init") => {
+    (Get, path) if path == @runtime_protocol.runtime_service_health_path() =>
+      health_reply()
+    (Post, path) if path == @runtime_protocol.runtime_service_init_path() => {
       let raw_body = body.read_all().text() catch { _ => "" }
       handle_init(raw_body)
     }
-    (Post, "/exec") => {
+    (Post, path) if path == @runtime_protocol.runtime_service_exec_path() => {
       let raw_body = body.read_all().text() catch { _ => "" }
       handle_exec(raw_body)
     }
-    (Get, _) if path == "/preview" || path.has_prefix("/preview/") =>
+    (Get, _) if @runtime_protocol.runtime_service_preview_path_matches(path) =>
       handle_preview(path)
     (Get, _) =>
       match run_status_route(path) {

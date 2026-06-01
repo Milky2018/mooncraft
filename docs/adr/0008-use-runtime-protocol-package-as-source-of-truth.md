@@ -14,7 +14,7 @@ MoonCraft already uses MoonBit for both the control plane and the official Runti
 
 ## Decision
 
-Create a MoonBit package, `packages/runtime-protocol`, as the internal source of truth for Runtime Protocol v3.
+Create a MoonBit package, `packages/runtime_protocol`, as the internal source of truth for Runtime Protocol v3.
 
 The package owns protocol semantics:
 
@@ -36,9 +36,9 @@ The package does not own transport or runtime implementation:
 - no preview process implementation;
 - no Runtime Service private state.
 
-The control plane Runtime Service client and the official Runtime Service must both depend on `packages/runtime-protocol` for shared DTOs, route definitions, status values, and Runtime Error rules.
+The control plane Runtime Service client and the official Runtime Service must both depend on `packages/runtime_protocol` for shared DTOs, route definitions, status values, and Runtime Error rules.
 
-OpenAPI remains the external documentation format for third-party Runtime authors, but it is not the internal source of truth and is not used to generate MoonBit code. A lightweight check should keep OpenAPI endpoint, method, status enum, and Run status enum documentation aligned with `packages/runtime-protocol`.
+OpenAPI remains the external documentation format for third-party Runtime authors, but it is not the internal source of truth and is not used to generate MoonBit code. A lightweight check should keep OpenAPI endpoint, method, status enum, and Run status enum documentation aligned with `packages/runtime_protocol`.
 
 The official Runtime Service should be split into protocol-facing and implementation-facing modules so contract tests can exercise the protocol layer without building a Docker image or contacting real GitHub/Codex services.
 

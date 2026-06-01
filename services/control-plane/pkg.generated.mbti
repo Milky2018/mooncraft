@@ -46,29 +46,7 @@ type RuntimeGateway
 
 type RuntimeServiceEndpoint derive(@debug.Debug)
 
-type RuntimeServiceError derive(@json.FromJson)
-
-type RuntimeServiceEvent derive(@json.FromJson)
-
-type RuntimeServiceEventsResponse derive(@json.FromJson)
-
-type RuntimeServiceExecRequest derive(ToJson)
-
-type RuntimeServiceInitRequest derive(ToJson, @debug.Debug)
-
-type RuntimeServiceInitResponse derive(@json.FromJson)
-
-type RuntimeServiceProjectRef derive(ToJson, @debug.Debug)
-
 type RuntimeServiceRecord
-
-type RuntimeServiceRun derive(@json.FromJson)
-
-type RuntimeServiceSecret derive(ToJson, @debug.Debug)
-
-type RuntimeServiceSourceCredential derive(ToJson, @debug.Debug)
-
-type RuntimeServiceSourceRepository derive(ToJson, @debug.Debug)
 
 type RuntimeServiceSpec
 
