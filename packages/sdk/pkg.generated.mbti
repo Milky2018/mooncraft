@@ -431,10 +431,23 @@ pub(all) struct ProjectDetail {
   activity : ProjectActivity?
   current_run_phase : RunPhase
   preview : PreviewTarget?
+  source_repository : ProjectSourceRepository?
   current_run_id : String?
   last_error : String?
   created_at : String
   updated_at : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct ProjectSourceRepository {
+  host : String
+  repository_id : String
+  owner : String
+  name : String
+  clone_url : String
+  default_branch : String
+  ready_commit_sha : String?
+  status : String
+  last_error : String?
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct ProjectSummary {
@@ -450,6 +463,7 @@ pub(all) struct ProjectSummary {
   activity : ProjectActivity?
   current_run_phase : RunPhase
   preview : PreviewTarget?
+  source_repository : ProjectSourceRepository?
   current_run_id : String?
   updated_at : String
 } derive(ToJson, @debug.Debug, @json.FromJson)

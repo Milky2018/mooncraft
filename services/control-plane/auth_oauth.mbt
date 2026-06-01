@@ -60,7 +60,7 @@ fn github_authorization_url(
   oauth_push_param(parts, "response_type", "code")
   oauth_push_param(parts, "client_id", client_id)
   oauth_push_param(parts, "redirect_uri", redirect_uri)
-  oauth_push_param(parts, "scope", "read:user user:email")
+  oauth_push_param(parts, "scope", "read:user user:email repo")
   oauth_push_param(parts, "state", state)
   oauth_push_param(parts, "code_challenge", pkce_s256_challenge(verifier))
   oauth_push_param(parts, "code_challenge_method", "S256")

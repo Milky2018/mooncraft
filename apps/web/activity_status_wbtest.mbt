@@ -23,6 +23,7 @@ fn activity_test_project(
       None => NoPhase
     },
     preview: None,
+    source_repository: None,
     current_run_id: match activity {
       Some(value) => Some(value.run_id)
       None => None

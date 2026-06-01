@@ -166,6 +166,7 @@ async fn Store::link_oauth_account(
   user_id : String,
   provider : String,
   provider_user_id : String,
+  access_token : String,
 ) -> Unit noraise {
   let now = now_string()
   ignore(
@@ -176,10 +177,13 @@ async fn Store::link_oauth_account(
         #|  user_id,
         #|  provider,
         #|  provider_user_id,
+        #|  access_token,
         #|  created_at,
         #|  updated_at
-        #|) VALUES (?, ?, ?, ?, ?, ?)
-        #|ON CONFLICT(provider, provider_user_id) DO NOTHING;
+        #|) VALUES (?, ?, ?, ?, ?, ?, ?)
+        #|ON CONFLICT(provider, provider_user_id) DO UPDATE SET
+        #|  access_token = excluded.access_token,
+        #|  updated_at = excluded.updated_at;
       ),
       "link OAuth account",
       params=[
@@ -187,11 +191,34 @@ async fn Store::link_oauth_account(
         String(user_id),
         String(provider),
         String(provider_user_id),
+        String(access_token),
         String(now),
         String(now),
       ],
     ),
   )
+}
+
+///|
+async fn Store::get_oauth_access_token(
+  self : Store,
+  user_id : String,
+  provider : String,
+) -> String? noraise {
+  match
+    self.query_one(
+      (
+        #|SELECT access_token
+        #|FROM oauth_accounts
+        #|WHERE user_id = ? AND provider = ?
+        #|ORDER BY updated_at DESC
+        #|LIMIT 1;
+      ),
+      params=[String(user_id), String(provider)],
+    ) {
+    Some(row) => empty_to_none(row_text(row, "access_token"))
+    None => None
+  }
 }
 
 ///|
@@ -361,6 +388,7 @@ fn project_summary_from_row(
     activity,
     current_run_phase: run_phase_from_db(row_text(row, "current_run_phase")),
     preview,
+    source_repository: project_source_repository_from_row(row),
     current_run_id: empty_to_none(row_text(row, "current_run_id")),
     updated_at: row_text(row, "updated_at"),
   }
@@ -387,6 +415,15 @@ async fn Store::list_projects_for_user(
       #|  COALESCE(p.preview_port, 0) AS preview_port,
       #|  p.preview_healthy,
       #|  COALESCE(p.current_run_id, '') AS current_run_id,
+      #|  COALESCE(psr.host, '') AS source_host,
+      #|  COALESCE(psr.repository_id, '') AS source_repository_id,
+      #|  COALESCE(psr.owner, '') AS source_owner,
+      #|  COALESCE(psr.name, '') AS source_name,
+      #|  COALESCE(psr.clone_url, '') AS source_clone_url,
+      #|  COALESCE(psr.default_branch, '') AS source_default_branch,
+      #|  COALESCE(psr.ready_commit_sha, '') AS source_ready_commit_sha,
+      #|  COALESCE(psr.status, '') AS source_status,
+      #|  COALESCE(psr.last_error, '') AS source_last_error,
       #|  COALESCE(r.phase, 'none') AS current_run_phase,
       #|  COALESCE((
       #|    SELECT re.code
@@ -405,6 +442,7 @@ async fn Store::list_projects_for_user(
       #|  p.updated_at
       #|FROM projects p
       #|LEFT JOIN runs r ON r.id = p.current_run_id AND r.project_id = p.id
+      #|LEFT JOIN project_source_repositories psr ON psr.project_id = p.id
       #|WHERE p.owner_user_id = ?
       #|ORDER BY p.updated_at DESC;
     ),

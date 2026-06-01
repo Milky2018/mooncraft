@@ -17,6 +17,7 @@ fn preview_test_project(preview : @sdk.PreviewTarget?) -> @sdk.ProjectDetail {
     activity: None,
     current_run_phase: NoPhase,
     preview,
+    source_repository: None,
     current_run_id: None,
     last_error: None,
     created_at: "1",

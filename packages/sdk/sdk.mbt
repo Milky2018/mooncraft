@@ -55,6 +55,19 @@ pub(all) struct ProjectActivity {
 } derive(Debug, ToJson, FromJson)
 
 ///|
+pub(all) struct ProjectSourceRepository {
+  host : String
+  repository_id : String
+  owner : String
+  name : String
+  clone_url : String
+  default_branch : String
+  ready_commit_sha : String?
+  status : String
+  last_error : String?
+} derive(Debug, ToJson, FromJson)
+
+///|
 pub(all) struct RuntimeSecret {
   source : String
   name : String
@@ -225,6 +238,7 @@ pub(all) struct ProjectSummary {
   activity : ProjectActivity?
   current_run_phase : RunPhase
   preview : PreviewTarget?
+  source_repository : ProjectSourceRepository?
   current_run_id : String?
   updated_at : String
 } derive(Debug, ToJson, FromJson)
@@ -247,6 +261,7 @@ pub(all) struct ProjectDetail {
   activity : ProjectActivity?
   current_run_phase : RunPhase
   preview : PreviewTarget?
+  source_repository : ProjectSourceRepository?
   current_run_id : String?
   last_error : String?
   created_at : String

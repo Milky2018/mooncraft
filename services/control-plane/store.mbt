@@ -1398,6 +1398,7 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
         #|  user_id TEXT NOT NULL,
         #|  provider TEXT NOT NULL,
         #|  provider_user_id TEXT NOT NULL,
+        #|  access_token TEXT NOT NULL DEFAULT '',
         #|  created_at TEXT NOT NULL,
         #|  updated_at TEXT NOT NULL
         #|);
@@ -1481,6 +1482,33 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
         #|);
       ),
       "create project_workspace_snapshots table",
+  ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  if self.ensure_column("oauth_accounts", "access_token", "TEXT NOT NULL DEFAULT ''")
+    is Err(message) {
+    return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE TABLE IF NOT EXISTS project_source_repositories (
+        #|  project_id TEXT PRIMARY KEY,
+        #|  host TEXT NOT NULL,
+        #|  repository_id TEXT NOT NULL,
+        #|  owner TEXT NOT NULL,
+        #|  name TEXT NOT NULL,
+        #|  clone_url TEXT NOT NULL,
+        #|  default_branch TEXT NOT NULL,
+        #|  ready_commit_sha TEXT,
+        #|  status TEXT NOT NULL,
+        #|  last_error TEXT,
+        #|  created_at TEXT NOT NULL,
+        #|  updated_at TEXT NOT NULL
+        #|);
+      ),
+      "create project source repositories table",
     ) {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
@@ -1856,6 +1884,7 @@ fn project_detail_from_row(row : Map[String, @db.Param]) -> @sdk.ProjectDetail {
     activity,
     current_run_phase: run_phase_from_db(row_text(row, "current_run_phase")),
     preview,
+    source_repository: project_source_repository_from_row(row),
     current_run_id: empty_to_none(row_text(row, "current_run_id")),
     last_error: empty_to_none(row_text(row, "last_error")),
     created_at: row_text(row, "created_at"),
@@ -1868,6 +1897,28 @@ fn project_status_from_row(row : Map[String, @db.Param]) -> @sdk.RunState {
   match run_state_from_db(row_text(row, "status")) {
     Running => Idle
     state => state
+  }
+}
+
+///|
+fn project_source_repository_from_row(
+  row : Map[String, @db.Param],
+) -> @sdk.ProjectSourceRepository? {
+  let host = row_text(row, "source_host")
+  if host == "" {
+    None
+  } else {
+    Some({
+      host,
+      repository_id: row_text(row, "source_repository_id"),
+      owner: row_text(row, "source_owner"),
+      name: row_text(row, "source_name"),
+      clone_url: row_text(row, "source_clone_url"),
+      default_branch: row_text(row, "source_default_branch"),
+      ready_commit_sha: empty_to_none(row_text(row, "source_ready_commit_sha")),
+      status: row_text(row, "source_status"),
+      last_error: empty_to_none(row_text(row, "source_last_error")),
+    })
   }
 }
 
@@ -2153,6 +2204,15 @@ async fn Store::get_project_detail(
         #|  p.preview_healthy,
         #|  COALESCE(p.last_error, '') AS last_error,
         #|  COALESCE(p.current_run_id, '') AS current_run_id,
+        #|  COALESCE(psr.host, '') AS source_host,
+        #|  COALESCE(psr.repository_id, '') AS source_repository_id,
+        #|  COALESCE(psr.owner, '') AS source_owner,
+        #|  COALESCE(psr.name, '') AS source_name,
+        #|  COALESCE(psr.clone_url, '') AS source_clone_url,
+        #|  COALESCE(psr.default_branch, '') AS source_default_branch,
+        #|  COALESCE(psr.ready_commit_sha, '') AS source_ready_commit_sha,
+        #|  COALESCE(psr.status, '') AS source_status,
+        #|  COALESCE(psr.last_error, '') AS source_last_error,
         #|  COALESCE(r.phase, 'none') AS current_run_phase,
         #|  COALESCE((
         #|    SELECT re.code
@@ -2172,6 +2232,7 @@ async fn Store::get_project_detail(
         #|  p.updated_at
         #|FROM projects p
         #|LEFT JOIN runs r ON r.id = p.current_run_id AND r.project_id = p.id
+        #|LEFT JOIN project_source_repositories psr ON psr.project_id = p.id
         #|WHERE p.id = ?;
       ),
       params=[String(project_id)],
@@ -2687,6 +2748,59 @@ async fn Store::create_project_with_runtime(
 }
 
 ///|
+async fn Store::save_project_source_repository(
+  self : Store,
+  project_id : String,
+  source : @sdk.ProjectSourceRepository,
+) -> Result[Unit, String] noraise {
+  let now = now_string()
+  self.exec_or_error(
+    (
+      #|INSERT INTO project_source_repositories (
+      #|  project_id,
+      #|  host,
+      #|  repository_id,
+      #|  owner,
+      #|  name,
+      #|  clone_url,
+      #|  default_branch,
+      #|  ready_commit_sha,
+      #|  status,
+      #|  last_error,
+      #|  created_at,
+      #|  updated_at
+      #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      #|ON CONFLICT(project_id) DO UPDATE SET
+      #|  host = excluded.host,
+      #|  repository_id = excluded.repository_id,
+      #|  owner = excluded.owner,
+      #|  name = excluded.name,
+      #|  clone_url = excluded.clone_url,
+      #|  default_branch = excluded.default_branch,
+      #|  ready_commit_sha = excluded.ready_commit_sha,
+      #|  status = excluded.status,
+      #|  last_error = excluded.last_error,
+      #|  updated_at = excluded.updated_at;
+    ),
+    "save project source repository",
+    params=[
+      String(project_id),
+      String(source.host),
+      String(source.repository_id),
+      String(source.owner),
+      String(source.name),
+      String(source.clone_url),
+      String(source.default_branch),
+      nullable_text_param(source.ready_commit_sha),
+      String(source.status),
+      nullable_text_param(source.last_error),
+      String(now),
+      String(now),
+    ],
+  )
+}
+
+///|
 async fn Store::update_project_settings(
   self : Store,
   project_id : String,
@@ -2756,6 +2870,13 @@ async fn Store::delete_project(
     self.exec_or_error(
       "DELETE FROM project_workspace_snapshots WHERE project_id = ?;",
       "delete project workspace snapshot",
+      params=[String(project_id)],
+    ),
+  )
+  ignore(
+    self.exec_or_error(
+      "DELETE FROM project_source_repositories WHERE project_id = ?;",
+      "delete project source repository metadata",
       params=[String(project_id)],
     ),
   )

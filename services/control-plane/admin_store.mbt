@@ -48,6 +48,15 @@ fn admin_project_select_sql() -> String {
     #|  p.preview_healthy,
     #|  COALESCE(p.last_error, '') AS last_error,
     #|  COALESCE(p.current_run_id, '') AS current_run_id,
+    #|  COALESCE(psr.host, '') AS source_host,
+    #|  COALESCE(psr.repository_id, '') AS source_repository_id,
+    #|  COALESCE(psr.owner, '') AS source_owner,
+    #|  COALESCE(psr.name, '') AS source_name,
+    #|  COALESCE(psr.clone_url, '') AS source_clone_url,
+    #|  COALESCE(psr.default_branch, '') AS source_default_branch,
+    #|  COALESCE(psr.ready_commit_sha, '') AS source_ready_commit_sha,
+    #|  COALESCE(psr.status, '') AS source_status,
+    #|  COALESCE(psr.last_error, '') AS source_last_error,
     #|  COALESCE(cr.phase, 'none') AS current_run_phase,
     #|  COALESCE((
     #|    SELECT re.code
@@ -84,6 +93,7 @@ fn admin_project_select_sql() -> String {
     #|FROM projects p
     #|LEFT JOIN users u ON u.id = p.owner_user_id
     #|LEFT JOIN runs cr ON cr.id = p.current_run_id AND cr.project_id = p.id
+    #|LEFT JOIN project_source_repositories psr ON psr.project_id = p.id
   )
 }
 

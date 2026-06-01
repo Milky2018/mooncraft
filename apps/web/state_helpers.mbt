@@ -123,6 +123,7 @@ fn project_summary_from_detail(
     activity: project.activity,
     current_run_phase: project.current_run_phase,
     preview: project.preview,
+    source_repository: project.source_repository,
     current_run_id: project.current_run_id,
     updated_at: project.updated_at,
   }

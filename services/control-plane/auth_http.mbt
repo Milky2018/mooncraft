@@ -529,6 +529,12 @@ async fn AppContext::complete_github_sign_in(
       provider_user_id,
     )
     is Some(user) {
+    self.store.link_oauth_account(
+      user.id,
+      github_provider_name(),
+      provider_user_id,
+      access_token,
+    )
     self.store.update_user_github_login(user.id, profile.login)
     self.store.set_user_email_verified(user.id)
     return Ok(self.store.get_user_by_id(user.id).unwrap_or(user))
@@ -555,6 +561,7 @@ async fn AppContext::complete_github_sign_in(
     user.id,
     github_provider_name(),
     provider_user_id,
+    access_token,
   )
   self.store.update_user_github_login(user.id, profile.login)
   Ok(self.store.get_user_by_id(user.id).unwrap_or(user))
