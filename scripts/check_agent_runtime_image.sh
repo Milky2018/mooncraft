@@ -14,17 +14,6 @@ cleanup() {
 trap cleanup EXIT
 mkdir -p "$tmp_root/workspace" "$tmp_root/home" "$tmp_root/artifacts"
 chmod -R a+rwX "$tmp_root"
-mkdir -p "$tmp_root/workspace/fakebin"
-cat >"$tmp_root/workspace/fakebin/codex" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-cat >/tmp/mooncraft-runtime-image-check-prompt.txt
-printf '%s\n' '{"type":"thread.started","thread_id":"thread-image-check"}'
-printf '%s\n' '{"type":"turn.started"}'
-printf '%s\n' '{"type":"item.completed","item":{"type":"agent_message","id":"msg-1","text":"Runtime image check completed."}}'
-printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":1,"cached_input_tokens":0,"output_tokens":1,"reasoning_output_tokens":0}}'
-EOF
-chmod +x "$tmp_root/workspace/fakebin/codex"
 cat >"$tmp_root/workspace/mooncraft-preview.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -88,7 +77,6 @@ docker run --rm \
 docker run -d --rm \
   --name "$container_name" \
   --platform "$platform" \
-  -e PATH="/workspace/fakebin:/opt/moon/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
   -v "$tmp_root/workspace:/workspace" \
   -v "$tmp_root/home:/home/mooncraft" \
   -w /workspace \
@@ -96,37 +84,29 @@ docker run -d --rm \
 
 for _ in $(seq 1 40); do
   if docker exec "$container_name" curl -fsS http://127.0.0.1:8080/health >/dev/null 2>&1; then
-    docker exec "$container_name" curl -fsS http://127.0.0.1:8080/runs/missing >/dev/null 2>&1 && {
-      echo "Runtime Service returned success for a missing run." >&2
-      exit 1
-    }
-    docker exec "$container_name" curl -fsS \
-      -H "Content-Type: application/json" \
-      -d '{"run_id":"run-image-check","prompt":"Build a tiny app for runtime image validation."}' \
-      http://127.0.0.1:8080/exec >/dev/null
-    for _ in $(seq 1 40); do
-      status="$(
-        docker exec "$container_name" sh -lc \
-          'curl -fsS http://127.0.0.1:8080/runs/run-image-check | jq -er .status'
+    docker exec "$container_name" bash -lc '
+      set -euo pipefail
+      curl -fsS http://127.0.0.1:8080/health \
+        | jq -e ".status == \"not_initialized\"" >/dev/null
+      code="$(
+        curl -sS -o /tmp/mooncraft-runtime-image-check-exec.json \
+          -w "%{http_code}" \
+          -H "Content-Type: application/json" \
+          -d "{\"run_id\":\"run-image-check\",\"prompt\":\"Build a tiny app for runtime image validation.\"}" \
+          http://127.0.0.1:8080/exec
       )"
-      if [[ "$status" = "succeeded" ]]; then
-        break
-      fi
-      if [[ "$status" = "failed" ]]; then
-        docker exec "$container_name" curl -fsS http://127.0.0.1:8080/runs/run-image-check >&2 || true
-        echo "Runtime Service image-check run failed." >&2
-        exit 1
-      fi
-      sleep 0.25
-    done
-    if [[ "${status:-}" != "succeeded" ]]; then
-      docker exec "$container_name" curl -fsS http://127.0.0.1:8080/runs/run-image-check >&2 || true
-      echo "Runtime Service image-check run did not finish." >&2
-      exit 1
-    fi
-    docker exec "$container_name" sh -lc \
-      'curl -fsS "http://127.0.0.1:8080/runs/run-image-check/events?after=0" | jq -e ".events | length > 0" >/dev/null'
-    docker exec "$container_name" curl -fsS http://127.0.0.1:8080/preview >/dev/null
+      test "$code" = "409"
+      jq -e ".message == \"Runtime Service is not initialized. Call /init first.\"" \
+        /tmp/mooncraft-runtime-image-check-exec.json >/dev/null
+      code="$(
+        curl -sS -o /tmp/mooncraft-runtime-image-check-preview.json \
+          -w "%{http_code}" \
+          http://127.0.0.1:8080/preview/
+      )"
+      test "$code" = "409"
+      jq -e ".message == \"Runtime Service is not initialized. Call /init first.\"" \
+        /tmp/mooncraft-runtime-image-check-preview.json >/dev/null
+    '
     echo "Runtime Service check completed."
     exit 0
   fi

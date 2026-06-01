@@ -100,5 +100,5 @@ Agents do not edit this. This file is maintainable by human developers.
 - [ ] The preview after updating will be hidden
 - [ ] preview rebuild is broken
 - [ ] `core/argparse` needs to be used
-- [ ] `fn current_provider_env_key()` is ugly
+- [ ] `fn current_provider_env_key()` and `current_api_key` are ugly
 - [ ] 

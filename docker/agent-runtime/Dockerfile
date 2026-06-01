@@ -1,7 +1,7 @@
 FROM node:24-bookworm AS build
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG MOONCRAFT_AGENT_RUNTIME_VERSION=0.4.0
+ARG MOONCRAFT_AGENT_RUNTIME_VERSION=0.4.1
 ARG MOONBIT_VERSION=latest
 ARG CODEX_CLI_VERSION=0.128.0
 ARG MOONCRAFT_TEMPLATES_REPO=https://github.com/moonbitlang/mooncraft-templates.git
@@ -34,7 +34,7 @@ RUN printf '%s\n' 'members = ["packages/runtime_protocol", "runtime-service"]' \
 
 RUN moon -C /opt/mooncraft/runtime-service build --target native --release \
   && mkdir -p /opt/mooncraft/bin \
-  && cp /opt/mooncraft/runtime-service/_build/native/release/build/runtime-service.exe /opt/mooncraft/bin/mooncraft-runtime-service \
+  && cp /opt/mooncraft/_build/native/release/build/mooncraft/runtime-service/runtime-service.exe /opt/mooncraft/bin/mooncraft-runtime-service \
   && chmod +x /opt/mooncraft/bin/mooncraft-runtime-service
 
 RUN /opt/mooncraft/install/install-moonbit-skills.sh
@@ -84,7 +84,7 @@ RUN set -eux; \
   mkdir -p /workspace /artifacts /home/mooncraft/.moon; \
   chown -R mooncraft:mooncraft /workspace /artifacts /home/mooncraft
 
-ARG MOONCRAFT_AGENT_RUNTIME_VERSION=0.4.0
+ARG MOONCRAFT_AGENT_RUNTIME_VERSION=0.4.1
 ARG MOONBIT_VERSION=latest
 ARG CODEX_CLI_VERSION=0.128.0
 
