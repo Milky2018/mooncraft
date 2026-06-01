@@ -10,6 +10,18 @@ type AdminModel
 
 type AdminMsg
 
+type AdminRuntimeEditor
+
+type AdminRuntimesState
+
+type AdminSecretCreateState
+
+type AdminSecretEditState
+
+type AdminSecretsState
+
+type AdminUsersState
+
 type AdminView derive(Eq)
 
 // Type aliases

@@ -67,9 +67,21 @@ fn sidebar(
       "Admin",
     ),
     @html.nav(style=["display: flex", "flex-direction: column", "gap: 4px"], [
-      nav_button(dispatch, model, Users, "Users", model.users.length()),
-      nav_button(dispatch, model, Secrets, "Secrets", model.secrets.length()),
-      nav_button(dispatch, model, Runtimes, "Runtimes", model.runtimes.length()),
+      nav_button(dispatch, model, Users, "Users", model.users.items.length()),
+      nav_button(
+        dispatch,
+        model,
+        Secrets,
+        "Secrets",
+        model.secrets.items.length(),
+      ),
+      nav_button(
+        dispatch,
+        model,
+        Runtimes,
+        "Runtimes",
+        model.runtimes.items.length(),
+      ),
     ]),
     @html.div(
       style=[
@@ -239,12 +251,12 @@ fn project_status_text(project : @sdk.AdminProjectSummary) -> String {
 
 ///|
 fn expanded_user_projects_row(model : AdminModel) -> @rabbita.Html {
-  let rows = if model.user_projects_loading {
+  let rows = if model.users.projects_loading {
     [empty_row(5, "Loading projects...")]
-  } else if model.expanded_user_projects.length() == 0 {
+  } else if model.users.expanded_projects.length() == 0 {
     [empty_row(5, "No projects.")]
   } else {
-    model.expanded_user_projects.map(fn(project) {
+    model.users.expanded_projects.map(fn(project) {
       @html.tr([
         @html.td(style=td_style(), [
           @html.div(style=value_style(), project.project.display_name),
@@ -301,7 +313,7 @@ fn user_rows(
   item : @sdk.AdminUserSummary,
 ) -> Array[@rabbita.Html] {
   let user = item.user
-  let expanded = model.expanded_user_id == Some(user.id)
+  let expanded = model.users.expanded_user_id == Some(user.id)
   let rows = [
     @html.tr([
       @html.td(style=td_style(), [
@@ -341,13 +353,13 @@ fn users_view(
   model : AdminModel,
 ) -> @rabbita.Html {
   let rows = []
-  for item in model.users {
+  for item in model.users.items {
     for row in user_rows(dispatch, model, item) {
       rows.push(row)
     }
   }
   @html.section(style=card_style(), [
-    section_head("Users", "\{model.users.length()} users", @html.nothing),
+    section_head("Users", "\{model.users.items.length()} users", @html.nothing),
     table_wrap(
       @html.table(style=table_style(), [
         @html.thead([
@@ -376,12 +388,13 @@ fn secret_form_row(
   dispatch : @rabbita.Dispatch[AdminMsg],
   model : AdminModel,
 ) -> @rabbita.Html {
+  let create = model.secrets.create.unwrap_or({ name: "", value: "" })
   @html.tr([
     @html.td(
       style=td_style(),
       @html.input(
         input_type=Text,
-        value=model.secret_name,
+        value=create.name,
         placeholder="Secret name",
         on_input=fn(value) { dispatch(SecretNameChanged(value)) },
         style=input_style(),
@@ -392,7 +405,7 @@ fn secret_form_row(
       style=td_style(),
       @html.textarea(
         rows=4,
-        value=model.secret_value,
+        value=create.value,
         placeholder="Paste secret value",
         on_input=fn(value) { dispatch(SecretValueChanged(value)) },
         style=input_style() +
@@ -406,10 +419,9 @@ fn secret_form_row(
         type_="button",
         on_click=dispatch(SaveCreateSecret),
         style=icon_button_style(
-          model.secret_name.trim() != "" && model.secret_value.trim() != "",
+          create.name.trim() != "" && create.value.trim() != "",
         ),
-        disabled=model.secret_name.trim() == "" ||
-          model.secret_value.trim() == "",
+        disabled=create.name.trim() == "" || create.value.trim() == "",
         [check_icon()],
       ),
       @html.button(
@@ -428,13 +440,18 @@ fn secret_row(
   model : AdminModel,
   secret : @sdk.AdminSecretSummary,
 ) -> @rabbita.Html {
-  if model.editing_secret_id == Some(secret.id) {
+  if model.secrets.edit.map(fn(edit) { edit.id }) == Some(secret.id) {
+    let edit = model.secrets.edit.unwrap_or({
+      id: secret.id,
+      name: secret.name,
+      value: "",
+    })
     return @html.tr([
       @html.td(
         style=td_style(),
         @html.input(
           input_type=Text,
-          value=model.editing_secret_name,
+          value=edit.name,
           on_input=fn(value) { dispatch(EditSecretNameChanged(value)) },
           style=input_style(),
           "",
@@ -444,7 +461,7 @@ fn secret_row(
         style=td_style(),
         @html.textarea(
           rows=4,
-          value=model.editing_secret_value,
+          value=edit.value,
           placeholder="Leave blank to keep saved value",
           on_input=fn(value) { dispatch(EditSecretValueChanged(value)) },
           style=input_style() +
@@ -469,7 +486,7 @@ fn secret_row(
       ]),
     ])
   }
-  let confirming = model.confirming_secret_delete_id == Some(secret.id)
+  let confirming = model.secrets.confirming_delete_id == Some(secret.id)
   let menu_key = action_menu_key("secret", secret.id)
   @html.tr([
     @html.td(style=td_style(), [
@@ -515,10 +532,10 @@ fn secrets_view(
   dispatch : @rabbita.Dispatch[AdminMsg],
   model : AdminModel,
 ) -> @rabbita.Html {
-  let rows = model.secrets.map(fn(secret) {
+  let rows = model.secrets.items.map(fn(secret) {
     secret_row(dispatch, model, secret)
   })
-  let body_rows = if model.creating_secret {
+  let body_rows = if model.secrets.create is Some(_) {
     [secret_form_row(dispatch, model)] + rows
   } else if rows.length() == 0 {
     [empty_row(4, "No secrets.")]
@@ -528,7 +545,7 @@ fn secrets_view(
   @html.section(style=card_style(), [
     section_head(
       "Secrets",
-      "\{model.secrets.length()} saved",
+      "\{model.secrets.items.length()} saved",
       @html.button(
         type_="button",
         title="Add secret",
@@ -564,12 +581,23 @@ fn runtime_status_label(runtime : @sdk.RuntimeDetail) -> String {
 }
 
 ///|
+fn runtime_editor_or_empty(model : AdminModel) -> AdminRuntimeEditor {
+  model.runtimes.editor.unwrap_or({
+    id: None,
+    name: "",
+    config_json: "",
+    enabled: "true",
+    is_default: "false",
+  })
+}
+
+///|
 fn runtime_create_dialog(
   dispatch : @rabbita.Dispatch[AdminMsg],
   model : AdminModel,
 ) -> @rabbita.Html {
-  let can_save = model.editing_runtime_name.trim() != "" &&
-    model.editing_runtime_config_json.trim() != ""
+  let editor = runtime_editor_or_empty(model)
+  let can_save = editor.name.trim() != "" && editor.config_json.trim() != ""
   @html.div(
     style=[
       "position: fixed", "inset: 0", "z-index: 100", "display: flex", "align-items: center",
@@ -620,7 +648,7 @@ fn runtime_create_dialog(
               @html.div(style=value_style(), "Name"),
               @html.input(
                 input_type=Text,
-                value=model.editing_runtime_name,
+                value=editor.name,
                 placeholder="Runtime name",
                 on_input=fn(value) { dispatch(RuntimeNameChanged(value)) },
                 style=input_style(),
@@ -646,12 +674,12 @@ fn runtime_create_dialog(
                     [
                       @html.option(
                         value="true",
-                        selected=model.editing_runtime_enabled == "true",
+                        selected=editor.enabled == "true",
                         "enabled",
                       ),
                       @html.option(
                         value="false",
-                        selected=model.editing_runtime_enabled == "false",
+                        selected=editor.enabled == "false",
                         "disabled",
                       ),
                     ],
@@ -670,12 +698,12 @@ fn runtime_create_dialog(
                     [
                       @html.option(
                         value="false",
-                        selected=model.editing_runtime_default == "false",
+                        selected=editor.is_default == "false",
                         "not default",
                       ),
                       @html.option(
                         value="true",
-                        selected=model.editing_runtime_default == "true",
+                        selected=editor.is_default == "true",
                         "default",
                       ),
                     ],
@@ -690,7 +718,7 @@ fn runtime_create_dialog(
               @html.div(style=value_style(), "Runtime Config JSON"),
               @html.textarea(
                 rows=12,
-                value=model.editing_runtime_config_json,
+                value=editor.config_json,
                 on_input=fn(value) { dispatch(RuntimeConfigChanged(value)) },
                 style=input_style() +
                   [
@@ -733,12 +761,13 @@ fn runtime_row(
   model : AdminModel,
   runtime : @sdk.RuntimeDetail,
 ) -> @rabbita.Html {
-  if model.editing_runtime_id == Some(runtime.id) {
+  if model.runtimes.editor.bind(fn(editor) { editor.id }) == Some(runtime.id) {
+    let editor = runtime_editor_or_empty(model)
     @html.tr([
       @html.td(style=td_style(), [
         @html.input(
           input_type=Text,
-          value=model.editing_runtime_name,
+          value=editor.name,
           on_input=fn(value) { dispatch(RuntimeNameChanged(value)) },
           style=input_style(),
           "",
@@ -752,12 +781,12 @@ fn runtime_row(
           [
             @html.option(
               value="true",
-              selected=model.editing_runtime_enabled == "true",
+              selected=editor.enabled == "true",
               "enabled",
             ),
             @html.option(
               value="false",
-              selected=model.editing_runtime_enabled == "false",
+              selected=editor.enabled == "false",
               "disabled",
             ),
           ],
@@ -768,12 +797,12 @@ fn runtime_row(
           [
             @html.option(
               value="false",
-              selected=model.editing_runtime_default == "false",
+              selected=editor.is_default == "false",
               "not default",
             ),
             @html.option(
               value="true",
-              selected=model.editing_runtime_default == "true",
+              selected=editor.is_default == "true",
               "default",
             ),
           ],
@@ -782,7 +811,7 @@ fn runtime_row(
       @html.td(colspan=3, style=td_style(), [
         @html.textarea(
           rows=8,
-          value=model.editing_runtime_config_json,
+          value=editor.config_json,
           on_input=fn(value) { dispatch(RuntimeConfigChanged(value)) },
           style=input_style() +
             ["font-family: ui-monospace, SFMono-Regular, Menlo, monospace"],
@@ -841,10 +870,10 @@ fn runtimes_view(
   dispatch : @rabbita.Dispatch[AdminMsg],
   model : AdminModel,
 ) -> @rabbita.Html {
-  let runtime_rows = model.runtimes.map(fn(runtime) {
+  let runtime_rows = model.runtimes.items.map(fn(runtime) {
     runtime_row(dispatch, model, runtime)
   })
-  let rows = if model.runtimes.length() == 0 {
+  let rows = if model.runtimes.items.length() == 0 {
     [empty_row(7, "No Runtime Configs.")]
   } else {
     runtime_rows
@@ -852,13 +881,13 @@ fn runtimes_view(
   @html.section(style=card_style(), [
     section_head(
       "Runtime Configs",
-      "\{model.runtimes.length()} configured",
+      "\{model.runtimes.items.length()} configured",
       @html.button(
         type_="button",
         title="Add Runtime Config",
         on_click=dispatch(OpenCreateRuntime),
-        style=icon_button_style(!model.creating_runtime),
-        disabled=model.creating_runtime,
+        style=icon_button_style(model.runtimes.editor is None),
+        disabled=model.runtimes.editor is Some(_),
         [plus_icon()],
       ),
     ),
@@ -878,7 +907,8 @@ fn runtimes_view(
         @html.tbody(rows),
       ]),
     ),
-    if model.creating_runtime {
+    if model.runtimes.editor.bind(fn(editor) { editor.id }) is None &&
+      model.runtimes.editor is Some(_) {
       runtime_create_dialog(dispatch, model)
     } else {
       @html.nothing

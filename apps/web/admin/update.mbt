@@ -72,6 +72,38 @@ fn default_runtime_config_json() -> String {
 }
 
 ///|
+fn new_runtime_editor() -> AdminRuntimeEditor {
+  {
+    id: None,
+    name: "",
+    config_json: default_runtime_config_json(),
+    enabled: "true",
+    is_default: "false",
+  }
+}
+
+///|
+fn runtime_editor_from_runtime(
+  runtime : @sdk.RuntimeDetail,
+) -> AdminRuntimeEditor {
+  {
+    id: Some(runtime.id),
+    name: runtime.name,
+    config_json: runtime.config_json,
+    enabled: if runtime.enabled {
+      "true"
+    } else {
+      "false"
+    },
+    is_default: if runtime.is_default {
+      "true"
+    } else {
+      "false"
+    },
+  }
+}
+
+///|
 fn runtime_by_id(
   runtimes : Array[@sdk.RuntimeDetail],
   id : String,
@@ -116,7 +148,14 @@ fn update(
         },
       )
     UsersLoaded(Ok(response)) =>
-      (@rabbita.none, { ..model, users: response.items, loading: false })
+      (
+        @rabbita.none,
+        {
+          ..model,
+          users: { ..model.users, items: response.items },
+          loading: false,
+        },
+      )
     UsersLoaded(Err(error)) =>
       (
         @rabbita.none,
@@ -127,43 +166,56 @@ fn update(
         },
       )
     ToggleUser(user_id) =>
-      if model.expanded_user_id == Some(user_id) {
+      if model.users.expanded_user_id == Some(user_id) {
         (
           @rabbita.none,
-          { ..model, expanded_user_id: None, expanded_user_projects: [] },
+          {
+            ..model,
+            users: {
+              ..model.users,
+              expanded_user_id: None,
+              expanded_projects: [],
+            },
+          },
         )
       } else {
         (
           load_user_projects_cmd(dispatch, user_id),
           {
             ..model,
-            expanded_user_id: Some(user_id),
-            expanded_user_projects: [],
-            user_projects_loading: true,
+            users: {
+              ..model.users,
+              expanded_user_id: Some(user_id),
+              expanded_projects: [],
+              projects_loading: true,
+            },
             notice: None,
           },
         )
       }
     UserProjectsLoaded(user_id, Ok(response)) =>
-      if model.expanded_user_id == Some(user_id) {
+      if model.users.expanded_user_id == Some(user_id) {
         (
           @rabbita.none,
           {
             ..model,
-            expanded_user_projects: response.projects,
-            user_projects_loading: false,
+            users: {
+              ..model.users,
+              expanded_projects: response.projects,
+              projects_loading: false,
+            },
           },
         )
       } else {
         (@rabbita.none, model)
       }
     UserProjectsLoaded(user_id, Err(error)) =>
-      if model.expanded_user_id == Some(user_id) {
+      if model.users.expanded_user_id == Some(user_id) {
         (
           @rabbita.none,
           {
             ..model,
-            user_projects_loading: false,
+            users: { ..model.users, projects_loading: false },
             notice: Some(api_notice("Failed to load user projects.", error)),
           },
         )
@@ -171,7 +223,14 @@ fn update(
         (@rabbita.none, model)
       }
     SecretsLoaded(Ok(response)) =>
-      (@rabbita.none, { ..model, secrets: response.items, loading: false })
+      (
+        @rabbita.none,
+        {
+          ..model,
+          secrets: { ..model.secrets, items: response.items },
+          loading: false,
+        },
+      )
     SecretsLoaded(Err(error)) =>
       (
         @rabbita.none,
@@ -182,7 +241,14 @@ fn update(
         },
       )
     RuntimesLoaded(Ok(response)) =>
-      (@rabbita.none, { ..model, runtimes: response.items, loading: false })
+      (
+        @rabbita.none,
+        {
+          ..model,
+          runtimes: { ..model.runtimes, items: response.items },
+          loading: false,
+        },
+      )
     RuntimesLoaded(Err(error)) =>
       (
         @rabbita.none,
@@ -198,10 +264,13 @@ fn update(
         {
           ..model,
           view,
-          creating_secret: false,
-          editing_secret_id: None,
-          editing_runtime_id: None,
-          confirming_secret_delete_id: None,
+          secrets: {
+            ..model.secrets,
+            create: None,
+            edit: None,
+            confirming_delete_id: None,
+          },
+          runtimes: { ..model.runtimes, editor: None },
           active_action_menu: None,
           notice: None,
         },
@@ -231,37 +300,47 @@ fn update(
         {
           ..model,
           view: Secrets,
-          creating_secret: true,
-          secret_name: "",
-          secret_value: "",
-          editing_secret_id: None,
-          confirming_secret_delete_id: None,
+          secrets: {
+            ..model.secrets,
+            create: Some({ name: "", value: "" }),
+            edit: None,
+            confirming_delete_id: None,
+          },
           active_action_menu: None,
           notice: None,
         },
       )
     CancelCreateSecret =>
-      (
-        @rabbita.none,
-        { ..model, creating_secret: false, secret_name: "", secret_value: "" },
-      )
-    SecretNameChanged(value) => (@rabbita.none, { ..model, secret_name: value })
-    SecretValueChanged(value) =>
-      (@rabbita.none, { ..model, secret_value: value })
+      (@rabbita.none, { ..model, secrets: { ..model.secrets, create: None } })
+    SecretNameChanged(value) => {
+      let create = model.secrets.create.map(fn(state) {
+        { ..state, name: value }
+      })
+      (@rabbita.none, { ..model, secrets: { ..model.secrets, create, } })
+    }
+    SecretValueChanged(value) => {
+      let create = model.secrets.create.map(fn(state) { { ..state, value, } })
+      (@rabbita.none, { ..model, secrets: { ..model.secrets, create, } })
+    }
     SaveCreateSecret =>
-      (
-        create_secret_cmd(dispatch, model.secret_name, model.secret_value),
-        { ..model, notice: None },
-      )
+      match model.secrets.create {
+        Some(create) =>
+          (
+            create_secret_cmd(dispatch, create.name, create.value),
+            { ..model, notice: None },
+          )
+        None => (@rabbita.none, model)
+      }
     SecretCreated(Ok(secret)) =>
       (
         @rabbita.none,
         {
           ..model,
-          secrets: replace_secret(model.secrets, secret),
-          creating_secret: false,
-          secret_name: "",
-          secret_value: "",
+          secrets: {
+            ..model.secrets,
+            items: replace_secret(model.secrets.items, secret),
+            create: None,
+          },
           active_action_menu: None,
           notice: Some("Secret added."),
         },
@@ -272,17 +351,18 @@ fn update(
         { ..model, notice: Some(api_notice("Failed to add secret.", error)) },
       )
     StartEditSecret(id) =>
-      match secret_by_id(model.secrets, id) {
+      match secret_by_id(model.secrets.items, id) {
         Some(secret) =>
           (
             @rabbita.none,
             {
               ..model,
-              creating_secret: false,
-              editing_secret_id: Some(id),
-              editing_secret_name: secret.name,
-              editing_secret_value: "",
-              confirming_secret_delete_id: None,
+              secrets: {
+                ..model.secrets,
+                create: None,
+                edit: Some({ id, name: secret.name, value: "" }),
+                confirming_delete_id: None,
+              },
               active_action_menu: None,
             },
           )
@@ -291,29 +371,39 @@ fn update(
     CancelEditSecret =>
       (
         @rabbita.none,
-        { ..model, editing_secret_id: None, active_action_menu: None },
+        {
+          ..model,
+          secrets: { ..model.secrets, edit: None },
+          active_action_menu: None,
+        },
       )
-    EditSecretNameChanged(value) =>
-      (@rabbita.none, { ..model, editing_secret_name: value })
-    EditSecretValueChanged(value) =>
-      (@rabbita.none, { ..model, editing_secret_value: value })
+    EditSecretNameChanged(value) => {
+      let edit = model.secrets.edit.map(fn(state) { { ..state, name: value } })
+      (@rabbita.none, { ..model, secrets: { ..model.secrets, edit, } })
+    }
+    EditSecretValueChanged(value) => {
+      let edit = model.secrets.edit.map(fn(state) { { ..state, value, } })
+      (@rabbita.none, { ..model, secrets: { ..model.secrets, edit, } })
+    }
     SaveEditSecret(id) =>
-      (
-        update_secret_cmd(
-          dispatch,
-          id,
-          model.editing_secret_name,
-          model.editing_secret_value,
-        ),
-        { ..model, notice: None },
-      )
+      match model.secrets.edit {
+        Some(edit) =>
+          (
+            update_secret_cmd(dispatch, id, edit.name, edit.value),
+            { ..model, notice: None },
+          )
+        None => (@rabbita.none, model)
+      }
     SecretUpdated(Ok(secret)) =>
       (
         @rabbita.none,
         {
           ..model,
-          secrets: replace_secret(model.secrets, secret),
-          editing_secret_id: None,
+          secrets: {
+            ..model.secrets,
+            items: replace_secret(model.secrets.items, secret),
+            edit: None,
+          },
           active_action_menu: None,
           notice: Some("Secret updated."),
         },
@@ -324,13 +414,13 @@ fn update(
         { ..model, notice: Some(api_notice("Failed to update secret.", error)) },
       )
     RequestDeleteSecret(id) =>
-      if model.confirming_secret_delete_id == Some(id) {
+      if model.secrets.confirming_delete_id == Some(id) {
         (
           delete_secret_cmd(dispatch, id),
           {
             ..model,
             notice: None,
-            editing_secret_id: None,
+            secrets: { ..model.secrets, edit: None },
             active_action_menu: None,
           },
         )
@@ -339,7 +429,7 @@ fn update(
           @rabbita.none,
           {
             ..model,
-            confirming_secret_delete_id: Some(id),
+            secrets: { ..model.secrets, confirming_delete_id: Some(id) },
             active_action_menu: Some(action_menu_key("secret", id)),
           },
         )
@@ -349,8 +439,11 @@ fn update(
         @rabbita.none,
         {
           ..model,
-          secrets: remove_secret(model.secrets, id),
-          confirming_secret_delete_id: None,
+          secrets: {
+            ..model.secrets,
+            items: remove_secret(model.secrets.items, id),
+            confirming_delete_id: None,
+          },
           active_action_menu: None,
           notice: Some("Secret deleted."),
         },
@@ -366,18 +459,13 @@ fn update(
         {
           ..model,
           view: Runtimes,
-          creating_runtime: true,
-          editing_runtime_id: None,
-          editing_runtime_name: "",
-          editing_runtime_config_json: default_runtime_config_json(),
-          editing_runtime_enabled: "true",
-          editing_runtime_default: "false",
+          runtimes: { ..model.runtimes, editor: Some(new_runtime_editor()) },
           active_action_menu: None,
           notice: None,
         },
       )
     StartEditRuntime(id) => {
-      let selected = runtime_by_id(model.runtimes, id)
+      let selected = runtime_by_id(model.runtimes.items, id)
       match selected {
         Some(runtime) =>
           (
@@ -385,19 +473,9 @@ fn update(
             {
               ..model,
               view: Runtimes,
-              creating_runtime: false,
-              editing_runtime_id: Some(id),
-              editing_runtime_name: runtime.name,
-              editing_runtime_config_json: runtime.config_json,
-              editing_runtime_enabled: if runtime.enabled {
-                "true"
-              } else {
-                "false"
-              },
-              editing_runtime_default: if runtime.is_default {
-                "true"
-              } else {
-                "false"
+              runtimes: {
+                ..model.runtimes,
+                editor: Some(runtime_editor_from_runtime(runtime)),
               },
               active_action_menu: None,
               notice: None,
@@ -411,58 +489,74 @@ fn update(
         @rabbita.none,
         {
           ..model,
-          creating_runtime: false,
-          editing_runtime_id: None,
-          editing_runtime_name: "",
-          editing_runtime_config_json: "",
-          editing_runtime_enabled: "true",
-          editing_runtime_default: "false",
+          runtimes: { ..model.runtimes, editor: None },
           active_action_menu: None,
         },
       )
-    RuntimeNameChanged(value) =>
-      (@rabbita.none, { ..model, editing_runtime_name: value })
-    RuntimeConfigChanged(value) =>
-      (@rabbita.none, { ..model, editing_runtime_config_json: value })
-    RuntimeEnabledChanged(value) =>
-      (@rabbita.none, { ..model, editing_runtime_enabled: value })
-    RuntimeDefaultChanged(value) =>
-      (@rabbita.none, { ..model, editing_runtime_default: value })
+    RuntimeNameChanged(value) => {
+      let editor = model.runtimes.editor.map(fn(state) {
+        { ..state, name: value }
+      })
+      (@rabbita.none, { ..model, runtimes: { ..model.runtimes, editor, } })
+    }
+    RuntimeConfigChanged(value) => {
+      let editor = model.runtimes.editor.map(fn(state) {
+        { ..state, config_json: value }
+      })
+      (@rabbita.none, { ..model, runtimes: { ..model.runtimes, editor, } })
+    }
+    RuntimeEnabledChanged(value) => {
+      let editor = model.runtimes.editor.map(fn(state) {
+        { ..state, enabled: value }
+      })
+      (@rabbita.none, { ..model, runtimes: { ..model.runtimes, editor, } })
+    }
+    RuntimeDefaultChanged(value) => {
+      let editor = model.runtimes.editor.map(fn(state) {
+        { ..state, is_default: value }
+      })
+      (@rabbita.none, { ..model, runtimes: { ..model.runtimes, editor, } })
+    }
     SaveCreateRuntime =>
-      (
-        create_runtime_cmd(
-          dispatch,
-          model.editing_runtime_name,
-          model.editing_runtime_config_json,
-          admin_bool_value(model.editing_runtime_enabled),
-          admin_bool_value(model.editing_runtime_default),
-        ),
-        { ..model, notice: None },
-      )
+      match model.runtimes.editor {
+        Some(editor) =>
+          (
+            create_runtime_cmd(
+              dispatch,
+              editor.name,
+              editor.config_json,
+              admin_bool_value(editor.enabled),
+              admin_bool_value(editor.is_default),
+            ),
+            { ..model, notice: None },
+          )
+        None => (@rabbita.none, model)
+      }
     SaveRuntime(id) =>
-      (
-        save_runtime_cmd(
-          dispatch,
-          id,
-          model.editing_runtime_name,
-          model.editing_runtime_config_json,
-          admin_bool_value(model.editing_runtime_enabled),
-          admin_bool_value(model.editing_runtime_default),
-        ),
-        { ..model, notice: None },
-      )
+      match model.runtimes.editor {
+        Some(editor) =>
+          (
+            save_runtime_cmd(
+              dispatch,
+              id,
+              editor.name,
+              editor.config_json,
+              admin_bool_value(editor.enabled),
+              admin_bool_value(editor.is_default),
+            ),
+            { ..model, notice: None },
+          )
+        None => (@rabbita.none, model)
+      }
     RuntimeSaved(Ok(runtime)) =>
       (
         @rabbita.none,
         {
           ..model,
-          runtimes: replace_runtime(model.runtimes, runtime),
-          creating_runtime: false,
-          editing_runtime_id: None,
-          editing_runtime_name: "",
-          editing_runtime_config_json: "",
-          editing_runtime_enabled: "true",
-          editing_runtime_default: "false",
+          runtimes: {
+            items: replace_runtime(model.runtimes.items, runtime),
+            editor: None,
+          },
           active_action_menu: None,
           notice: Some("Runtime saved."),
         },
