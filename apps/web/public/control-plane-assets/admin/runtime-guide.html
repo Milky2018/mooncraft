@@ -114,46 +114,46 @@
       <ol>
         <li>Open Admin, then Runtimes.</li>
         <li>Click Add Runtime.</li>
-        <li>Enter a user-facing name, such as <code>Milky</code>.</li>
+        <li>Enter a user-facing name, such as <code>Design Builder</code>.</li>
         <li>Paste the Runtime Config JSON.</li>
         <li>Enable it when ready. Optionally make it the default for new projects.</li>
       </ol>
 
-      <h2>Secret Example</h2>
+      <h2>Official Codex Runtime: Account File</h2>
       <p>
-        Create a Secret named <code>builder_api_key</code>, then bind it to the opaque Runtime Secret name expected by the image:
+        For the official MoonCraft Codex Runtime, create a Secret whose value is the complete <code>auth.json</code> file, then bind it to <code>CODEX_AUTH_JSON</code>. This name is specific to the official image; it is not part of Runtime Protocol.
       </p>
       <pre>{
   "config_version": 3,
   "launcher": {
     "kind": "docker",
-    "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.4.2"
+    "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.4.3"
   },
   "env": {
     "MODEL": "gpt-5.4-mini"
   },
   "secrets": {
-    "builder_api_key": "builder_api_key"
+    "CODEX_AUTH_JSON": "codex_auth_secret"
   }
 }</pre>
 
-      <h2>Account File Secret Example</h2>
+      <h2>Official Codex Runtime: API Key</h2>
       <p>
-        If the Runtime expects account-file content, create a Secret whose value is the complete file contents, then bind it to the opaque name documented by the Runtime provider:
+        Alternatively, bind exactly one API key Secret. Use <code>OPENROUTER_API_KEY</code> for OpenRouter, or <code>OPENAI_API_KEY</code> with <code>OPENAI_BASE_URL</code> for another OpenAI-compatible endpoint.
       </p>
       <pre>{
   "config_version": 3,
   "launcher": {
     "kind": "docker",
-    "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.4.2"
+    "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.4.3"
   },
   "env": {},
   "secrets": {
-    "builder_account_file": "builder_account_file"
+    "OPENROUTER_API_KEY": "mooncraft_ai_api_key"
   }
 }</pre>
       <p>
-        The Runtime Service decides how to use that value during initialization. MoonCraft does not know whether it is a file, API key, account token, or another credential.
+        The official image accepts exactly one authentication Secret: <code>CODEX_AUTH_JSON</code>, <code>CODEX_API_KEY</code>, <code>OPENAI_API_KEY</code>, or <code>OPENROUTER_API_KEY</code>. It does not read API keys from <code>env</code>.
       </p>
 
       <h2>Env Example</h2>

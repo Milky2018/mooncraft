@@ -4,10 +4,10 @@ test "github repository response becomes project source repository" {
     #|{
     #|  "id": 12345,
     #|  "name": "mooncraft-project-123",
-    #|  "clone_url": "https://github.com/milky/mooncraft-project-123.git",
+    #|  "clone_url": "https://github.com/example-user/mooncraft-project-123.git",
     #|  "default_branch": "main",
     #|  "owner": {
-    #|    "login": "milky"
+    #|    "login": "example-user"
     #|  }
     #|}
   match github_repository_from_response(body) {
@@ -18,9 +18,9 @@ test "github repository response becomes project source repository" {
           #|{
           #|  host: "github",
           #|  repository_id: "12345",
-          #|  owner: "milky",
+          #|  owner: "example-user",
           #|  name: "mooncraft-project-123",
-          #|  clone_url: "https://github.com/milky/mooncraft-project-123.git",
+          #|  clone_url: "https://github.com/example-user/mooncraft-project-123.git",
           #|  default_branch: "main",
           #|  ready_commit_sha: None,
           #|  status: "connected",
@@ -55,7 +55,7 @@ async test "create source repository requires github credential" {
       "source-create@example.com",
       None,
       "Source Create",
-      Some("milky"),
+      Some("example-user"),
       true,
     ) {
     Ok(user) => user
@@ -88,7 +88,7 @@ async test "refresh marks source repository disconnected without github token" {
       "source-refresh@example.com",
       None,
       "Source Refresh",
-      Some("milky"),
+      Some("example-user"),
       true,
     ) {
     Ok(user) => user
@@ -110,9 +110,9 @@ async test "refresh marks source repository disconnected without github token" {
   let source : @sdk.ProjectSourceRepository = {
     host: "github",
     repository_id: "12345",
-    owner: "milky",
+    owner: "example-user",
     name: "mooncraft-project-source-refresh",
-    clone_url: "https://github.com/milky/mooncraft-project-source-refresh.git",
+    clone_url: "https://github.com/example-user/mooncraft-project-source-refresh.git",
     default_branch: "main",
     ready_commit_sha: None,
     status: "connected",
@@ -148,9 +148,9 @@ async test "refresh marks source repository disconnected without github token" {
           #|{
           #|  host: "github",
           #|  repository_id: "12345",
-          #|  owner: "milky",
+          #|  owner: "example-user",
           #|  name: "mooncraft-project-source-refresh",
-          #|  clone_url: "https://github.com/milky/mooncraft-project-source-refresh.git",
+          #|  clone_url: "https://github.com/example-user/mooncraft-project-source-refresh.git",
           #|  default_branch: "main",
           #|  ready_commit_sha: None,
           #|  status: "source_disconnected",

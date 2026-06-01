@@ -83,9 +83,9 @@ fn runtime_service_client_test_source(
   {
     host: "github",
     repository_id: "123",
-    owner: "milky",
+    owner: "example-user",
     name: "mooncraft-project-init",
-    clone_url: "https://github.com/milky/mooncraft-project-init.git",
+    clone_url: "https://github.com/example-user/mooncraft-project-init.git",
     default_branch: "main",
     ready_commit_sha: Some("abc123"),
     status,
@@ -118,7 +118,7 @@ test "runtime service init request uses source credential and opaque secrets" {
           #|{
           #|  project: { id: "project-init" },
           #|  source_repository: {
-          #|    url: "https://github.com/milky/mooncraft-project-init.git",
+          #|    url: "https://github.com/example-user/mooncraft-project-init.git",
           #|    default_branch: "main",
           #|    current_commit_sha: Some("abc123"),
           #|  },

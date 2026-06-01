@@ -22,10 +22,10 @@ The first Runtime Config implementation only supports the Docker Runtime Launche
     "image": "docker.io/org/runtime:1.0.0"
   },
   "env": {
-    "MODEL": "gpt-5.4-mini"
+    "RUNTIME_MODE": "production"
   },
   "secrets": {
-    "codex_auth": "codex_account"
+    "runtime_credential": "admin_secret_name"
   }
 }
 ```

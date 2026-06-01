@@ -11,7 +11,7 @@ async test "runtime settings resolve source credential and opaque secrets for in
       "runtime-settings@example.com",
       None,
       "Runtime Settings",
-      Some("milky"),
+      Some("example-user"),
       true,
     ) {
     Ok(user) => user
@@ -52,9 +52,9 @@ async test "runtime settings resolve source credential and opaque secrets for in
   let source : @sdk.ProjectSourceRepository = {
     host: "github",
     repository_id: "12345",
-    owner: "milky",
+    owner: "example-user",
     name: "mooncraft-project-runtime-settings",
-    clone_url: "https://github.com/milky/mooncraft-project-runtime-settings.git",
+    clone_url: "https://github.com/example-user/mooncraft-project-runtime-settings.git",
     default_branch: "main",
     ready_commit_sha: None,
     status: "connected",

@@ -32,6 +32,14 @@ struct RuntimeRun {
 }
 
 ///|
+priv enum RuntimeAuth {
+  CodexAuthJson(String)
+  CodexApiKey(String)
+  OpenAIApiKey(String)
+  OpenRouterApiKey(String)
+}
+
+///|
 let runs : Map[String, RuntimeRun] = {}
 
 ///|
@@ -88,46 +96,8 @@ fn runtime_secret_value(name : String) -> String? {
 }
 
 ///|
-fn current_api_key_names() -> Array[String] {
-  ["CODEX_API_KEY", "OPENROUTER_API_KEY", "OPENAI_API_KEY"]
-}
-
-///|
-fn env_value(name : String) -> String? {
-  match @env.get_env_var(name) {
-    Some(value) if value.trim() != "" => Some(value.trim().to_owned())
-    _ => None
-  }
-}
-
-///|
-fn current_api_key() -> String? {
-  for name in current_api_key_names() {
-    if runtime_secret_value(name) is Some(value) {
-      return Some(value)
-    }
-  }
-  for name in current_api_key_names() {
-    if env_value(name) is Some(value) {
-      return Some(value)
-    }
-  }
-  None
-}
-
-///|
-fn current_provider_env_key() -> String? {
-  for name in current_api_key_names() {
-    if runtime_secret_value(name) is Some(_) {
-      return Some(name)
-    }
-  }
-  for name in current_api_key_names() {
-    if env_value(name) is Some(_) {
-      return Some(name)
-    }
-  }
-  None
+fn official_auth_secret_names() -> Array[String] {
+  ["CODEX_AUTH_JSON", "CODEX_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY"]
 }
 
 ///|
@@ -151,45 +121,187 @@ fn toml_string(value : String) -> String {
 }
 
 ///|
-async fn configure_codex_provider() -> Unit {
-  if current_base_url() is Some(base_url) {
-    if current_provider_env_key() is Some(env_key) {
-      let home = codex_home()
-      @fs.mkdir(home, permission=0o700, recursive=true) catch {
-        _ => ()
-      }
-      let config = StringBuilder()
-      config <+
-        $|model_provider = "mooncraft"
-        $|
-        $|[model_providers.mooncraft]
-        $|name = "MoonCraft Runtime Provider"
-        $|base_url = \{toml_string(base_url)}
-        $|env_key = \{toml_string(env_key)}
-        $|wire_api = "responses"
-        $|requires_openai_auth = false
-        $|supports_websockets = false
-        $|
-      @fs.write_file(
-        "\{home}/config.toml",
-        config.to_string(),
-        create=0o600,
-        truncate=true,
-      )
+fn resolved_runtime_auth() -> Result[RuntimeAuth, String] {
+  let found_names : Array[String] = []
+  let found_values : Array[String] = []
+  for name in official_auth_secret_names() {
+    if runtime_secret_value(name) is Some(value) {
+      found_names.push(name)
+      found_values.push(value)
     }
+  }
+  if found_names.length() == 0 {
+    return Err(
+      "Official Codex Runtime requires exactly one authentication secret: CODEX_AUTH_JSON, CODEX_API_KEY, OPENAI_API_KEY, or OPENROUTER_API_KEY.",
+    )
+  }
+  if found_names.length() > 1 {
+    return Err(
+      "Official Codex Runtime received multiple authentication secrets. Configure exactly one of CODEX_AUTH_JSON, CODEX_API_KEY, OPENAI_API_KEY, or OPENROUTER_API_KEY.",
+    )
+  }
+  let name = found_names[0]
+  let value = found_values[0]
+  match (name, current_base_url()) {
+    ("CODEX_AUTH_JSON", Some(_)) =>
+      Err("CODEX_AUTH_JSON cannot be combined with env.OPENAI_BASE_URL.")
+    ("CODEX_AUTH_JSON", None) => Ok(CodexAuthJson(value))
+    ("CODEX_API_KEY", Some(_)) =>
+      Err(
+        "CODEX_API_KEY cannot be combined with env.OPENAI_BASE_URL. Use OPENAI_API_KEY with OPENAI_BASE_URL for OpenAI-compatible providers.",
+      )
+    ("CODEX_API_KEY", None) => Ok(CodexApiKey(value))
+    ("OPENAI_API_KEY", _) => Ok(OpenAIApiKey(value))
+    ("OPENROUTER_API_KEY", Some(_)) =>
+      Err(
+        "OPENROUTER_API_KEY always uses https://openrouter.ai/api/v1; remove env.OPENAI_BASE_URL.",
+      )
+    ("OPENROUTER_API_KEY", None) => Ok(OpenRouterApiKey(value))
+    _ => Err("Unsupported authentication secret: \{name}.")
   }
 }
 
 ///|
-fn new_codex_client() -> @codex.Codex {
-  match (current_base_url(), current_api_key()) {
-    (Some(base_url), Some(api_key)) =>
-      @codex.Codex::new(options=@codex.CodexOptions::new(base_url~, api_key~))
-    (Some(base_url), None) =>
-      @codex.Codex::new(options=@codex.CodexOptions::new(base_url~))
-    (None, Some(api_key)) =>
-      @codex.Codex::new(options=@codex.CodexOptions::new(api_key~))
-    (None, None) => @codex.Codex::new()
+async fn remove_file_if_exists(path : String) -> Result[Unit, String] noraise {
+  let exists = @fs.exists(path) catch {
+    err => return Err("file could not be checked: \{err}")
+  }
+  if exists {
+    @fs.remove(path) catch {
+      err => return Err("file could not be removed: \{err}")
+    }
+  }
+  Ok(())
+}
+
+///|
+async fn write_codex_auth_json(
+  auth_json : String,
+) -> Result[Unit, String] noraise {
+  ignore(
+    @json.parse(auth_json) catch {
+      _ => return Err("CODEX_AUTH_JSON is not valid JSON.")
+    },
+  )
+  let home = codex_home()
+  if ensure_directory(home, "Codex home", permission=0o700) is Err(message) {
+    return Err(message)
+  }
+  if remove_file_if_exists("\{home}/config.toml") is Err(message) {
+    return Err("Codex provider config could not be removed: \{message}")
+  }
+  @fs.write_file("\{home}/auth.json", auth_json, create=0o600, truncate=true) catch {
+    err => return Err("Codex auth.json could not be written: \{err}")
+  }
+  Ok(())
+}
+
+///|
+async fn write_codex_provider_config(
+  base_url : String,
+) -> Result[Unit, String] noraise {
+  let home = codex_home()
+  if ensure_directory(home, "Codex home", permission=0o700) is Err(message) {
+    return Err(message)
+  }
+  if remove_file_if_exists("\{home}/auth.json") is Err(message) {
+    return Err("Codex auth.json could not be removed: \{message}")
+  }
+  let config = StringBuilder()
+  config <+
+    $|model_provider = "mooncraft"
+    $|
+    $|[model_providers.mooncraft]
+    $|name = "MoonCraft Runtime Provider"
+    $|base_url = \{toml_string(base_url)}
+    $|env_key = "CODEX_API_KEY"
+    $|wire_api = "responses"
+    $|requires_openai_auth = false
+    $|supports_websockets = false
+    $|
+  @fs.write_file(
+    "\{home}/config.toml",
+    config.to_string(),
+    create=0o600,
+    truncate=true,
+  ) catch {
+    err => return Err("Codex config could not be written: \{err}")
+  }
+  Ok(())
+}
+
+///|
+async fn configure_codex_credentials() -> Result[Unit, String] noraise {
+  match resolved_runtime_auth() {
+    Ok(CodexAuthJson(auth_json)) => write_codex_auth_json(auth_json)
+    Ok(CodexApiKey(_)) | Ok(OpenAIApiKey(_)) => {
+      let home = codex_home()
+      if ensure_directory(home, "Codex home", permission=0o700) is Err(message) {
+        return Err(message)
+      }
+      if remove_file_if_exists("\{home}/auth.json") is Err(message) {
+        return Err("Codex auth.json could not be removed: \{message}")
+      }
+      if remove_file_if_exists("\{home}/config.toml") is Err(message) {
+        return Err("Codex provider config could not be removed: \{message}")
+      }
+      if current_base_url() is Some(base_url) {
+        write_codex_provider_config(base_url)
+      } else {
+        Ok(())
+      }
+    }
+    Ok(OpenRouterApiKey(_)) =>
+      write_codex_provider_config("https://openrouter.ai/api/v1")
+    Err(message) => Err(message)
+  }
+}
+
+///|
+fn codex_process_env() -> Map[String, String] {
+  let out = @env.get_env_vars()
+  for
+    name in [
+      "CODEX_AUTH_JSON", "CODEX_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
+      "OPENAI_BASE_URL",
+    ] {
+    out.remove(name)
+  }
+  out
+}
+
+///|
+fn new_codex_client() -> Result[@codex.Codex, String] {
+  let env = codex_process_env()
+  match resolved_runtime_auth() {
+    Ok(CodexAuthJson(_)) =>
+      Ok(@codex.Codex::new(options=@codex.CodexOptions::new(env~)))
+    Ok(CodexApiKey(api_key)) =>
+      Ok(@codex.Codex::new(options=@codex.CodexOptions::new(api_key~, env~)))
+    Ok(OpenAIApiKey(api_key)) =>
+      match current_base_url() {
+        Some(base_url) =>
+          Ok(
+            @codex.Codex::new(
+              options=@codex.CodexOptions::new(base_url~, api_key~, env~),
+            ),
+          )
+        None =>
+          Ok(
+            @codex.Codex::new(options=@codex.CodexOptions::new(api_key~, env~)),
+          )
+      }
+    Ok(OpenRouterApiKey(api_key)) =>
+      Ok(
+        @codex.Codex::new(
+          options=@codex.CodexOptions::new(
+            base_url="https://openrouter.ai/api/v1",
+            api_key~,
+            env~,
+          ),
+        ),
+      )
+    Err(message) => Err(message)
   }
 }
 
@@ -386,6 +498,7 @@ async fn clean_workspace_contents() -> Result[Unit, String] noraise {
 async fn ensure_directory(
   path : String,
   label : String,
+  permission? : Int = 0o755,
 ) -> Result[Unit, String] noraise {
   let exists = @fs.exists(path) catch {
     err => return Err("\{label} could not be checked: \{err}")
@@ -399,7 +512,7 @@ async fn ensure_directory(
     }
     return Err("\{label} exists but is not a directory: \{path}")
   }
-  @fs.mkdir(path, permission=0o755, recursive=true) catch {
+  @fs.mkdir(path, permission~, recursive=true) catch {
     err => return Err("\{label} could not be created: \{err}")
   }
   Ok(())
@@ -726,9 +839,20 @@ fn codex_event_message(event : @codex.Event) -> (String, String)? {
 ///|
 async fn run_codex(run : RuntimeRun, prompt : String) -> Unit noraise {
   try {
-    configure_codex_provider()
     let full_prompt = build_prompt(prompt)
-    let codex = new_codex_client()
+    let codex = match new_codex_client() {
+      Ok(codex) => codex
+      Err(message) => {
+        finish_run(
+          run,
+          @runtime_protocol.runtime_service_run_status_failed(),
+          "Builder session failed: \{message}",
+          @runtime_protocol.runtime_service_event_level_error(),
+          ready_commit_sha=None,
+        )
+        return
+      }
+    }
     let thread = codex.start_thread(
       options=@codex.ThreadOptions::new(
         model=current_model(),
@@ -825,6 +949,10 @@ async fn handle_init(body : String) -> HttpReply noraise {
   runtime_secrets.clear()
   for secret in request.secrets {
     runtime_secrets[secret.name.trim().to_owned()] = secret.value
+  }
+  match configure_codex_credentials() {
+    Ok(_) => ()
+    Err(message) => return runtime_error(400, "BadRequest", message)
   }
   let state : RuntimeSourceState = {
     repository: request.source_repository,

@@ -41,20 +41,80 @@ test "preview subtree paths map to generated app paths" {
 }
 
 ///|
-test "api key lookup trims secrets and shares provider priority" {
+test "official runtime auth requires exactly one secret and ignores env keys" {
   reset_runtime_service_for_test()
-  runtime_secrets["OPENROUTER_API_KEY"] = " router-key "
   runtime_secrets["CODEX_API_KEY"] = " codex-key "
-  debug_inspect(current_api_key(), content="Some(\"codex-key\")")
-  debug_inspect(current_provider_env_key(), content="Some(\"CODEX_API_KEY\")")
-  runtime_secrets.clear()
-  runtime_secrets["CODEX_API_KEY"] = " "
-  runtime_secrets["OPENROUTER_API_KEY"] = " router-key "
-  debug_inspect(current_api_key(), content="Some(\"router-key\")")
-  debug_inspect(
-    current_provider_env_key(),
-    content="Some(\"OPENROUTER_API_KEY\")",
+  inspect(
+    resolved_runtime_auth_for_test(),
+    content="Ok(CODEX_API_KEY=codex-key)",
   )
+
+  runtime_secrets.clear()
+  @env.set_env_var("CODEX_API_KEY", "env-key")
+  defer @env.unset_env_var("CODEX_API_KEY")
+  inspect(
+    resolved_runtime_auth_for_test(),
+    content=(
+      #|Err(Official Codex Runtime requires exactly one authentication secret: CODEX_AUTH_JSON, CODEX_API_KEY, OPENAI_API_KEY, or OPENROUTER_API_KEY.)
+    ),
+  )
+
+  runtime_secrets["CODEX_API_KEY"] = " codex-key "
+  runtime_secrets["OPENAI_API_KEY"] = " openai-key "
+  inspect(
+    resolved_runtime_auth_for_test(),
+    content=(
+      #|Err(Official Codex Runtime received multiple authentication secrets. Configure exactly one of CODEX_AUTH_JSON, CODEX_API_KEY, OPENAI_API_KEY, or OPENROUTER_API_KEY.)
+    ),
+  )
+}
+
+///|
+test "official runtime auth rejects conflicting base url config" {
+  reset_runtime_service_for_test()
+  @env.set_env_var("OPENAI_BASE_URL", "https://example.invalid/v1")
+  defer @env.unset_env_var("OPENAI_BASE_URL")
+
+  runtime_secrets["CODEX_AUTH_JSON"] = "{}"
+  inspect(
+    resolved_runtime_auth_for_test(),
+    content=(
+      #|Err(CODEX_AUTH_JSON cannot be combined with env.OPENAI_BASE_URL.)
+    ),
+  )
+
+  runtime_secrets.clear()
+  runtime_secrets["OPENROUTER_API_KEY"] = " router-key "
+  inspect(
+    resolved_runtime_auth_for_test(),
+    content=(
+      #|Err(OPENROUTER_API_KEY always uses https://openrouter.ai/api/v1; remove env.OPENAI_BASE_URL.)
+    ),
+  )
+}
+
+///|
+test "codex process env strips auth variables" {
+  @env.set_env_var("CODEX_API_KEY", "env-key")
+  @env.set_env_var("OPENAI_BASE_URL", "https://example.invalid/v1")
+  defer {
+    @env.unset_env_var("CODEX_API_KEY")
+    @env.unset_env_var("OPENAI_BASE_URL")
+  }
+  let env = codex_process_env()
+  debug_inspect(env.get("CODEX_API_KEY"), content="None")
+  debug_inspect(env.get("OPENAI_BASE_URL"), content="None")
+}
+
+///|
+fn resolved_runtime_auth_for_test() -> String {
+  match resolved_runtime_auth() {
+    Ok(CodexAuthJson(value)) => "Ok(CODEX_AUTH_JSON=\{value})"
+    Ok(CodexApiKey(value)) => "Ok(CODEX_API_KEY=\{value})"
+    Ok(OpenAIApiKey(value)) => "Ok(OPENAI_API_KEY=\{value})"
+    Ok(OpenRouterApiKey(value)) => "Ok(OPENROUTER_API_KEY=\{value})"
+    Err(message) => "Err(\{message})"
+  }
 }
 
 ///|

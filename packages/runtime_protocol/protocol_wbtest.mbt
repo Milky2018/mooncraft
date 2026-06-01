@@ -28,7 +28,7 @@ test "runtime protocol decodes and validates init request" {
     #|{
     #|  "project": { "id": "project-1" },
     #|  "source_repository": {
-    #|    "url": "https://github.com/milky/project.git",
+    #|    "url": "https://github.com/example-user/project.git",
     #|    "default_branch": "main",
     #|    "current_commit_sha": null
     #|  },
@@ -47,7 +47,7 @@ test "runtime protocol decodes and validates init request" {
           #|{
           #|  project: { id: "project-1" },
           #|  source_repository: {
-          #|    url: "https://github.com/milky/project.git",
+          #|    url: "https://github.com/example-user/project.git",
           #|    default_branch: "main",
           #|    current_commit_sha: None,
           #|  },
@@ -70,7 +70,7 @@ test "runtime protocol rejects extra init fields" {
     #|{
     #|  "project": { "id": "project-1", "extra": true },
     #|  "source_repository": {
-    #|    "url": "https://github.com/milky/project.git",
+    #|    "url": "https://github.com/example-user/project.git",
     #|    "default_branch": "main"
     #|  },
     #|  "source_credential": {

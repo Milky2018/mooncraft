@@ -75,7 +75,7 @@ test "runtime config normalizes docker launcher env and secret names" {
     #|    "RUNTIME_MODE": "production"
     #|  },
     #|  "secrets": {
-    #|    " codex_auth ": " codex_subscription "
+    #|    " runtime_credential ": " runtime_credential_source "
     #|  }
     #|}
   match runtime_config_from_json(config_json) {
@@ -87,7 +87,7 @@ test "runtime config normalizes docker launcher env and secret names" {
           #|  config_version: 3,
           #|  launcher: { kind: "docker", image: "runtime:test" },
           #|  env: { "RUNTIME_MODE": "production" },
-          #|  secrets: { "codex_auth": "codex_subscription" },
+          #|  secrets: { "runtime_credential": "runtime_credential_source" },
           #|}
         ),
       )
