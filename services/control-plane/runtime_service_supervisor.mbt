@@ -447,33 +447,6 @@ async fn RuntimeGateway::ensure_project_runtime_service_with_idle_refresh(
 }
 
 ///|
-async fn RuntimeGateway::prepare_project_runtime_storage(
-  self : RuntimeGateway,
-  store : Store,
-  project_id : String,
-) -> Result[Unit, String] noraise {
-  let settings = match store.lease_runtime_settings_for_project(project_id) {
-    Ok(settings) => settings
-    Err(message) => return Err(message)
-  }
-  let spec = match
-    RuntimeServiceSpec::from_settings(self.root, project_id, settings) {
-    Ok(spec) => spec
-    Err(message) => return Err(message)
-  }
-  if ensure_runtime_service_network(spec.network_name) is Err(message) {
-    return Err(message)
-  }
-  store.upsert_runtime_service_record(
-    project_id,
-    spec.container_name,
-    spec.network_name,
-    runtime_service_state_stopped(),
-    None,
-  )
-}
-
-///|
 async fn RuntimeGateway::ensure_project_runtime_service(
   self : RuntimeGateway,
   store : Store,

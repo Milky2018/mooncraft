@@ -72,6 +72,10 @@ if [[ "$empty_project_status" != "422" ]]; then
   echo "Expected blank project names to return 422, got $empty_project_status" >&2
   exit 1
 fi
+curl -fsS \
+  -H "Authorization: Bearer $admin_token" \
+  "$base_url/api/admin/logs/recent/5" \
+  | grep -q '"operation":"create_project"'
 
 smoke_runtime_id="$(register_smoke_runtime)"
 if [[ -z "$smoke_runtime_id" ]]; then

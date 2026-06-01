@@ -462,7 +462,7 @@ fn update(
           {
             ..model,
             create_project_pending: false,
-            new_project_modal_open: true,
+            new_project_modal_open: false,
             rename_project_pending: false,
             delete_project_confirming: None,
             project_action_menu_open: None,

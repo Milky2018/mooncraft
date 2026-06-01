@@ -27,23 +27,6 @@ fn github_create_repository_body(
 }
 
 ///|
-fn disconnected_project_source_repository(
-  message : String,
-) -> @sdk.ProjectSourceRepository {
-  {
-    host: "github",
-    repository_id: "",
-    owner: "",
-    name: "",
-    clone_url: "",
-    default_branch: "main",
-    ready_commit_sha: None,
-    status: "source_disconnected",
-    last_error: Some(message),
-  }
-}
-
-///|
 fn smoke_project_source_repository(
   project_id : String,
 ) -> @sdk.ProjectSourceRepository {
@@ -116,15 +99,15 @@ async fn AppContext::create_project_source_repository(
   user : @sdk.UserSummary,
   project_id : String,
   display_name : String,
-) -> @sdk.ProjectSourceRepository noraise {
+) -> Result[@sdk.ProjectSourceRepository, String] noraise {
   if smoke_runtime_enabled() {
-    return smoke_project_source_repository(project_id)
+    return Ok(smoke_project_source_repository(project_id))
   }
   let access_token = match
     self.store.get_oauth_access_token(user.id, github_provider_name()) {
     Some(token) => token
     None =>
-      return disconnected_project_source_repository(
+      return Err(
         "GitHub repository access is not connected. Sign in with GitHub again.",
       )
   }
@@ -142,16 +125,14 @@ async fn AppContext::create_project_source_repository(
       headers~,
     ) {
     Ok(response) => response
-    Err(message) => return disconnected_project_source_repository(message)
+    Err(message) => return Err(message)
   }
   if !http_status_success(response.code) {
-    return disconnected_project_source_repository(
-      "GitHub Project Source Repository could not be created.",
-    )
+    return Err("GitHub Project Source Repository could not be created.")
   }
   match github_repository_from_response(http_response_text(response)) {
-    Ok(source) => source
-    Err(message) => disconnected_project_source_repository(message)
+    Ok(source) => Ok(source)
+    Err(message) => Err(message)
   }
 }
 

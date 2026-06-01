@@ -1848,6 +1848,38 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE TABLE IF NOT EXISTS admin_operation_logs (
+        #|  id TEXT PRIMARY KEY,
+        #|  level TEXT NOT NULL,
+        #|  operation TEXT NOT NULL,
+        #|  message TEXT NOT NULL,
+        #|  detail TEXT,
+        #|  user_id TEXT,
+        #|  project_id TEXT,
+        #|  run_id TEXT,
+        #|  status_code INTEGER,
+        #|  created_at TEXT NOT NULL
+        #|);
+      ),
+      "create admin_operation_logs table",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
+  match
+    self.exec_or_error(
+      (
+        #|CREATE INDEX IF NOT EXISTS admin_operation_logs_created_at_idx
+        #|ON admin_operation_logs(created_at);
+      ),
+      "create admin operation logs created_at index",
+    ) {
+    Ok(_) => ignore(())
+    Err(message) => return Err(message)
+  }
   if self.ensure_agent_runtime_tables() is Err(message) {
     return Err(message)
   }

@@ -78,17 +78,28 @@ fn[T : FromJson] decode_json_success(body : String) -> Result[T, @sdk.ApiError] 
 fn decode_error_response(status : Int, body : String) -> @sdk.ApiError {
   let parsed = @json.parse(body) catch {
     _ => {
-      let fallback = if body == "" { "HTTP \{status}" } else { body }
+      let fallback = non_json_error_message(status, body)
       return { code: fallback_error_code(status), message: fallback }
     }
   }
   let response : @sdk.ApiErrorResponse = @json.from_json(parsed) catch {
     _ => {
-      let fallback = if body == "" { "HTTP \{status}" } else { body }
+      let fallback = non_json_error_message(status, body)
       return { code: fallback_error_code(status), message: fallback }
     }
   }
   response.error
+}
+
+///|
+fn non_json_error_message(status : Int, body : String) -> String {
+  if status >= 500 {
+    "MoonCraft is temporarily unavailable. Please try again."
+  } else if body == "" {
+    "HTTP \{status}"
+  } else {
+    "Unexpected response from MoonCraft."
+  }
 }
 
 ///|

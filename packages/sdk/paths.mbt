@@ -247,6 +247,16 @@ pub fn admin_recent_projects_path(limit : Int) -> String {
 }
 
 ///|
+pub fn admin_recent_operation_logs_route() -> RouteSpec {
+  route(GET, "/api/admin/logs/recent/:limit", Ok)
+}
+
+///|
+pub fn admin_recent_operation_logs_path(limit : Int) -> String {
+  "/api/admin/logs/recent/\{limit}"
+}
+
+///|
 pub fn admin_users_route() -> RouteSpec {
   route(GET, "/api/admin/users/recent/:limit", Ok)
 }

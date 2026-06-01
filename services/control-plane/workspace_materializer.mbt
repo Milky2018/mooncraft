@@ -11,37 +11,3 @@ async fn write_workspace_file(
   }
   Ok(())
 }
-
-///|
-async fn create_empty_project_workspace(
-  workspace_path : String,
-) -> Result[Unit, String] noraise {
-  fs_remove_tree(workspace_path) catch {
-    err => return Err("Failed to reset workspace \{workspace_path}: \{err}")
-  }
-  ensure_dir(workspace_path) catch {
-    err => return Err("Failed to create workspace \{workspace_path}: \{err}")
-  }
-  Ok(())
-}
-
-///|
-async fn AppContext::materialize_project_workspace(
-  self : AppContext,
-  project : @sdk.ProjectDetail,
-) -> Result[Unit, String] noraise {
-  if !smoke_runtime_enabled() {
-    return self.runtime_gateway.prepare_project_runtime_storage(
-      self.store,
-      project.id,
-    )
-  }
-  let workspace_path = project_workspace(self.root, project.id)
-  if create_empty_project_workspace(workspace_path) is Err(message) {
-    return Err(message)
-  }
-  match snapshot_workspace(self.store, self.root, project.id, workspace_path) {
-    Ok(_) => Ok(())
-    Err(message) => Err(message)
-  }
-}

@@ -43,6 +43,39 @@ test "github create repository request creates private empty repository" {
 }
 
 ///|
+async test "create source repository requires github credential" {
+  let root = "/tmp/mooncraft-source-create-test-\{random_hex(6)}"
+  ensure_dir(root)
+  let store = match try_new_async("\{root}/state.sqlite") {
+    Ok(store) => store
+    Err(message) => abort(message)
+  }
+  let user = match
+    store.create_user(
+      "source-create@example.com",
+      None,
+      "Source Create",
+      Some("milky"),
+      true,
+    ) {
+    Ok(user) => user
+    Err(message) => abort(message)
+  }
+  let ctx = {
+    root,
+    build_profile: Debug,
+    store,
+    runtime_gateway: new_runtime_gateway(root),
+  }
+  debug_inspect(
+    ctx.create_project_source_repository(user, "project-source-create", "Todo"),
+    content=(
+      #|Err("GitHub repository access is not connected. Sign in with GitHub again.")
+    ),
+  )
+}
+
+///|
 async test "refresh marks source repository disconnected without github token" {
   let root = "/tmp/mooncraft-source-refresh-test-\{random_hex(6)}"
   ensure_dir(root)

@@ -428,6 +428,25 @@ pub(all) struct AdminListProjectsResponse {
 } derive(Debug, ToJson, FromJson)
 
 ///|
+pub(all) struct AdminOperationLog {
+  id : String
+  level : String
+  operation : String
+  message : String
+  detail : String?
+  user_id : String?
+  project_id : String?
+  run_id : String?
+  status_code : Int?
+  created_at : String
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct AdminListOperationLogsResponse {
+  items : Array[AdminOperationLog]
+} derive(Debug, ToJson, FromJson)
+
+///|
 pub(all) struct AdminProjectMessagesResponse {
   project : AdminProjectSummary
   messages : Array[ChatMessage]

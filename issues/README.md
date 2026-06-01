@@ -34,6 +34,9 @@ graph TD
   ISS_018["ISS-018: Update UI and smoke tests for source-host Runtime Protocol"]
   ISS_019["ISS-019: Split AdminModel into page-specific state"]
   ISS_020["ISS-020: Change Runtime Config secrets to object bindings"]
+  ISS_021["ISS-021: Handle create-project gateway failures as product errors"]
+  ISS_022["ISS-022: Do not hide create-project errors behind the New Project dialog"]
+  ISS_023["ISS-023: Add admin operation logs API"]
   ISS_002 --> ISS_003
   ISS_003 --> ISS_004
   ISS_003 --> ISS_005

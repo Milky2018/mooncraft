@@ -15,6 +15,10 @@ pub fn admin_project_path(String) -> String
 
 pub fn admin_project_route() -> RouteSpec
 
+pub fn admin_recent_operation_logs_path(Int) -> String
+
+pub fn admin_recent_operation_logs_route() -> RouteSpec
+
 pub fn admin_recent_projects_path(Int) -> String
 
 pub fn admin_recent_projects_route() -> RouteSpec
@@ -206,6 +210,10 @@ pub fn validate_runtime_env_name(String) -> Result[String, String]
 // Errors
 
 // Types and methods
+pub(all) struct AdminListOperationLogsResponse {
+  items : Array[AdminOperationLog]
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
 pub(all) struct AdminListProjectsResponse {
   items : Array[AdminProjectSummary]
 } derive(ToJson, @debug.Debug, @json.FromJson)
@@ -225,6 +233,19 @@ pub(all) struct AdminListSecretsResponse {
 
 pub(all) struct AdminListUsersResponse {
   items : Array[AdminUserSummary]
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct AdminOperationLog {
+  id : String
+  level : String
+  operation : String
+  message : String
+  detail : String?
+  user_id : String?
+  project_id : String?
+  run_id : String?
+  status_code : Int?
+  created_at : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct AdminProjectDiagnosticsResponse {

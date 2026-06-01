@@ -1049,6 +1049,16 @@ fn main {
       ),
     })
   })
+  app.get(@sdk.admin_recent_operation_logs_route().path_pattern, event => {
+    if require_admin_token(event) is Err(response) {
+      return response
+    }
+    json_ok(@sdk.AdminListOperationLogsResponse::{
+      items: ctx.store.list_recent_admin_operation_logs(
+        admin_limit_param(event),
+      ),
+    })
+  })
   app.get(@sdk.admin_users_route().path_pattern, event => {
     if require_admin_token(event) is Err(response) {
       return response
@@ -1355,25 +1365,64 @@ fn main {
     let display_name = match
       validated_project_display_name(request.display_name) {
       Ok(name) => name
-      Err(message) =>
+      Err(message) => {
+        ctx.store.record_admin_operation_log(
+          "create_project",
+          "warn",
+          message,
+          Some(user.id),
+          None,
+          None,
+          Some(422),
+          None,
+        )
         return api_error_response(
           UnprocessableEntity,
           ValidationFailed,
           message,
         )
+      }
     }
     let runtime = match
       selected_project_runtime(ctx.store, request.runtime_id) {
       Ok(runtime) => runtime
-      Err(message) =>
+      Err(message) => {
+        ctx.store.record_admin_operation_log(
+          "create_project",
+          "error",
+          message,
+          Some(user.id),
+          None,
+          None,
+          Some(422),
+          None,
+        )
         return api_error_response(
           UnprocessableEntity,
           ValidationFailed,
           message,
         )
+      }
     }
     let project_id = next_id("project")
     let workspace_path = project_workspace(ctx.root, project_id)
+    let source = match
+      ctx.create_project_source_repository(user, project_id, display_name) {
+      Ok(source) => source
+      Err(message) => {
+        ctx.store.record_admin_operation_log(
+          "create_project",
+          "error",
+          message,
+          Some(user.id),
+          Some(project_id),
+          None,
+          Some(409),
+          Some("Project Source Repository could not be created."),
+        )
+        return api_error_response(Conflict, Conflict, message)
+      }
+    }
     let project = ctx.store.create_project_for_user(
       user.id,
       project_id,
@@ -1386,27 +1435,23 @@ fn main {
       "",
       workspace_path,
     )
-    let source = ctx.create_project_source_repository(
-      user, project_id, display_name,
-    )
-    ignore(ctx.store.save_project_source_repository(project_id, source))
-    let project = ctx.store.get_project_detail(project_id).unwrap_or(project)
-    match ctx.materialize_project_workspace(project) {
-      Ok(_) => json_created(@sdk.CreateProjectResponse::{ project, })
-      Err(message) => {
-        ignore(
-          ctx.runtime_gateway.delete_project_runtime_storage(
-            ctx.store,
-            project_id,
-          ),
-        )
-        fs_remove_tree(project_root(ctx.root, project_id)) catch {
-          _ => ()
-        }
-        ignore(ctx.store.delete_project(project_id))
-        api_error_response(ServiceUnavailable, ServiceUnavailable, message)
-      }
+    if ctx.store.save_project_source_repository(project_id, source)
+      is Err(message) {
+      ctx.store.record_admin_operation_log(
+        "create_project",
+        "error",
+        message,
+        Some(user.id),
+        Some(project_id),
+        None,
+        Some(503),
+        Some("Project Source Repository metadata could not be saved."),
+      )
+      ignore(ctx.store.delete_project(project_id))
+      return api_error_response(ServiceUnavailable, ServiceUnavailable, message)
     }
+    let project = ctx.store.get_project_detail(project_id).unwrap_or(project)
+    json_created(@sdk.CreateProjectResponse::{ project, })
   })
   app.put(@sdk.update_project_route().path_pattern, async fn(event) noraise {
     let user = match require_session_user(ctx, event) {
