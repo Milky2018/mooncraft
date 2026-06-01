@@ -14,8 +14,7 @@ struct RuntimeServiceSpec {
 ///|
 struct RuntimeServiceEndpoint {
   url : String
-  preview_url : String
-}
+} derive(Debug)
 
 ///|
 priv struct RuntimeServicePreview {
@@ -138,8 +137,6 @@ fn runtime_service_create_args(
   if spec.publish_ports {
     args.push("-p")
     args.push("127.0.0.1::8080")
-    args.push("-p")
-    args.push("127.0.0.1::4792")
   }
   args.push("--env-file")
   args.push(env_file_path)
@@ -161,7 +158,6 @@ fn runtime_service_create_args(
 fn runtime_service_endpoint(container_name : String) -> RuntimeServiceEndpoint {
   {
     url: "http://\{container_name}:8080",
-    preview_url: "http://\{container_name}:4792",
   }
 }
 
@@ -221,13 +217,8 @@ async fn resolved_runtime_service_endpoint(
     Ok(port) => port
     Err(message) => return Err(message)
   }
-  let preview_port = match docker_container_host_port(container_name, 4792) {
-    Ok(port) => port
-    Err(message) => return Err(message)
-  }
   Ok({
     url: "http://127.0.0.1:\{api_port}",
-    preview_url: "http://127.0.0.1:\{preview_port}",
   })
 }
 
@@ -237,7 +228,7 @@ fn runtime_service_preview_target(
 ) -> @sdk.PreviewTarget {
   {
     url: public_preview_url(project.preview_public_id),
-    port: 4792,
+    port: 0,
     healthy: true,
   }
 }
@@ -764,7 +755,7 @@ async fn RuntimeGateway::project_runtime_preview(
         ),
       )
       ignore(store.set_project_preview(project.id, preview))
-      Ok({ preview, upstream_url: endpoint.preview_url })
+      Ok({ preview, upstream_url: endpoint.url })
     }
     Err(message) => {
       match previous {

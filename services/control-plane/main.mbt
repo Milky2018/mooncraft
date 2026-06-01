@@ -522,12 +522,12 @@ fn proxy_response_headers(
 
 ///|
 fn preview_target_path(remainder : String) -> String {
-  if remainder == "" {
-    "/"
+  if remainder == "" || remainder == "/" {
+    "/preview/"
   } else if remainder.has_prefix("/") {
-    remainder
+    "/preview\{remainder}"
   } else {
-    "/\{remainder}"
+    "/preview/\{remainder}"
   }
 }
 

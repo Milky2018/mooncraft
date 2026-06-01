@@ -128,7 +128,7 @@ struct HttpReply {
   code : Int
   reason : String
   content_type : String
-  body : String
+  body : Bytes
 }
 
 ///|
@@ -283,18 +283,18 @@ fn json_reply(code : Int, reason : String, value : &ToJson) -> HttpReply {
     code,
     reason,
     content_type: "application/json; charset=utf-8",
-    body: value.to_json().stringify(),
+    body: string_body(value.to_json().stringify()),
   }
-}
-
-///|
-fn empty_reply(code : Int, reason : String) -> HttpReply {
-  { code, reason, content_type: "text/plain; charset=utf-8", body: "" }
 }
 
 ///|
 fn runtime_error(code : Int, reason : String, message : String) -> HttpReply {
   json_reply(code, reason, RuntimeErrorResponse::{ message, })
+}
+
+///|
+fn string_body(text : String) -> Bytes {
+  @utf8.encode(text)
 }
 
 ///|
@@ -338,7 +338,7 @@ async fn send_reply(conn : @http.ServerConnection, reply : HttpReply) -> Unit {
     "Content-Type": reply.content_type,
     "Cache-Control": "no-store",
   })
-  if reply.body != "" {
+  if reply.body.length() > 0 {
     conn.write(reply.body)
   }
   conn.end_response()
@@ -799,12 +799,69 @@ async fn ensure_preview() -> Result[Unit, String] noraise {
 }
 
 ///|
-async fn handle_preview() -> HttpReply noraise {
+///|
+fn preview_upstream_path(path : String) -> String {
+  if path == "/preview" || path == "/preview/" {
+    "/"
+  } else if path.has_prefix("/preview/") {
+    path["/preview".length():].to_owned()
+  } else {
+    "/"
+  }
+}
+
+///|
+fn preview_response_content_type(headers : Map[String, String]) -> String {
+  match headers.get("Content-Type") {
+    Some(value) => value
+    None =>
+      match headers.get("content-type") {
+        Some(value) => value
+        None => "application/octet-stream"
+      }
+  }
+}
+
+///|
+fn preview_response_reason(code : Int) -> String {
+  match code {
+    200 => "OK"
+    404 => "NotFound"
+    500 => "InternalServerError"
+    503 => "ServiceUnavailable"
+    _ => "Preview"
+  }
+}
+
+///|
+async fn handle_preview(path : String) -> HttpReply noraise {
   if require_initialized() is Some(reply) {
     return reply
   }
   match ensure_preview() {
-    Ok(_) => empty_reply(200, "OK")
+    Ok(_) => {
+      let upstream_path = preview_upstream_path(path)
+      let result = try
+        @http.get("http://127.0.0.1:\{preview_port}\{upstream_path}")
+      catch {
+        _ =>
+          return runtime_error(
+            503,
+            "ServiceUnavailable",
+            "Runtime preview upstream is not reachable.",
+          )
+      } noraise {
+        result => result
+      }
+      let (response, body) = result
+      let preview_body = body.binary()
+      {
+        code: response.code,
+        reason: preview_response_reason(response.code),
+        content_type: preview_response_content_type(response.headers),
+        body: preview_body,
+      }
+    }
     Err(message) => runtime_error(503, "ServiceUnavailable", message)
   }
 }
@@ -858,7 +915,8 @@ async fn handle_request(
       let raw_body = body.read_all().text() catch { _ => "" }
       handle_exec(raw_body)
     }
-    (Get, "/preview") => handle_preview()
+    (Get, _) if path == "/preview" || path.has_prefix("/preview/") =>
+      handle_preview(path)
     (Get, _) =>
       match run_status_route(path) {
         Some(run_id) => handle_run(run_id)
