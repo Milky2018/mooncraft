@@ -132,12 +132,9 @@
   "env": {
     "MODEL": "gpt-5.4-mini"
   },
-  "secrets": [
-    {
-      "source": "builder_api_key",
-      "name": "builder_api_key"
-    }
-  ]
+  "secrets": {
+    "builder_api_key": "builder_api_key"
+  }
 }</pre>
 
       <h2>Account File Secret Example</h2>
@@ -151,12 +148,9 @@
     "image": "docker.io/moonbitcloud/mooncraft-agent-runtime:0.4.0"
   },
   "env": {},
-  "secrets": [
-    {
-      "source": "builder_account_file",
-      "name": "builder_account_file"
-    }
-  ]
+  "secrets": {
+    "builder_account_file": "builder_account_file"
+  }
 }</pre>
       <p>
         The Runtime Service decides how to use that value during initialization. MoonCraft does not know whether it is a file, API key, account token, or another credential.
@@ -175,12 +169,9 @@
   "env": {
     "RUNTIME_MODE": "production"
   },
-  "secrets": [
-    {
-      "source": "mooncraft_ai_api_key",
-      "name": "builder_api_key"
-    }
-  ]
+  "secrets": {
+    "builder_api_key": "mooncraft_ai_api_key"
+  }
 }</pre>
 
       <h2>Field Reference</h2>
@@ -188,8 +179,7 @@
         <li><code>launcher.kind</code>: currently only <code>docker</code> is supported.</li>
         <li><code>launcher.image</code>: the Docker image MoonCraft runs.</li>
         <li><code>env</code>: optional non-secret environment variables passed to the Runtime launcher.</li>
-        <li><code>secrets.source</code>: the Admin Secret name.</li>
-        <li><code>secrets.name</code>: the opaque Runtime Secret name sent to the Runtime Service during initialization.</li>
+        <li><code>secrets</code>: optional map from opaque Runtime Secret names to Admin Secret names.</li>
       </ul>
 
       <div class="note">

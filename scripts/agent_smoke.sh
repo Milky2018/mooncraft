@@ -123,12 +123,9 @@ runtime_config_json="$(
         OPENAI_BASE_URL: "https://openrouter.ai/api/v1",
         MODEL: $model
       },
-      secrets: [
-        {
-          source: $secret_source,
-          name: "OPENAI_API_KEY"
-        }
-      ]
+      secrets: {
+        OPENAI_API_KEY: $secret_source
+      }
     }'
 )"
 runtime_request="$(

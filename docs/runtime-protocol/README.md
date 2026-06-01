@@ -24,12 +24,9 @@ The first Runtime Config implementation only supports the Docker Runtime Launche
   "env": {
     "MODEL": "gpt-5.4-mini"
   },
-  "secrets": [
-    {
-      "source": "codex_account",
-      "name": "codex_auth"
-    }
-  ]
+  "secrets": {
+    "codex_auth": "codex_account"
+  }
 }
 ```
 

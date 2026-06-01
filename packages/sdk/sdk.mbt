@@ -68,12 +68,6 @@ pub(all) struct ProjectSourceRepository {
 } derive(Debug, ToJson, FromJson)
 
 ///|
-pub(all) struct RuntimeSecret {
-  source : String
-  name : String
-} derive(Debug, ToJson, FromJson)
-
-///|
 pub(all) struct RuntimeLauncher {
   kind : String
   image : String
@@ -84,7 +78,7 @@ pub(all) struct RuntimeConfig {
   config_version : Int
   launcher : RuntimeLauncher
   env : Map[String, String]
-  secrets : Array[RuntimeSecret]
+  secrets : Map[String, String]
 } derive(Debug)
 
 ///|
@@ -93,11 +87,15 @@ pub impl ToJson for RuntimeConfig with fn to_json(self) {
   for key, value in self.env {
     env_fields[key] = value.to_json()
   }
+  let secret_fields : Map[String, Json] = {}
+  for key, value in self.secrets {
+    secret_fields[key] = value.to_json()
+  }
   Json::object({
     "config_version": self.config_version.to_json(),
     "launcher": self.launcher.to_json(),
     "env": Json::object(env_fields),
-    "secrets": self.secrets.to_json(),
+    "secrets": Json::object(secret_fields),
   })
 }
 
@@ -171,22 +169,25 @@ pub impl @json.FromJson for RuntimeConfig with fn from_json(json, path) {
             (path.add_key("env"), "Runtime env must be an object"),
           )
       }
-      let secrets : Array[RuntimeSecret] = []
+      let secrets : Map[String, String] = {}
       match fields.get("secrets") {
-        Some(Array(items)) =>
-          for item in items {
-            let secret : RuntimeSecret = @json.from_json(item) catch {
-              err =>
+        Some(Object(secret_fields)) =>
+          for key, value in secret_fields {
+            match value {
+              String(text) => secrets[key] = text
+              _ =>
                 raise JsonDecodeError(
-                  (path.add_key("secrets"), "Runtime secret is invalid: \{err}"),
+                  (
+                    path.add_key("secrets").add_key(key),
+                    "Runtime secret source must be a string",
+                  ),
                 )
             }
-            secrets.push(secret)
           }
         Some(Null) | None => ()
         _ =>
           raise JsonDecodeError(
-            (path.add_key("secrets"), "Runtime secrets must be an array"),
+            (path.add_key("secrets"), "Runtime secrets must be an object"),
           )
       }
       { config_version, launcher, env, secrets }

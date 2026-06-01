@@ -23,7 +23,7 @@ pub fn default_runtime_config_json() -> String {
     #|    "image": "docker.io/<org>/<image>:<version>"
     #|  },
     #|  "env": {},
-    #|  "secrets": []
+    #|  "secrets": {}
     #|}
   )
 }
@@ -131,35 +131,37 @@ fn normalize_runtime_launcher(
 
 ///|
 fn normalize_runtime_secret_binding(
-  secret : RuntimeSecret,
-) -> Result[RuntimeSecret, String] {
-  let source = secret.source.trim().to_owned()
-  if source == "" {
-    return Err("Runtime secret source is required.")
-  }
-  let name = secret.name.trim().to_owned()
+  name_input : String,
+  source_input : String,
+) -> Result[(String, String), String] {
+  let name = name_input.trim().to_owned()
   if name == "" {
     return Err("Runtime secret name is required.")
   }
-  Ok({ source, name })
+  let source = source_input.trim().to_owned()
+  if source == "" {
+    return Err("Runtime secret source is required.")
+  }
+  Ok((name, source))
 }
 
 ///|
 fn normalize_runtime_secrets(
-  secrets : Array[RuntimeSecret],
-) -> Result[Array[RuntimeSecret], String] {
-  let normalized : Array[RuntimeSecret] = []
+  secrets : Map[String, String],
+) -> Result[Map[String, String], String] {
+  let normalized : Map[String, String] = {}
   let names : Map[String, Bool] = {}
-  for secret in secrets {
-    let binding = match normalize_runtime_secret_binding(secret) {
+  for name_input, source_input in secrets {
+    let (name, source) = match
+      normalize_runtime_secret_binding(name_input, source_input) {
       Ok(binding) => binding
       Err(message) => return Err(message)
     }
-    if names.contains(binding.name) {
-      return Err("Runtime secret name is duplicated: \{binding.name}")
+    if names.contains(name) {
+      return Err("Runtime secret name is duplicated: \{name}")
     }
-    names[binding.name] = true
-    normalized.push(binding)
+    names[name] = true
+    normalized[name] = source
   }
   Ok(normalized)
 }

@@ -33,6 +33,7 @@ graph TD
   ISS_017["ISS-017: Remove legacy Docker volume and workspace archive protocol paths"]
   ISS_018["ISS-018: Update UI and smoke tests for source-host Runtime Protocol"]
   ISS_019["ISS-019: Split AdminModel into page-specific state"]
+  ISS_020["ISS-020: Change Runtime Config secrets to object bindings"]
   ISS_002 --> ISS_003
   ISS_003 --> ISS_004
   ISS_003 --> ISS_005

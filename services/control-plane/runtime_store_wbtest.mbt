@@ -13,12 +13,9 @@ async test "runtime seeding allows an empty built-in catalog" {
     #|    "kind": "docker",
     #|    "image": "runtime:test"
     #|  },
-    #|  "secrets": [
-    #|    {
-    #|      "source": "mooncraft_ai_api_key",
-    #|      "name": "OPENROUTER_API_KEY"
-    #|    }
-    #|  ]
+    #|  "secrets": {
+    #|    "OPENROUTER_API_KEY": "mooncraft_ai_api_key"
+    #|  }
     #|}
   ignore(
     store.save_admin_runtime(
@@ -81,7 +78,7 @@ async test "runtime table migration drops retired agent and model columns" {
     #|    "image": "runtime:test"
     #|  },
     #|  "env": {},
-    #|  "secrets": []
+    #|  "secrets": {}
     #|}
   match
     store.save_admin_runtime(

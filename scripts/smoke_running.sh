@@ -40,7 +40,7 @@ dev_sign_in() {
 }
 
 register_smoke_runtime() {
-  local runtime_config_json='{"config_version":3,"launcher":{"kind":"docker","image":"mooncraft/fake-runtime:smoke"},"env":{},"secrets":[]}'
+  local runtime_config_json='{"config_version":3,"launcher":{"kind":"docker","image":"mooncraft/fake-runtime:smoke"},"env":{},"secrets":{}}'
   local escaped_runtime_config_json="${runtime_config_json//\"/\\\"}"
   local runtime_response
   runtime_response="$(curl -fsS \

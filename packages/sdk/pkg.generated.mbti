@@ -524,7 +524,7 @@ pub(all) struct RuntimeConfig {
   config_version : Int
   launcher : RuntimeLauncher
   env : Map[String, String]
-  secrets : Array[RuntimeSecret]
+  secrets : Map[String, String]
 } derive(@debug.Debug)
 pub impl ToJson for RuntimeConfig
 pub impl @json.FromJson for RuntimeConfig
@@ -543,11 +543,6 @@ pub(all) struct RuntimeDetail {
 pub(all) struct RuntimeLauncher {
   kind : String
   image : String
-} derive(ToJson, @debug.Debug, @json.FromJson)
-
-pub(all) struct RuntimeSecret {
-  source : String
-  name : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct RuntimeSummary {

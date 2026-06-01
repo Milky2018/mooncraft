@@ -88,14 +88,14 @@ async fn Store::resolve_runtime_secrets(
   runtime_config : @sdk.RuntimeConfig,
 ) -> Result[Array[ResolvedRuntimeSecret], String] noraise {
   let resolved : Array[ResolvedRuntimeSecret] = []
-  for binding in runtime_config.secrets {
-    let source = binding.source.trim().to_owned()
-    if source == "" {
-      return Err("Runtime secret source is required.")
-    }
-    let name = binding.name.trim().to_owned()
+  for name_input, source_input in runtime_config.secrets {
+    let name = name_input.trim().to_owned()
     if name == "" {
       return Err("Runtime secret name is required.")
+    }
+    let source = source_input.trim().to_owned()
+    if source == "" {
+      return Err("Runtime secret source is required.")
     }
     let record = match self.get_admin_secret_record_by_name(source) {
       Some(record) => record

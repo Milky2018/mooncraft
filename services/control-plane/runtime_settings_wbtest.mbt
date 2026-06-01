@@ -32,12 +32,9 @@ async test "runtime settings resolve source credential and opaque secrets for in
     #|  "env": {
     #|    "MODEL": "gpt-5.4-mini"
     #|  },
-    #|  "secrets": [
-    #|    {
-    #|      "source": "runtime_api_key",
-    #|      "name": "OPENROUTER_API_KEY"
-    #|    }
-    #|  ]
+    #|  "secrets": {
+    #|    "OPENROUTER_API_KEY": "runtime_api_key"
+    #|  }
     #|}
   let project = store.create_project_with_runtime(
     "project-runtime-settings",

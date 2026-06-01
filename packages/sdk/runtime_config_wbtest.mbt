@@ -9,7 +9,7 @@ test "default runtime config is validated by the shared config module" {
           #|  config_version: 3,
           #|  launcher: { kind: "docker", image: "docker.io/<org>/<image>:<version>" },
           #|  env: {},
-          #|  secrets: [],
+          #|  secrets: {},
           #|}
         ),
       )
@@ -74,12 +74,9 @@ test "runtime config normalizes docker launcher env and secret names" {
     #|  "env": {
     #|    "RUNTIME_MODE": "production"
     #|  },
-    #|  "secrets": [
-    #|    {
-    #|      "source": " codex_subscription ",
-    #|      "name": " codex_auth "
-    #|    }
-    #|  ]
+    #|  "secrets": {
+    #|    " codex_auth ": " codex_subscription "
+    #|  }
     #|}
   match runtime_config_from_json(config_json) {
     Ok(config) =>
@@ -90,7 +87,7 @@ test "runtime config normalizes docker launcher env and secret names" {
           #|  config_version: 3,
           #|  launcher: { kind: "docker", image: "runtime:test" },
           #|  env: { "RUNTIME_MODE": "production" },
-          #|  secrets: [{ source: "codex_subscription", name: "codex_auth" }],
+          #|  secrets: { "codex_auth": "codex_subscription" },
           #|}
         ),
       )
@@ -113,7 +110,7 @@ test "runtime config rejects unsupported launcher and invalid bindings" {
     Err(message) =>
       inspect(message, content="Runtime launcher kind must be docker.")
   }
-  let duplicate =
+  let old_array_secrets =
     #|{
     #|  "config_version": 3,
     #|  "launcher": {
@@ -124,12 +121,32 @@ test "runtime config rejects unsupported launcher and invalid bindings" {
     #|    {
     #|      "source": "one",
     #|      "name": "builder_api_key"
-    #|    },
-    #|    {
-    #|      "source": "two",
-    #|      "name": "builder_api_key"
     #|    }
     #|  ]
+    #|}
+  match runtime_config_from_json(old_array_secrets) {
+    Ok(_) => fail("expected old array secrets to be rejected")
+    Err(message) =>
+      inspect(
+        message,
+        content="Runtime config does not match v3: JsonDecodeError((/secrets, Runtime secrets must be an object))",
+      )
+  }
+}
+
+///|
+test "runtime config rejects normalized duplicate secret names" {
+  let duplicate =
+    #|{
+    #|  "config_version": 3,
+    #|  "launcher": {
+    #|    "kind": "docker",
+    #|    "image": "runtime:test"
+    #|  },
+    #|  "secrets": {
+    #|    " builder_api_key ": "one",
+    #|    "builder_api_key": "two"
+    #|  }
     #|}
   match runtime_config_from_json(duplicate) {
     Ok(_) => fail("expected duplicate secret name to be rejected")
