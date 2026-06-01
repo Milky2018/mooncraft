@@ -592,7 +592,10 @@ fn runtime_create_dialog(
               @html.div(
                 style=["display: flex", "flex-direction: column", "gap: 4px"],
                 [
-                  @html.h3(style=title_style() + ["margin: 0"], "Add Runtime"),
+                  @html.h3(
+                    style=title_style() + ["margin: 0"],
+                    "Add Runtime Config",
+                  ),
                   @html.a(
                     href="/control-plane-assets/admin/runtime-guide.html",
                     target=Blank,
@@ -817,12 +820,12 @@ fn runtime_row(
         runtime.config.secrets.length().to_string(),
       ),
       @html.td(style=actions_td_style(), [
-        action_menu_button(dispatch, model, menu_key, "Runtime actions"),
+        action_menu_button(dispatch, model, menu_key, "Runtime Config actions"),
         action_menu(model, menu_key, [
           action_menu_item(
             dispatch,
             StartEditRuntime(runtime.id),
-            "Edit Runtime",
+            "Edit Runtime Config",
             "Edit",
             false,
             false,
@@ -842,17 +845,17 @@ fn runtimes_view(
     runtime_row(dispatch, model, runtime)
   })
   let rows = if model.runtimes.length() == 0 {
-    [empty_row(7, "No Runtimes.")]
+    [empty_row(7, "No Runtime Configs.")]
   } else {
     runtime_rows
   }
   @html.section(style=card_style(), [
     section_head(
-      "Runtimes",
+      "Runtime Configs",
       "\{model.runtimes.length()} configured",
       @html.button(
         type_="button",
-        title="Add Runtime",
+        title="Add Runtime Config",
         on_click=dispatch(OpenCreateRuntime),
         style=icon_button_style(!model.creating_runtime),
         disabled=model.creating_runtime,

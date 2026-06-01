@@ -40,6 +40,7 @@ struct DevAuthRequest {
   email : String
   display_name : String?
   github_login : String?
+  github_access_token : String?
 } derive(Debug, @json.FromJson)
 
 ///|
@@ -306,6 +307,17 @@ async fn dev_authenticated_response(
         Ok(user) => user
         Err(message) => return Err(message)
       }
+    }
+  }
+  if request.github_access_token is Some(token) {
+    let access_token = token.trim().to_owned()
+    if access_token != "" {
+      ctx.store.link_oauth_account(
+        user.id,
+        github_provider_name(),
+        login,
+        access_token,
+      )
     }
   }
   Ok(authenticated_response(ctx, event, user))

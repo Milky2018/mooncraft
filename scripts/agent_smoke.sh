@@ -14,11 +14,20 @@ else
   key_ref="OPENROUTER_API_KEY"
 fi
 api_key="${!key_ref:-}"
+if [[ -n "${MOONCRAFT_AGENT_SMOKE_GITHUB_TOKEN_REF:-}" ]]; then
+  github_token_ref="$MOONCRAFT_AGENT_SMOKE_GITHUB_TOKEN_REF"
+elif [[ -n "${MOONCRAFT_AGENT_SMOKE_GITHUB_TOKEN:-}" ]]; then
+  github_token_ref="MOONCRAFT_AGENT_SMOKE_GITHUB_TOKEN"
+else
+  github_token_ref="GITHUB_TOKEN"
+fi
+github_token="${!github_token_ref:-}"
 admin_token="${MOONCRAFT_AGENT_SMOKE_ADMIN_TOKEN:-agent-smoke-admin-token}"
 
 echo "Registering smoke Runtime image: $agent_runtime_image"
 echo "Using smoke model hint: $model"
 echo "Loading provider key from local shell variable: $key_ref"
+echo "Loading GitHub source token from local shell variable: $github_token_ref"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "docker is required for the real agent smoke test." >&2
@@ -26,6 +35,10 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 if [[ -z "$api_key" ]]; then
   echo "Set $key_ref or MOONCRAFT_AGENT_SMOKE_KEY_REF to an environment variable containing the provider API key expected by the smoke Runtime image." >&2
+  exit 1
+fi
+if [[ -z "$github_token" ]]; then
+  echo "Set $github_token_ref or MOONCRAFT_AGENT_SMOKE_GITHUB_TOKEN_REF to a GitHub token that can create, read, and delete the disposable smoke repository." >&2
   exit 1
 fi
 
@@ -43,9 +56,19 @@ server_log="$tmp_root/server.log"
 cookie_jar="$tmp_root/cookies.txt"
 project_id=""
 run_id=""
+source_owner=""
+source_name=""
 cleanup() {
   if [[ -n "$project_id" && -f "$cookie_jar" ]]; then
     curl -fsS -b "$cookie_jar" -X DELETE "$base_url/api/projects/$project_id" -d '' >/dev/null 2>&1 || true
+  fi
+  if [[ -n "$source_owner" && -n "$source_name" ]]; then
+    curl -fsS \
+      -X DELETE \
+      -H "Accept: application/vnd.github+json" \
+      -H "Authorization: Bearer $github_token" \
+      -H "X-GitHub-Api-Version: 2022-11-28" \
+      "https://api.github.com/repos/$source_owner/$source_name" >/dev/null 2>&1 || true
   fi
   if [[ -n "${server_pid:-}" ]] && kill -0 "$server_pid" >/dev/null 2>&1; then
     kill "$server_pid" >/dev/null 2>&1 || true
@@ -125,10 +148,17 @@ runtime_response="$(
 runtime_id="$(printf '%s' "$runtime_response" | jq -r '.id')"
 
 user_email="agent-smoke-$(date +%s)-$$@example.com"
+dev_auth_request="$(
+  jq -cn \
+    --arg email "$user_email" \
+    --arg display_name "Agent Smoke" \
+    --arg github_access_token "$github_token" \
+    '{email: $email, display_name: $display_name, github_access_token: $github_access_token}'
+)"
 curl -fsS \
   -c "$cookie_jar" \
   -H "Content-Type: application/json" \
-  -d "{\"email\":\"$user_email\",\"display_name\":\"Agent Smoke\"}" \
+  -d "$dev_auth_request" \
   "$base_url/api/dev/auth/session" >/dev/null
 
 project_response="$(
@@ -139,6 +169,15 @@ project_response="$(
     "$base_url/api/projects"
 )"
 project_id="$(printf '%s' "$project_response" | jq -r '.project.id')"
+source_status="$(printf '%s' "$project_response" | jq -r '.project.source_repository.status // empty')"
+source_owner="$(printf '%s' "$project_response" | jq -r '.project.source_repository.owner // empty')"
+source_name="$(printf '%s' "$project_response" | jq -r '.project.source_repository.name // empty')"
+source_branch="$(printf '%s' "$project_response" | jq -r '.project.source_repository.default_branch // empty')"
+if [[ "$source_status" != "connected" || -z "$source_owner" || -z "$source_name" || -z "$source_branch" ]]; then
+  echo "Project did not bind to a connected source repository." >&2
+  printf '%s\n' "$project_response" | jq . >&2
+  exit 1
+fi
 
 run_response="$(
   curl -fsS \
@@ -157,13 +196,31 @@ while (( SECONDS < deadline )); do
     Succeeded | succeeded)
       project_json="$(curl -fsS -b "$cookie_jar" "$base_url/api/projects/$project_id")"
       preview_url="$(printf '%s' "$project_json" | jq -r '.preview.url // empty')"
+      ready_commit_sha="$(printf '%s' "$project_json" | jq -r '.source_repository.ready_commit_sha // empty')"
       if [[ -z "$preview_url" ]]; then
         echo "Run succeeded without a preview URL." >&2
         printf '%s\n' "$project_json" >&2
         exit 1
       fi
+      if [[ -z "$ready_commit_sha" ]]; then
+        echo "Run succeeded without a Ready Source Commit." >&2
+        printf '%s\n' "$project_json" >&2
+        exit 1
+      fi
+      pushed_commit_sha="$(
+        curl -fsS \
+          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: Bearer $github_token" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          "https://api.github.com/repos/$source_owner/$source_name/commits/$source_branch" \
+          | jq -r '.sha // empty'
+      )"
+      if [[ "$pushed_commit_sha" != "$ready_commit_sha" ]]; then
+        echo "Ready Source Commit was not the pushed default-branch commit: ready=$ready_commit_sha pushed=$pushed_commit_sha" >&2
+        exit 1
+      fi
       curl -fsS "$base_url$preview_url" >/dev/null
-      echo "Real agent smoke passed: project=$project_id run=$run_id preview=$preview_url"
+      echo "Real agent smoke passed: project=$project_id run=$run_id source=$source_owner/$source_name commit=$ready_commit_sha preview=$preview_url"
       exit 0
       ;;
     Failed | failed)

@@ -44,6 +44,23 @@ fn disconnected_project_source_repository(
 }
 
 ///|
+fn smoke_project_source_repository(
+  project_id : String,
+) -> @sdk.ProjectSourceRepository {
+  {
+    host: "smoke",
+    repository_id: project_id,
+    owner: "smoke",
+    name: project_id,
+    clone_url: "smoke://\{project_id}",
+    default_branch: "main",
+    ready_commit_sha: None,
+    status: "connected",
+    last_error: None,
+  }
+}
+
+///|
 fn github_repository_from_response(
   body : String,
 ) -> Result[@sdk.ProjectSourceRepository, String] {
@@ -100,6 +117,9 @@ async fn AppContext::create_project_source_repository(
   project_id : String,
   display_name : String,
 ) -> @sdk.ProjectSourceRepository noraise {
+  if smoke_runtime_enabled() {
+    return smoke_project_source_repository(project_id)
+  }
   let access_token = match
     self.store.get_oauth_access_token(user.id, github_provider_name()) {
     Some(token) => token
@@ -147,6 +167,9 @@ async fn AppContext::refresh_project_source_repository(
   }
   if current.status == "source_disconnected" {
     return Err("Project Source Repository is disconnected.")
+  }
+  if smoke_runtime_enabled() && current.host == "smoke" {
+    return Ok(current)
   }
   let access_token = match
     self.store.get_oauth_access_token(user.id, github_provider_name()) {

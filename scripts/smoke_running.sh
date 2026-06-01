@@ -87,6 +87,9 @@ if [[ -z "$project_id" ]]; then
   exit 1
 fi
 printf '%s' "$create_response" | grep -q '"display_name":"Smoke Running"'
+printf '%s' "$create_response" | grep -q '"source_repository"'
+printf '%s' "$create_response" | grep -q '"host":"smoke"'
+printf '%s' "$create_response" | grep -q '"status":"connected"'
 
 rename_response="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X PUT "$base_url/api/projects/$project_id" -H 'Content-Type: application/json' -d '{"display_name":"Renamed Smoke Project"}')"
 printf '%s' "$rename_response" | grep -q '"display_name":"Renamed Smoke Project"'
@@ -127,6 +130,7 @@ printf '%s' "$preview_url" | grep -q '^/p/'
 
 project_detail="$(curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$project_id")"
 printf '%s' "$project_detail" | grep -q '"current_run_phase":"NoPhase"'
+printf '%s' "$project_detail" | grep -q '"source_repository"'
 
 curl -fsS -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects/$project_id" | grep -q "\"url\":\"$preview_url\""
 user2_status="$(curl -sS -o /dev/null -w '%{http_code}' -c "$user2_cookie" -b "$user2_cookie" "$base_url/api/projects/$project_id" || true)"

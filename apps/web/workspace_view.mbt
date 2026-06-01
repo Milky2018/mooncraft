@@ -423,6 +423,82 @@ fn render_project_info_row(label : String, value : String) -> @rabbita.Html {
 }
 
 ///|
+fn source_repository_identity(source : @sdk.ProjectSourceRepository) -> String {
+  if source.owner != "" && source.name != "" {
+    "\{source.owner}/\{source.name}"
+  } else if source.clone_url != "" {
+    source.clone_url
+  } else {
+    "-"
+  }
+}
+
+///|
+fn project_source_disconnected(project : @sdk.ProjectDetail) -> Bool {
+  match project.source_repository {
+    Some(source) => source.status == "source_disconnected"
+    None => false
+  }
+}
+
+///|
+fn source_status_label(source : @sdk.ProjectSourceRepository) -> String {
+  if source.status == "source_disconnected" {
+    "Source disconnected"
+  } else if source.status == "" {
+    "Unknown"
+  } else {
+    source.status
+  }
+}
+
+///|
+fn render_project_source_info(
+  source : @sdk.ProjectSourceRepository?,
+) -> Array[@rabbita.Html] {
+  match source {
+    Some(source) => {
+      let ready_commit = source.ready_commit_sha.unwrap_or("-")
+      let rows = [
+        render_project_info_row(
+          "Repository",
+          source_repository_identity(source),
+        ),
+        render_project_info_row("Branch", source.default_branch),
+        render_project_info_row("Ready commit", ready_commit),
+        render_project_info_row("Source", source_status_label(source)),
+      ]
+      match source.last_error {
+        Some(error) if error != "" =>
+          rows + [render_project_info_row("Source error", error)]
+        _ => rows
+      }
+    }
+    None =>
+      [
+        render_project_info_row("Repository", "-"),
+        render_project_info_row("Ready commit", "-"),
+      ]
+  }
+}
+
+///|
+fn source_status_badge(project : @sdk.ProjectDetail?) -> @rabbita.Html {
+  match project {
+    Some(project) if project_source_disconnected(project) =>
+      @html.div(
+        style=value_text_style() +
+          [
+            "padding: 2px 6px", "border-radius: var(--radius-control)", "background: var(--danger-soft)",
+            "color: var(--danger)", "font-size: 11px",
+          ],
+        "Source disconnected",
+      )
+    _ => @html.nothing
+  }
+}
+
+///|
 fn render_project_info_dialog(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
@@ -431,7 +507,38 @@ fn render_project_info_dialog(
     @html.nothing
   } else {
     match selected_project_detail(model) {
-      Some(project) =>
+      Some(project) => {
+        let info_header = @html.div(
+          style=[
+            "display: flex", "align-items: flex-start", "justify-content: space-between",
+            "gap: 8px",
+          ],
+        ) <| [
+          @html.div(style=title_text_style(), "Project info"),
+          @html.button(
+            type_="button",
+            title="Close",
+            disabled=model.project_info_pending,
+            on_click=dispatch(CloseProjectInfo),
+            style=secondary_button_style(!model.project_info_pending) +
+              ["width: 30px", "height: 30px", "padding: 0"],
+            [project_cancel_icon()],
+          ),
+        ]
+        let info_rows = [
+            info_header,
+            render_project_info_row("Project ID", project.id),
+            render_project_info_row("Runtime", project.runtime_name),
+            render_project_info_row("Runtime ID", project.runtime_id),
+            render_project_info_row(
+              "Image",
+              match project.runtime_config {
+                Some(config) => config.launcher.image
+                None => "-"
+              },
+            ),
+          ] +
+          render_project_source_info(project.source_repository)
         @html.div(
           style=[
             "position: fixed", "inset: 0", "z-index: 100", "display: flex", "align-items: center",
@@ -445,36 +552,9 @@ fn render_project_info_dialog(
               "border-radius: var(--radius-panel)", "box-shadow: var(--shadow)",
               "padding: 10px", "display: flex", "flex-direction: column", "gap: 8px",
             ],
-          ) <| [
-            @html.div(
-              style=[
-                "display: flex", "align-items: flex-start", "justify-content: space-between",
-                "gap: 8px",
-              ],
-            ) <| [
-              @html.div(style=title_text_style(), "Project info"),
-              @html.button(
-                type_="button",
-                title="Close",
-                disabled=model.project_info_pending,
-                on_click=dispatch(CloseProjectInfo),
-                style=secondary_button_style(!model.project_info_pending) +
-                  ["width: 30px", "height: 30px", "padding: 0"],
-                [project_cancel_icon()],
-              ),
-            ],
-            render_project_info_row("Project ID", project.id),
-            render_project_info_row("Runtime", project.runtime_name),
-            render_project_info_row("Runtime ID", project.runtime_id),
-            render_project_info_row(
-              "Image",
-              match project.runtime_config {
-                Some(config) => config.launcher.image
-                None => "-"
-              },
-            ),
-          ],
+          ) <| info_rows,
         ]
+      }
       None => @html.nothing
     }
   }
@@ -698,6 +778,7 @@ fn render_workspace_panel(
           ],
           [
             render_preview_button(model),
+            source_status_badge(model.project_detail),
             maybe_status_badge(active_project_status(model)),
           ],
         ),

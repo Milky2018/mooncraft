@@ -603,9 +603,16 @@ async fn project_preview_proxy_response(
     }
   }
   if smoke_runtime_enabled() {
+    let target_path = if remainder == "" {
+      "/"
+    } else if remainder.has_prefix("/") {
+      remainder
+    } else {
+      "/\{remainder}"
+    }
     return static_preview_response(
       web_public_path(ctx.root, "control-plane-assets/smoke-preview"),
-      preview_target_path(remainder),
+      target_path,
     )
   }
   match proxy_preview_response(event, runtime_preview.upstream_url, remainder) {

@@ -313,10 +313,11 @@ For an opt-in real agent smoke test from the repo root:
 ```bash
 export MOONCRAFT_AGENT_SMOKE_MODEL=gpt-5.4-mini
 export OPENROUTER_API_KEY='your-test-key'
+export GITHUB_TOKEN='your-disposable-repo-test-token'
 just agent-smoke
 ```
 
-This spends real provider quota. The smoke script uses the admin API to save the key into the running test server; it does not pass the key as a MoonCraft service environment variable.
+This spends real provider quota and creates a disposable GitHub repository. The smoke script uses the admin API to save the provider key into the running test server, injects the GitHub token only into the dev-auth smoke user, verifies the Ready Source Commit against the pushed default branch, and deletes the disposable repository during cleanup.
 
 ## Current Limits
 
