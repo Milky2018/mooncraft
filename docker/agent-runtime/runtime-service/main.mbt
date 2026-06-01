@@ -53,6 +53,13 @@ struct InitRequest {
 } derive(FromJson)
 
 ///|
+struct RuntimeSourceState {
+  repository : InitSourceRepository
+  credential : InitSourceCredential
+  authenticated_url : String
+}
+
+///|
 struct HealthResponse {
   status : String
   message : String
@@ -122,6 +129,9 @@ let initialized : Ref[Bool] = Ref(false)
 
 ///|
 let runtime_secrets : Map[String, String] = {}
+
+///|
+let runtime_source : Ref[RuntimeSourceState?] = Ref(None)
 
 ///|
 struct HttpReply {
@@ -298,8 +308,62 @@ fn string_body(text : String) -> Bytes {
 }
 
 ///|
+fn hex_digit(value : Int) -> Char {
+  "0123456789ABCDEF"[value & 0xf].unsafe_to_char()
+}
+
+///|
+fn url_component_encode(text : String) -> String {
+  let out = StringBuilder()
+  for byte in @utf8.encode(text) {
+    let code = byte.to_int()
+    if (code >= 65 && code <= 90) ||
+      (code >= 97 && code <= 122) ||
+      (code >= 48 && code <= 57) ||
+      code == 45 ||
+      code == 46 ||
+      code == 95 ||
+      code == 126 {
+      out.write_char(code.unsafe_to_char())
+    } else {
+      out.write_char('%')
+      out.write_char(hex_digit(code >> 4))
+      out.write_char(hex_digit(code))
+    }
+  }
+  out.to_string()
+}
+
+///|
+fn source_authenticated_url(request : InitRequest) -> Result[String, String] {
+  let url = request.source_repository.url.trim().to_owned()
+  if !url.has_prefix("https://") {
+    return Err("source_repository.url must be an HTTPS git URL.")
+  }
+  let username = url_component_encode(request.source_credential.username)
+  let password = url_component_encode(request.source_credential.password)
+  Ok("https://\{username}:\{password}@\{url["https://".length():]}")
+}
+
+///|
+fn redact_secret(text : String, secret : String) -> String {
+  if secret == "" {
+    text
+  } else {
+    text.replace_all(old=secret, new="<redacted>")
+  }
+}
+
+///|
 fn health_reply() -> HttpReply {
   if initialized.val {
+    if active_run_id.val is Some(_) {
+      return json_reply(
+        200,
+        "OK",
+        HealthResponse::{ status: "running", message: "Runtime is running.", },
+      )
+    }
     json_reply(
       200,
       "OK",
@@ -365,6 +429,187 @@ fn init_response(current_commit_sha : String?) -> InitResponse {
     status: "ready",
     current_commit_sha,
     message: "Runtime initialized.",
+  }
+}
+
+///|
+fn git_env() -> Map[String, String] {
+  { "GIT_TERMINAL_PROMPT": "0" }
+}
+
+///|
+async fn run_git(
+  args : Array[String],
+  cwd? : String = workspace,
+  redacted? : String = "",
+) -> Result[String, String] noraise {
+  let (status, output) = @process.collect_output_merged(
+    "git",
+    args,
+    cwd~,
+    extra_env=git_env(),
+  ) catch {
+    err => return Err("git command failed to start: \{err}")
+  }
+  let text = output.text() catch { _ => "" }
+  if status == 0 {
+    Ok(text.trim().to_owned())
+  } else {
+    Err(redact_secret(text.trim().to_owned(), redacted))
+  }
+}
+
+///|
+async fn clean_workspace_contents() -> Result[Unit, String] noraise {
+  @fs.mkdir(workspace, permission=0o755, recursive=true) catch {
+    err => return Err("workspace could not be created: \{err}")
+  }
+  let (status, output) = @process.collect_output_merged(
+    "sh",
+    ["-c", "find . -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +"],
+    cwd=workspace,
+  ) catch {
+    err => return Err("workspace cleanup could not start: \{err}")
+  }
+  if status == 0 {
+    Ok(())
+  } else {
+    Err("workspace cleanup failed: \{output.text() catch { _ => "" }}")
+  }
+}
+
+///|
+async fn git_remote_branch_exists(branch : String) -> Bool noraise {
+  match run_git(["ls-remote", "--heads", "origin", branch]) {
+    Ok(output) => output.trim() != ""
+    Err(_) => false
+  }
+}
+
+///|
+async fn git_head_commit() -> String? noraise {
+  match run_git(["rev-parse", "HEAD"]) {
+    Ok(commit) if commit.trim() != "" => Some(commit.trim().to_owned())
+    _ => None
+  }
+}
+
+///|
+async fn checkout_source_branch(
+  repository : InitSourceRepository,
+) -> Result[Unit, String] noraise {
+  let branch = repository.default_branch.trim().to_owned()
+  match repository.current_commit_sha {
+    Some(commit) if commit.trim() != "" =>
+      match run_git(["checkout", "-B", branch, commit.trim().to_owned()]) {
+        Ok(_) => Ok(())
+        Err(message) =>
+          Err("source commit could not be checked out: \{message}")
+      }
+    _ =>
+      if git_remote_branch_exists(branch) {
+        match run_git(["fetch", "origin", branch]) {
+          Ok(_) => ()
+          Err(message) => return Err("source branch could not be fetched: \{message}")
+        }
+        match run_git(["checkout", "-B", branch, "origin/\{branch}"]) {
+          Ok(_) => Ok(())
+          Err(message) =>
+            Err("source branch could not be checked out: \{message}")
+        }
+      } else {
+        match run_git(["checkout", "--orphan", branch]) {
+          Ok(_) => Ok(())
+          Err(_) =>
+            match run_git(["checkout", "-B", branch]) {
+              Ok(_) => Ok(())
+              Err(message) =>
+                Err("empty source branch could not be created: \{message}")
+            }
+        }
+      }
+  }
+}
+
+///|
+async fn configure_source_repository(
+  state : RuntimeSourceState,
+) -> Result[String?, String] noraise {
+  let redacted = state.credential.password
+  let has_git = @fs.exists("\{workspace}/.git") catch { _ => false }
+  if has_git {
+    match run_git(["remote", "set-url", "origin", state.authenticated_url], redacted~) {
+      Ok(_) => ()
+      Err(message) => return Err("source repository remote could not be set: \{message}")
+    }
+    match run_git(["fetch", "origin"], redacted~) {
+      Ok(_) => ()
+      Err(message) => return Err("source repository could not be fetched: \{message}")
+    }
+  } else {
+    match clean_workspace_contents() {
+      Ok(_) => ()
+      Err(message) => return Err(message)
+    }
+    match
+      run_git(
+        ["clone", state.authenticated_url, workspace],
+        cwd="/",
+        redacted~,
+      ) {
+      Ok(_) => ()
+      Err(message) => return Err("source repository could not be cloned: \{message}")
+    }
+  }
+  match checkout_source_branch(state.repository) {
+    Ok(_) => ()
+    Err(message) => return Err(message)
+  }
+  ignore(run_git(["config", "user.name", "MoonCraft"], redacted~))
+  ignore(run_git(["config", "user.email", "mooncraft@moonbitlang.com"], redacted~))
+  Ok(git_head_commit())
+}
+
+///|
+async fn commit_and_push_source(run_id : String) -> Result[String, String] noraise {
+  let state = match runtime_source.val {
+    Some(state) => state
+    None => return Err("Runtime source repository is not initialized.")
+  }
+  let branch = state.repository.default_branch.trim().to_owned()
+  let redacted = state.credential.password
+  match run_git(["add", "-A"], redacted~) {
+    Ok(_) => ()
+    Err(message) => return Err("source changes could not be staged: \{message}")
+  }
+  let changed = match run_git(["status", "--porcelain"], redacted~) {
+    Ok(output) => output.trim() != ""
+    Err(message) => return Err("source status could not be read: \{message}")
+  }
+  if changed {
+    match
+      run_git(
+        ["commit", "-m", "MoonCraft run \{run_id}"],
+        redacted~,
+      ) {
+      Ok(_) => ()
+      Err(message) => return Err("source changes could not be committed: \{message}")
+    }
+  }
+  if git_remote_branch_exists(branch) {
+    match run_git(["pull", "--rebase", "origin", branch], redacted~) {
+      Ok(_) => ()
+      Err(message) =>
+        return Err("source changes could not be rebased before push: \{message}")
+    }
+  }
+  match run_git(["push", "origin", "HEAD:\{branch}"], redacted~) {
+    Ok(_) => ()
+    Err(message) => return Err("source changes could not be pushed: \{message}")
+  }
+  match git_head_commit() {
+    Some(commit) => Ok(commit)
+    None => Err("ready source commit could not be determined.")
   }
 }
 
@@ -529,7 +774,27 @@ async fn run_codex(run : RuntimeRun, prompt : String) -> Unit noraise {
     } else {
       final_response.trim().to_owned()
     }
-    finish_run(run, "succeeded", summary, "info", ready_commit_sha=None)
+    add_event(run, "info", "Committing and pushing source changes.")
+    let ready_commit_sha = match commit_and_push_source(run.run_id) {
+      Ok(commit) => commit
+      Err(message) => {
+        finish_run(
+          run,
+          "failed",
+          "Builder finished, but source changes could not be published: \{message}",
+          "error",
+          ready_commit_sha=None,
+        )
+        return
+      }
+    }
+    finish_run(
+      run,
+      "succeeded",
+      summary,
+      "info",
+      ready_commit_sha=Some(ready_commit_sha),
+    )
   } catch {
     error =>
       finish_run(
@@ -588,7 +853,7 @@ fn parse_init_request(body : String) -> Result[InitRequest, String] {
 }
 
 ///|
-fn handle_init(body : String) -> HttpReply {
+async fn handle_init(body : String) -> HttpReply noraise {
   if active_run_id.val is Some(_) {
     return runtime_error(
       409,
@@ -600,20 +865,29 @@ fn handle_init(body : String) -> HttpReply {
     Ok(request) => request
     Err(message) => return runtime_error(400, "BadRequest", message)
   }
-  ignore(request.source_repository.url)
-  ignore(request.source_repository.default_branch)
-  ignore(request.source_credential.kind)
-  ignore(request.source_credential.username)
-  ignore(request.source_credential.password)
+  let authenticated_url = match source_authenticated_url(request) {
+    Ok(url) => url
+    Err(message) => return runtime_error(400, "BadRequest", message)
+  }
   runtime_secrets.clear()
   for secret in request.secrets {
     runtime_secrets[secret.name.trim().to_owned()] = secret.value
   }
+  let state : RuntimeSourceState = {
+    repository: request.source_repository,
+    credential: request.source_credential,
+    authenticated_url,
+  }
+  let current_commit = match configure_source_repository(state) {
+    Ok(commit) => commit
+    Err(message) => return runtime_error(503, "ServiceUnavailable", message)
+  }
+  runtime_source.val = Some(state)
   initialized.val = true
   json_reply(
     200,
     "OK",
-    init_response(request.source_repository.current_commit_sha),
+    init_response(current_commit),
   )
 }
 

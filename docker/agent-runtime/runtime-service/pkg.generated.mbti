@@ -12,7 +12,21 @@ import {
 // Types and methods
 type ExecRequest derive(@json.FromJson)
 
+type HealthResponse derive(ToJson)
+
 type HttpReply
+
+type InitProject derive(@json.FromJson)
+
+type InitRequest derive(@json.FromJson)
+
+type InitResponse derive(ToJson)
+
+type InitSecret derive(@json.FromJson)
+
+type InitSourceCredential derive(@json.FromJson)
+
+type InitSourceRepository derive(@json.FromJson)
 
 type RunEventsResponse derive(ToJson)
 
@@ -23,6 +37,8 @@ type RuntimeErrorResponse derive(ToJson)
 type RuntimeRun
 
 type RuntimeRunEvent derive(ToJson)
+
+type RuntimeSourceState
 
 // Type aliases
 
