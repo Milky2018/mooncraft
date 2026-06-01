@@ -36,7 +36,7 @@ fn admin_project_select_sql() -> String {
     #|  p.display_name,
     #|  p.runtime_id,
     #|  p.runtime_name,
-    #|  p.runtime_spec_json,
+    #|  p.runtime_config_json,
     #|  p.agent_session_id,
     #|  COALESCE(p.runtime_session_id, '') AS runtime_session_id,
     #|  p.agent_cli,

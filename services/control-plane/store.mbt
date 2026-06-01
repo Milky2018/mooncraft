@@ -1444,7 +1444,7 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
         #|  display_name TEXT NOT NULL,
         #|  runtime_id TEXT NOT NULL DEFAULT '',
         #|  runtime_name TEXT NOT NULL DEFAULT 'Runtime',
-        #|  runtime_spec_json TEXT NOT NULL DEFAULT '',
+        #|  runtime_config_json TEXT NOT NULL DEFAULT '',
         #|  agent_session_id TEXT NOT NULL DEFAULT '',
         #|  runtime_session_id TEXT,
         #|  agent_cli TEXT NOT NULL DEFAULT '',
@@ -1580,10 +1580,13 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
   }
   match
     self.ensure_column(
-      "projects", "runtime_spec_json", "TEXT NOT NULL DEFAULT ''",
+      "projects", "runtime_config_json", "TEXT NOT NULL DEFAULT ''",
     ) {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
+  }
+  if self.drop_column_if_exists("projects", "runtime_spec_json") is Err(message) {
+    return Err(message)
   }
   match
     self.ensure_column(
@@ -1838,8 +1841,8 @@ fn project_detail_from_row(row : Map[String, @db.Param]) -> @sdk.ProjectDetail {
     display_name: row_text(row, "display_name"),
     runtime_id: row_text(row, "runtime_id"),
     runtime_name: row_text(row, "runtime_name"),
-    runtime_spec: match
-      @sdk.runtime_spec_from_json(row_text(row, "runtime_spec_json")) {
+    runtime_config: match
+      @sdk.runtime_config_from_json(row_text(row, "runtime_config_json")) {
       Ok(spec) => Some(spec)
       Err(_) => None
     },
@@ -2138,7 +2141,7 @@ async fn Store::get_project_detail(
         #|  p.display_name,
         #|  p.runtime_id,
         #|  p.runtime_name,
-        #|  p.runtime_spec_json,
+        #|  p.runtime_config_json,
         #|  p.agent_session_id,
         #|  COALESCE(p.runtime_session_id, '') AS runtime_session_id,
         #|  p.agent_cli,
@@ -2634,7 +2637,7 @@ async fn Store::create_project_with_runtime(
   display_name : String,
   runtime_id : String,
   runtime_name : String,
-  runtime_spec_json : String,
+  runtime_config_json : String,
   agent_session_id : String,
   agent_cli : String,
   model : String,
@@ -2651,7 +2654,7 @@ async fn Store::create_project_with_runtime(
         #|  display_name,
         #|  runtime_id,
         #|  runtime_name,
-        #|  runtime_spec_json,
+        #|  runtime_config_json,
         #|  agent_session_id,
         #|  agent_cli,
         #|  ai_model,
@@ -2669,7 +2672,7 @@ async fn Store::create_project_with_runtime(
         String(display_name),
         String(runtime_id),
         String(runtime_name),
-        String(runtime_spec_json),
+        String(runtime_config_json),
         String(agent_session_id),
         String(agent_cli),
         String(model),

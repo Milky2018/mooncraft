@@ -40,14 +40,14 @@ dev_sign_in() {
 }
 
 register_smoke_runtime() {
-  local runtime_spec_json='{"protocol_version":3,"image":"mooncraft/fake-runtime:smoke","env":{},"secrets":[]}'
-  local escaped_runtime_spec_json="${runtime_spec_json//\"/\\\"}"
+  local runtime_config_json='{"config_version":3,"launcher":{"kind":"docker","image":"mooncraft/fake-runtime:smoke"},"env":{},"secrets":[]}'
+  local escaped_runtime_config_json="${runtime_config_json//\"/\\\"}"
   local runtime_response
   runtime_response="$(curl -fsS \
     -H "Authorization: Bearer $admin_token" \
     -H 'Content-Type: application/json' \
     -X POST "$base_url/api/admin/runtimes" \
-    -d "{\"name\":\"Smoke Runtime $$\",\"spec_json\":\"$escaped_runtime_spec_json\",\"enabled\":true,\"is_default\":true}")"
+    -d "{\"name\":\"Smoke Runtime $$\",\"config_json\":\"$escaped_runtime_config_json\",\"enabled\":true,\"is_default\":true}")"
   printf '%s' "$runtime_response" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p'
 }
 

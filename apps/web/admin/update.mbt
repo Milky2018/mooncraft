@@ -67,8 +67,8 @@ fn admin_bool_value(value : String) -> Bool {
 }
 
 ///|
-fn default_runtime_spec_json() -> String {
-  @sdk.default_runtime_manifest_json()
+fn default_runtime_config_json() -> String {
+  @sdk.default_runtime_config_json()
 }
 
 ///|
@@ -369,7 +369,7 @@ fn update(
           creating_runtime: true,
           editing_runtime_id: None,
           editing_runtime_name: "",
-          editing_runtime_spec_json: default_runtime_spec_json(),
+          editing_runtime_config_json: default_runtime_config_json(),
           editing_runtime_enabled: "true",
           editing_runtime_default: "false",
           active_action_menu: None,
@@ -388,7 +388,7 @@ fn update(
               creating_runtime: false,
               editing_runtime_id: Some(id),
               editing_runtime_name: runtime.name,
-              editing_runtime_spec_json: runtime.spec_json,
+              editing_runtime_config_json: runtime.config_json,
               editing_runtime_enabled: if runtime.enabled {
                 "true"
               } else {
@@ -414,7 +414,7 @@ fn update(
           creating_runtime: false,
           editing_runtime_id: None,
           editing_runtime_name: "",
-          editing_runtime_spec_json: "",
+          editing_runtime_config_json: "",
           editing_runtime_enabled: "true",
           editing_runtime_default: "false",
           active_action_menu: None,
@@ -422,8 +422,8 @@ fn update(
       )
     RuntimeNameChanged(value) =>
       (@rabbita.none, { ..model, editing_runtime_name: value })
-    RuntimeSpecChanged(value) =>
-      (@rabbita.none, { ..model, editing_runtime_spec_json: value })
+    RuntimeConfigChanged(value) =>
+      (@rabbita.none, { ..model, editing_runtime_config_json: value })
     RuntimeEnabledChanged(value) =>
       (@rabbita.none, { ..model, editing_runtime_enabled: value })
     RuntimeDefaultChanged(value) =>
@@ -433,7 +433,7 @@ fn update(
         create_runtime_cmd(
           dispatch,
           model.editing_runtime_name,
-          model.editing_runtime_spec_json,
+          model.editing_runtime_config_json,
           admin_bool_value(model.editing_runtime_enabled),
           admin_bool_value(model.editing_runtime_default),
         ),
@@ -445,7 +445,7 @@ fn update(
           dispatch,
           id,
           model.editing_runtime_name,
-          model.editing_runtime_spec_json,
+          model.editing_runtime_config_json,
           admin_bool_value(model.editing_runtime_enabled),
           admin_bool_value(model.editing_runtime_default),
         ),
@@ -460,7 +460,7 @@ fn update(
           creating_runtime: false,
           editing_runtime_id: None,
           editing_runtime_name: "",
-          editing_runtime_spec_json: "",
+          editing_runtime_config_json: "",
           editing_runtime_enabled: "true",
           editing_runtime_default: "false",
           active_action_menu: None,

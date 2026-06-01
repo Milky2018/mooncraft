@@ -85,14 +85,17 @@ curl -fsS \
   -d "{\"name\":\"agent_smoke_ai_api_key_$$\",\"value\":\"$api_key\"}" \
   "$base_url/api/admin/secrets" >/dev/null
 
-runtime_spec_json="$(
+runtime_config_json="$(
   jq -cn \
     --arg image "$agent_runtime_image" \
     --arg model "$model" \
     --arg secret_source "agent_smoke_ai_api_key_$$" \
     '{
-      protocol_version: 3,
-      image: $image,
+      config_version: 3,
+      launcher: {
+        kind: "docker",
+        image: $image
+      },
       env: {
         OPENAI_BASE_URL: "https://openrouter.ai/api/v1",
         MODEL: $model
@@ -100,10 +103,7 @@ runtime_spec_json="$(
       secrets: [
         {
           source: $secret_source,
-          target: {
-            type: "env",
-            name: "OPENAI_API_KEY"
-          }
+          name: "OPENAI_API_KEY"
         }
       ]
     }'
@@ -111,8 +111,8 @@ runtime_spec_json="$(
 runtime_request="$(
   jq -cn \
     --arg name "Agent Smoke Runtime" \
-    --arg spec_json "$runtime_spec_json" \
-    '{name: $name, spec_json: $spec_json, enabled: true, is_default: true}'
+    --arg config_json "$runtime_config_json" \
+    '{name: $name, config_json: $config_json, enabled: true, is_default: true}'
 )"
 runtime_response="$(
   curl -fsS \

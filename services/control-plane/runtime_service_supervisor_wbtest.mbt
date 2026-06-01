@@ -6,8 +6,8 @@ fn test_runtime_service_spec() -> RuntimeServiceSpec {
     platform: "linux/arm64",
     env: { "RUNTIME_MODE": "test" },
     secrets: [
-      { env: Some("OPENROUTER_API_KEY"), file: None, value: "test-key" },
-      { env: None, file: Some("codex/auth.json"), value: "{}" },
+      { name: "OPENROUTER_API_KEY", value: "test-key" },
+      { name: "CODEX_AUTH_JSON", value: "{}" },
     ],
     container_name: "mooncraft-runtime-project-runtime-test",
     workspace_volume: "mooncraft-workspace-project-runtime-test",
@@ -43,23 +43,8 @@ test "runtime service container uses network and named volumes without published
 test "runtime service env file combines plain env and env secrets" {
   inspect(
     runtime_service_env_file_content(test_runtime_service_spec()),
-    content="RUNTIME_MODE=test\nOPENROUTER_API_KEY=test-key\n",
+    content="RUNTIME_MODE=test\nOPENROUTER_API_KEY=test-key\nCODEX_AUTH_JSON={}\n",
   )
-}
-
-///|
-async test "runtime service file secrets materialize relative to secret bundle" {
-  let root = "/tmp/mooncraft-runtime-service-secrets-\{random_hex(6)}"
-  match
-    materialize_runtime_service_file_secrets(root, test_runtime_service_spec()) {
-    Ok(Some(path)) =>
-      inspect(
-        @async_fs.read_file("\{path}/codex/auth.json").text(),
-        content="{}",
-      )
-    Ok(None) => fail("expected file secret directory")
-    Err(message) => fail(message)
-  }
 }
 
 ///|

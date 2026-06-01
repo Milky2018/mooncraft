@@ -65,7 +65,7 @@ async fn RuntimeServiceSpec::from_settings(
   }
   Ok({
     project_id,
-    image: settings.runtime_spec.image,
+    image: settings.runtime_config.launcher.image,
     platform,
     env: settings.env,
     secrets: settings.secrets,
@@ -84,9 +84,8 @@ fn runtime_service_env_file_content(spec : RuntimeServiceSpec) -> String {
     content <+ "\{docker_env_value(key)}=\{docker_env_value(value)}\n"
   }
   for secret in spec.secrets {
-    if secret.env is Some(env) {
-      content <+ "\{docker_env_value(env)}=\{docker_env_value(secret.value)}\n"
-    }
+    content <+
+      "\{docker_env_value(secret.name)}=\{docker_env_value(secret.value)}\n"
   }
   content.to_string()
 }
@@ -99,11 +98,6 @@ fn runtime_service_state_dir(root : String, project_id : String) -> String {
 ///|
 fn runtime_service_env_file_path(root : String, project_id : String) -> String {
   "\{runtime_service_state_dir(root, project_id)}/runtime.env"
-}
-
-///|
-fn runtime_service_secret_dir(root : String, project_id : String) -> String {
-  "\{runtime_service_state_dir(root, project_id)}/file-secrets"
 }
 
 ///|
@@ -130,40 +124,6 @@ async fn write_runtime_service_env_file(
 async fn remove_runtime_service_env_file(path : String) -> Unit noraise {
   @async_fs.remove(path) catch {
     _ => ()
-  }
-}
-
-///|
-async fn materialize_runtime_service_file_secrets(
-  root : String,
-  spec : RuntimeServiceSpec,
-) -> Result[String?, String] noraise {
-  let secret_dir = runtime_service_secret_dir(root, spec.project_id)
-  fs_remove_tree(secret_dir) catch {
-    err => return Err("Runtime secret directory could not be reset: \{err}")
-  }
-  let mut wrote_file = false
-  for secret in spec.secrets {
-    if secret.file is Some(file) {
-      let relative_path = match @sdk.validate_runtime_secret_file_path(file) {
-        Ok(path) => path
-        Err(message) => return Err(message)
-      }
-      let target = "\{secret_dir}/\{relative_path}"
-      ensure_dir(parent_dir(target)) catch {
-        err =>
-          return Err("Runtime secret directory could not be created: \{err}")
-      }
-      @async_fs.write_file(target, secret.value, create=0o600, truncate=true) catch {
-        err => return Err("Runtime secret file could not be written: \{err}")
-      }
-      wrote_file = true
-    }
-  }
-  if wrote_file {
-    Ok(Some(secret_dir))
-  } else {
-    Ok(None)
   }
 }
 
@@ -372,7 +332,9 @@ async fn runtime_service_image_user_id(
       }
     }
     Ok((_, output)) =>
-      Err("Runtime image user id could not be detected: \{tail_text(output, 800)}")
+      Err(
+        "Runtime image user id could not be detected: \{tail_text(output, 800)}",
+      )
     Err(message) => Err(message)
   }
 }
@@ -409,7 +371,9 @@ async fn chown_runtime_service_volumes(
     ]) {
     Ok((0, _)) => Ok(())
     Ok((_, output)) =>
-      Err("Runtime volumes could not be assigned to the image user: \{tail_text(output, 800)}")
+      Err(
+        "Runtime volumes could not be assigned to the image user: \{tail_text(output, 800)}",
+      )
     Err(message) => Err(message)
   }
 }
@@ -523,13 +487,6 @@ async fn create_runtime_service_container(
     Ok(path) => path
     Err(message) => return Err(message)
   }
-  let secret_dir = match materialize_runtime_service_file_secrets(root, spec) {
-    Ok(path) => path
-    Err(message) => {
-      remove_runtime_service_env_file(env_file_path)
-      return Err(message)
-    }
-  }
   ignore(run_process_quiet("docker", ["rm", "-f", spec.container_name]))
   match
     collect_process_text(
@@ -539,53 +496,13 @@ async fn create_runtime_service_container(
     Ok((0, _)) => ()
     Ok((_, output)) => {
       remove_runtime_service_env_file(env_file_path)
-      ignore(
-        fs_remove_tree(runtime_service_secret_dir(root, spec.project_id)) catch {
-          _ => ()
-        },
-      )
       return Err(
         "Runtime container could not be created: \{tail_text(output, 800)}",
       )
     }
     Err(message) => {
       remove_runtime_service_env_file(env_file_path)
-      ignore(
-        fs_remove_tree(runtime_service_secret_dir(root, spec.project_id)) catch {
-          _ => ()
-        },
-      )
       return Err(message)
-    }
-  }
-  if secret_dir is Some(path) {
-    match
-      collect_process_text("docker", [
-        "cp",
-        "\{path}/.",
-        "\{spec.container_name}:\{agent_container_home_dir()}/",
-      ]) {
-      Ok((0, _)) => ()
-      Ok((_, output)) => {
-        remove_runtime_service_env_file(env_file_path)
-        ignore(
-          fs_remove_tree(runtime_service_secret_dir(root, spec.project_id)) catch {
-            _ => ()
-          },
-        )
-        return Err(
-          "Runtime file secrets could not be copied into the home volume: \{tail_text(output, 800)}",
-        )
-      }
-      Err(message) => {
-        remove_runtime_service_env_file(env_file_path)
-        ignore(
-          fs_remove_tree(runtime_service_secret_dir(root, spec.project_id)) catch {
-            _ => ()
-          },
-        )
-        return Err(message)
-      }
     }
   }
   if import_legacy_workspace_snapshot {
@@ -609,11 +526,6 @@ async fn create_runtime_service_container(
     ignore(run_process_quiet("docker", ["rm", "-f", spec.container_name]))
     return Err(message)
   }
-  ignore(
-    fs_remove_tree(runtime_service_secret_dir(root, spec.project_id)) catch {
-      _ => ()
-    },
-  )
   let started = match
     collect_process_text("docker", ["start", spec.container_name]) {
     Ok((0, _)) => true

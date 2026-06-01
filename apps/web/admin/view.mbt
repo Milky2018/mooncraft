@@ -569,7 +569,7 @@ fn runtime_create_dialog(
   model : AdminModel,
 ) -> @rabbita.Html {
   let can_save = model.editing_runtime_name.trim() != "" &&
-    model.editing_runtime_spec_json.trim() != ""
+    model.editing_runtime_config_json.trim() != ""
   @html.div(
     style=[
       "position: fixed", "inset: 0", "z-index: 100", "display: flex", "align-items: center",
@@ -684,11 +684,11 @@ fn runtime_create_dialog(
           @html.div(
             style=["display: flex", "flex-direction: column", "gap: 6px"],
             [
-              @html.div(style=value_style(), "Runtime JSON"),
+              @html.div(style=value_style(), "Runtime Config JSON"),
               @html.textarea(
                 rows=12,
-                value=model.editing_runtime_spec_json,
-                on_input=fn(value) { dispatch(RuntimeSpecChanged(value)) },
+                value=model.editing_runtime_config_json,
+                on_input=fn(value) { dispatch(RuntimeConfigChanged(value)) },
                 style=input_style() +
                   [
                     "font-family: ui-monospace, SFMono-Regular, Menlo, monospace",
@@ -779,8 +779,8 @@ fn runtime_row(
       @html.td(colspan=3, style=td_style(), [
         @html.textarea(
           rows=8,
-          value=model.editing_runtime_spec_json,
-          on_input=fn(value) { dispatch(RuntimeSpecChanged(value)) },
+          value=model.editing_runtime_config_json,
+          on_input=fn(value) { dispatch(RuntimeConfigChanged(value)) },
           style=input_style() +
             ["font-family: ui-monospace, SFMono-Regular, Menlo, monospace"],
           "",
@@ -807,11 +807,14 @@ fn runtime_row(
       @html.td(style=td_style(), @html.strong(runtime.name)),
       @html.td(style=td_style(), @html.code(runtime.id)),
       @html.td(style=td_style(), runtime_status_label(runtime)),
-      @html.td(style=td_style(), [@html.code(runtime.spec.image)]),
-      @html.td(style=numeric_td_style(), runtime.spec.env.length().to_string()),
+      @html.td(style=td_style(), [@html.code(runtime.config.launcher.image)]),
       @html.td(
         style=numeric_td_style(),
-        runtime.spec.secrets.length().to_string(),
+        runtime.config.env.length().to_string(),
+      ),
+      @html.td(
+        style=numeric_td_style(),
+        runtime.config.secrets.length().to_string(),
       ),
       @html.td(style=actions_td_style(), [
         action_menu_button(dispatch, model, menu_key, "Runtime actions"),

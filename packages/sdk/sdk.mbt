@@ -55,106 +55,51 @@ pub(all) struct ProjectActivity {
 } derive(Debug, ToJson, FromJson)
 
 ///|
-pub(all) struct RuntimeSecretTarget {
-  kind : String
-  name : String?
-  path : String?
-} derive(Debug)
-
-///|
-pub impl ToJson for RuntimeSecretTarget with fn to_json(self) {
-  let fields = { "type": self.kind.to_json() }
-  if self.name is Some(name) {
-    fields["name"] = name.to_json()
-  }
-  if self.path is Some(path) {
-    fields["path"] = path.to_json()
-  }
-  Json::object(fields)
-}
-
-///|
-pub impl @json.FromJson for RuntimeSecretTarget with fn from_json(json, path) {
-  match json {
-    Object(fields) => {
-      let kind = match fields.get("type") {
-        Some(String(value)) => value
-        _ =>
-          raise JsonDecodeError(
-            (path.add_key("type"), "Runtime secret target type is required"),
-          )
-      }
-      let name = match fields.get("name") {
-        Some(String(value)) => Some(value)
-        Some(Null) | None => None
-        _ =>
-          raise JsonDecodeError(
-            (
-              path.add_key("name"),
-              "Runtime secret target name must be a string",
-            ),
-          )
-      }
-      let file_path = match fields.get("path") {
-        Some(String(value)) => Some(value)
-        Some(Null) | None => None
-        _ =>
-          raise JsonDecodeError(
-            (
-              path.add_key("path"),
-              "Runtime secret target path must be a string",
-            ),
-          )
-      }
-      { kind, name, path: file_path }
-    }
-    _ =>
-      raise JsonDecodeError(
-        (path, "Runtime secret target must be a JSON object"),
-      )
-  }
-}
-
-///|
 pub(all) struct RuntimeSecret {
   source : String
-  target : RuntimeSecretTarget
+  name : String
 } derive(Debug, ToJson, FromJson)
 
 ///|
-pub(all) struct RuntimeSpec {
-  protocol_version : Int
+pub(all) struct RuntimeLauncher {
+  kind : String
   image : String
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct RuntimeConfig {
+  config_version : Int
+  launcher : RuntimeLauncher
   env : Map[String, String]
   secrets : Array[RuntimeSecret]
 } derive(Debug)
 
 ///|
-pub impl ToJson for RuntimeSpec with fn to_json(self) {
+pub impl ToJson for RuntimeConfig with fn to_json(self) {
   let env_fields : Map[String, Json] = {}
   for key, value in self.env {
     env_fields[key] = value.to_json()
   }
   Json::object({
-    "protocol_version": self.protocol_version.to_json(),
-    "image": self.image.to_json(),
+    "config_version": self.config_version.to_json(),
+    "launcher": self.launcher.to_json(),
     "env": Json::object(env_fields),
     "secrets": self.secrets.to_json(),
   })
 }
 
 ///|
-pub impl @json.FromJson for RuntimeSpec with fn from_json(json, path) {
+pub impl @json.FromJson for RuntimeConfig with fn from_json(json, path) {
   match json {
     Object(fields) => {
-      let protocol_version = match fields.get("protocol_version") {
+      let config_version = match fields.get("config_version") {
         Some(Number(_, ..) as value) =>
           @string.parse_int(value.stringify()) catch {
             _ =>
               raise JsonDecodeError(
                 (
-                  path.add_key("protocol_version"),
-                  "Runtime protocol_version must be an integer",
+                  path.add_key("config_version"),
+                  "Runtime config_version must be an integer",
                 ),
               )
           }
@@ -163,24 +108,33 @@ pub impl @json.FromJson for RuntimeSpec with fn from_json(json, path) {
             _ =>
               raise JsonDecodeError(
                 (
-                  path.add_key("protocol_version"),
-                  "Runtime protocol_version must be an integer",
+                  path.add_key("config_version"),
+                  "Runtime config_version must be an integer",
                 ),
               )
           }
         _ =>
           raise JsonDecodeError(
             (
-              path.add_key("protocol_version"),
-              "Runtime protocol_version is required",
+              path.add_key("config_version"),
+              "Runtime config_version is required",
             ),
           )
       }
-      let image = match fields.get("image") {
-        Some(String(value)) => value
-        _ =>
+      let launcher : RuntimeLauncher = match fields.get("launcher") {
+        Some(value) =>
+          @json.from_json(value) catch {
+            err =>
+              raise JsonDecodeError(
+                (
+                  path.add_key("launcher"),
+                  "Runtime launcher is invalid: \{err}",
+                ),
+              )
+          }
+        None =>
           raise JsonDecodeError(
-            (path.add_key("image"), "Runtime image is required"),
+            (path.add_key("launcher"), "Runtime launcher is required"),
           )
       }
       let env : Map[String, String] = {}
@@ -222,9 +176,9 @@ pub impl @json.FromJson for RuntimeSpec with fn from_json(json, path) {
             (path.add_key("secrets"), "Runtime secrets must be an array"),
           )
       }
-      { protocol_version, image, env, secrets }
+      { config_version, launcher, env, secrets }
     }
-    _ => raise JsonDecodeError((path, "Runtime spec must be a JSON object"))
+    _ => raise JsonDecodeError((path, "Runtime config must be a JSON object"))
   }
 }
 
@@ -243,8 +197,8 @@ pub(all) struct RuntimeSummary {
 pub(all) struct RuntimeDetail {
   id : String
   name : String
-  spec : RuntimeSpec
-  spec_json : String
+  config : RuntimeConfig
+  config_json : String
   enabled : Bool
   is_default : Bool
   created_at : String
@@ -282,7 +236,7 @@ pub(all) struct ProjectDetail {
   display_name : String
   runtime_id : String
   runtime_name : String
-  runtime_spec : RuntimeSpec?
+  runtime_config : RuntimeConfig?
   agent_session_id : String
   runtime_session_id : String?
   agent_cli : String
@@ -498,7 +452,7 @@ pub(all) struct AdminListRuntimesResponse {
 ///|
 pub(all) struct CreateAdminRuntimeRequest {
   name : String
-  spec_json : String
+  config_json : String
   enabled : Bool
   is_default : Bool
 } derive(Debug, ToJson, FromJson)
@@ -506,7 +460,7 @@ pub(all) struct CreateAdminRuntimeRequest {
 ///|
 pub(all) struct UpdateAdminRuntimeRequest {
   name : String
-  spec_json : String
+  config_json : String
   enabled : Bool
   is_default : Bool
 } derive(Debug, ToJson, FromJson)

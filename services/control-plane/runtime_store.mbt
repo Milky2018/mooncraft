@@ -2,17 +2,17 @@
 fn runtime_detail_from_row(
   row : Map[String, @db.Param],
 ) -> Result[@sdk.RuntimeDetail, String] {
-  let spec_json = row_text(row, "spec_json")
-  let spec = match @sdk.runtime_spec_from_json(spec_json) {
-    Ok(spec) => spec
+  let config_json = row_text(row, "config_json")
+  let config = match @sdk.runtime_config_from_json(config_json) {
+    Ok(config) => config
     Err(message) =>
       return Err("Stored Runtime \{row_text(row, "id")} is invalid: \{message}")
   }
   Ok({
     id: row_text(row, "id"),
     name: row_text(row, "name"),
-    spec,
-    spec_json: @sdk.runtime_spec_to_json(spec),
+    config,
+    config_json: @sdk.runtime_config_to_json(config),
     enabled: row_bool(row, "enabled"),
     is_default: row_bool(row, "is_default"),
     created_at: row_text(row, "created_at"),
@@ -27,7 +27,7 @@ fn runtime_summary_from_detail(
   {
     id: runtime.id,
     name: runtime.name,
-    image: runtime.spec.image,
+    image: runtime.config.launcher.image,
     enabled: runtime.enabled,
     is_default: runtime.is_default,
     created_at: runtime.created_at,
@@ -37,7 +37,7 @@ fn runtime_summary_from_detail(
 
 ///|
 fn runtime_snapshot_json(runtime : @sdk.RuntimeDetail) -> String {
-  @sdk.runtime_spec_to_json(runtime.spec)
+  @sdk.runtime_config_to_json(runtime.config)
 }
 
 ///|
@@ -46,13 +46,13 @@ async fn Store::delete_invalid_agent_runtime_rows(
 ) -> Result[Unit, String] noraise {
   let rows = self.query_rows(
     (
-      #|SELECT id, spec_json
+      #|SELECT id, config_json
       #|FROM agent_runtimes;
     ),
   )
   for row in rows {
     let id = row_text(row, "id")
-    if @sdk.runtime_spec_from_json(row_text(row, "spec_json")) is Err(_) {
+    if @sdk.runtime_config_from_json(row_text(row, "config_json")) is Err(_) {
       if self.exec_or_error(
           "DELETE FROM agent_runtimes WHERE id = ?;",
           "delete invalid agent runtime",
@@ -147,7 +147,7 @@ async fn Store::ensure_agent_runtime_tables(
         #|CREATE TABLE IF NOT EXISTS agent_runtimes (
         #|  id TEXT PRIMARY KEY,
         #|  name TEXT NOT NULL,
-        #|  spec_json TEXT NOT NULL,
+        #|  config_json TEXT NOT NULL,
         #|  enabled INTEGER NOT NULL DEFAULT 1,
         #|  is_default INTEGER NOT NULL DEFAULT 0,
         #|  created_at TEXT NOT NULL,
@@ -163,6 +163,15 @@ async fn Store::ensure_agent_runtime_tables(
     return Err(message)
   }
   if self.drop_column_if_exists("agent_runtimes", "model") is Err(message) {
+    return Err(message)
+  }
+  if self.ensure_column(
+      "agent_runtimes", "config_json", "TEXT NOT NULL DEFAULT ''",
+    )
+    is Err(message) {
+    return Err(message)
+  }
+  if self.drop_column_if_exists("agent_runtimes", "spec_json") is Err(message) {
     return Err(message)
   }
   if self.delete_retired_seed_runtime_rows() is Err(message) {
@@ -186,7 +195,7 @@ async fn Store::list_admin_runtimes(
       #|SELECT
       #|  id,
       #|  name,
-      #|  spec_json,
+      #|  config_json,
       #|  enabled,
       #|  is_default,
       #|  created_at,
@@ -214,7 +223,7 @@ async fn Store::list_enabled_runtimes(
       #|SELECT
       #|  id,
       #|  name,
-      #|  spec_json,
+      #|  config_json,
       #|  enabled,
       #|  is_default,
       #|  created_at,
@@ -246,7 +255,7 @@ async fn Store::get_runtime_detail(
         #|SELECT
         #|  id,
         #|  name,
-        #|  spec_json,
+        #|  config_json,
         #|  enabled,
         #|  is_default,
         #|  created_at,
@@ -289,7 +298,7 @@ async fn Store::save_admin_runtime(
   self : Store,
   id : String,
   name_input : String,
-  spec_json_input : String,
+  config_json_input : String,
   enabled : Bool,
   is_default : Bool,
 ) -> Result[@sdk.RuntimeDetail, String] noraise {
@@ -300,11 +309,11 @@ async fn Store::save_admin_runtime(
   if id.trim() == "" || id.length() > 80 {
     return Err("Runtime id is required and must be 80 characters or fewer.")
   }
-  let spec = match @sdk.runtime_spec_from_json(spec_json_input) {
-    Ok(spec) => spec
+  let config = match @sdk.runtime_config_from_json(config_json_input) {
+    Ok(config) => config
     Err(message) => return Err(message)
   }
-  let normalized_spec_json = @sdk.runtime_spec_to_json(spec)
+  let normalized_config_json = @sdk.runtime_config_to_json(config)
   let now = now_string()
   if is_default {
     ignore(
@@ -319,7 +328,7 @@ async fn Store::save_admin_runtime(
         #|INSERT INTO agent_runtimes (
         #|  id,
         #|  name,
-        #|  spec_json,
+        #|  config_json,
         #|  enabled,
         #|  is_default,
         #|  created_at,
@@ -327,7 +336,7 @@ async fn Store::save_admin_runtime(
         #|) VALUES (?, ?, ?, ?, ?, ?, ?)
         #|ON CONFLICT(id) DO UPDATE SET
         #|  name = excluded.name,
-        #|  spec_json = excluded.spec_json,
+        #|  config_json = excluded.config_json,
         #|  enabled = excluded.enabled,
         #|  is_default = excluded.is_default,
         #|  updated_at = excluded.updated_at;
@@ -336,7 +345,7 @@ async fn Store::save_admin_runtime(
       params=[
         String(id),
         String(name),
-        String(normalized_spec_json),
+        String(normalized_config_json),
         Int(if enabled { 1 } else { 0 }),
         Int(if is_default { 1 } else { 0 }),
         String(now),

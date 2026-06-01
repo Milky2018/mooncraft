@@ -6,7 +6,7 @@ fn preview_test_project(preview : @sdk.PreviewTarget?) -> @sdk.ProjectDetail {
     display_name: "Test project",
     runtime_id: "agent-runtime-001",
     runtime_name: "Runtime",
-    runtime_spec: None,
+    runtime_config: None,
     agent_session_id: "agent-session-1",
     runtime_session_id: None,
     agent_cli: "codex",

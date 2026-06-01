@@ -468,8 +468,8 @@ fn render_project_info_dialog(
             render_project_info_row("Runtime ID", project.runtime_id),
             render_project_info_row(
               "Image",
-              match project.runtime_spec {
-                Some(spec) => spec.image
+              match project.runtime_config {
+                Some(config) => config.launcher.image
                 None => "-"
               },
             ),

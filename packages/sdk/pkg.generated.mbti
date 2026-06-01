@@ -77,7 +77,7 @@ pub fn create_run_path(String) -> String
 
 pub fn create_run_route() -> RouteSpec
 
-pub fn default_runtime_manifest_json() -> String
+pub fn default_runtime_config_json() -> String
 
 pub fn delete_admin_project_route() -> RouteSpec
 
@@ -105,9 +105,7 @@ pub fn logout_route() -> RouteSpec
 
 pub fn messages_path(String) -> String
 
-pub fn normalize_runtime_secret_target(RuntimeSecretTarget) -> Result[RuntimeSecretTarget, String]
-
-pub fn normalize_runtime_spec(RuntimeSpec) -> Result[RuntimeSpec, String]
+pub fn normalize_runtime_config(RuntimeConfig) -> Result[RuntimeConfig, String]
 
 pub fn preview_public_path(String) -> String
 
@@ -185,13 +183,13 @@ pub fn run_events_path(String, String, Int) -> String
 
 pub fn run_path(String, String) -> String
 
-pub fn runtime_manifest_allowed_fields() -> Array[String]
+pub fn runtime_config_allowed_fields() -> Array[String]
 
-pub fn runtime_manifest_protocol_version() -> Int
+pub fn runtime_config_from_json(String) -> Result[RuntimeConfig, String]
 
-pub fn runtime_spec_from_json(String) -> Result[RuntimeSpec, String]
+pub fn runtime_config_to_json(RuntimeConfig) -> String
 
-pub fn runtime_spec_to_json(RuntimeSpec) -> String
+pub fn runtime_config_version() -> Int
 
 pub fn runtimes_path() -> String
 
@@ -204,8 +202,6 @@ pub fn session_route() -> RouteSpec
 pub fn update_project_route() -> RouteSpec
 
 pub fn validate_runtime_env_name(String) -> Result[String, String]
-
-pub fn validate_runtime_secret_file_path(String) -> Result[String, String]
 
 // Errors
 
@@ -348,7 +344,7 @@ pub fn ChatRole::label(Self) -> String
 
 pub(all) struct CreateAdminRuntimeRequest {
   name : String
-  spec_json : String
+  config_json : String
   enabled : Bool
   is_default : Bool
 } derive(ToJson, @debug.Debug, @json.FromJson)
@@ -424,7 +420,7 @@ pub(all) struct ProjectDetail {
   display_name : String
   runtime_id : String
   runtime_name : String
-  runtime_spec : RuntimeSpec?
+  runtime_config : RuntimeConfig?
   agent_session_id : String
   runtime_session_id : String?
   agent_cli : String
@@ -510,38 +506,35 @@ pub(all) struct RunStatusResponse {
   finished_at : String?
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
+pub(all) struct RuntimeConfig {
+  config_version : Int
+  launcher : RuntimeLauncher
+  env : Map[String, String]
+  secrets : Array[RuntimeSecret]
+} derive(@debug.Debug)
+pub impl ToJson for RuntimeConfig
+pub impl @json.FromJson for RuntimeConfig
+
 pub(all) struct RuntimeDetail {
   id : String
   name : String
-  spec : RuntimeSpec
-  spec_json : String
+  config : RuntimeConfig
+  config_json : String
   enabled : Bool
   is_default : Bool
   created_at : String
   updated_at : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
-pub(all) struct RuntimeSecret {
-  source : String
-  target : RuntimeSecretTarget
+pub(all) struct RuntimeLauncher {
+  kind : String
+  image : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
-pub(all) struct RuntimeSecretTarget {
-  kind : String
-  name : String?
-  path : String?
-} derive(@debug.Debug)
-pub impl ToJson for RuntimeSecretTarget
-pub impl @json.FromJson for RuntimeSecretTarget
-
-pub(all) struct RuntimeSpec {
-  protocol_version : Int
-  image : String
-  env : Map[String, String]
-  secrets : Array[RuntimeSecret]
-} derive(@debug.Debug)
-pub impl ToJson for RuntimeSpec
-pub impl @json.FromJson for RuntimeSpec
+pub(all) struct RuntimeSecret {
+  source : String
+  name : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct RuntimeSummary {
   id : String
@@ -570,7 +563,7 @@ pub fn SuccessStatus::code(Self) -> Int
 
 pub(all) struct UpdateAdminRuntimeRequest {
   name : String
-  spec_json : String
+  config_json : String
   enabled : Bool
   is_default : Bool
 } derive(ToJson, @debug.Debug, @json.FromJson)

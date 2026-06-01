@@ -1268,7 +1268,7 @@ fn main {
       ctx.store.save_admin_runtime(
         runtime_id,
         request.name,
-        request.spec_json,
+        request.config_json,
         request.enabled,
         request.is_default,
       ) {
@@ -1294,7 +1294,7 @@ fn main {
       ctx.store.save_admin_runtime(
         runtime_id,
         request.name,
-        request.spec_json,
+        request.config_json,
         request.enabled,
         request.is_default,
       ) {

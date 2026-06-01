@@ -28,7 +28,7 @@ struct AdminModel {
   creating_runtime : Bool
   editing_runtime_id : String?
   editing_runtime_name : String
-  editing_runtime_spec_json : String
+  editing_runtime_config_json : String
   editing_runtime_enabled : String
   editing_runtime_default : String
 }
@@ -67,7 +67,7 @@ enum AdminMsg {
   StartEditRuntime(String)
   CancelEditRuntime
   RuntimeNameChanged(String)
-  RuntimeSpecChanged(String)
+  RuntimeConfigChanged(String)
   RuntimeEnabledChanged(String)
   RuntimeDefaultChanged(String)
   SaveCreateRuntime
@@ -99,7 +99,7 @@ fn initial_admin_model() -> AdminModel {
     creating_runtime: false,
     editing_runtime_id: None,
     editing_runtime_name: "",
-    editing_runtime_spec_json: "",
+    editing_runtime_config_json: "",
     editing_runtime_enabled: "true",
     editing_runtime_default: "false",
   }

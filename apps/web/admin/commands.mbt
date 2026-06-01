@@ -78,13 +78,13 @@ fn save_runtime_cmd(
   dispatch : @rabbita.Dispatch[AdminMsg],
   id : String,
   name : String,
-  spec_json : String,
+  config_json : String,
   enabled : Bool,
   is_default : Bool,
 ) -> @rabbita.Cmd {
   let payload : @sdk.UpdateAdminRuntimeRequest = {
     name,
-    spec_json,
+    config_json,
     enabled,
     is_default,
   }
@@ -97,13 +97,13 @@ fn save_runtime_cmd(
 fn create_runtime_cmd(
   dispatch : @rabbita.Dispatch[AdminMsg],
   name : String,
-  spec_json : String,
+  config_json : String,
   enabled : Bool,
   is_default : Bool,
 ) -> @rabbita.Cmd {
   let payload : @sdk.CreateAdminRuntimeRequest = {
     name,
-    spec_json,
+    config_json,
     enabled,
     is_default,
   }

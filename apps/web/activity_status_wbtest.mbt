@@ -9,7 +9,7 @@ fn activity_test_project(
     display_name: "Activity Project",
     runtime_id: "agent-runtime-001",
     runtime_name: "Runtime",
-    runtime_spec: None,
+    runtime_config: None,
     agent_session_id: "agent-session-activity",
     runtime_session_id: None,
     agent_cli: "codex",

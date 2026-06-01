@@ -6,23 +6,23 @@ async test "runtime seeding allows an empty built-in catalog" {
     Ok(store) => store
     Err(message) => abort(message)
   }
-  let spec_json =
+  let config_json =
     #|{
-    #|  "protocol_version": 3,
-    #|  "image": "runtime:test",
+    #|  "config_version": 3,
+    #|  "launcher": {
+    #|    "kind": "docker",
+    #|    "image": "runtime:test"
+    #|  },
     #|  "secrets": [
     #|    {
     #|      "source": "mooncraft_ai_api_key",
-    #|      "target": {
-    #|        "type": "env",
-    #|        "name": "OPENROUTER_API_KEY"
-    #|      }
+    #|      "name": "OPENROUTER_API_KEY"
     #|    }
     #|  ]
     #|}
   ignore(
     store.save_admin_runtime(
-      "agent-runtime-custom-test", "Custom", spec_json, true, false,
+      "agent-runtime-custom-test", "Custom", config_json, true, false,
     ),
   )
   if store.ensure_agent_runtime_tables() is Err(message) {
@@ -65,16 +65,27 @@ async test "runtime table migration drops retired agent and model columns" {
     Ok(exists) => inspect(exists, content="false")
     Err(message) => abort(message)
   }
-  let spec_json =
+  match store.column_exists("agent_runtimes", "spec_json") {
+    Ok(exists) => inspect(exists, content="false")
+    Err(message) => abort(message)
+  }
+  match store.column_exists("agent_runtimes", "config_json") {
+    Ok(exists) => inspect(exists, content="true")
+    Err(message) => abort(message)
+  }
+  let config_json =
     #|{
-    #|  "protocol_version": 3,
-    #|  "image": "runtime:test",
+    #|  "config_version": 3,
+    #|  "launcher": {
+    #|    "kind": "docker",
+    #|    "image": "runtime:test"
+    #|  },
     #|  "env": {},
     #|  "secrets": []
     #|}
   match
     store.save_admin_runtime(
-      "agent-runtime-legacy-test", "Legacy migrated", spec_json, true, true,
+      "agent-runtime-legacy-test", "Legacy migrated", config_json, true, true,
     ) {
     Ok(_) => ignore(())
     Err(message) => abort(message)
