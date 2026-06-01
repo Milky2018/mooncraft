@@ -6,15 +6,13 @@ fn test_runtime_service_spec() -> RuntimeServiceSpec {
     platform: "linux/arm64",
     env: { "RUNTIME_MODE": "test" },
     container_name: "mooncraft-runtime-project-runtime-test",
-    workspace_volume: "mooncraft-workspace-project-runtime-test",
-    home_volume: "mooncraft-home-project-runtime-test",
     network_name: "mooncraft-runtime",
     publish_ports: false,
   }
 }
 
 ///|
-test "runtime service container uses network and named volumes without published ports" {
+test "runtime service container uses network without workspace volumes or published ports" {
   let args = runtime_service_create_args(
     test_runtime_service_spec(),
     "/tmp/runtime.env",
@@ -24,15 +22,8 @@ test "runtime service container uses network and named volumes without published
   inspect(args[0], content="create")
   inspect(args[2], content="mooncraft-runtime-project-runtime-test")
   inspect(args[6], content="mooncraft-runtime")
-  inspect(
-    args[16],
-    content="mooncraft-workspace-project-runtime-test:/workspace",
-  )
-  inspect(
-    args[18],
-    content="mooncraft-home-project-runtime-test:/home/mooncraft",
-  )
-  inspect(args[19], content="runtime:test")
+  inspect(args.contains("-v"), content="false")
+  inspect(args[15], content="runtime:test")
 }
 
 ///|
@@ -55,8 +46,6 @@ async test "runtime service records expose expired ready containers" {
     store.upsert_runtime_service_record(
       "project-runtime-test",
       "mooncraft-runtime-project-runtime-test",
-      "mooncraft-workspace-project-runtime-test",
-      "mooncraft-home-project-runtime-test",
       "mooncraft-runtime",
       runtime_service_state_ready(),
       Some("0"),
@@ -71,9 +60,4 @@ async test "runtime service records expose expired ready containers" {
     records[0].container_name,
     content="mooncraft-runtime-project-runtime-test",
   )
-  inspect(
-    records[0].workspace_volume,
-    content="mooncraft-workspace-project-runtime-test",
-  )
-  inspect(records[0].home_volume, content="mooncraft-home-project-runtime-test")
 }

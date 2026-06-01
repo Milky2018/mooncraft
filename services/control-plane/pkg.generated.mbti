@@ -7,6 +7,7 @@ import {
 }
 
 // Values
+pub async fn restore_workspace_snapshot_to_path(Store, String, String, String) -> Result[Unit, String] noraise
 
 // Errors
 
@@ -33,7 +34,7 @@ type GitHubUserEmail derive(@debug.Debug, @json.FromJson)
 
 type GitHubUserProfile derive(@debug.Debug)
 
-type ResolvedRuntimeSecret
+type ResolvedRuntimeSecret derive(@debug.Debug)
 
 type RunArtifacts
 
@@ -43,7 +44,7 @@ type RunningRunWorker
 
 type RuntimeGateway
 
-type RuntimeServiceEndpoint
+type RuntimeServiceEndpoint derive(@debug.Debug)
 
 type RuntimeServiceError derive(@json.FromJson)
 
@@ -53,13 +54,25 @@ type RuntimeServiceEventsResponse derive(@json.FromJson)
 
 type RuntimeServiceExecRequest derive(ToJson)
 
+type RuntimeServiceInitRequest derive(ToJson, @debug.Debug)
+
+type RuntimeServiceInitResponse derive(@json.FromJson)
+
+type RuntimeServiceProjectRef derive(ToJson, @debug.Debug)
+
 type RuntimeServiceRecord
 
 type RuntimeServiceRun derive(@json.FromJson)
 
+type RuntimeServiceSecret derive(ToJson, @debug.Debug)
+
+type RuntimeServiceSourceCredential derive(ToJson, @debug.Debug)
+
+type RuntimeServiceSourceRepository derive(ToJson, @debug.Debug)
+
 type RuntimeServiceSpec
 
-type RuntimeSettings
+type RuntimeSettings derive(@debug.Debug)
 
 type Store
 

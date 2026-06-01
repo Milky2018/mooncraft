@@ -1379,7 +1379,9 @@ fn main {
       "",
       workspace_path,
     )
-    let source = ctx.create_project_source_repository(user, project_id, display_name)
+    let source = ctx.create_project_source_repository(
+      user, project_id, display_name,
+    )
     ignore(ctx.store.save_project_source_repository(project_id, source))
     let project = ctx.store.get_project_detail(project_id).unwrap_or(project)
     match ctx.materialize_project_workspace(project) {
@@ -1513,9 +1515,11 @@ fn main {
         "Message content cannot be empty.",
       )
     }
-    let project = match ctx.store.get_project_detail_for_user(project_id, user.id) {
+    let project = match
+      ctx.store.get_project_detail_for_user(project_id, user.id) {
       Some(project) => project
-      None => return api_error_response(NotFound, NotFound, "Project not found.")
+      None =>
+        return api_error_response(NotFound, NotFound, "Project not found.")
     }
     if ctx.refresh_project_source_repository(user, project) is Err(message) {
       return api_error_response(Conflict, Conflict, message)

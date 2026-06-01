@@ -67,8 +67,6 @@ struct RuntimeGateway {
 struct RuntimeServiceRecord {
   project_id : String
   container_name : String
-  workspace_volume : String
-  home_volume : String
   idle_expires_at : String?
 }
 
@@ -1482,11 +1480,13 @@ async fn Store::init_schema(self : Store) -> Result[Unit, String] noraise {
         #|);
       ),
       "create project_workspace_snapshots table",
-  ) {
+    ) {
     Ok(_) => ignore(())
     Err(message) => return Err(message)
   }
-  if self.ensure_column("oauth_accounts", "access_token", "TEXT NOT NULL DEFAULT ''")
+  if self.ensure_column(
+      "oauth_accounts", "access_token", "TEXT NOT NULL DEFAULT ''",
+    )
     is Err(message) {
     return Err(message)
   }
@@ -1929,8 +1929,6 @@ fn runtime_service_record_from_row(
   {
     project_id: row_text(row, "project_id"),
     container_name: row_text(row, "container_name"),
-    workspace_volume: row_text(row, "workspace_volume"),
-    home_volume: row_text(row, "home_volume"),
     idle_expires_at: empty_to_none(row_text(row, "idle_expires_at")),
   }
 }
@@ -1940,8 +1938,6 @@ async fn Store::upsert_runtime_service_record(
   self : Store,
   project_id : String,
   container_name : String,
-  workspace_volume : String,
-  home_volume : String,
   network_name : String,
   state : String,
   idle_expires_at : String?,
@@ -1960,8 +1956,8 @@ async fn Store::upsert_runtime_service_record(
       #|) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       #|ON CONFLICT(project_id) DO UPDATE SET
       #|  container_name = excluded.container_name,
-      #|  workspace_volume = excluded.workspace_volume,
-      #|  home_volume = excluded.home_volume,
+      #|  workspace_volume = '',
+      #|  home_volume = '',
       #|  network_name = excluded.network_name,
       #|  state = excluded.state,
       #|  idle_expires_at = excluded.idle_expires_at,
@@ -1971,8 +1967,8 @@ async fn Store::upsert_runtime_service_record(
     params=[
       String(project_id),
       String(container_name),
-      String(workspace_volume),
-      String(home_volume),
+      String(""),
+      String(""),
       String(network_name),
       String(state),
       nullable_text_param(idle_expires_at),
@@ -2017,8 +2013,6 @@ async fn Store::get_runtime_service_record(
         #|SELECT
         #|  project_id,
         #|  container_name,
-        #|  workspace_volume,
-        #|  home_volume,
         #|  idle_expires_at
         #|FROM project_runtime_services
         #|WHERE project_id = ?;
@@ -2039,8 +2033,6 @@ async fn Store::list_expired_ready_runtime_services(
       #|SELECT
       #|  project_id,
       #|  container_name,
-      #|  workspace_volume,
-      #|  home_volume,
       #|  idle_expires_at
       #|FROM project_runtime_services
       #|WHERE state = ?

@@ -308,7 +308,8 @@ async fn runtime_service_get_events(
 async fn runtime_service_get_preview(
   endpoint : RuntimeServiceEndpoint,
 ) -> Result[Unit, String] noraise {
-  let response = match http_get(runtime_service_api_url(endpoint, "/preview/")) {
+  let response = match
+    http_get(runtime_service_api_url(endpoint, "/preview/")) {
     Ok(response) => response
     Err(_) => return Err("Runtime Service preview readiness is not reachable.")
   }

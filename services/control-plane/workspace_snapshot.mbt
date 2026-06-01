@@ -180,7 +180,7 @@ async fn load_workspace_snapshot_metadata(
 }
 
 ///|
-async fn restore_workspace_snapshot_to_path(
+pub async fn restore_workspace_snapshot_to_path(
   store : Store,
   root : String,
   project_id : String,

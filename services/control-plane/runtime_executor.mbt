@@ -48,16 +48,6 @@ async fn RunArtifacts::new(
 }
 
 ///|
-fn agent_container_workspace_dir() -> String {
-  "/workspace"
-}
-
-///|
-fn agent_container_home_dir() -> String {
-  "/home/mooncraft"
-}
-
-///|
 fn agent_runtime_container_name(project_id : String, run_id : String) -> String {
   "mooncraft-\{project_id}-\{run_id}"
 }
@@ -536,7 +526,7 @@ async fn run_runtime_service_turn(
                 ),
               ),
             )
-      }
+        }
       "succeeded" => {
         let ready_commit_sha = match runtime_service_ready_commit(current) {
           Ok(commit) => commit

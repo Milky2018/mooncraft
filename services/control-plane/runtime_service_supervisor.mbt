@@ -5,8 +5,6 @@ struct RuntimeServiceSpec {
   platform : String
   env : Map[String, String]
   container_name : String
-  workspace_volume : String
-  home_volume : String
   network_name : String
   publish_ports : Bool
 }
@@ -36,16 +34,6 @@ fn runtime_service_container_name(project_id : String) -> String {
 }
 
 ///|
-fn runtime_service_workspace_volume(project_id : String) -> String {
-  "mooncraft-workspace-\{project_id}"
-}
-
-///|
-fn runtime_service_home_volume(project_id : String) -> String {
-  "mooncraft-home-\{project_id}"
-}
-
-///|
 async fn runtime_service_should_publish_ports() -> Bool noraise {
   let in_docker = @async_fs.exists("/.dockerenv") catch { _ => false }
   !in_docker
@@ -67,8 +55,6 @@ async fn RuntimeServiceSpec::from_settings(
     platform,
     env: settings.env,
     container_name: runtime_service_container_name(project_id),
-    workspace_volume: runtime_service_workspace_volume(project_id),
-    home_volume: runtime_service_home_volume(project_id),
     network_name: runtime_service_network_name(),
     publish_ports: runtime_service_should_publish_ports(),
   })
@@ -146,19 +132,13 @@ fn runtime_service_create_args(
   args.push("mooncraft.runtime_service=1")
   args.push("--restart")
   args.push("unless-stopped")
-  args.push("-v")
-  args.push("\{spec.workspace_volume}:\{agent_container_workspace_dir()}")
-  args.push("-v")
-  args.push("\{spec.home_volume}:\{agent_container_home_dir()}")
   args.push(spec.image)
   args
 }
 
 ///|
 fn runtime_service_endpoint(container_name : String) -> RuntimeServiceEndpoint {
-  {
-    url: "http://\{container_name}:8080",
-  }
+  { url: "http://\{container_name}:8080" }
 }
 
 ///|
@@ -217,48 +197,19 @@ async fn resolved_runtime_service_endpoint(
     Ok(port) => port
     Err(message) => return Err(message)
   }
-  Ok({
-    url: "http://127.0.0.1:\{api_port}",
-  })
+  Ok({ url: "http://127.0.0.1:\{api_port}" })
 }
 
 ///|
 fn runtime_service_preview_target(
   project : @sdk.ProjectDetail,
 ) -> @sdk.PreviewTarget {
-  {
-    url: public_preview_url(project.preview_public_id),
-    port: 0,
-    healthy: true,
-  }
+  { url: public_preview_url(project.preview_public_id), port: 0, healthy: true }
 }
 
 ///|
 async fn docker_command_ok(args : Array[String]) -> Bool noraise {
   run_process_quiet("docker", args) == 0
-}
-
-///|
-async fn docker_volume_exists(volume : String) -> Bool noraise {
-  docker_command_ok(["volume", "inspect", volume])
-}
-
-///|
-async fn remove_docker_volume_if_exists(
-  volume : String,
-) -> Result[Unit, String] noraise {
-  if docker_volume_exists(volume) {
-    match collect_process_text("docker", ["volume", "rm", volume]) {
-      Ok((0, _)) => Ok(())
-      Ok((_, output)) =>
-        Err(
-          "Runtime volume could not be removed: \{volume}: \{tail_text(output, 800)}",
-        )
-      Err(message) => Err(message)
-    }
-  } else {
-    Ok(())
-  }
 }
 
 ///|
@@ -282,132 +233,6 @@ async fn ensure_runtime_service_network(
     }
   }
   Ok(())
-}
-
-///|
-async fn ensure_runtime_service_volumes(
-  spec : RuntimeServiceSpec,
-) -> Result[Unit, String] noraise {
-  if !docker_command_ok(["volume", "create", spec.workspace_volume]) {
-    return Err(
-      "Runtime workspace volume could not be created: \{spec.workspace_volume}",
-    )
-  }
-  if !docker_command_ok(["volume", "create", spec.home_volume]) {
-    return Err("Runtime home volume could not be created: \{spec.home_volume}")
-  }
-  Ok(())
-}
-
-///|
-async fn runtime_service_image_user_id(
-  image : String,
-  flag : String,
-) -> Result[String, String] noraise {
-  match
-    collect_process_text("docker", [
-      "run", "--rm", "--entrypoint", "id", image, flag,
-    ]) {
-    Ok((0, output)) => {
-      let value = output.trim().to_owned()
-      if value == "" {
-        Err("Runtime image user id could not be detected.")
-      } else {
-        Ok(value)
-      }
-    }
-    Ok((_, output)) =>
-      Err(
-        "Runtime image user id could not be detected: \{tail_text(output, 800)}",
-      )
-    Err(message) => Err(message)
-  }
-}
-
-///|
-async fn chown_runtime_service_volumes(
-  spec : RuntimeServiceSpec,
-) -> Result[Unit, String] noraise {
-  let uid = match runtime_service_image_user_id(spec.image, "-u") {
-    Ok(uid) => uid
-    Err(message) => return Err(message)
-  }
-  let gid = match runtime_service_image_user_id(spec.image, "-g") {
-    Ok(gid) => gid
-    Err(message) => return Err(message)
-  }
-  match
-    collect_process_text("docker", [
-      "run",
-      "--rm",
-      "--user",
-      "0:0",
-      "--entrypoint",
-      "chown",
-      "-v",
-      "\{spec.workspace_volume}:\{agent_container_workspace_dir()}",
-      "-v",
-      "\{spec.home_volume}:\{agent_container_home_dir()}",
-      spec.image,
-      "-R",
-      "\{uid}:\{gid}",
-      agent_container_workspace_dir(),
-      agent_container_home_dir(),
-    ]) {
-    Ok((0, _)) => Ok(())
-    Ok((_, output)) =>
-      Err(
-        "Runtime volumes could not be assigned to the image user: \{tail_text(output, 800)}",
-      )
-    Err(message) => Err(message)
-  }
-}
-
-///|
-async fn import_legacy_workspace_snapshot_into_runtime_container(
-  store : Store,
-  root : String,
-  project_id : String,
-  container_name : String,
-) -> Result[Unit, String] noraise {
-  match load_workspace_snapshot_metadata(store, project_id) {
-    Ok(_) => ()
-    Err(_) => return Ok(())
-  }
-  let import_path = "\{project_root(root, project_id)}/legacy-workspace-import"
-  fs_remove_tree(import_path) catch {
-    err =>
-      return Err("Legacy workspace import directory could not be reset: \{err}")
-  }
-  match
-    restore_workspace_snapshot_to_path(store, root, project_id, import_path) {
-    Ok(_) => ()
-    Err(message) => {
-      ignore(fs_remove_tree(import_path) catch { _ => () })
-      return Err("Legacy workspace snapshot could not be imported: \{message}")
-    }
-  }
-  match
-    collect_process_text("docker", [
-      "cp",
-      "\{import_path}/.",
-      "\{container_name}:\{agent_container_workspace_dir()}/",
-    ]) {
-    Ok((0, _)) => {
-      ignore(fs_remove_tree(import_path) catch { _ => () })
-      Ok(())
-    }
-    Ok((_, output)) => {
-      ignore(fs_remove_tree(import_path) catch { _ => () })
-      Err(
-        "Legacy workspace snapshot could not be copied into the Runtime workspace volume: \{tail_text(output, 800)}",
-      )
-    }
-    Err(message) => {
-      ignore(fs_remove_tree(import_path) catch { _ => () })
-      Err(message)
-    }
-  }
 }
 
 ///|
@@ -464,9 +289,7 @@ async fn wait_runtime_service_health(
 ///|
 async fn create_runtime_service_container(
   root : String,
-  store : Store,
   spec : RuntimeServiceSpec,
-  import_legacy_workspace_snapshot : Bool,
 ) -> Result[Unit, String] noraise {
   let env_file_path = match write_runtime_service_env_file(root, spec) {
     Ok(path) => path
@@ -489,27 +312,6 @@ async fn create_runtime_service_container(
       remove_runtime_service_env_file(env_file_path)
       return Err(message)
     }
-  }
-  if import_legacy_workspace_snapshot {
-    match
-      import_legacy_workspace_snapshot_into_runtime_container(
-        store,
-        root,
-        spec.project_id,
-        spec.container_name,
-      ) {
-      Ok(_) => ()
-      Err(message) => {
-        remove_runtime_service_env_file(env_file_path)
-        ignore(run_process_quiet("docker", ["rm", "-f", spec.container_name]))
-        return Err(message)
-      }
-    }
-  }
-  if chown_runtime_service_volumes(spec) is Err(message) {
-    remove_runtime_service_env_file(env_file_path)
-    ignore(run_process_quiet("docker", ["rm", "-f", spec.container_name]))
-    return Err(message)
   }
   let started = match
     collect_process_text("docker", ["start", spec.container_name]) {
@@ -574,15 +376,10 @@ async fn RuntimeGateway::ensure_project_runtime_service_with_idle_refresh(
   if ensure_runtime_service_network(spec.network_name) is Err(message) {
     return Err(message)
   }
-  if ensure_runtime_service_volumes(spec) is Err(message) {
-    return Err(message)
-  }
   match
     store.upsert_runtime_service_record(
       project_id,
       spec.container_name,
-      spec.workspace_volume,
-      spec.home_volume,
       spec.network_name,
       runtime_service_state_stopped(),
       None,
@@ -592,7 +389,8 @@ async fn RuntimeGateway::ensure_project_runtime_service_with_idle_refresh(
   }
   if docker_container_running(spec.container_name) &&
     runtime_service_health_ok(spec.container_name) {
-    let endpoint = match resolved_runtime_service_endpoint(spec.container_name) {
+    let endpoint = match
+      resolved_runtime_service_endpoint(spec.container_name) {
       Ok(endpoint) => endpoint
       Err(message) => return Err(message)
     }
@@ -608,8 +406,7 @@ async fn RuntimeGateway::ensure_project_runtime_service_with_idle_refresh(
     )
     return Ok(endpoint)
   }
-  if create_runtime_service_container(self.root, store, spec, existing is None)
-    is Err(message) {
+  if create_runtime_service_container(self.root, spec) is Err(message) {
     return Err(message)
   }
   if wait_runtime_service_health(spec.container_name) is Err(message) {
@@ -667,14 +464,9 @@ async fn RuntimeGateway::prepare_project_runtime_storage(
   if ensure_runtime_service_network(spec.network_name) is Err(message) {
     return Err(message)
   }
-  if ensure_runtime_service_volumes(spec) is Err(message) {
-    return Err(message)
-  }
   store.upsert_runtime_service_record(
     project_id,
     spec.container_name,
-    spec.workspace_volume,
-    spec.home_volume,
     spec.network_name,
     runtime_service_state_stopped(),
     None,
@@ -701,21 +493,7 @@ async fn RuntimeGateway::delete_project_runtime_storage(
     Some(record) => record.container_name
     None => runtime_service_container_name(project_id)
   }
-  let workspace_volume = match record {
-    Some(record) => record.workspace_volume
-    None => runtime_service_workspace_volume(project_id)
-  }
-  let home_volume = match record {
-    Some(record) => record.home_volume
-    None => runtime_service_home_volume(project_id)
-  }
   ignore(run_process_quiet("docker", ["rm", "-f", container_name]))
-  if remove_docker_volume_if_exists(workspace_volume) is Err(message) {
-    return Err(message)
-  }
-  if remove_docker_volume_if_exists(home_volume) is Err(message) {
-    return Err(message)
-  }
   fs_remove_tree(runtime_service_state_dir(self.root, project_id)) catch {
     err =>
       return Err("Runtime Service state directory could not be removed: \{err}")

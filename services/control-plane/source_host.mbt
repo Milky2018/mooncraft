@@ -21,7 +21,9 @@ fn github_create_repository_body(
     description: "MoonCraft project: \{display_name}",
     private: true,
     auto_init: false,
-  }.to_json().stringify()
+  }
+  .to_json()
+  .stringify()
 }
 
 ///|
@@ -157,7 +159,9 @@ async fn AppContext::refresh_project_source_repository(
           "GitHub repository access is not connected. Sign in with GitHub again.",
         ),
       }
-      ignore(self.store.save_project_source_repository(project.id, disconnected))
+      ignore(
+        self.store.save_project_source_repository(project.id, disconnected),
+      )
       return Err("Project Source Repository is disconnected.")
     }
   }
@@ -173,7 +177,9 @@ async fn AppContext::refresh_project_source_repository(
         status: "source_disconnected",
         last_error: Some(message),
       }
-      ignore(self.store.save_project_source_repository(project.id, disconnected))
+      ignore(
+        self.store.save_project_source_repository(project.id, disconnected),
+      )
       return Err("Project Source Repository is disconnected.")
     }
   }
@@ -186,7 +192,8 @@ async fn AppContext::refresh_project_source_repository(
     ignore(self.store.save_project_source_repository(project.id, disconnected))
     return Err("Project Source Repository is disconnected.")
   }
-  let refreshed = match github_repository_from_response(http_response_text(response)) {
+  let refreshed = match
+    github_repository_from_response(http_response_text(response)) {
     Ok(source) => { ..source, ready_commit_sha: current.ready_commit_sha }
     Err(message) => {
       let disconnected = {
@@ -194,7 +201,9 @@ async fn AppContext::refresh_project_source_repository(
         status: "source_disconnected",
         last_error: Some(message),
       }
-      ignore(self.store.save_project_source_repository(project.id, disconnected))
+      ignore(
+        self.store.save_project_source_repository(project.id, disconnected),
+      )
       return Err("Project Source Repository is disconnected.")
     }
   }
