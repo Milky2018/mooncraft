@@ -88,63 +88,46 @@ fn runtime_secret_value(name : String) -> String? {
 }
 
 ///|
-fn current_api_key() -> String? {
-  match runtime_secret_value("CODEX_API_KEY") {
+fn current_api_key_names() -> Array[String] {
+  ["CODEX_API_KEY", "OPENROUTER_API_KEY", "OPENAI_API_KEY"]
+}
+
+///|
+fn env_value(name : String) -> String? {
+  match @env.get_env_var(name) {
     Some(value) if value.trim() != "" => Some(value.trim().to_owned())
-    _ =>
-      match runtime_secret_value("OPENROUTER_API_KEY") {
-        Some(value) if value.trim() != "" => Some(value.trim().to_owned())
-        _ =>
-          match runtime_secret_value("OPENAI_API_KEY") {
-            Some(value) if value.trim() != "" => Some(value.trim().to_owned())
-            _ =>
-              match @env.get_env_var("CODEX_API_KEY") {
-                Some(value) if value.trim() != "" =>
-                  Some(value.trim().to_owned())
-                _ =>
-                  match @env.get_env_var("OPENROUTER_API_KEY") {
-                    Some(value) if value.trim() != "" =>
-                      Some(value.trim().to_owned())
-                    _ =>
-                      match @env.get_env_var("OPENAI_API_KEY") {
-                        Some(value) if value.trim() != "" =>
-                          Some(value.trim().to_owned())
-                        _ => None
-                      }
-                  }
-              }
-          }
-      }
+    _ => None
   }
 }
 
 ///|
-fn current_provider_env_key() -> String? {
-  match runtime_secret_value("OPENROUTER_API_KEY") {
-    Some(value) if value.trim() != "" => Some("OPENROUTER_API_KEY")
-    _ =>
-      match runtime_secret_value("CODEX_API_KEY") {
-        Some(value) if value.trim() != "" => Some("CODEX_API_KEY")
-        _ =>
-          match runtime_secret_value("OPENAI_API_KEY") {
-            Some(value) if value.trim() != "" => Some("OPENAI_API_KEY")
-            _ =>
-              match @env.get_env_var("OPENROUTER_API_KEY") {
-                Some(value) if value.trim() != "" => Some("OPENROUTER_API_KEY")
-                _ =>
-                  match @env.get_env_var("CODEX_API_KEY") {
-                    Some(value) if value.trim() != "" => Some("CODEX_API_KEY")
-                    _ =>
-                      match @env.get_env_var("OPENAI_API_KEY") {
-                        Some(value) if value.trim() != "" =>
-                          Some("OPENAI_API_KEY")
-                        _ => None
-                      }
-                  }
-              }
-          }
-      }
+fn current_api_key() -> String? {
+  for name in current_api_key_names() {
+    if runtime_secret_value(name) is Some(value) {
+      return Some(value)
+    }
   }
+  for name in current_api_key_names() {
+    if env_value(name) is Some(value) {
+      return Some(value)
+    }
+  }
+  None
+}
+
+///|
+fn current_provider_env_key() -> String? {
+  for name in current_api_key_names() {
+    if runtime_secret_value(name) is Some(_) {
+      return Some(name)
+    }
+  }
+  for name in current_api_key_names() {
+    if env_value(name) is Some(_) {
+      return Some(name)
+    }
+  }
+  None
 }
 
 ///|

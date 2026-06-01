@@ -41,6 +41,23 @@ test "preview subtree paths map to generated app paths" {
 }
 
 ///|
+test "api key lookup trims secrets and shares provider priority" {
+  reset_runtime_service_for_test()
+  runtime_secrets["OPENROUTER_API_KEY"] = " router-key "
+  runtime_secrets["CODEX_API_KEY"] = " codex-key "
+  debug_inspect(current_api_key(), content="Some(\"codex-key\")")
+  debug_inspect(current_provider_env_key(), content="Some(\"CODEX_API_KEY\")")
+  runtime_secrets.clear()
+  runtime_secrets["CODEX_API_KEY"] = " "
+  runtime_secrets["OPENROUTER_API_KEY"] = " router-key "
+  debug_inspect(current_api_key(), content="Some(\"router-key\")")
+  debug_inspect(
+    current_provider_env_key(),
+    content="Some(\"OPENROUTER_API_KEY\")",
+  )
+}
+
+///|
 fn reset_runtime_service_for_test() -> Unit {
   runs.clear()
   active_run_id.val = None
