@@ -324,6 +324,24 @@ fn render_new_project_runtime_field(
 }
 
 ///|
+fn new_project_name_keydown_attrs(
+  dispatch : @rabbita.Dispatch[Msg],
+  enabled : Bool,
+) -> @html.Attrs {
+  @html.Attrs::build().on_keydown(fn(event) {
+    if enabled &&
+      event.key() == "Enter" &&
+      !event.is_composing() &&
+      !event.repeat() {
+      event.prevent_default()
+      dispatch(CreateProject)
+    } else {
+      @rabbita.none
+    }
+  })
+}
+
+///|
 fn render_new_project_dialog(
   dispatch : @rabbita.Dispatch[Msg],
   model : Model,
@@ -373,6 +391,7 @@ fn render_new_project_dialog(
           placeholder="Project name",
           read_only=model.create_project_pending,
           on_input=fn(value) { dispatch(NewProjectNameChanged(value)) },
+          attrs=new_project_name_keydown_attrs(dispatch, enabled),
           style=input_style(model.create_project_pending) +
             ["padding: 8px 12px"],
           "",
