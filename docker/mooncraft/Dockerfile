@@ -43,10 +43,11 @@ RUN for attempt in 1 2 3 4 5; do \
 WORKDIR /app
 
 COPY moon.work /app/moon.work
-COPY packages/sdk/moon.mod.json packages/sdk/moon.pkg /app/packages/sdk/
-COPY apps/web/moon.mod.json apps/web/moon.pkg /app/apps/web/
+COPY packages/sdk/moon.pkg /app/packages/sdk/
+COPY apps/web/moon.pkg /app/apps/web/
 COPY apps/web/admin/moon.pkg /app/apps/web/admin/
-COPY services/control-plane/moon.mod.json services/control-plane/moon.pkg /app/services/control-plane/
+COPY apps/web/shared/moon.pkg /app/apps/web/shared/
+COPY services/control-plane/moon.pkg /app/services/control-plane/
 
 RUN --mount=type=cache,target=/root/.moon,sharing=locked \
   for attempt in 1 2 3 4 5; do \
