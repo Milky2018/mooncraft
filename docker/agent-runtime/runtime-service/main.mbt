@@ -720,117 +720,78 @@ fn codex_event_message(event : @codex.Event) -> (String, String)? {
       )
     TurnStarted =>
       Some(
-        (@runtime_protocol.runtime_service_event_level_info(), "Turn started."),
+        (
+          @runtime_protocol.runtime_service_event_level_info(),
+          "Planning the change.",
+        ),
       )
     TurnCompleted(_) =>
       Some(
         (
           @runtime_protocol.runtime_service_event_level_info(),
-          "Turn completed.",
+          "Builder session ended.",
         ),
       )
-    TurnFailed(error) =>
+    TurnFailed(_) =>
       Some(
-        (@runtime_protocol.runtime_service_event_level_error(), error.message),
+        (
+          @runtime_protocol.runtime_service_event_level_error(),
+          "Builder session failed.",
+        ),
       )
-    ThreadErrorEvent(message) =>
-      Some((@runtime_protocol.runtime_service_event_level_error(), message))
+    ThreadErrorEvent(_) =>
+      Some(
+        (
+          @runtime_protocol.runtime_service_event_level_error(),
+          "Builder session failed.",
+        ),
+      )
     ItemStarted(item) =>
       match item {
-        CommandExecutionItem(command~, ..) =>
+        CommandExecutionItem(..) =>
           Some(
-            (
-              @runtime_protocol.runtime_service_event_level_info(),
-              "Command started: \{command}",
-            ),
+            (@runtime_protocol.runtime_service_event_level_info(), "Working."),
           )
-        WebSearchItem(query~, ..) =>
+        WebSearchItem(..) =>
           Some(
             (
               @runtime_protocol.runtime_service_event_level_info(),
-              "Web search: \{query}",
+              "Searching the web.",
             ),
           )
         _ => None
       }
-    ItemUpdated(item) =>
-      match item {
-        CommandExecutionItem(command~, aggregated_output~, ..) if aggregated_output !=
-          "" =>
-          Some(
-            (
-              @runtime_protocol.runtime_service_event_level_info(),
-              "Command output: \{command}\n\{aggregated_output}",
-            ),
-          )
-        _ => None
-      }
+    ItemUpdated(_) => None
     ItemCompleted(item) =>
       match item {
-        AgentMessageItem(text~, ..) =>
-          Some((@runtime_protocol.runtime_service_event_level_info(), text))
-        ReasoningItem(text~, ..) if text != "" =>
-          Some((@runtime_protocol.runtime_service_event_level_info(), text))
-        CommandExecutionItem(
-          command~,
-          aggregated_output~,
-          exit_code~,
-          status~,
-          ..
-        ) => {
-          let status_text = status.to_string()
-          let code_text = match exit_code {
-            Some(code) => " exit=\{code}"
-            None => ""
+        AgentMessageItem(..) => None
+        ReasoningItem(..) => None
+        CommandExecutionItem(exit_code~, ..) =>
+          match exit_code {
+            Some(code) if code != 0 =>
+              Some(
+                (
+                  @runtime_protocol.runtime_service_event_level_error(),
+                  "A command failed.",
+                ),
+              )
+            _ => None
           }
-          let output_text = if aggregated_output == "" {
-            ""
-          } else {
-            "\n\{aggregated_output}"
-          }
+        FileChangeItem(..) =>
           Some(
             (
               @runtime_protocol.runtime_service_event_level_info(),
-              "Command \{status_text}:\{code_text} \{command}\{output_text}",
+              "Updating files.",
             ),
           )
-        }
-        FileChangeItem(changes~, ..) => {
-          let paths : Array[String] = []
-          for change in changes {
-            paths.push(change.path)
-          }
-          if paths.length() == 0 {
-            None
-          } else {
-            let changed = paths.join(", ")
-            Some(
-              (
-                @runtime_protocol.runtime_service_event_level_info(),
-                "Files changed: \{changed}",
-              ),
-            )
-          }
-        }
-        TodoListItem(items~, ..) => {
-          let lines : Array[String] = []
-          for item in items {
-            let marker = if item.completed { "x" } else { " " }
-            lines.push("[\{marker}] \{item.text}")
-          }
-          if lines.length() == 0 {
-            None
-          } else {
-            Some(
-              (
-                @runtime_protocol.runtime_service_event_level_info(),
-                lines.join("\n"),
-              ),
-            )
-          }
-        }
-        ErrorItem(message~, ..) =>
-          Some((@runtime_protocol.runtime_service_event_level_error(), message))
+        TodoListItem(..) => None
+        ErrorItem(..) =>
+          Some(
+            (
+              @runtime_protocol.runtime_service_event_level_error(),
+              "Builder session failed.",
+            ),
+          )
         _ => None
       }
   }
@@ -906,11 +867,11 @@ async fn run_codex(run : RuntimeRun, prompt : String) -> Unit noraise {
       ready_commit_sha=Some(ready_commit_sha),
     )
   } catch {
-    error =>
+    _ =>
       finish_run(
         run,
         @runtime_protocol.runtime_service_run_status_failed(),
-        "Builder session failed: \{error}",
+        "Builder session failed.",
         @runtime_protocol.runtime_service_event_level_error(),
         ready_commit_sha=None,
       )
