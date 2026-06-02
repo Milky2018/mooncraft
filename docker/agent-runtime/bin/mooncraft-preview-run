@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "$#" -lt 1 ]]; then
+  echo "usage: mooncraft-preview-run <mooncraft-preview.sh> [args...]" >&2
+  exit 64
+fi
+
+script="$1"
+shift
+
+home="${HOME:-/home/mooncraft}"
+moon_home="${MOON_HOME:-$home/.moon}"
+export MOON_HOME="$moon_home"
+
+mkdir -p "$MOON_HOME"
+
+if [[ ! -d "$MOON_HOME/registry/index/.git" ]]; then
+  moon update --quiet
+fi
+
+exec "$script" "$@"

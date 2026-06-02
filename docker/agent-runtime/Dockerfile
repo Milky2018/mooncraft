@@ -120,4 +120,11 @@ EXPOSE 8080 4792
 
 ENTRYPOINT ["mooncraft-agent-entrypoint"]
 
-RUN moon version && python3 --version && codex --version && test -x /usr/local/bin/mooncraft-runtime-service
+RUN moon update --quiet \
+  && test -d "$MOON_HOME/registry/index/.git" \
+  && test -w "$MOON_HOME" \
+  && moon version \
+  && python3 --version \
+  && codex --version \
+  && test -x /usr/local/bin/mooncraft-runtime-service \
+  && test -x /usr/local/bin/mooncraft-preview-run

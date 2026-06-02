@@ -131,6 +131,7 @@ fn reset_runtime_service_for_test() -> Unit {
   active_run_id.val = None
   pending_run.val = None
   preview_pid.val = None
+  preview_process.val = None
   initialized.val = false
   runtime_secrets.clear()
   runtime_source.val = None

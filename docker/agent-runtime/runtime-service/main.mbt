@@ -8,6 +8,9 @@ let service_address : String = "0.0.0.0:8080"
 let preview_port : Int = 4792
 
 ///|
+let preview_log_path : String = "/artifacts/preview.log"
+
+///|
 let system_prompt_path : String = "/opt/mooncraft/mooncraft-agent-system.md"
 
 ///|
@@ -53,6 +56,9 @@ let run_available : @cond_var.Cond = @cond_var.Cond::new()
 
 ///|
 let preview_pid : Ref[Int?] = Ref(None)
+
+///|
+let preview_process : Ref[@process.Process?] = Ref(None)
 
 ///|
 let initialized : Ref[Bool] = Ref(false)
@@ -1073,20 +1079,134 @@ async fn preview_ready() -> Bool noraise {
 }
 
 ///|
-async fn wait_preview_ready() -> Bool noraise {
-  for _ in 0..<30 {
-    if preview_ready() {
-      return true
-    }
-    @async.sleep(1000) catch {
-      _ => return false
-    }
+async fn preview_log_tail(limit : Int) -> String noraise {
+  let exists = @fs.exists(preview_log_path) catch { _ => false }
+  if !exists {
+    return ""
   }
-  false
+  let data = @fs.read_file(preview_log_path) catch { _ => return "" }
+  let text = data.text() catch { _ => return "" }
+  let trimmed = text.trim(chars="\n\r ").to_owned()
+  if trimmed.length() <= limit {
+    trimmed
+  } else {
+    trimmed[trimmed.length() - limit:].to_owned()
+  }
 }
 
 ///|
-async fn ensure_preview() -> Result[Unit, String] noraise {
+async fn preview_failure_message(message : String) -> String noraise {
+  let log = preview_log_tail(1200)
+  if log == "" {
+    message
+  } else {
+    "\{message}\n\nPreview log:\n\{log}"
+  }
+}
+
+///|
+async fn stop_preview_process() -> Unit noraise {
+  match preview_process.val {
+    Some(process) => {
+      process.cancel()
+      let _ = try process.wait() catch {
+        _ => -1
+      } noraise {
+        code => code
+      }
+      preview_process.val = None
+      preview_pid.val = None
+    }
+    None =>
+      if preview_pid.val is Some(pid) {
+        ignore(
+          @process.run("kill", ["-TERM", pid.to_string()]) catch {
+            _ => -1
+          },
+        )
+        preview_pid.val = None
+      }
+  }
+}
+
+///|
+async fn[X] start_preview_process(
+  group : @async.TaskGroup[X],
+  script : String,
+) -> Result[@process.Process, String] noraise {
+  if ensure_directory("/artifacts", "artifacts") is Err(message) {
+    return Err(message)
+  }
+  let stdout = try
+    @process.redirect_to_file(preview_log_path, create=0o644, truncate=true)
+  catch {
+    err => return Err("Preview log could not be opened: \{err}")
+  } noraise {
+    output => output
+  }
+  let stderr = try
+    @process.redirect_to_file(preview_log_path, append=true, create=0o644)
+  catch {
+    err => return Err("Preview log could not be opened: \{err}")
+  } noraise {
+    output => output
+  }
+  let process = try
+    @process.spawn(
+      group,
+      "mooncraft-preview-run",
+      [script, preview_port.to_string()],
+      extra_env={ "PORT": preview_port.to_string() },
+      stdout~,
+      stderr~,
+      cwd=workspace,
+      no_wait=true,
+    )
+  catch {
+    error => return Err("Preview script could not be started: \{error}")
+  } noraise {
+    process => process
+  }
+  Ok(process)
+}
+
+///|
+async fn wait_preview_ready(
+  process : @process.Process,
+) -> Result[Unit, String] noraise {
+  for _ in 0..<30 {
+    if preview_ready() {
+      return Ok(())
+    }
+    let status = try process.try_wait() catch {
+      _ => None
+    } noraise {
+      status => status
+    }
+    match status {
+      Some(code) =>
+        return Err(
+          preview_failure_message(
+            "Preview is not ready: preview process exited with status \{code}.",
+          ),
+        )
+      None => ()
+    }
+    @async.sleep(1000) catch {
+      _ => return Err("Preview readiness wait was cancelled.")
+    }
+  }
+  Err(
+    preview_failure_message(
+      "Preview is not ready: preview process did not become reachable.",
+    ),
+  )
+}
+
+///|
+async fn[X] ensure_preview(
+  group : @async.TaskGroup[X],
+) -> Result[Unit, String] noraise {
   if preview_ready() {
     return Ok(())
   }
@@ -1094,27 +1214,17 @@ async fn ensure_preview() -> Result[Unit, String] noraise {
   if !(@fs.exists(script) catch { _ => false }) {
     return Err("Preview is not ready: mooncraft-preview.sh was not found.")
   }
-  if preview_pid.val is Some(pid) {
-    ignore(@process.run("kill", ["-TERM", pid.to_string()]) catch { _ => -1 })
-    preview_pid.val = None
-  }
+  stop_preview_process()
   @fs.chmod(script, 0o755) catch {
     error => return Err("Preview script could not be made executable: \{error}")
   }
-  let pid = @process.spawn_orphan(
-    script,
-    [preview_port.to_string()],
-    extra_env={ "PORT": preview_port.to_string() },
-    cwd=workspace,
-  ) catch {
-    error => return Err("Preview script could not be started: \{error}")
+  let process = match start_preview_process(group, script) {
+    Ok(process) => process
+    Err(message) => return Err(message)
   }
-  preview_pid.val = Some(pid)
-  if wait_preview_ready() {
-    Ok(())
-  } else {
-    Err("Preview is not ready: preview process did not become reachable.")
-  }
+  preview_process.val = Some(process)
+  preview_pid.val = Some(process.pid)
+  wait_preview_ready(process)
 }
 
 ///|
@@ -1148,11 +1258,14 @@ fn preview_response_reason(code : Int) -> String {
 }
 
 ///|
-async fn handle_preview(path : String) -> HttpReply noraise {
+async fn[X] handle_preview(
+  path : String,
+  group : @async.TaskGroup[X],
+) -> HttpReply noraise {
   if require_initialized() is Some(reply) {
     return reply
   }
-  match ensure_preview() {
+  match ensure_preview(group) {
     Ok(_) => {
       let upstream_path = preview_upstream_path(path)
       let result = try
@@ -1198,6 +1311,7 @@ async fn handle_request(
   request : @http.Request,
   body : &@io.Reader,
   conn : @http.ServerConnection,
+  group : @async.TaskGroup[Unit],
 ) -> Unit noraise {
   let path = route_path(request.path)
   let reply = match (request.meth, path) {
@@ -1212,7 +1326,7 @@ async fn handle_request(
       handle_exec(raw_body)
     }
     (Get, _) if @runtime_protocol.runtime_service_preview_path_matches(path) =>
-      handle_preview(path)
+      handle_preview(path, group)
     (Get, _) =>
       match run_status_route(path) {
         Some(run_id) => handle_run(run_id)
@@ -1248,7 +1362,7 @@ async fn main {
   @async.with_task_group(group => {
     group.spawn_bg(() => run_worker())
     server.run_forever(
-      (request, body, conn) => handle_request(request, body, conn),
+      (request, body, conn) => handle_request(request, body, conn, group),
       allow_failure=true,
     )
   })

@@ -63,9 +63,12 @@ docker run --rm \
     command -v codex >/dev/null
     command -v python3 >/dev/null
     command -v mooncraft-runtime-service >/dev/null
+    command -v mooncraft-preview-run >/dev/null
     moon version >/dev/null
     python3 --version >/dev/null
     codex --version >/dev/null
+    mooncraft-preview-run /bin/true
+    test -d "$MOON_HOME/registry/index/.git"
     printf "%s\n" "int main(void) { return 0; }" > /tmp/mooncraft-runtime-check.c
     cc /tmp/mooncraft-runtime-check.c -o /tmp/mooncraft-runtime-check
     /tmp/mooncraft-runtime-check
@@ -86,6 +89,7 @@ for _ in $(seq 1 40); do
   if docker exec "$container_name" curl -fsS http://127.0.0.1:8080/health >/dev/null 2>&1; then
     docker exec "$container_name" bash -lc '
       set -euo pipefail
+      test -d "$MOON_HOME/registry/index/.git"
       curl -fsS http://127.0.0.1:8080/health \
         | jq -e ".status == \"not_initialized\"" >/dev/null
       code="$(
