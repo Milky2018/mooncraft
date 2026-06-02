@@ -103,6 +103,15 @@ for _ in $(seq 1 40); do
       jq -e ".message == \"Runtime Service is not initialized. Call /init first.\"" \
         /tmp/mooncraft-runtime-image-check-exec.json >/dev/null
       code="$(
+        curl -sS -o /tmp/mooncraft-runtime-image-check-serve.json \
+          -w "%{http_code}" \
+          -X POST \
+          http://127.0.0.1:8080/serve
+      )"
+      test "$code" = "409"
+      jq -e ".message == \"Runtime Service is not initialized. Call /init first.\"" \
+        /tmp/mooncraft-runtime-image-check-serve.json >/dev/null
+      code="$(
         curl -sS -o /tmp/mooncraft-runtime-image-check-preview.json \
           -w "%{http_code}" \
           http://127.0.0.1:8080/preview/
