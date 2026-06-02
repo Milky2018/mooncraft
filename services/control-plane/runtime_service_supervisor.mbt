@@ -247,18 +247,36 @@ async fn docker_container_running(container_name : String) -> Bool noraise {
 }
 
 ///|
-async fn runtime_service_health_ok(container_name : String) -> Bool noraise {
+async fn runtime_service_health_status(
+  container_name : String,
+) -> Result[String, String] noraise {
   let endpoint = match resolved_runtime_service_endpoint(container_name) {
     Ok(endpoint) => endpoint
-    Err(_) => return false
+    Err(message) => return Err(message)
   }
-  let result = try @http.get("\{endpoint.url}/health") catch {
-    _ => return false
-  } noraise {
-    value => value
+  match runtime_service_get_health(endpoint) {
+    Ok(health) => Ok(health.status)
+    Err(message) => Err(message)
   }
-  let (response, _) = result
-  response.code >= 200 && response.code < 300
+}
+
+///|
+async fn runtime_service_health_ok(container_name : String) -> Bool noraise {
+  runtime_service_health_status(container_name) is Ok(_)
+}
+
+///|
+fn runtime_service_existing_health_needs_init(
+  status : String,
+) -> Result[Bool, String] {
+  if status == @runtime_protocol.runtime_service_health_status_not_initialized() {
+    Ok(true)
+  } else if status == @runtime_protocol.runtime_service_health_status_ready() ||
+    status == @runtime_protocol.runtime_service_health_status_running() {
+    Ok(false)
+  } else {
+    Err("Runtime Service returned unsupported health status: \{status}")
+  }
 }
 
 ///|
@@ -387,24 +405,35 @@ async fn RuntimeGateway::ensure_project_runtime_service_with_idle_refresh(
     Ok(_) => ()
     Err(message) => return Err(message)
   }
-  if docker_container_running(spec.container_name) &&
-    runtime_service_health_ok(spec.container_name) {
+  if docker_container_running(spec.container_name) {
     let endpoint = match
       resolved_runtime_service_endpoint(spec.container_name) {
       Ok(endpoint) => endpoint
       Err(message) => return Err(message)
     }
-    if runtime_service_post_init(endpoint, init_request) is Err(message) {
-      return Err(message)
+    let health = runtime_service_get_health(endpoint)
+    match health {
+      Ok(response) =>
+        match runtime_service_existing_health_needs_init(response.status) {
+          Ok(true) =>
+            if runtime_service_post_init(endpoint, init_request) is Err(message) {
+              return Err(message)
+            }
+          Ok(false) => ()
+          Err(message) => return Err(message)
+        }
+      Err(_) => ()
     }
-    ignore(
-      store.set_runtime_service_state(
-        project_id,
-        runtime_service_state_ready(),
-        ready_idle_expires_at,
-      ),
-    )
-    return Ok(endpoint)
+    if health is Ok(_) {
+      ignore(
+        store.set_runtime_service_state(
+          project_id,
+          runtime_service_state_ready(),
+          ready_idle_expires_at,
+        ),
+      )
+      return Ok(endpoint)
+    }
   }
   if create_runtime_service_container(self.root, spec) is Err(message) {
     return Err(message)

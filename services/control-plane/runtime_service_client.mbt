@@ -169,6 +169,35 @@ async fn runtime_service_post_init(
 }
 
 ///|
+async fn runtime_service_get_health(
+  endpoint : RuntimeServiceEndpoint,
+) -> Result[@runtime_protocol.RuntimeServiceHealthResponse, String] noraise {
+  let headers = runtime_service_json_headers()
+  let response = match
+    http_get(
+      runtime_service_api_url(
+        endpoint,
+        @runtime_protocol.runtime_service_health_path(),
+      ),
+      headers~,
+    ) {
+    Ok(response) => response
+    Err(_) => return Err("Runtime Service /health is not reachable.")
+  }
+  if !http_status_success(response.code) {
+    return Err(
+      runtime_service_error_message(
+        response, "Runtime Service health check failed.",
+      ),
+    )
+  }
+  decode_runtime_service_json(
+    http_response_text(response),
+    "Runtime Service /health",
+  )
+}
+
+///|
 async fn runtime_service_get_run(
   endpoint : RuntimeServiceEndpoint,
   run_id : String,
