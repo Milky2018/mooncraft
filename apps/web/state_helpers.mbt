@@ -168,7 +168,7 @@ fn replace_project_summary_run_status(
           run.state
         },
         is_processing: run.state is Running,
-        activity: project_activity_from_run(run),
+        activity: project_activity_from_run_status(run, item.activity),
         current_run_phase: run.phase,
         current_run_id: if run.state is Running {
           Some(run.run_id)
@@ -184,19 +184,25 @@ fn replace_project_summary_run_status(
 }
 
 ///|
-fn project_activity_from_run(
+fn project_activity_from_run_status(
   run : @sdk.RunStatusResponse,
+  previous : @sdk.ProjectActivity?,
 ) -> @sdk.ProjectActivity? {
-  if run.state is Running {
-    Some({
-      run_id: run.run_id,
-      phase: run.phase,
-      message_code: None,
-      message: None,
-      message_created_at: None,
-    })
-  } else {
-    None
+  match run.state {
+    Running =>
+      match previous {
+        Some(activity) if activity.run_id == run.run_id =>
+          Some({ ..activity, phase: run.phase })
+        _ =>
+          Some({
+            run_id: run.run_id,
+            phase: run.phase,
+            message_code: None,
+            message: None,
+            message_created_at: None,
+          })
+      }
+    _ => None
   }
 }
 
@@ -215,7 +221,7 @@ fn update_project_detail_run_status(
           run.state
         },
         is_processing: run.state is Running,
-        activity: project_activity_from_run(run),
+        activity: project_activity_from_run_status(run, item.activity),
         current_run_phase: run.phase,
         current_run_id: if run.state is Running {
           Some(run.run_id)

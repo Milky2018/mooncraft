@@ -80,3 +80,44 @@ test "summary run update does not turn project final status into running" {
     content="Some(Checking)",
   )
 }
+
+///|
+test "summary run update preserves event activity timestamp" {
+  let activity = Some(@sdk.ProjectActivity::{
+    run_id: "run-2",
+    phase: RuntimeRunning,
+    message_code: Some("activity_message"),
+    message: Some("Editing files"),
+    message_created_at: Some("1000"),
+  })
+  let project = project_summary_from_detail(
+    activity_test_project(Succeeded, activity),
+  )
+  let run : @sdk.RunStatusResponse = {
+    run_id: "run-2",
+    project_id: "project-activity",
+    state: Running,
+    phase: Checking,
+    summary: None,
+    error_message: None,
+    failure_debug: None,
+    preview: None,
+    started_at: "2000",
+    finished_at: None,
+  }
+  let updated = replace_project_summary_run_status([project], run)
+  debug_inspect(
+    updated[0].activity,
+    content=(
+      #|Some(
+      #|  {
+      #|    run_id: "run-2",
+      #|    phase: Checking,
+      #|    message_code: Some("activity_message"),
+      #|    message: Some("Editing files"),
+      #|    message_created_at: Some("1000"),
+      #|  },
+      #|)
+    ),
+  )
+}
