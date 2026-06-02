@@ -16,9 +16,26 @@ fn avatar_chip(label : String) -> @rabbita.Html {
     style=value_text_style() +
       [
         "width: 28px", "height: 28px", "border-radius: 999px", "display: grid", "place-items: center",
-        "background: var(--accent-strong)", "color: var(--on-action)",
+        "background: var(--accent-strong)", "color: var(--on-action)", "text-transform: uppercase",
       ],
   ) <| label
+}
+
+///|
+fn account_avatar_label(user : @sdk.UserSummary) -> String {
+  let source = if user.display_name.trim() != "" {
+    user.display_name.trim().to_owned()
+  } else {
+    user.email.trim().to_owned()
+  }
+  if source == "" {
+    "U"
+  } else {
+    match source.iter().next() {
+      Some(char) => char.to_string()
+      None => "U"
+    }
+  }
 }
 
 ///|
@@ -110,6 +127,19 @@ fn project_menu_item_style(
     "flex",
   ) +
   ["white-space: nowrap"]
+}
+
+///|
+fn account_menu_item_style(enabled : Bool) -> Array[String] {
+  @shared.menu_item_base_style(
+    value_text_style(),
+    "var(--text-1)",
+    "transparent",
+    enabled,
+    "var(--radius-control)",
+    "inline-flex",
+  ) +
+  ["height: 34px", "gap: 8px"]
 }
 
 ///|
@@ -390,6 +420,8 @@ fn render_account_panel(
       } else {
         user.display_name
       }
+      let avatar_label = account_avatar_label(user)
+      let theme_label = model.theme_mode.storage_value()
       @html.div(
         style=[
           "position: absolute", "right: 0", "top: calc(100% + 6px)", "width: min(280px, calc(100vw - 24px))",
@@ -400,50 +432,72 @@ fn render_account_panel(
           "isolation: isolate",
         ],
       ) <| [
-        @html.div(style=["display: flex", "align-items: center", "gap: 8px"], [
-          avatar_chip("U"),
-          @html.div(
-            style=[
-              "display: flex", "flex-direction: column", "gap: 4px", "min-width: 0",
-            ],
-            [
-              @html.div(
-                style=value_text_style() +
-                  [
-                    "white-space: nowrap", "overflow: hidden", "text-overflow: ellipsis",
-                  ],
-                user.display_name,
-              ),
-              @html.div(
-                style=normal_text_style() +
-                  [
-                    "white-space: nowrap", "overflow: hidden", "text-overflow: ellipsis",
-                  ],
-                email_text,
-              ),
-            ],
-          ),
-        ]),
+        @html.div(
+          style=[
+            "display: flex", "align-items: center", "gap: 8px", "padding: 4px",
+          ],
+          [
+            avatar_chip(avatar_label),
+            @html.div(
+              style=[
+                "display: flex", "flex-direction: column", "gap: 4px", "min-width: 0",
+              ],
+              [
+                @html.div(
+                  style=value_text_style() +
+                    [
+                      "white-space: nowrap", "overflow: hidden", "text-overflow: ellipsis",
+                    ],
+                  user.display_name,
+                ),
+                @html.div(
+                  style=normal_text_style() +
+                    [
+                      "white-space: nowrap", "overflow: hidden", "text-overflow: ellipsis",
+                    ],
+                  email_text,
+                ),
+              ],
+            ),
+          ],
+        ),
         render_notice_card(model.account_notice, "var(--warning-soft)"),
         @html.div(
           style=[
-            "display: flex", "align-items: center", "justify-content: space-between",
-            "gap: 8px", "padding-top: 4px",
+            "height: 1px", "background: var(--border-soft)", "margin: 2px 0",
           ],
-          [theme_toggle_button(dispatch, model)],
+          "",
+        ),
+        @html.button(
+          type_="button",
+          title="Theme: \{theme_label}",
+          on_click=dispatch(ToggleTheme),
+          style=account_menu_item_style(true),
+          [
+            theme_icon(model.theme_mode),
+            @html.span(style=["flex: 1"], "Theme"),
+            @html.span(
+              style=normal_text_style() + ["color: var(--text-2)"],
+              theme_label,
+            ),
+          ],
         ),
         @html.button(
           type_="button",
           disabled=model.logout_pending,
           title=if model.logout_pending { "Logging out" } else { "Log out" },
           on_click=dispatch(Logout),
-          style=button_style(
-              "var(--surface-2)",
-              "var(--text-2)",
-              !model.logout_pending,
-            ) +
-            ["width: 30px", "height: 30px", "padding: 0"],
-          [logout_icon()],
+          style=account_menu_item_style(!model.logout_pending),
+          [
+            logout_icon(),
+            @html.span(
+              if model.logout_pending {
+                "Logging out"
+              } else {
+                "Log out"
+              },
+            ),
+          ],
         ),
       ]
     }
@@ -457,7 +511,8 @@ fn render_account_toolbar(
   model : Model,
 ) -> @rabbita.Html {
   match model.current_user {
-    Some(user) =>
+    Some(user) => {
+      let avatar_label = account_avatar_label(user)
       @html.div(
         style=[
           "position: relative", "padding: 0", "display: flex", "align-items: center",
@@ -481,7 +536,7 @@ fn render_account_toolbar(
                   "min-width: 0",
                 ],
               [
-                avatar_chip("U"),
+                avatar_chip(avatar_label),
                 @html.div(
                   style=value_text_style() +
                     [
@@ -505,6 +560,7 @@ fn render_account_toolbar(
           ],
         ),
       ]
+    }
     None => @html.nothing
   }
 }
