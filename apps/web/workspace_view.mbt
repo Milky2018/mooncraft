@@ -50,6 +50,29 @@ fn latest_run_event_text(events : Array[@sdk.RunEvent]) -> String {
 }
 
 ///|
+fn latest_run_event_created_at(events : Array[@sdk.RunEvent]) -> String? {
+  let mut created_at : String? = None
+  for event in events {
+    if event.content != "" {
+      created_at = Some(event.created_at)
+    }
+  }
+  created_at
+}
+
+///|
+fn active_run_progress_time(model : Model) -> String? {
+  match latest_run_event_created_at(model.run_events) {
+    Some(created_at) => Some(created_at)
+    None =>
+      match active_run(model) {
+        Some(run) => Some(run.started_at)
+        None => None
+      }
+  }
+}
+
+///|
 fn run_spinner_cube() -> @rabbita.Html {
   @html.span(class="spinner-cube", "")
 }
@@ -78,6 +101,7 @@ fn render_run_events(model : Model) -> @rabbita.Html {
   if active_run(model) is None {
     return @html.nothing
   }
+  let elapsed = activity_elapsed_duration(active_run_progress_time(model))
   @html.div(
     style=normal_text_style() +
       [
@@ -100,6 +124,17 @@ fn render_run_events(model : Model) -> @rabbita.Html {
           ],
         latest_run_event_text(model.run_events),
       ),
+      match elapsed {
+        Some(label) =>
+          @html.span(
+            style=normal_text_style() +
+              [
+                "color: var(--text-3)", "white-space: nowrap", "font-size: var(--font-small)",
+              ],
+            "· updated \{label} ago",
+          )
+        None => @html.nothing
+      },
     ],
   )
 }

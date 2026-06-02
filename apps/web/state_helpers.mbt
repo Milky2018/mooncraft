@@ -37,7 +37,9 @@ fn active_run(model : Model) -> @sdk.RunStatusResponse? {
               error_message: None,
               failure_debug: None,
               preview: project.preview,
-              started_at: project.updated_at,
+              started_at: activity.message_created_at.unwrap_or(
+                project.updated_at,
+              ),
               finished_at: None,
             })
           None => None
@@ -191,6 +193,7 @@ fn project_activity_from_run(
       phase: run.phase,
       message_code: None,
       message: None,
+      message_created_at: None,
     })
   } else {
     None
@@ -251,18 +254,31 @@ fn latest_event_code(events : Array[@sdk.RunEvent]) -> String? {
 }
 
 ///|
+fn latest_event_created_at(events : Array[@sdk.RunEvent]) -> String? {
+  let mut created_at : String? = None
+  for event in events {
+    if event.content != "" {
+      created_at = Some(event.created_at)
+    }
+  }
+  created_at
+}
+
+///|
 fn update_project_activity_message(
   project : @sdk.ProjectDetail?,
   project_id : String,
   message_code : String?,
   message : String?,
+  message_created_at : String?,
 ) -> @sdk.ProjectDetail? {
   match project {
     Some(item) if item.id == project_id =>
       Some({
         ..item,
         activity: match item.activity {
-          Some(activity) => Some({ ..activity, message_code, message })
+          Some(activity) =>
+            Some({ ..activity, message_code, message, message_created_at })
           None => None
         },
       })
@@ -276,6 +292,7 @@ fn update_project_summary_activity_message(
   project_id : String,
   message_code : String?,
   message : String?,
+  message_created_at : String?,
 ) -> Array[@sdk.ProjectSummary] {
   let items : Array[@sdk.ProjectSummary] = []
   for item in projects {
@@ -283,7 +300,8 @@ fn update_project_summary_activity_message(
       items.push({
         ..item,
         activity: match item.activity {
-          Some(activity) => Some({ ..activity, message_code, message })
+          Some(activity) =>
+            Some({ ..activity, message_code, message, message_created_at })
           None => None
         },
       })

@@ -439,6 +439,13 @@ async fn Store::list_projects_for_user(
       #|    ORDER BY re.seq DESC
       #|    LIMIT 1
       #|  ), '') AS current_run_activity_text,
+      #|  COALESCE((
+      #|    SELECT re.created_at
+      #|    FROM run_events re
+      #|    WHERE re.project_id = p.id AND re.run_id = p.current_run_id
+      #|    ORDER BY re.seq DESC
+      #|    LIMIT 1
+      #|  ), '') AS current_run_activity_created_at,
       #|  p.updated_at
       #|FROM projects p
       #|LEFT JOIN runs r ON r.id = p.current_run_id AND r.project_id = p.id

@@ -2091,6 +2091,9 @@ fn project_activity_from_row(
         phase: run_phase_from_db(row_text(row, "current_run_phase")),
         message_code: empty_to_none(row_text(row, "current_run_activity_code")),
         message: empty_to_none(row_text(row, "current_run_activity_text")),
+        message_created_at: empty_to_none(
+          row_text(row, "current_run_activity_created_at"),
+        ),
       })
     None => None
   }
@@ -2252,6 +2255,13 @@ async fn Store::get_project_detail(
         #|    ORDER BY re.seq DESC
         #|    LIMIT 1
         #|  ), '') AS current_run_activity_text,
+        #|  COALESCE((
+        #|    SELECT re.created_at
+        #|    FROM run_events re
+        #|    WHERE re.project_id = p.id AND re.run_id = p.current_run_id
+        #|    ORDER BY re.seq DESC
+        #|    LIMIT 1
+        #|  ), '') AS current_run_activity_created_at,
         #|  p.created_at,
         #|  p.updated_at
         #|FROM projects p

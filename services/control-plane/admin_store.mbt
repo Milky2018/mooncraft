@@ -72,6 +72,13 @@ fn admin_project_select_sql() -> String {
     #|    ORDER BY re.seq DESC
     #|    LIMIT 1
     #|  ), '') AS current_run_activity_text,
+    #|  COALESCE((
+    #|    SELECT re.created_at
+    #|    FROM run_events re
+    #|    WHERE re.project_id = p.id AND re.run_id = p.current_run_id
+    #|    ORDER BY re.seq DESC
+    #|    LIMIT 1
+    #|  ), '') AS current_run_activity_created_at,
     #|  p.created_at,
     #|  p.updated_at,
     #|  COALESCE(u.id, '') AS owner_id,

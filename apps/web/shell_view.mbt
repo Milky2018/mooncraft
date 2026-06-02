@@ -199,8 +199,8 @@ fn project_phase_dot(project : @sdk.ProjectSummary) -> @rabbita.Html {
 fn project_activity_label(project : @sdk.ProjectSummary) -> String {
   if project.is_processing {
     match project.activity {
-      Some(activity) =>
-        match activity.message {
+      Some(activity) => {
+        let base = match activity.message {
           Some(message) =>
             @sdk.run_event_display_text(
               activity.message_code.unwrap_or(""),
@@ -213,6 +213,11 @@ fn project_activity_label(project : @sdk.ProjectSummary) -> String {
               activity.phase.label()
             }
         }
+        match activity_elapsed_duration(activity.message_created_at) {
+          Some(elapsed) => "\{base} · updated \{elapsed} ago"
+          None => base
+        }
+      }
       None => "Processing"
     }
   } else {

@@ -28,6 +28,30 @@ fn maybe_status_badge(state : @sdk.RunState) -> @rabbita.Html {
 }
 
 ///|
+fn elapsed_activity_duration(elapsed_seconds : UInt64) -> String {
+  let hours = elapsed_seconds / 3600UL
+  let minutes = elapsed_seconds % 3600UL / 60UL
+  let seconds = elapsed_seconds % 60UL
+  "\{hours}h \{minutes}m \{seconds}s"
+}
+
+///|
+fn activity_elapsed_duration(created_at : String?) -> String? {
+  match created_at {
+    Some(value) => {
+      let event_time = @string.parse_uint64(value.trim().to_owned()) catch {
+        _ => return None
+      }
+      let now = @env.now()
+      let elapsed_millis = if now > event_time { now - event_time } else { 0UL }
+      let elapsed_seconds = elapsed_millis / 1000UL
+      Some(elapsed_activity_duration(elapsed_seconds))
+    }
+    None => None
+  }
+}
+
+///|
 fn logo_asset_url() -> String {
   "/assets/logo.svg"
 }

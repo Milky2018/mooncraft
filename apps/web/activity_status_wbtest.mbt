@@ -41,6 +41,7 @@ test "active project status remains final while activity is processing" {
     phase: RuntimeRunning,
     message_code: None,
     message: None,
+    message_created_at: None,
   })
   let model = {
     ..initial_model(),

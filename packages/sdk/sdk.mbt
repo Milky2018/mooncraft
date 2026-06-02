@@ -52,6 +52,7 @@ pub(all) struct ProjectActivity {
   phase : RunPhase
   message_code : String?
   message : String?
+  message_created_at : String?
 } derive(Debug, ToJson, FromJson)
 
 ///|
