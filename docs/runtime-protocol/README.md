@@ -133,7 +133,7 @@ The Runtime Service exposes the current project preview through two separate pro
 - `POST /preview/start` is a Runtime API endpoint. It starts or verifies preview readiness and returns JSON. A non-2xx response is a Runtime preview failure.
 - `GET /preview/...` is generated-application content proxying. MoonCraft proxies the response body and selected headers to the project's Preview Origin.
 
-MoonCraft must call `POST /preview/start` before public preview content proxying. MoonCraft updates preview health and refreshes Runtime idle TTL only from the start endpoint result. Ordinary generated-application HTTP statuses from `GET /preview/...`, including 404, 500, or 503, are preview content and are proxied without changing project preview health. The browser never talks to the Runtime Service base URL directly.
+MoonCraft calls `POST /preview/start` when opening the preview root. MoonCraft updates preview health and refreshes Runtime idle TTL only from the start endpoint result. Generated-application content requests under `GET /preview/...`, including HTML subpaths, scripts, styles, images, missing favicon, and application 404/500/503 responses, are preview content and are proxied without changing project preview health. The browser never talks to the Runtime Service base URL directly.
 
 Runtime Protocol v3 does not define a preview port, preview script, or preview repair flow.
 

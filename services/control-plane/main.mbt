@@ -612,6 +612,11 @@ fn request_url_path(url : String) -> String {
 }
 
 ///|
+fn preview_start_required(remainder : String) -> Bool {
+  remainder == "" || remainder == "/"
+}
+
+///|
 async fn project_preview_proxy_response(
   ctx : AppContext,
   event : @mocket.MocketEvent,
@@ -623,8 +628,12 @@ async fn project_preview_proxy_response(
     Some(project) => project
     None => return text_response(NotFound, "Project not found.")
   }
-  let runtime_preview = match
-    ctx.runtime_gateway.project_runtime_preview_proxy_target(ctx.store, project) {
+  let preview_result = if preview_start_required(remainder) {
+    ctx.runtime_gateway.project_runtime_preview(ctx.store, project)
+  } else {
+    ctx.runtime_gateway.project_runtime_preview_proxy_target(ctx.store, project)
+  }
+  let runtime_preview = match preview_result {
     Ok(preview) => preview
     Err(message) => {
       let _ = ctx.store.mark_project_preview_unreachable(project.id, message)

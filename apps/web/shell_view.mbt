@@ -346,8 +346,8 @@ fn sidebar_project_item(
       @html.div(
         class=action_class,
         style=[
-          "position: absolute", "right: 8px", "top: 5px", "z-index: 10", "display: flex",
-          "align-items: center", "gap: 4px",
+          "position: absolute", "right: 8px", "top: 50%", "transform: translateY(-50%)",
+          "z-index: 10", "display: flex", "align-items: center", "gap: 4px",
         ],
       ) <| [
         @html.button(

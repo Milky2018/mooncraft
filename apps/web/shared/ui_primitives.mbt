@@ -32,7 +32,9 @@ pub fn action_button_box_style(
   enabled : Bool,
 ) -> Array[String] {
   button_base_style([], background, foreground, enabled, "0", "0") +
-  ["width: 28px", "height: 28px", "flex-shrink: 0"]
+  [
+    "width: 28px", "height: 28px", "box-sizing: border-box", "line-height: 1", "flex-shrink: 0",
+  ]
 }
 
 ///|
