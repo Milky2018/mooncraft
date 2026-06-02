@@ -612,7 +612,7 @@ fn request_url_path(url : String) -> String {
 }
 
 ///|
-fn preview_start_required(remainder : String) -> Bool {
+fn serve_required(remainder : String) -> Bool {
   remainder == "" || remainder == "/"
 }
 
@@ -628,7 +628,7 @@ async fn project_preview_proxy_response(
     Some(project) => project
     None => return text_response(NotFound, "Project not found.")
   }
-  let preview_result = if preview_start_required(remainder) {
+  let preview_result = if serve_required(remainder) {
     ctx.runtime_gateway.project_runtime_preview(ctx.store, project)
   } else {
     ctx.runtime_gateway.project_runtime_preview_proxy_target(ctx.store, project)

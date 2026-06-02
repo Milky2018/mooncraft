@@ -41,7 +41,7 @@ Required endpoints:
 - `POST /exec`
 - `GET /runs/{run_id}`
 - `GET /runs/{run_id}/events`
-- `POST /preview/start`
+- `POST /serve`
 - `GET /preview/`
 
 The Runtime Service does not expose HTTP authentication in v3. MoonCraft protects the service through the launcher/network boundary.
@@ -128,12 +128,12 @@ SSE streaming is intentionally out of scope for v3. TODO: consider an event stre
 
 ## Preview
 
-The Runtime Service exposes the current project preview through two separate protocol surfaces on the same HTTP service:
+The Runtime Service exposes the current project app through two separate protocol surfaces on the same HTTP service:
 
-- `POST /preview/start` is a Runtime API endpoint. It starts or verifies preview readiness and returns JSON. A non-2xx response is a Runtime preview failure.
+- `POST /serve` is a Runtime API endpoint. It serves or verifies the current app and returns JSON. A non-2xx response means the Runtime could not make the current app available.
 - `GET /preview/...` is generated-application content proxying. MoonCraft proxies the response body and selected headers to the project's Preview Origin.
 
-MoonCraft calls `POST /preview/start` when opening the preview root. MoonCraft updates preview health and refreshes Runtime idle TTL only from the start endpoint result. Generated-application content requests under `GET /preview/...`, including HTML subpaths, scripts, styles, images, missing favicon, and application 404/500/503 responses, are preview content and are proxied without changing project preview health. The browser never talks to the Runtime Service base URL directly.
+MoonCraft calls `POST /serve` when opening the preview root. MoonCraft updates preview health and refreshes Runtime idle TTL only from the serve endpoint result. Generated-application content requests under `GET /preview/...`, including HTML subpaths, scripts, styles, images, missing favicon, and application 404/500/503 responses, are preview content and are proxied without changing project preview health. The browser never talks to the Runtime Service base URL directly.
 
 Runtime Protocol v3 does not define a preview port, preview script, or preview repair flow.
 
@@ -146,7 +146,7 @@ Each project may have one Runtime Service. Runtime Service state is driven by Mo
 - `running`: the Runtime Service is initialized and has one active Run.
 - `source_disconnected`: the Project Source Repository is unavailable or unauthorized.
 
-The Runtime idle TTL is configured by the MoonCraft admin UI and defaults to 10 minutes. The TTL starts when a Run finishes. A successful `POST /preview/start` refreshes the TTL; generated-application content requests under `GET /preview/...` do not refresh TTL or preview health.
+The Runtime idle TTL is configured by the MoonCraft admin UI and defaults to 10 minutes. The TTL starts when a Run finishes. A successful `POST /serve` refreshes the TTL; generated-application content requests under `GET /preview/...` do not refresh TTL or preview health.
 
 MoonCraft uses lazy recovery. If a requested Runtime Service is missing or unhealthy, MoonCraft starts or reconnects it through the Runtime launcher, calls `POST /init`, and then performs the requested operation. MoonCraft does not use browser unload, project switching, or a global container scan as the Runtime lifecycle driver.
 

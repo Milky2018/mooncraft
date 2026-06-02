@@ -19,8 +19,8 @@ pub fn runtime_service_preview_path() -> String {
 }
 
 ///|
-pub fn runtime_service_preview_start_path() -> String {
-  "/preview/start"
+pub fn runtime_service_serve_path() -> String {
+  "/serve"
 }
 
 ///|
@@ -171,7 +171,7 @@ pub(all) struct RuntimeServiceEventsResponse {
 } derive(Debug, ToJson, FromJson)
 
 ///|
-pub(all) struct RuntimeServicePreviewStartResponse {
+pub(all) struct RuntimeServiceServeResponse {
   status : String
   message : String?
 } derive(Debug, ToJson, FromJson)

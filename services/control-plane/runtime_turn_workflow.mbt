@@ -200,8 +200,8 @@ async fn ProjectRunWorkflow::run(
       self.append_status_event(
         project_id,
         run_id,
-        @sdk.run_event_code_preview_auditing(),
-        "Checking the Runtime preview.",
+        @sdk.run_event_code_serving_app(),
+        "Serving the updated app.",
       )
       match
         self.runtime_gateway.project_runtime_preview(

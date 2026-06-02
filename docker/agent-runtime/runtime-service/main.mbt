@@ -1436,15 +1436,13 @@ async fn[X] handle_preview(
 }
 
 ///|
-async fn[X] handle_preview_start(
-  group : @async.TaskGroup[X],
-) -> HttpReply noraise {
+async fn[X] handle_serve(group : @async.TaskGroup[X]) -> HttpReply noraise {
   if require_initialized() is Some(reply) {
     return reply
   }
   match ensure_preview(group) {
     Ok(_) =>
-      json_reply(200, "OK", @runtime_protocol.RuntimeServicePreviewStartResponse::{
+      json_reply(200, "OK", @runtime_protocol.RuntimeServiceServeResponse::{
         status: @runtime_protocol.runtime_service_health_status_ready(),
         message: None,
       })
@@ -1486,9 +1484,8 @@ async fn handle_request(
       let raw_body = body.read_all().text() catch { _ => "" }
       handle_exec(raw_body)
     }
-    (Post, path) if path ==
-      @runtime_protocol.runtime_service_preview_start_path() =>
-      handle_preview_start(group)
+    (Post, path) if path == @runtime_protocol.runtime_service_serve_path() =>
+      handle_serve(group)
     (Get, _) if @runtime_protocol.runtime_service_preview_path_matches(path) =>
       handle_preview(request, path, group)
     (Get, _) =>

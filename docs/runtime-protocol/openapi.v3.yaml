@@ -124,16 +124,16 @@ paths:
       responses:
         default:
           description: Generated-application preview response. MoonCraft proxies the response body and selected headers to the user's Preview Origin and does not interpret the HTTP status as Runtime health.
-  /preview/start:
+  /serve:
     post:
-      summary: Start or verify the current project preview.
+      summary: Serve or verify the current project app.
       responses:
         "200":
-          description: Preview is ready for content proxying.
+          description: The current project app is ready for preview content proxying.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PreviewStartResponse"
+                $ref: "#/components/schemas/ServeResponse"
         default:
           $ref: "#/components/responses/RuntimeError"
   /preview/{path}:
@@ -356,7 +356,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/RunEvent"
-    PreviewStartResponse:
+    ServeResponse:
       type: object
       additionalProperties: false
       required:

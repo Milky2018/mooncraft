@@ -524,7 +524,7 @@ async fn RuntimeGateway::project_runtime_preview(
     Ok(endpoint) => endpoint
     Err(message) => return Err(message)
   }
-  match runtime_service_start_preview(endpoint) {
+  match runtime_service_serve(endpoint) {
     Ok(_) => {
       let preview = runtime_service_preview_target(project)
       ignore(

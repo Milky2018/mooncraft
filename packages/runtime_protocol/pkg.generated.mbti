@@ -47,8 +47,6 @@ pub fn runtime_service_preview_path() -> String
 
 pub fn runtime_service_preview_path_matches(String) -> Bool
 
-pub fn runtime_service_preview_start_path() -> String
-
 pub fn runtime_service_preview_upstream_path(String) -> String
 
 pub fn runtime_service_ready_commit(RuntimeServiceRun) -> Result[String, String]
@@ -66,6 +64,8 @@ pub fn runtime_service_run_status_route(String) -> String?
 pub fn runtime_service_run_status_running() -> String
 
 pub fn runtime_service_run_status_succeeded() -> String
+
+pub fn runtime_service_serve_path() -> String
 
 pub fn runtime_service_validate_run_id(RuntimeServiceRun, String, String) -> Result[RuntimeServiceRun, String]
 
@@ -110,11 +110,6 @@ pub(all) struct RuntimeServiceInitResponse {
   message : String?
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
-pub(all) struct RuntimeServicePreviewStartResponse {
-  status : String
-  message : String?
-} derive(ToJson, @debug.Debug, @json.FromJson)
-
 pub(all) struct RuntimeServiceProjectRef {
   id : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
@@ -129,6 +124,11 @@ pub(all) struct RuntimeServiceRun {
 pub(all) struct RuntimeServiceSecret {
   name : String
   value : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RuntimeServiceServeResponse {
+  status : String
+  message : String?
 } derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct RuntimeServiceSourceCredential {

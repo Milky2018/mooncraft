@@ -153,8 +153,6 @@ pub fn run_event_code_files_updated() -> String
 
 pub fn run_event_code_local_builder_running() -> String
 
-pub fn run_event_code_preview_auditing() -> String
-
 pub fn run_event_code_preview_preparing() -> String
 
 pub fn run_event_code_preview_publishing() -> String
@@ -170,6 +168,8 @@ pub fn run_event_code_runtime_container_running() -> String
 pub fn run_event_code_runtime_image_pulling() -> String
 
 pub fn run_event_code_runtime_image_ready() -> String
+
+pub fn run_event_code_serving_app() -> String
 
 pub fn run_event_code_stopping_builder() -> String
 

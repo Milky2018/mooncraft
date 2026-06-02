@@ -8,7 +8,7 @@ test "runtime protocol routes are stable" {
       runtime_service_run_path("run-1"),
       runtime_service_run_events_path("run-1", 12),
       runtime_service_preview_path(),
-      runtime_service_preview_start_path(),
+      runtime_service_serve_path(),
     ],
     content=(
       #|[
@@ -18,7 +18,7 @@ test "runtime protocol routes are stable" {
       #|  "/runs/run-1",
       #|  "/runs/run-1/events?after=12",
       #|  "/preview/",
-      #|  "/preview/start",
+      #|  "/serve",
       #|]
     ),
   )
