@@ -61,6 +61,15 @@ let preview_pid : Ref[Int?] = Ref(None)
 let preview_process : Ref[@process.Process?] = Ref(None)
 
 ///|
+let preview_starting : Ref[Bool] = Ref(false)
+
+///|
+let preview_start_result : Ref[Result[Unit, String]?] = Ref(None)
+
+///|
+let preview_start_available : @cond_var.Cond = @cond_var.Cond::new()
+
+///|
 let initialized : Ref[Bool] = Ref(false)
 
 ///|
@@ -79,7 +88,7 @@ let runtime_source : Ref[RuntimeSourceState?] = Ref(None)
 struct HttpReply {
   code : Int
   reason : String
-  content_type : String
+  headers : Map[String, String]
   body : Bytes
 }
 
@@ -322,7 +331,10 @@ fn json_reply(code : Int, reason : String, value : &ToJson) -> HttpReply {
   {
     code,
     reason,
-    content_type: "application/json; charset=utf-8",
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+    },
     body: string_body(value.to_json().stringify()),
   }
 }
@@ -424,10 +436,7 @@ fn require_initialized() -> HttpReply? {
 
 ///|
 async fn send_reply(conn : @http.ServerConnection, reply : HttpReply) -> Unit {
-  conn.send_response(reply.code, reply.reason, extra_headers={
-    "Content-Type": reply.content_type,
-    "Cache-Control": "no-store",
-  })
+  conn.send_response(reply.code, reply.reason, extra_headers=reply.headers)
   if reply.body.length() > 0 {
     conn.write(reply.body)
   }
@@ -849,7 +858,7 @@ async fn run_codex(run : RuntimeRun, prompt : String) -> Unit noraise {
       }
     })
     let summary = if final_response.trim() == "" {
-      "The app is updated and the preview is ready."
+      "The app is updated and the source changes are published."
     } else {
       final_response.trim().to_owned()
     }
@@ -1232,12 +1241,9 @@ async fn wait_preview_ready(
 }
 
 ///|
-async fn[X] ensure_preview(
+async fn[X] start_preview_until_ready(
   group : @async.TaskGroup[X],
 ) -> Result[Unit, String] noraise {
-  if preview_ready() {
-    return Ok(())
-  }
   let script = "\{workspace}/mooncraft-preview.sh"
   if !(@fs.exists(script) catch { _ => false }) {
     return Err("Preview is not ready: mooncraft-preview.sh was not found.")
@@ -1256,6 +1262,74 @@ async fn[X] ensure_preview(
 }
 
 ///|
+async fn preview_ready_or_false(ready : async () -> Bool) -> Bool noraise {
+  try ready() catch {
+    _ => false
+  } noraise {
+    value => value
+  }
+}
+
+///|
+async fn wait_for_preview_startup(
+  ready : async () -> Bool,
+) -> Result[Unit, String] noraise {
+  while preview_starting.val {
+    preview_start_available.wait() catch {
+      _ => return Err("Preview startup wait was cancelled.")
+    }
+  }
+  match preview_start_result.val {
+    Some(Ok(_)) =>
+      if preview_ready_or_false(ready) {
+        Ok(())
+      } else {
+        Err("Preview startup finished but the preview is not reachable.")
+      }
+    Some(Err(message)) => Err(message)
+    None =>
+      if preview_ready_or_false(ready) {
+        Ok(())
+      } else {
+        Err("Preview startup finished without a result.")
+      }
+  }
+}
+
+///|
+async fn ensure_preview_single_flight(
+  ready : async () -> Bool,
+  start : async () -> Result[Unit, String],
+) -> Result[Unit, String] noraise {
+  if preview_ready_or_false(ready) {
+    return Ok(())
+  }
+  if preview_starting.val {
+    return wait_for_preview_startup(ready)
+  }
+  preview_starting.val = true
+  preview_start_result.val = None
+  let result = try start() catch {
+    err => Err("Preview startup failed: \{err}")
+  } noraise {
+    value => value
+  }
+  preview_start_result.val = Some(result)
+  preview_starting.val = false
+  preview_start_available.broadcast()
+  result
+}
+
+///|
+async fn[X] ensure_preview(
+  group : @async.TaskGroup[X],
+) -> Result[Unit, String] noraise {
+  ensure_preview_single_flight(() => preview_ready(), () => {
+    start_preview_until_ready(group)
+  })
+}
+
+///|
 
 ///|
 fn preview_upstream_path(path : String) -> String {
@@ -1263,21 +1337,65 @@ fn preview_upstream_path(path : String) -> String {
 }
 
 ///|
-fn preview_response_content_type(headers : Map[String, String]) -> String {
-  match headers.get("Content-Type") {
-    Some(value) => value
-    None =>
-      match headers.get("content-type") {
-        Some(value) => value
-        None => "application/octet-stream"
-      }
+fn response_header(headers : Map[String, String], name : String) -> String? {
+  match headers.get(name) {
+    Some(value) => Some(value)
+    None => headers.get(name.to_lower())
   }
+}
+
+///|
+fn copy_headers(
+  source : Map[String, String],
+  names : Array[String],
+) -> Map[String, String] {
+  let out : Map[String, String] = {}
+  for name in names {
+    if response_header(source, name) is Some(value) {
+      out[name] = value
+    }
+  }
+  out
+}
+
+///|
+fn preview_response_content_type(headers : Map[String, String]) -> String {
+  match response_header(headers, "Content-Type") {
+    Some(value) => value
+    None => "application/octet-stream"
+  }
+}
+
+///|
+fn preview_response_headers(
+  upstream_path : String,
+  headers : Map[String, String],
+) -> Map[String, String] {
+  let out : Map[String, String] = {
+    "Content-Type": preview_response_content_type(headers),
+    "Cache-Control": @runtime_protocol.preview_cache_control(upstream_path),
+  }
+  if response_header(headers, "ETag") is Some(value) {
+    out["ETag"] = value
+  }
+  if response_header(headers, "Last-Modified") is Some(value) {
+    out["Last-Modified"] = value
+  }
+  out
+}
+
+///|
+fn preview_request_headers(
+  headers : Map[String, String],
+) -> Map[String, String] {
+  copy_headers(headers, ["Accept", "If-None-Match", "If-Modified-Since"])
 }
 
 ///|
 fn preview_response_reason(code : Int) -> String {
   match code {
     200 => "OK"
+    304 => "NotModified"
     404 => "NotFound"
     500 => "InternalServerError"
     503 => "ServiceUnavailable"
@@ -1287,34 +1405,49 @@ fn preview_response_reason(code : Int) -> String {
 
 ///|
 async fn[X] handle_preview(
+  request : @http.Request,
   path : String,
+  group : @async.TaskGroup[X],
+) -> HttpReply noraise {
+  ignore(group)
+  if require_initialized() is Some(reply) {
+    return reply
+  }
+  let upstream_path = preview_upstream_path(path)
+  let headers = preview_request_headers(request.headers)
+  let result = try
+    @http.get("http://127.0.0.1:\{preview_port}\{upstream_path}", headers~)
+  catch {
+    _ =>
+      return runtime_error(
+        503, "ServiceUnavailable", "Runtime preview upstream is not reachable.",
+      )
+  } noraise {
+    result => result
+  }
+  let (response, body) = result
+  let preview_body = body.binary()
+  {
+    code: response.code,
+    reason: preview_response_reason(response.code),
+    headers: preview_response_headers(upstream_path, response.headers),
+    body: preview_body,
+  }
+}
+
+///|
+async fn[X] handle_preview_start(
   group : @async.TaskGroup[X],
 ) -> HttpReply noraise {
   if require_initialized() is Some(reply) {
     return reply
   }
   match ensure_preview(group) {
-    Ok(_) => {
-      let upstream_path = preview_upstream_path(path)
-      let result = try
-        @http.get("http://127.0.0.1:\{preview_port}\{upstream_path}")
-      catch {
-        _ =>
-          return runtime_error(
-            503, "ServiceUnavailable", "Runtime preview upstream is not reachable.",
-          )
-      } noraise {
-        result => result
-      }
-      let (response, body) = result
-      let preview_body = body.binary()
-      {
-        code: response.code,
-        reason: preview_response_reason(response.code),
-        content_type: preview_response_content_type(response.headers),
-        body: preview_body,
-      }
-    }
+    Ok(_) =>
+      json_reply(200, "OK", @runtime_protocol.RuntimeServicePreviewStartResponse::{
+        status: @runtime_protocol.runtime_service_health_status_ready(),
+        message: None,
+      })
     Err(message) => runtime_error(503, "ServiceUnavailable", message)
   }
 }
@@ -1353,8 +1486,11 @@ async fn handle_request(
       let raw_body = body.read_all().text() catch { _ => "" }
       handle_exec(raw_body)
     }
+    (Post, path) if path ==
+      @runtime_protocol.runtime_service_preview_start_path() =>
+      handle_preview_start(group)
     (Get, _) if @runtime_protocol.runtime_service_preview_path_matches(path) =>
-      handle_preview(path, group)
+      handle_preview(request, path, group)
     (Get, _) =>
       match run_status_route(path) {
         Some(run_id) => handle_run(run_id)

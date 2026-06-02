@@ -19,6 +19,20 @@ pub fn runtime_service_preview_path() -> String {
 }
 
 ///|
+pub fn runtime_service_preview_start_path() -> String {
+  "/preview/start"
+}
+
+///|
+pub fn preview_cache_control(path : String) -> String {
+  if path == "/" || path == "index.html" || path.has_suffix(".html") {
+    "no-store"
+  } else {
+    "no-cache"
+  }
+}
+
+///|
 pub fn runtime_service_run_path(run_id : String) -> String {
   "/runs/\{run_id}"
 }
@@ -154,6 +168,12 @@ pub(all) struct RuntimeServiceEvent {
 ///|
 pub(all) struct RuntimeServiceEventsResponse {
   events : Array[RuntimeServiceEvent]
+} derive(Debug, ToJson, FromJson)
+
+///|
+pub(all) struct RuntimeServicePreviewStartResponse {
+  status : String
+  message : String?
 } derive(Debug, ToJson, FromJson)
 
 ///|

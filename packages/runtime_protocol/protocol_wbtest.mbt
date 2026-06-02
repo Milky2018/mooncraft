@@ -8,6 +8,7 @@ test "runtime protocol routes are stable" {
       runtime_service_run_path("run-1"),
       runtime_service_run_events_path("run-1", 12),
       runtime_service_preview_path(),
+      runtime_service_preview_start_path(),
     ],
     content=(
       #|[
@@ -17,6 +18,7 @@ test "runtime protocol routes are stable" {
       #|  "/runs/run-1",
       #|  "/runs/run-1/events?after=12",
       #|  "/preview/",
+      #|  "/preview/start",
       #|]
     ),
   )
@@ -32,6 +34,18 @@ test "runtime protocol init state error messages are stable" {
     runtime_service_init_conflict_message(),
     content="Runtime Service is already initialized with different initialization data.",
   )
+}
+
+///|
+test "runtime protocol preview cache policy is stable" {
+  inspect(preview_cache_control("/"), content="no-store")
+  inspect(preview_cache_control("index.html"), content="no-store")
+  inspect(preview_cache_control("/index.html"), content="no-store")
+  inspect(
+    preview_cache_control("/assets/app.0123456789abcdef.js"),
+    content="no-cache",
+  )
+  inspect(preview_cache_control("/assets/app.js"), content="no-cache")
 }
 
 ///|

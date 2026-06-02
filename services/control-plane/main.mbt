@@ -102,6 +102,22 @@ fn asset_response_bytes(
 }
 
 ///|
+fn preview_asset_response_bytes(
+  path : String,
+  content_type : String,
+  content : Bytes,
+) -> @mocket.HttpResponse {
+  @mocket.HttpResponse::new(
+    OK,
+    headers={
+      "Content-Type": content_type,
+      "Cache-Control": @runtime_protocol.preview_cache_control(path),
+    },
+    raw_body=content,
+  )
+}
+
+///|
 fn unauthorized_response() -> @mocket.HttpResponse {
   api_error_response(Unauthorized, Unauthorized, "Sign in to continue.")
 }
@@ -487,37 +503,50 @@ fn proxy_method(http_method_name : String) -> @http.RequestMethod {
 }
 
 ///|
+fn map_header(headers : Map[String, String], name : String) -> String? {
+  match headers.get(name) {
+    Some(value) => Some(value)
+    None => headers.get(name.to_lower())
+  }
+}
+
+///|
+fn copy_headers(
+  source : Map[String, String],
+  names : Array[String],
+) -> Map[String, String] {
+  let out : Map[String, String] = {}
+  for name in names {
+    if map_header(source, name) is Some(value) {
+      out[name] = value
+    }
+  }
+  out
+}
+
+///|
 fn proxy_request_headers(event : @mocket.MocketEvent) -> Map[String, String] {
   let headers : Map[String, String] = {}
-  if event.req.headers.get("Content-Type") is Some(value) {
-    headers["Content-Type"] = value.to_owned()
-  } else if event.req.headers.get("content-type") is Some(value) {
-    headers["Content-Type"] = value.to_owned()
-  }
-  if event.req.headers.get("Accept") is Some(value) {
-    headers["Accept"] = value.to_owned()
-  } else if event.req.headers.get("accept") is Some(value) {
-    headers["Accept"] = value.to_owned()
-  }
-  headers
+  event.req.headers.each((key, value) => {
+    headers[key.to_owned()] = value.to_owned()
+  })
+  copy_headers(headers, [
+    "Content-Type", "Accept", "If-None-Match", "If-Modified-Since",
+  ])
 }
 
 ///|
 fn proxy_response_headers(
   response : UpstreamHttpResponse,
 ) -> Map[StringView, StringView] {
-  let headers : Map[StringView, StringView] = {}
-  if response.headers.get("Content-Type") is Some(value) {
-    headers["Content-Type"] = value
-  } else if response.headers.get("content-type") is Some(value) {
-    headers["Content-Type"] = value
+  let out : Map[StringView, StringView] = {}
+  for
+    key, value in copy_headers(response.headers, [
+      "Content-Type", "Location", "Cache-Control", "ETag", "Last-Modified",
+    ]) {
+    out[key] = value
   }
-  if response.headers.get("Location") is Some(value) {
-    headers["Location"] = value
-  } else if response.headers.get("location") is Some(value) {
-    headers["Location"] = value
-  }
-  headers
+  out
 }
 
 ///|
@@ -595,7 +624,7 @@ async fn project_preview_proxy_response(
     None => return text_response(NotFound, "Project not found.")
   }
   let runtime_preview = match
-    ctx.runtime_gateway.project_runtime_preview(ctx.store, project) {
+    ctx.runtime_gateway.project_runtime_preview_proxy_target(ctx.store, project) {
     Ok(preview) => preview
     Err(message) => {
       let _ = ctx.store.mark_project_preview_unreachable(project.id, message)
@@ -617,15 +646,9 @@ async fn project_preview_proxy_response(
   }
   match proxy_preview_response(event, runtime_preview.upstream_url, remainder) {
     Ok(response) => response
-    Err(_) => {
-      let _ = ctx.store.mark_project_preview_unreachable(
-        project.id,
-        "Preview is not reachable.",
-      )
-      text_response(
-        BadGateway,
-        "The preview is not reachable right now. Retry after the Runtime Service is ready.",
-      )
+    Err(message) => {
+      let _ = ctx.store.mark_project_preview_unreachable(project.id, message)
+      text_response(BadGateway, message)
     }
   }
 }
@@ -665,7 +688,7 @@ async fn preview_asset_response(
   let content = @async_fs.read_file(path).binary() catch {
     _ => return text_response(NotFound, "Not Found")
   }
-  asset_response_bytes(content_type, content)
+  preview_asset_response_bytes(path, content_type, content)
 }
 
 ///|

@@ -264,27 +264,39 @@ async fn runtime_service_get_events(
 }
 
 ///|
-async fn runtime_service_get_preview(
+async fn runtime_service_start_preview(
   endpoint : RuntimeServiceEndpoint,
 ) -> Result[Unit, String] noraise {
+  let headers = runtime_service_json_headers()
   let response = match
-    http_get(
+    http_post(
       runtime_service_api_url(
         endpoint,
-        @runtime_protocol.runtime_service_preview_path(),
+        @runtime_protocol.runtime_service_preview_start_path(),
       ),
+      "",
+      headers~,
     ) {
     Ok(response) => response
-    Err(_) => return Err("Runtime Service preview readiness is not reachable.")
+    Err(_) => return Err("Runtime Service preview start is not reachable.")
   }
-  if http_status_success(response.code) {
+  if !http_status_success(response.code) {
+    return Err(
+      runtime_service_error_message(response, "Runtime Service preview failed."),
+    )
+  }
+  let preview : @runtime_protocol.RuntimeServicePreviewStartResponse = match
+    decode_runtime_service_json(
+      http_response_text(response),
+      "Runtime Service /preview/start",
+    ) {
+    Ok(preview) => preview
+    Err(message) => return Err(message)
+  }
+  if preview.status == @runtime_protocol.runtime_service_health_status_ready() {
     Ok(())
   } else {
-    Err(
-      runtime_service_error_message(
-        response, "Runtime Service preview is not ready.",
-      ),
-    )
+    Err("Runtime Service preview did not return ready status.")
   }
 }
 

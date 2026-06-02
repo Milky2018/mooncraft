@@ -7,6 +7,8 @@ import {
 }
 
 // Values
+pub fn preview_cache_control(String) -> String
+
 pub fn runtime_service_error_message_from_body(String, String) -> String
 
 pub fn runtime_service_event_level_error() -> String
@@ -44,6 +46,8 @@ pub fn runtime_service_not_initialized_message() -> String
 pub fn runtime_service_preview_path() -> String
 
 pub fn runtime_service_preview_path_matches(String) -> Bool
+
+pub fn runtime_service_preview_start_path() -> String
 
 pub fn runtime_service_preview_upstream_path(String) -> String
 
@@ -103,6 +107,11 @@ pub(all) struct RuntimeServiceInitRequest {
 pub(all) struct RuntimeServiceInitResponse {
   status : String
   current_commit_sha : String?
+  message : String?
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RuntimeServicePreviewStartResponse {
+  status : String
   message : String?
 } derive(ToJson, @debug.Debug, @json.FromJson)
 

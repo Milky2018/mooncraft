@@ -122,14 +122,20 @@ paths:
     get:
       summary: Serve the current project preview root.
       responses:
-        "200":
-          description: Preview response. MoonCraft proxies the response body and headers to the user's Preview Origin.
-        "409":
-          $ref: "#/components/responses/RuntimeError"
-        "503":
-          $ref: "#/components/responses/RuntimeError"
         default:
-          description: Runtime preview response or Runtime error.
+          description: Generated-application preview response. MoonCraft proxies the response body and selected headers to the user's Preview Origin and does not interpret the HTTP status as Runtime health.
+  /preview/start:
+    post:
+      summary: Start or verify the current project preview.
+      responses:
+        "200":
+          description: Preview is ready for content proxying.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PreviewStartResponse"
+        default:
+          $ref: "#/components/responses/RuntimeError"
   /preview/{path}:
     get:
       summary: Serve a path below the current project preview subtree.
@@ -141,14 +147,8 @@ paths:
           schema:
             type: string
       responses:
-        "200":
-          description: Preview response. MoonCraft proxies the response body and headers to the user's Preview Origin.
-        "409":
-          $ref: "#/components/responses/RuntimeError"
-        "503":
-          $ref: "#/components/responses/RuntimeError"
         default:
-          description: Runtime preview response or Runtime error.
+          description: Generated-application preview response. MoonCraft proxies the response body and selected headers to the user's Preview Origin and does not interpret the HTTP status as Runtime health.
 components:
   parameters:
     RunId:
@@ -356,6 +356,18 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/RunEvent"
+    PreviewStartResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - ready
+        message:
+          type: string
     RuntimeError:
       type: object
       additionalProperties: false

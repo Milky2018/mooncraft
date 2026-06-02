@@ -132,6 +132,8 @@ fn reset_runtime_service_for_test() -> Unit {
   pending_run.val = None
   preview_pid.val = None
   preview_process.val = None
+  preview_starting.val = false
+  preview_start_result.val = None
   initialized.val = false
   runtime_init_identity.val = None
   runtime_init_commit_sha.val = None
@@ -230,6 +232,105 @@ async test "init rejects different request after ready without mutation" {
     runtime_source.val.map(fn(value) { value.authenticated_url }),
     content="Some(\"https://existing.example/repo.git\")",
   )
+}
+
+///|
+async test "concurrent preview startup requests share one startup attempt" {
+  reset_runtime_service_for_test()
+  let starts = Ref(0)
+  let ready = Ref(false)
+  let release = Ref(false)
+  let release_cond = @cond_var.Cond::new()
+  @async.with_task_group() <| group => {
+    let start = () => {
+      starts.val = starts.val + 1
+      while !release.val {
+        release_cond.wait()
+      }
+      ready.val = true
+      Ok(())
+    }
+    let first = group.spawn(no_wait=true, () => {
+      ensure_preview_single_flight(() => ready.val, start)
+    })
+    while starts.val == 0 {
+      @async.sleep(10)
+    }
+    let second = group.spawn(no_wait=true, () => {
+      ensure_preview_single_flight(() => ready.val, start)
+    })
+    @async.sleep(20)
+    inspect(starts.val, content="1")
+    release.val = true
+    release_cond.broadcast()
+    debug_inspect(first.wait(), content="Ok(())")
+    debug_inspect(second.wait(), content="Ok(())")
+  }
+}
+
+///|
+test "preview cache policy separates html and hashed assets" {
+  inspect(@runtime_protocol.preview_cache_control("/"), content="no-store")
+  inspect(
+    @runtime_protocol.preview_cache_control("/index.html"),
+    content="no-store",
+  )
+  inspect(
+    @runtime_protocol.preview_cache_control("/assets/app.0123456789abcdef.js"),
+    content="no-cache",
+  )
+  inspect(
+    @runtime_protocol.preview_cache_control("/assets/app.js"),
+    content="no-cache",
+  )
+}
+
+///|
+test "preview response headers preserve safe upstream cache validators" {
+  let headers = preview_response_headers("/assets/app.js", {
+    "content-type": "text/javascript",
+    "cache-control": "max-age=60",
+    "etag": "\"abc\"",
+    "last-modified": "Tue, 02 Jun 2026 00:00:00 GMT",
+    "x-hidden": "no",
+  })
+  debug_inspect(
+    headers.get("Content-Type"),
+    content="Some(\"text/javascript\")",
+  )
+  debug_inspect(headers.get("Cache-Control"), content="Some(\"no-cache\")")
+  debug_inspect(headers.get("ETag"), content="Some(\"\\\"abc\\\"\")")
+  debug_inspect(
+    headers.get("Last-Modified"),
+    content="Some(\"Tue, 02 Jun 2026 00:00:00 GMT\")",
+  )
+  debug_inspect(headers.get("x-hidden"), content="None")
+}
+
+///|
+test "preview html cache policy ignores upstream max age" {
+  let headers = preview_response_headers("/", {
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "max-age=3600",
+  })
+  debug_inspect(headers.get("Cache-Control"), content="Some(\"no-store\")")
+}
+
+///|
+test "preview request headers forward cache validators" {
+  let headers = preview_request_headers({
+    "accept": "text/html",
+    "if-none-match": "\"abc\"",
+    "if-modified-since": "Tue, 02 Jun 2026 00:00:00 GMT",
+    "cookie": "secret",
+  })
+  debug_inspect(headers.get("Accept"), content="Some(\"text/html\")")
+  debug_inspect(headers.get("If-None-Match"), content="Some(\"\\\"abc\\\"\")")
+  debug_inspect(
+    headers.get("If-Modified-Since"),
+    content="Some(\"Tue, 02 Jun 2026 00:00:00 GMT\")",
+  )
+  debug_inspect(headers.get("cookie"), content="None")
 }
 
 ///|

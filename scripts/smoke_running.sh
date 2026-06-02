@@ -148,6 +148,27 @@ if curl -fsS -c "$user2_cookie" -b "$user2_cookie" "$base_url/api/projects" | gr
 fi
 
 wait_for_ok "$base_url${preview_url}api/health"
+preview_base="${preview_url%/}"
+preview_root_headers="$tmpdir/preview-root.headers"
+preview_asset_headers="$tmpdir/preview-asset.headers"
+preview_root_html="$(curl -fsS -D "$preview_root_headers" "$base_url$preview_url")"
+if ! printf '%s' "$preview_root_html" | grep -q 'MoonCraft smoke preview'; then
+  echo "Expected preview root HTML to contain the smoke preview marker." >&2
+  exit 1
+fi
+if ! grep -iq '^cache-control: no-store' "$preview_root_headers"; then
+  echo "Expected preview root HTML to use Cache-Control: no-store." >&2
+  exit 1
+fi
+preview_asset_js="$(curl -fsS -D "$preview_asset_headers" "$base_url$preview_base/smoke-app.js")"
+if ! printf '%s' "$preview_asset_js" | grep -q 'mooncraftSmokePreview'; then
+  echo "Expected preview smoke asset to be reachable." >&2
+  exit 1
+fi
+if ! grep -iq '^cache-control: no-cache' "$preview_asset_headers"; then
+  echo "Expected preview smoke asset to use Cache-Control: no-cache." >&2
+  exit 1
+fi
 
 curl -fsS -c "$user1_cookie" -b "$user1_cookie" -X POST "$base_url/api/auth/logout" -d '' >/dev/null
 logged_out_status="$(curl -sS -o /dev/null -w '%{http_code}' -c "$user1_cookie" -b "$user1_cookie" "$base_url/api/projects" || true)"

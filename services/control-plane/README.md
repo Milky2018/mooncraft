@@ -58,7 +58,7 @@ Automated local tests can set `MOONCRAFT_ENABLE_DEV_AUTH=1` to enable `POST /api
 
 Generated previews are Runtime-backed. The control plane never starts `mooncraft-preview.sh` as a child process in the Runtime Protocol v3 path. Set `MOONCRAFT_PREVIEW_ORIGIN_TEMPLATE` to an origin template such as `https://{preview_public_id}.preview.example.com`; if it is not set, local development falls back to `/p/<preview_public_id>/`.
 
-The Runtime Service owns preview readiness and preview content. On every public preview request, MoonCraft ensures the project Runtime Service is healthy and initialized, then proxies the request to the Runtime Service `/preview/` subtree. Successful preview requests refresh the Runtime idle TTL. Runtime preview errors are returned to the user and do not refresh the TTL.
+The Runtime Service owns preview readiness and preview content. On every public preview request, MoonCraft ensures the project Runtime Service is healthy and initialized, calls Runtime Service `POST /preview/start`, then proxies the request to the Runtime Service `/preview/` subtree. Successful preview start refreshes the Runtime idle TTL. Runtime preview start errors are returned to the user and do not refresh the TTL. Generated-application HTTP statuses returned by `/preview/...` are proxied as content and do not change preview health.
 
 Preview process state belongs to the Runtime container, not the control plane. Opening an existing project is a read-only operation; preview requests are the explicit trigger that may restart a stopped Runtime Service. MoonCraft does not run preview audit repair prompts or bounded repair loops in the Runtime Protocol v3 flow.
 
@@ -67,7 +67,7 @@ Preview process state belongs to the Runtime container, not the control plane. O
 Use these repository-level checks:
 
 - `just check-agent-runtime-image` verifies required tools, knowledge assets, and the Runtime Protocol v3 HTTP service inside the runtime image.
-- `just smoke` covers the default project creation, fake builder update, preview rebuild, deletion, and persistence flow.
+- `just smoke` covers the default project creation, fake builder update, preview health, preview root HTML, smoke preview asset loading, preview cache headers, deletion, and persistence flow. It does not run a real agent or browser renderer.
 
 Runtime configuration is stored in admin-managed Runtime Config rows, not process-wide service environment variables or repository-seeded built-ins. Runtime Protocol v3 is the HTTP service contract documented in `docs/runtime-protocol/`; Runtime Config is MoonCraft launcher configuration. The first Runtime Config implementation supports the Docker Runtime Launcher plus semantics-free `env` and named Secret bindings.
 

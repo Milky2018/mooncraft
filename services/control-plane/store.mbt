@@ -67,6 +67,7 @@ struct RuntimeGateway {
 struct RuntimeServiceRecord {
   project_id : String
   container_name : String
+  state : String
   idle_expires_at : String?
 }
 
@@ -1961,6 +1962,7 @@ fn runtime_service_record_from_row(
   {
     project_id: row_text(row, "project_id"),
     container_name: row_text(row, "container_name"),
+    state: row_text(row, "state"),
     idle_expires_at: empty_to_none(row_text(row, "idle_expires_at")),
   }
 }
@@ -2045,6 +2047,7 @@ async fn Store::get_runtime_service_record(
         #|SELECT
         #|  project_id,
         #|  container_name,
+        #|  state,
         #|  idle_expires_at
         #|FROM project_runtime_services
         #|WHERE project_id = ?;
@@ -2065,6 +2068,7 @@ async fn Store::list_expired_ready_runtime_services(
       #|SELECT
       #|  project_id,
       #|  container_name,
+      #|  state,
       #|  idle_expires_at
       #|FROM project_runtime_services
       #|WHERE state = ?

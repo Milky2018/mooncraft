@@ -16,7 +16,8 @@ MoonCraft contract:
 - Serve the user-facing app at `/`.
 - The public preview is served from its own project origin. Build the app as a
   normal root-mounted web app.
-- Prefer a successful `/api/health`; MoonCraft falls back to `/` for previews.
+- Prefer exposing `/api/health`; the Runtime Service uses `/api/health` or `/`
+  when starting and checking the preview.
 - Do not create hidden platform scaffolds.
 - For self-verification, never run `mooncraft-preview.sh` as a foreground
   command that waits forever. If you need to test it, start it in the

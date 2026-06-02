@@ -208,6 +208,27 @@ fn runtime_service_preview_target(
 }
 
 ///|
+fn runtime_service_record_has_fresh_preview(
+  record : RuntimeServiceRecord,
+  project : @sdk.ProjectDetail,
+) -> Bool {
+  match project.preview {
+    Some(preview) if preview.healthy =>
+      if record.state == runtime_service_state_running() {
+        true
+      } else if record.state == runtime_service_state_ready() {
+        match record.idle_expires_at {
+          Some(expires_at) => expires_at > now_string()
+          None => false
+        }
+      } else {
+        false
+      }
+    _ => false
+  }
+}
+
+///|
 async fn docker_command_ok(args : Array[String]) -> Bool noraise {
   run_process_quiet("docker", args) == 0
 }
@@ -524,7 +545,7 @@ async fn RuntimeGateway::project_runtime_preview(
     Ok(endpoint) => endpoint
     Err(message) => return Err(message)
   }
-  match runtime_service_get_preview(endpoint) {
+  match runtime_service_start_preview(endpoint) {
     Ok(_) => {
       let preview = runtime_service_preview_target(project)
       ignore(
@@ -559,6 +580,56 @@ async fn RuntimeGateway::project_runtime_preview(
       }
       Err(message)
     }
+  }
+}
+
+///|
+async fn RuntimeGateway::project_runtime_preview_proxy_target(
+  self : RuntimeGateway,
+  store : Store,
+  project : @sdk.ProjectDetail,
+) -> Result[RuntimeServicePreview, String] noraise {
+  if smoke_runtime_enabled() {
+    return Ok({
+      preview: runtime_service_preview_target(project),
+      upstream_url: "",
+    })
+  }
+  if store.get_runtime_service_record(project.id) is Some(record) &&
+    runtime_service_record_has_fresh_preview(record, project) {
+    let endpoint = match
+      resolved_runtime_service_endpoint(record.container_name) {
+      Ok(endpoint) => endpoint
+      Err(message) => return Err(message)
+    }
+    return Ok({
+      preview: runtime_service_preview_target(project),
+      upstream_url: endpoint.url,
+    })
+  }
+  let endpoint = match
+    self.ensure_project_runtime_service_with_idle_refresh(
+      store,
+      project.id,
+      false,
+    ) {
+    Ok(endpoint) => endpoint
+    Err(message) => return Err(message)
+  }
+  match runtime_service_start_preview(endpoint) {
+    Ok(_) => {
+      let preview = runtime_service_preview_target(project)
+      ignore(
+        store.set_runtime_service_state(
+          project.id,
+          runtime_service_state_ready(),
+          Some(runtime_service_idle_expires_at()),
+        ),
+      )
+      ignore(store.set_project_preview(project.id, preview))
+      Ok({ preview, upstream_url: endpoint.url })
+    }
+    Err(message) => Err(message)
   }
 }
 
