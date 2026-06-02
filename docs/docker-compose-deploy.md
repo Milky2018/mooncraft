@@ -36,13 +36,13 @@ just build-mooncraft-image mooncraft:local linux/amd64
 Make sure the Runtime Protocol v3 image is available. The `just deploy-*` commands below pull it automatically from the image configured in the matching env file.
 
 ```bash
-just build-agent-runtime-image docker.io/moonbitcloud/mooncraft-agent-runtime 0.4.3
+just build-agent-runtime-image docker.io/moonbitcloud/mooncraft-agent-runtime 0.4.4
 
 # Build local architecture-suffixed images for both supported platforms:
-just build-agent-runtime-images docker.io/moonbitcloud/mooncraft-agent-runtime 0.4.3
+just build-agent-runtime-images docker.io/moonbitcloud/mooncraft-agent-runtime 0.4.4
 
 # Publish the shared multi-architecture image:
-just docker-agent-runtime-publish docker.io/moonbitcloud/mooncraft-agent-runtime 0.4.3 linux/amd64,linux/arm64
+just docker-agent-runtime-publish docker.io/moonbitcloud/mooncraft-agent-runtime 0.4.4 linux/amd64,linux/arm64
 
 just deploy-test
 # or
@@ -56,7 +56,7 @@ MoonCraft detects the Docker daemon architecture before each Runtime Service sta
 
 Any other Docker host architecture fails before the Runtime Service starts. The Runtime image must therefore be available for both `linux/amd64` and `linux/arm64`.
 
-`just build-agent-runtime-image` defaults to the current Docker host platform, which is the right choice for local smoke tests. `just build-agent-runtime-images` builds both local platform-specific tags, such as `:0.4.3-amd64` and `:0.4.3-arm64`. Production and shared test deployments should use `just docker-agent-runtime-publish`, which builds and pushes one multi-architecture tag that Docker can resolve by host platform.
+`just build-agent-runtime-image` defaults to the current Docker host platform, which is the right choice for local smoke tests. `just build-agent-runtime-images` builds both local platform-specific tags, such as `:0.4.4-amd64` and `:0.4.4-arm64`. Production and shared test deployments should use `just docker-agent-runtime-publish`, which builds and pushes one multi-architecture tag that Docker can resolve by host platform.
 
 If you are publishing your own Runtime image, push it first and register that image from the admin page. MoonCraft no longer ships built-in Runtime records.
 
@@ -209,7 +209,7 @@ If a Runtime image changes, update that Runtime from the admin page. MoonCraft d
 If a host previously cached the wrong-architecture runtime image, remove and repull it after upgrading:
 
 ```bash
-docker image rm docker.io/moonbitcloud/mooncraft-agent-runtime:0.4.3 || true
+docker image rm docker.io/moonbitcloud/mooncraft-agent-runtime:0.4.4 || true
 just deploy-prod
 ```
 
