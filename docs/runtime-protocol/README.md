@@ -81,7 +81,7 @@ The Project Source Credential is a first-class protocol field, not a Runtime Sec
 
 Runtime Secrets are opaque name/value payloads. MoonCraft does not interpret their names or values. The Runtime Service decides whether a secret is used as an environment value, file content, agent account, API key, or something else.
 
-`POST /init` is retryable while no Run is active. Reinitializing while a Run is active returns `409 Conflict`.
+`POST /init` is idempotent for the same initialization data. The first call initializes the Runtime Service. Repeating the same request after initialization returns `200 OK` with the same init response and must not mutate Runtime Secrets, credentials, repository state, or workspace contents. Repeating `/init` with different initialization data returns `409 Conflict`. Reinitializing while a Run is active also returns `409 Conflict`.
 
 ## Runs
 

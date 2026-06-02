@@ -133,6 +133,8 @@ fn reset_runtime_service_for_test() -> Unit {
   preview_pid.val = None
   preview_process.val = None
   initialized.val = false
+  runtime_init_identity.val = None
+  runtime_init_commit_sha.val = None
   runtime_secrets.clear()
   runtime_source.val = None
 }
@@ -155,6 +157,92 @@ test "exec is rejected before init" {
     reply_text(reply),
     content=(
       #|{"message":"Runtime Service is not initialized. Call /init first."}
+    ),
+  )
+}
+
+///|
+async test "init is idempotent for the same request after ready" {
+  reset_runtime_service_for_test()
+  let request = init_request_for_test()
+  initialized.val = true
+  runtime_init_identity.val = Some(init_request_identity(request))
+  runtime_init_commit_sha.val = Some("abc123")
+  runtime_secrets["KEEP_ME"] = "secret-value"
+  let source : RuntimeSourceState = {
+    repository: request.source_repository,
+    credential: request.source_credential,
+    authenticated_url: "https://existing.example/repo.git",
+  }
+  runtime_source.val = Some(source)
+  let reply = handle_init(request.to_json().stringify())
+  inspect(reply.code, content="200")
+  inspect(
+    reply_text(reply),
+    content=(
+      #|{"status":"ready","current_commit_sha":"abc123","message":"Runtime initialized."}
+    ),
+  )
+  debug_inspect(
+    runtime_secrets.get("KEEP_ME"),
+    content="Some(\"secret-value\")",
+  )
+  debug_inspect(
+    runtime_source.val.map(fn(value) { value.authenticated_url }),
+    content="Some(\"https://existing.example/repo.git\")",
+  )
+}
+
+///|
+async test "init rejects different request after ready without mutation" {
+  reset_runtime_service_for_test()
+  let request = init_request_for_test()
+  let different_request = {
+    ..request,
+    source_repository: {
+      ..request.source_repository,
+      current_commit_sha: Some("def456"),
+    },
+  }
+  initialized.val = true
+  runtime_init_identity.val = Some(init_request_identity(request))
+  runtime_init_commit_sha.val = Some("abc123")
+  runtime_secrets["KEEP_ME"] = "secret-value"
+  let source : RuntimeSourceState = {
+    repository: request.source_repository,
+    credential: request.source_credential,
+    authenticated_url: "https://existing.example/repo.git",
+  }
+  runtime_source.val = Some(source)
+  let reply = handle_init(different_request.to_json().stringify())
+  inspect(reply.code, content="409")
+  inspect(
+    reply_text(reply),
+    content=(
+      #|{"message":"Runtime Service is already initialized with different initialization data."}
+    ),
+  )
+  debug_inspect(
+    runtime_secrets.get("KEEP_ME"),
+    content="Some(\"secret-value\")",
+  )
+  debug_inspect(
+    runtime_source.val.map(fn(value) { value.authenticated_url }),
+    content="Some(\"https://existing.example/repo.git\")",
+  )
+}
+
+///|
+async test "init is rejected while a run is active" {
+  reset_runtime_service_for_test()
+  initialized.val = true
+  active_run_id.val = Some("run-active")
+  let reply = handle_init(init_request_for_test().to_json().stringify())
+  inspect(reply.code, content="409")
+  inspect(
+    reply_text(reply),
+    content=(
+      #|{"message":"Runtime Service cannot be initialized while a run is active."}
     ),
   )
 }

@@ -23,6 +23,18 @@ test "runtime protocol routes are stable" {
 }
 
 ///|
+test "runtime protocol init state error messages are stable" {
+  inspect(
+    runtime_service_not_initialized_message(),
+    content="Runtime Service is not initialized. Call /init first.",
+  )
+  inspect(
+    runtime_service_init_conflict_message(),
+    content="Runtime Service is already initialized with different initialization data.",
+  )
+}
+
+///|
 test "runtime protocol decodes and validates init request" {
   let body =
     #|{

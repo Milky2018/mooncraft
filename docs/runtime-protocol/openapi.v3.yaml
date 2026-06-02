@@ -20,7 +20,14 @@ paths:
           $ref: "#/components/responses/RuntimeError"
   /init:
     post:
-      summary: Initialize or reinitialize a Runtime Service before business operations.
+      summary: Initialize a Runtime Service before business operations.
+      description: >
+        Idempotent for the same initialization data. The first call initializes
+        the Runtime Service. Repeating the same request after initialization
+        returns 200 OK with the same init response and must not mutate secrets,
+        credentials, repository state, or workspace contents. Repeating
+        initialization with different data, or while a run is active, returns
+        409 Conflict.
       requestBody:
         required: true
         content:

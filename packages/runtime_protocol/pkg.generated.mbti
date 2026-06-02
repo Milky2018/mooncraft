@@ -29,6 +29,8 @@ pub fn runtime_service_health_status_ready() -> String
 
 pub fn runtime_service_health_status_running() -> String
 
+pub fn runtime_service_init_conflict_message() -> String
+
 pub fn runtime_service_init_path() -> String
 
 pub fn runtime_service_init_request_from_json_text(String) -> Result[RuntimeServiceInitRequest, String]

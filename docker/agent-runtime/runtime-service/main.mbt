@@ -64,6 +64,12 @@ let preview_process : Ref[@process.Process?] = Ref(None)
 let initialized : Ref[Bool] = Ref(false)
 
 ///|
+let runtime_init_identity : Ref[String?] = Ref(None)
+
+///|
+let runtime_init_commit_sha : Ref[String?] = Ref(None)
+
+///|
 let runtime_secrets : Map[String, String] = {}
 
 ///|
@@ -899,6 +905,13 @@ fn parse_init_request(
 }
 
 ///|
+fn init_request_identity(
+  request : @runtime_protocol.RuntimeServiceInitRequest,
+) -> String {
+  request.to_json().stringify()
+}
+
+///|
 async fn handle_init(body : String) -> HttpReply noraise {
   if active_run_id.val is Some(_) {
     return runtime_error(
@@ -908,6 +921,19 @@ async fn handle_init(body : String) -> HttpReply noraise {
   let request = match parse_init_request(body) {
     Ok(request) => request
     Err(message) => return runtime_error(400, "BadRequest", message)
+  }
+  let identity = init_request_identity(request)
+  if initialized.val {
+    match runtime_init_identity.val {
+      Some(existing) if existing == identity =>
+        return json_reply(200, "OK", init_response(runtime_init_commit_sha.val))
+      _ =>
+        return runtime_error(
+          409,
+          "Conflict",
+          @runtime_protocol.runtime_service_init_conflict_message(),
+        )
+    }
   }
   let authenticated_url = match source_authenticated_url(request) {
     Ok(url) => url
@@ -932,6 +958,8 @@ async fn handle_init(body : String) -> HttpReply noraise {
   }
   runtime_source.val = Some(state)
   initialized.val = true
+  runtime_init_identity.val = Some(identity)
+  runtime_init_commit_sha.val = current_commit
   json_reply(200, "OK", init_response(current_commit))
 }
 

@@ -79,6 +79,11 @@ pub fn runtime_service_not_initialized_message() -> String {
 }
 
 ///|
+pub fn runtime_service_init_conflict_message() -> String {
+  "Runtime Service is already initialized with different initialization data."
+}
+
+///|
 pub(all) struct RuntimeServiceExecRequest {
   run_id : String
   prompt : String
