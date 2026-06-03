@@ -119,6 +119,23 @@
         <li>Enable it when ready. Optionally make it the default for new projects.</li>
       </ol>
 
+      <h2>Runtime Protocol Checklist</h2>
+      <p>
+        The Docker image must start one project-scoped HTTP Runtime Service on port <code>8080</code>. MoonCraft talks to this service, not to an agent CLI directly.
+      </p>
+      <ul>
+        <li><code>GET /health</code>: reports whether the Runtime Service process is reachable.</li>
+        <li><code>POST /init</code>: receives project identity, source repository access, and resolved Secrets. It must be idempotent for the same input.</li>
+        <li><code>POST /exec</code>: starts one asynchronous run for the supplied <code>run_id</code> and prompt.</li>
+        <li><code>GET /runs/{run_id}</code>: returns the authoritative run status: <code>running</code>, <code>succeeded</code>, or <code>failed</code>.</li>
+        <li><code>GET /runs/{run_id}/events?after=N</code>: returns progress messages with ids greater than <code>N</code>.</li>
+        <li><code>POST /serve</code>: starts or verifies the generated app preview. Success means preview is ready.</li>
+        <li><code>GET /preview/...</code>: proxies generated app content after <code>/serve</code> succeeds.</li>
+      </ul>
+      <p>
+        A successful source-modifying run must commit and push the project source before reporting <code>succeeded</code>. The terminal run result must include the final ready commit. Preview content responses, including application 404s, are not run status and do not update project health.
+      </p>
+
       <h2>Official Codex Runtime: Account File</h2>
       <p>
         For the official MoonCraft Codex Runtime, create a Secret whose value is the complete <code>auth.json</code> file, then bind it to <code>CODEX_AUTH_JSON</code>. This name is specific to the official image; it is not part of Runtime Protocol.
